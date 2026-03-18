@@ -10,14 +10,15 @@ import {
   BarChart3, 
   Settings,
   LogOut,
-  Wrench,
   PlayCircle,
   User,
-  Shield,
-  Bell,
+  ChevronRight,
+  Users,
+  Grid,
+  Tags,
+  CheckSquare,
   HelpCircle,
-  Info,
-  ChevronRight
+  Info
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -35,18 +36,27 @@ const menuSections = [
     ]
   },
   {
+    title: 'Master Data Management',
+    items: [
+      { icon: Users, label: 'Technicians', href: '/master-data/technicians', color: 'bg-indigo-500' },
+      { icon: Grid, label: 'Service Bays', href: '/master-data/bays', color: 'bg-cyan-500' },
+      { icon: Tags, label: 'Repair Categories', href: '/master-data/categories', color: 'bg-purple-500' },
+      { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists', color: 'bg-rose-500' },
+    ]
+  },
+  {
     title: 'Analytics & Management',
     items: [
-      { icon: BarChart3, label: 'Reports', href: '/reports', color: 'bg-cyan-500' },
-      { icon: User, label: 'My Profile', href: '/profile', color: 'bg-purple-500' },
-      { icon: Settings, label: 'Settings', href: '/profile', color: 'bg-slate-500' },
+      { icon: BarChart3, label: 'Reports', href: '/reports', color: 'bg-slate-500' },
+      { icon: User, label: 'My Profile', href: '/profile', color: 'bg-pink-500' },
+      { icon: Settings, label: 'Settings', href: '/profile', color: 'bg-slate-400' },
     ]
   },
   {
     title: 'Support',
     items: [
-      { icon: HelpCircle, label: 'Help Center', href: '#', color: 'bg-pink-500' },
-      { icon: Info, label: 'About ServiceBay', href: '#', color: 'bg-indigo-500' },
+      { icon: HelpCircle, label: 'Help Center', href: '#', color: 'bg-emerald-500' },
+      { icon: Info, label: 'About ServiceBay', href: '#', color: 'bg-blue-400' },
     ]
   }
 ];
