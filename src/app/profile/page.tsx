@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { 
   Card, 
@@ -27,6 +27,25 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
 export default function ProfilePage() {
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Sync UI with actual document state
+    const isDark = document.documentElement.classList.contains('dark');
+    setIsDarkMode(isDark);
+  }, []);
+
+  const handleToggleDarkMode = (checked: boolean) => {
+    setIsDarkMode(checked);
+    if (checked) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
+
   const handleLogout = () => {
     // Basic redirect for UI prototype
     window.location.href = '/login';
@@ -37,11 +56,11 @@ export default function ProfilePage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex flex-col items-center text-center space-y-3 py-6">
           <div className="relative">
-            <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
+            <Avatar className="h-24 w-24 border-4 border-white shadow-xl dark:border-slate-800">
               <AvatarImage src="https://picsum.photos/seed/user/96/96" />
               <AvatarFallback className="text-2xl">FO</AvatarFallback>
             </Avatar>
-            <div className="absolute bottom-1 right-1 p-1.5 bg-accent rounded-full border-2 border-white shadow-sm">
+            <div className="absolute bottom-1 right-1 p-1.5 bg-accent rounded-full border-2 border-white shadow-sm dark:border-slate-800">
               <Shield className="w-4 h-4 text-primary" />
             </div>
           </div>
@@ -58,7 +77,7 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg text-primary">
+                <div className="p-2 bg-blue-50 rounded-lg text-primary dark:bg-blue-900/30 dark:text-blue-400">
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
@@ -70,7 +89,7 @@ export default function ProfilePage() {
             </div>
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-50 rounded-lg text-orange-600">
+                <div className="p-2 bg-orange-50 rounded-lg text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
                   <Briefcase className="w-4 h-4" />
                 </div>
                 <div>
@@ -99,7 +118,11 @@ export default function ProfilePage() {
                 <Moon className="w-4 h-4 text-muted-foreground" />
                 <Label htmlFor="darkmode">Dark Mode</Label>
               </div>
-              <Switch id="darkmode" />
+              <Switch 
+                id="darkmode" 
+                checked={isDarkMode} 
+                onCheckedChange={handleToggleDarkMode}
+              />
             </div>
           </CardContent>
         </Card>
