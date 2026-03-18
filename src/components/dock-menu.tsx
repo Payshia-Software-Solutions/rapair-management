@@ -7,7 +7,7 @@ import {
   LayoutDashboard, 
   ClipboardList, 
   PlusCircle, 
-  BarChart3, 
+  User, 
   PlayCircle 
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,7 @@ const dockItems = [
   { icon: ClipboardList, label: 'Queue', href: '/orders' },
   { icon: PlusCircle, label: 'New', href: '/orders/new', primary: true },
   { icon: PlayCircle, label: 'Active', href: '/orders/active' },
-  { icon: BarChart3, label: 'Stats', href: '/reports' },
+  { icon: User, label: 'Profile', href: '/profile' },
 ];
 
 export function DockMenu() {

@@ -18,7 +18,6 @@ import {
 export default function LoginPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic will be added later
     window.location.href = '/dashboard';
   };
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   ClipboardList, 
@@ -13,7 +13,8 @@ import {
   Wrench,
   Search,
   Bell,
-  PlayCircle
+  PlayCircle,
+  User
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,11 @@ const navItems = [
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    router.push('/login');
+  };
 
   return (
     <SidebarProvider>
@@ -78,12 +84,32 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+              <SidebarMenuItem>
+                <SidebarMenuButton 
+                  asChild 
+                  isActive={pathname === '/profile'}
+                  tooltip="Profile"
+                  className={cn(
+                    "transition-all duration-200 py-6 sm:py-2",
+                    pathname === '/profile' ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
+                  )}
+                >
+                  <Link href="/profile">
+                    <User className="w-5 h-5" />
+                    <span className="text-base sm:text-sm">Profile</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-sidebar-border">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Logout" className="text-white/70 hover:text-white py-6 sm:py-2">
+                <SidebarMenuButton 
+                  tooltip="Logout" 
+                  className="text-white/70 hover:text-white py-6 sm:py-2"
+                  onClick={handleLogout}
+                >
                   <LogOut className="w-5 h-5" />
                   <span className="text-base sm:text-sm">Logout</span>
                 </SidebarMenuButton>
@@ -113,10 +139,12 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-background" />
               </Button>
-              <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-primary/10">
-                <AvatarImage src="https://picsum.photos/seed/user/32/32" />
-                <AvatarFallback>FO</AvatarFallback>
-              </Avatar>
+              <Link href="/profile">
+                <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-primary/10 cursor-pointer hover:border-accent transition-colors">
+                  <AvatarImage src="https://picsum.photos/seed/user/32/32" />
+                  <AvatarFallback>FO</AvatarFallback>
+                </Avatar>
+              </Link>
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">

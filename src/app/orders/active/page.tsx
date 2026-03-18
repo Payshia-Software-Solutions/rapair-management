@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { INITIAL_REPAIR_ORDERS } from '@/lib/mock-data';
-import { RepairOrder, Priority, RepairStatus } from '@/lib/types';
+import { RepairOrder, Priority, RepairStatus, REPAIR_CATEGORIES, CategoryCompletion } from '@/lib/types';
 import { 
   Card, 
   CardContent, 
@@ -14,21 +14,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from '@/components/ui/table';
-import { 
   Clock, 
   Wrench, 
   CheckCircle2, 
   MapPin,
   Car,
   Timer,
-  AlertCircle
+  AlertCircle,
+  Plus,
+  X
 } from 'lucide-react';
 import {
   Dialog,
@@ -43,6 +37,8 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 const priorityColors: Record<Priority, string> = {
   'Emergency': 'bg-red-500',
@@ -58,10 +54,31 @@ export default function ActiveJobsPage() {
   );
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  
+  // Completion form state
+  const [completedCats, setCompletedCats] = useState<CategoryCompletion[]>([]);
 
   const handleOpenComplete = (order: RepairOrder) => {
     setSelectedOrder(order);
+    setCompletedCats(order.categories.map(cat => ({ name: cat, comment: '' })));
     setIsCompleteDialogOpen(true);
+  };
+
+  const toggleCategory = (catName: string) => {
+    setCompletedCats(prev => {
+      const exists = prev.find(c => c.name === catName);
+      if (exists) {
+        return prev.filter(c => c.name !== catName);
+      } else {
+        return [...prev, { name: catName, comment: '' }];
+      }
+    });
+  };
+
+  const updateCategoryComment = (catName: string, comment: string) => {
+    setCompletedCats(prev => prev.map(c => 
+      c.name === catName ? { ...c, comment } : c
+    ));
   };
 
   const handleCompleteSubmit = () => {
@@ -176,29 +193,79 @@ export default function ActiveJobsPage() {
       </div>
 
       <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-md rounded-xl">
-          <DialogHeader>
+        <DialogContent className="w-[95vw] sm:max-w-xl rounded-xl max-h-[90vh] flex flex-col p-0">
+          <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle2 className="w-5 h-5" />
               Finalize Repair
             </DialogTitle>
             <DialogDescription>
-              Confirm completion for {selectedOrder?.vehicleId}. This will move the vehicle to the ready-for-pickup state.
+              Confirm completion for {selectedOrder?.vehicleId}. Verify categories and add notes.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Final Technician Notes</Label>
-              <Input placeholder="E.g. Verified fix, test drove 5km..." />
+          
+          <ScrollArea className="flex-1 px-6 py-2">
+            <div className="space-y-6 pb-6">
+              <div className="space-y-4">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Verification Categories</Label>
+                <div className="grid grid-cols-1 gap-3">
+                  {REPAIR_CATEGORIES.map((cat) => {
+                    const isSelected = completedCats.some(c => c.name === cat);
+                    const selectedCat = completedCats.find(c => c.name === cat);
+                    
+                    return (
+                      <div key={cat} className={cn(
+                        "p-4 rounded-xl border transition-all",
+                        isSelected ? "bg-primary/5 border-primary shadow-sm" : "bg-card border-border"
+                      )}>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <Checkbox 
+                              id={`cat-${cat}`} 
+                              checked={isSelected}
+                              onCheckedChange={() => toggleCategory(cat)}
+                            />
+                            <Label htmlFor={`cat-${cat}`} className="font-bold cursor-pointer">{cat}</Label>
+                          </div>
+                          {isSelected && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                        </div>
+                        {isSelected && (
+                          <div className="mt-2 animate-in slide-in-from-top-2">
+                            <Input 
+                              placeholder="Optional category-specific comments..." 
+                              className="text-xs bg-white/50"
+                              value={selectedCat?.comment || ''}
+                              onChange={(e) => updateCategoryComment(cat, e.target.value)}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Global Technician Notes</Label>
+                <Input placeholder="E.g. Verified fix, test drove 5km..." className="h-12" />
+              </div>
+              
+              <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-100">
+                <Timer className="w-4 h-4 text-green-600" />
+                <span className="text-xs text-green-700 font-medium">Actual repair time logged: 4h 15m</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg border border-green-100">
-              <Timer className="w-4 h-4 text-green-600" />
-              <span className="text-xs text-green-700">Actual repair time: 4h 15m</span>
-            </div>
-          </div>
-          <DialogFooter className="flex-row gap-2">
+          </ScrollArea>
+
+          <DialogFooter className="p-6 pt-2 border-t flex-row gap-2 bg-muted/20">
             <Button variant="outline" className="flex-1" onClick={() => setIsCompleteDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCompleteSubmit} className="flex-1 bg-green-600 hover:bg-green-700">Complete Job</Button>
+            <Button 
+              onClick={handleCompleteSubmit} 
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              disabled={completedCats.length === 0}
+            >
+              Complete Job
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
