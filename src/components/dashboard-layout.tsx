@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -33,6 +33,7 @@ import {
   SidebarInset
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
+import { Preloader } from "@/components/ui/preloader";
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -45,6 +46,15 @@ const navItems = [
 export function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isNavigating, setIsNavigating] = useState(false);
+
+  useEffect(() => {
+    setIsNavigating(true);
+    const timer = setTimeout(() => {
+      setIsNavigating(false);
+    }, 600); // Brief transition duration to show the preloader animation
+    return () => clearTimeout(timer);
+  }, [pathname]);
 
   const handleLogout = () => {
     router.push('/login');
@@ -52,6 +62,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
+      {isNavigating && <Preloader />}
       <div className="flex min-h-screen w-full bg-background relative">
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
