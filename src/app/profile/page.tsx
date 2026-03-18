@@ -21,18 +21,34 @@ import {
   Moon,
   ChevronRight,
   Mail,
-  Briefcase
+  Briefcase,
+  UserCircle
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { UserRole } from '@/lib/types';
+import { MOCK_USER } from '@/lib/mock-data';
+import { useToast } from '@/hooks/use-toast';
 
 export default function ProfilePage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('Admin');
+  const { toast } = useToast();
 
   useEffect(() => {
     // Sync UI with actual document state
     const isDark = document.documentElement.classList.contains('dark');
     setIsDarkMode(isDark);
+
+    const savedRole = localStorage.getItem('userRole') as UserRole;
+    setUserRole(savedRole || MOCK_USER.role);
   }, []);
 
   const handleToggleDarkMode = (checked: boolean) => {
@@ -44,6 +60,17 @@ export default function ProfilePage() {
       document.documentElement.classList.remove('dark');
       localStorage.setItem('theme', 'light');
     }
+  };
+
+  const handleRoleChange = (role: string) => {
+    setUserRole(role as UserRole);
+    localStorage.setItem('userRole', role);
+    toast({
+      title: "Role Updated",
+      description: `Testing as ${role} now.`
+    });
+    // Force reload to apply permissions globally in prototype
+    setTimeout(() => window.location.reload(), 500);
   };
 
   const handleLogout = () => {
@@ -65,10 +92,32 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">First Officer</h1>
-            <p className="text-muted-foreground text-sm font-medium">Workshop Manager • Bay Area Center</p>
+            <h1 className="text-2xl font-bold tracking-tight">{MOCK_USER.name}</h1>
+            <p className="text-muted-foreground text-sm font-medium">{userRole} • Bay Area Center</p>
           </div>
         </div>
+
+        {/* Prototype: Role Switcher for Testing */}
+        <Card className="border-2 border-dashed border-primary/20 shadow-none bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <UserCircle className="w-4 h-4 text-primary" />
+              Test Privilege Level (Prototype Only)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Select value={userRole} onValueChange={handleRoleChange}>
+              <SelectTrigger className="bg-white dark:bg-slate-900">
+                <SelectValue placeholder="Select role to test" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Admin">Admin (Full Access + Delete)</SelectItem>
+                <SelectItem value="Workshop Officer">Workshop Officer (Assign + Complete)</SelectItem>
+                <SelectItem value="Factory Officer">Factory Officer (Edit Orders - Pre-Progress)</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
 
         <Card className="border-none shadow-md overflow-hidden">
           <CardHeader className="pb-2">
@@ -82,7 +131,7 @@ export default function ProfilePage() {
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Email</p>
-                  <p className="text-sm font-semibold">officer@servicebay.com</p>
+                  <p className="text-sm font-semibold">{MOCK_USER.email}</p>
                 </div>
               </div>
               <Button variant="ghost" size="sm" className="text-primary font-bold">Edit</Button>

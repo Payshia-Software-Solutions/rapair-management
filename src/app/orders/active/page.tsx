@@ -1,10 +1,10 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { INITIAL_REPAIR_ORDERS } from '@/lib/mock-data';
-import { RepairOrder, Priority, RepairStatus, REPAIR_CATEGORIES, CategoryCompletion } from '@/lib/types';
+import { INITIAL_REPAIR_ORDERS, MOCK_USER } from '@/lib/mock-data';
+import { RepairOrder, Priority, RepairStatus, REPAIR_CATEGORIES, CategoryCompletion, UserRole } from '@/lib/types';
 import { 
   Card, 
   CardContent, 
@@ -53,9 +53,16 @@ const priorityColors: Record<Priority, string> = {
 export default function ActiveJobsPage() {
   const router = useRouter();
   const { toast } = useToast();
+  const [userRole, setUserRole] = useState<UserRole>('Admin');
   const [orders, setOrders] = useState<RepairOrder[]>(
     INITIAL_REPAIR_ORDERS.filter(o => o.status === 'In Progress')
   );
+  
+  useEffect(() => {
+    const savedRole = localStorage.getItem('userRole') as UserRole;
+    setUserRole(savedRole || MOCK_USER.role);
+  }, []);
+
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   
@@ -96,6 +103,9 @@ export default function ActiveJobsPage() {
     });
     setIsCompleteDialogOpen(false);
   };
+
+  // Permission Checks: Admin and Workshop Officer can complete
+  const canComplete = userRole === 'Admin' || userRole === 'Workshop Officer';
 
   return (
     <DashboardLayout>
@@ -188,13 +198,15 @@ export default function ActiveJobsPage() {
                   </p>
                 </div>
 
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white gap-2"
-                  onClick={() => handleOpenComplete(order)}
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Mark as Complete
-                </Button>
+                {canComplete && (
+                  <Button 
+                    className="w-full bg-green-600 hover:bg-green-700 text-white gap-2"
+                    onClick={() => handleOpenComplete(order)}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Mark as Complete
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))

@@ -1,4 +1,4 @@
-import { RepairOrder } from './types';
+import { RepairOrder, UserRole } from './types';
 
 export const INITIAL_REPAIR_ORDERS: RepairOrder[] = [
   {
@@ -56,3 +56,10 @@ export const TECHNICIANS = [
 export const BAYS: string[] = [
   'Bay 1', 'Bay 2', 'Bay 3', 'Bay 4', 'Bay 5', 'Bay 6', 'Bay 7', 'Bay 8', 'Bay 9', 'Outside'
 ];
+
+// Mock current user session for prototype
+export const MOCK_USER = {
+  name: 'First Officer',
+  role: 'Admin' as UserRole,
+  email: 'officer@servicebay.com'
+};

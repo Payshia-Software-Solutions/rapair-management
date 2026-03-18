@@ -1,9 +1,10 @@
 "use client"
 
-import React, { use } from 'react';
+import React, { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { INITIAL_REPAIR_ORDERS } from '@/lib/mock-data';
+import { INITIAL_REPAIR_ORDERS, MOCK_USER } from '@/lib/mock-data';
+import { UserRole } from '@/lib/types';
 import { 
   Card, 
   CardContent, 
@@ -48,7 +49,13 @@ const statusColors = {
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id } = use(params);
+  const [userRole, setUserRole] = useState<UserRole>('Admin');
   
+  useEffect(() => {
+    const savedRole = localStorage.getItem('userRole') as UserRole;
+    setUserRole(savedRole || MOCK_USER.role);
+  }, []);
+
   // Find the order from mock data
   const order = INITIAL_REPAIR_ORDERS.find(o => o.id === id);
 
@@ -66,6 +73,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </DashboardLayout>
     );
   }
+
+  // Permission Checks: 
+  // Factory Officer can edit UNTIL In Progress
+  // Admin can always edit
+  const canEdit = userRole === 'Admin' || (userRole === 'Factory Officer' && order.status === 'Pending');
 
   return (
     <DashboardLayout>
@@ -89,7 +101,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               <Share2 className="w-4 h-4" />
               Share
             </Button>
-            <Button size="sm" className="bg-primary">Edit Order</Button>
+            {canEdit && <Button size="sm" className="bg-primary">Edit Order</Button>}
           </div>
         </div>
 

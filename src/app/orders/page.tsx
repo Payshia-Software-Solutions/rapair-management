@@ -1,11 +1,11 @@
 "use client"
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS } from '@/lib/mock-data';
-import { RepairOrder, Priority, RepairStatus, BayLocation } from '@/lib/types';
+import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS, MOCK_USER } from '@/lib/mock-data';
+import { RepairOrder, Priority, RepairStatus, BayLocation, UserRole } from '@/lib/types';
 import { 
   Card, 
   CardContent, 
@@ -42,7 +42,8 @@ import {
   ExternalLink,
   UserPlus,
   MapPin,
-  Car
+  Car,
+  Trash2
 } from 'lucide-react';
 import {
   Dialog,
@@ -84,6 +85,13 @@ export default function OrderQueuePage() {
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [userRole, setUserRole] = useState<UserRole>('Admin');
+
+  useEffect(() => {
+    // In a real app, this would come from an Auth Context
+    const savedRole = localStorage.getItem('userRole') as UserRole;
+    setUserRole(savedRole || MOCK_USER.role);
+  }, []);
 
   const [assignment, setAssignment] = useState({
     bay: '' as BayLocation,
@@ -148,6 +156,15 @@ export default function OrderQueuePage() {
     setIsCompleteDialogOpen(false);
   };
 
+  const handleDeleteOrder = (orderId: string) => {
+    setOrders(prev => prev.filter(o => o.id !== orderId));
+    toast({
+      title: "Order Deleted",
+      description: `Order ${orderId} has been removed from the system.`,
+      variant: "destructive"
+    });
+  };
+
   const sortedOrders = [...orders].sort((a, b) => {
     const priorityWeight = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
     if (priorityWeight[b.priority] !== priorityWeight[a.priority]) {
@@ -155,6 +172,11 @@ export default function OrderQueuePage() {
     }
     return new Date(a.expectedTime).getTime() - new Date(b.expectedTime).getTime();
   });
+
+  // Permission Checks
+  const canAssign = userRole === 'Admin' || userRole === 'Workshop Officer';
+  const canComplete = userRole === 'Admin' || userRole === 'Workshop Officer';
+  const canDelete = userRole === 'Admin';
 
   return (
     <DashboardLayout>
@@ -251,14 +273,18 @@ export default function OrderQueuePage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end" className="w-48">
                         <DropdownMenuLabel>Workshop Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => handleOpenAssign(order)}>
-                          <UserPlus className="w-4 h-4 mr-2" />
-                          Assign Bay/Tech
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleOpenComplete(order)} disabled={order.status === 'Completed'}>
-                          <CheckCircle2 className="w-4 h-4 mr-2" />
-                          Complete Job
-                        </DropdownMenuItem>
+                        {canAssign && (
+                          <DropdownMenuItem onClick={() => handleOpenAssign(order)}>
+                            <UserPlus className="w-4 h-4 mr-2" />
+                            Assign Bay/Tech
+                          </DropdownMenuItem>
+                        )}
+                        {canComplete && (
+                          <DropdownMenuItem onClick={() => handleOpenComplete(order)} disabled={order.status === 'Completed'}>
+                            <CheckCircle2 className="w-4 h-4 mr-2" />
+                            Complete Job
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem 
                           className="text-primary font-medium cursor-pointer"
@@ -267,6 +293,18 @@ export default function OrderQueuePage() {
                           <ExternalLink className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
+                        {canDelete && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              className="text-destructive font-medium cursor-pointer"
+                              onClick={() => handleDeleteOrder(order.id)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Delete Order
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -322,14 +360,16 @@ export default function OrderQueuePage() {
               </div>
 
               <div className="flex gap-2">
-                <Button 
-                  size="sm" 
-                  className="flex-1 gap-2" 
-                  onClick={() => handleOpenAssign(order)}
-                >
-                  <UserPlus className="w-4 h-4" />
-                  Assign
-                </Button>
+                {canAssign && (
+                  <Button 
+                    size="sm" 
+                    className="flex-1 gap-2" 
+                    onClick={() => handleOpenAssign(order)}
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Assign
+                  </Button>
+                )}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="px-2">
@@ -344,10 +384,21 @@ export default function OrderQueuePage() {
                       <ExternalLink className="w-4 h-4 mr-2" />
                       View Details
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleOpenComplete(order)} disabled={order.status === 'Completed'}>
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Complete Job
-                    </DropdownMenuItem>
+                    {canComplete && (
+                      <DropdownMenuItem onClick={() => handleOpenComplete(order)} disabled={order.status === 'Completed'}>
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Complete Job
+                      </DropdownMenuItem>
+                    )}
+                    {canDelete && (
+                      <DropdownMenuItem 
+                        className="text-destructive font-medium"
+                        onClick={() => handleDeleteOrder(order.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Order
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
