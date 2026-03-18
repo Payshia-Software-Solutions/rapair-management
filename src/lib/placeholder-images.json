@@ -1,3 +1,16 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "workshop-hero",
+      "description": "A modern vehicle repair workshop with multiple bays",
+      "imageUrl": "https://picsum.photos/seed/servicebay1/1200/600",
+      "imageHint": "workshop vehicle"
+    },
+    {
+      "id": "mechanic-working",
+      "description": "Technician working on a car engine",
+      "imageUrl": "https://picsum.photos/seed/servicebay2/600/400",
+      "imageHint": "mechanic engine"
+    }
+  ]
 }
