@@ -31,6 +31,7 @@ import {
   SidebarTrigger,
   SidebarInset
 } from '@/components/ui/sidebar';
+import { DockMenu } from './dock-menu';
 
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
@@ -45,8 +46,8 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background">
-        <Sidebar variant="sidebar" collapsible="icon" className="border-r-0">
+      <div className="flex min-h-screen w-full bg-background relative">
+        <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
             <div className="flex items-center gap-2 overflow-hidden">
               <div className="p-1.5 bg-accent rounded-lg">
@@ -94,7 +95,10 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
         <SidebarInset className="flex-1 flex flex-col min-w-0">
           <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
             <div className="flex items-center gap-2 sm:gap-4">
-              <SidebarTrigger className="h-10 w-10" />
+              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
+                <Wrench className="w-4 h-4 text-primary" />
+              </div>
+              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
               <div className="relative w-48 md:w-96 hidden sm:block">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input 
@@ -102,6 +106,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                   className="pl-9 bg-muted/30 border-none ring-offset-background"
                 />
               </div>
+              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               <Button variant="ghost" size="icon" className="relative h-10 w-10">
@@ -114,12 +119,14 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
               </Avatar>
             </div>
           </header>
-          <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
+          <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">
             <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
               {children}
             </div>
           </main>
         </SidebarInset>
+
+        <DockMenu />
       </div>
     </SidebarProvider>
   );
