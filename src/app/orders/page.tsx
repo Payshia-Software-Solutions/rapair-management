@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS } from '@/lib/mock-data';
 import { RepairOrder, Priority, RepairStatus, BayLocation } from '@/lib/types';
@@ -76,6 +78,7 @@ const statusColors: Record<RepairStatus, string> = {
 };
 
 export default function OrderQueuePage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [orders, setOrders] = useState<RepairOrder[]>(INITIAL_REPAIR_ORDERS);
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
@@ -191,7 +194,11 @@ export default function OrderQueuePage() {
             <TableBody>
               {sortedOrders.map((order) => (
                 <TableRow key={order.id} className="hover:bg-muted/10 transition-colors">
-                  <TableCell className="font-mono text-xs font-bold">{order.id}</TableCell>
+                  <TableCell className="font-mono text-xs font-bold">
+                    <Link href={`/orders/${order.id}`} className="hover:text-primary transition-colors">
+                      {order.id}
+                    </Link>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-bold">{order.vehicleId}</span>
@@ -253,7 +260,10 @@ export default function OrderQueuePage() {
                           Complete Job
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="text-primary font-medium">
+                        <DropdownMenuItem 
+                          className="text-primary font-medium cursor-pointer"
+                          onClick={() => router.push(`/orders/${order.id}`)}
+                        >
                           <ExternalLink className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
@@ -327,13 +337,16 @@ export default function OrderQueuePage() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      className="text-primary font-medium"
+                      onClick={() => router.push(`/orders/${order.id}`)}
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      View Details
+                    </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleOpenComplete(order)} disabled={order.status === 'Completed'}>
                       <CheckCircle2 className="w-4 h-4 mr-2" />
                       Complete Job
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-primary font-medium">
-                      <ExternalLink className="w-4 h-4 mr-2" />
-                      View Details
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

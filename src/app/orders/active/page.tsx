@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
 import { INITIAL_REPAIR_ORDERS } from '@/lib/mock-data';
 import { RepairOrder, Priority, RepairStatus, REPAIR_CATEGORIES, CategoryCompletion } from '@/lib/types';
@@ -22,7 +23,8 @@ import {
   Timer,
   AlertCircle,
   Plus,
-  X
+  X,
+  ExternalLink
 } from 'lucide-react';
 import {
   Dialog,
@@ -39,6 +41,7 @@ import { format } from 'date-fns';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 
 const priorityColors: Record<Priority, string> = {
   'Emergency': 'bg-red-500',
@@ -48,6 +51,7 @@ const priorityColors: Record<Priority, string> = {
 };
 
 export default function ActiveJobsPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [orders, setOrders] = useState<RepairOrder[]>(
     INITIAL_REPAIR_ORDERS.filter(o => o.status === 'In Progress')
@@ -135,10 +139,15 @@ export default function ActiveJobsPage() {
                       <Car className="w-6 h-6 text-primary" />
                     </div>
                     <div>
-                      <h3 className="font-extrabold text-lg">{order.vehicleId}</h3>
+                      <h3 className="font-extrabold text-lg cursor-pointer hover:text-primary transition-colors" onClick={() => router.push(`/orders/${order.id}`)}>
+                        {order.vehicleId}
+                      </h3>
                       <p className="text-[10px] text-muted-foreground font-mono">{order.id}</p>
                     </div>
                   </div>
+                  <Button variant="ghost" size="icon" onClick={() => router.push(`/orders/${order.id}`)} className="h-8 w-8">
+                    <ExternalLink className="w-4 h-4 text-muted-foreground" />
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent className="p-4 space-y-4">
