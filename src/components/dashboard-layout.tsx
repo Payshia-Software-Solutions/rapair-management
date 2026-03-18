@@ -13,7 +13,7 @@ import {
   Wrench,
   Search,
   Bell,
-  Menu
+  PlayCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import {
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
   { icon: ClipboardList, label: 'Order Queue', href: '/orders' },
+  { icon: PlayCircle, label: 'Active Jobs', href: '/orders/active' },
   { icon: PlusCircle, label: 'Create Order', href: '/orders/new' },
   { icon: BarChart3, label: 'Reports', href: '/reports' },
 ];
