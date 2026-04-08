@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS, MOCK_USER } from '@/lib/mock-data';
+import { fetchOrders, fetchBays, fetchTechnicians } from '@/lib/api';
+// import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS, MOCK_USER } from '@/lib/mock-data';
+
 import { RepairOrder, Priority, RepairStatus, BayLocation, UserRole } from '@/lib/types';
 import { 
   Card, 
@@ -43,8 +45,11 @@ import {
   UserPlus,
   MapPin,
   Car,
-  Trash2
+
+  Trash2,
+  Loader2
 } from 'lucide-react';
+
 import {
   Dialog,
   DialogContent,
@@ -75,22 +80,49 @@ const priorityColors: Record<Priority, string> = {
 const statusColors: Record<RepairStatus, string> = {
   'Pending': 'bg-slate-100 text-slate-700',
   'In Progress': 'bg-blue-100 text-primary',
-  'Completed': 'bg-green-100 text-green-700'
+  'Completed': 'bg-green-100 text-green-700',
+  'Cancelled': 'bg-red-100 text-red-700'
 };
 
 export default function OrderQueuePage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [orders, setOrders] = useState<RepairOrder[]>(INITIAL_REPAIR_ORDERS);
+  const [orders, setOrders] = useState<RepairOrder[]>([]);
+  const [baysList, setBaysList] = useState<{id: number, name: string}[]>([]);
+  const [techsList, setTechsList] = useState<{id: number, name: string}[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<RepairOrder | null>(null);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('Admin');
 
   useEffect(() => {
-    // In a real app, this would come from an Auth Context
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [ordersData, baysData, techsData] = await Promise.all([
+          fetchOrders(),
+          fetchBays(),
+          fetchTechnicians()
+        ]);
+        setOrders(ordersData);
+        setBaysList(baysData);
+        setTechsList(techsData);
+      } catch (error) {
+        toast({
+          title: "Error loading data",
+          description: (error as Error).message,
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+
     const savedRole = localStorage.getItem('userRole') as UserRole;
-    setUserRole(savedRole || MOCK_USER.role);
+    setUserRole(savedRole || 'Admin');
   }, []);
 
   const [assignment, setAssignment] = useState({
@@ -178,7 +210,18 @@ export default function OrderQueuePage() {
   const canComplete = userRole === 'Admin' || userRole === 'Workshop Officer';
   const canDelete = userRole === 'Admin';
 
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Loader2 className="w-12 h-12 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    );
+  }
+
   return (
+
     <DashboardLayout>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -224,7 +267,7 @@ export default function OrderQueuePage() {
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-bold">{order.vehicleId}</span>
-                      <span className="text-xs text-muted-foreground">{order.mileage.toLocaleString()} km</span>
+                      <span className="text-xs text-muted-foreground">{Number(order.mileage ?? 0).toLocaleString()} km</span>
                     </div>
                   </TableCell>
                   <TableCell className="max-w-[200px] truncate" title={order.problemDescription}>
@@ -333,7 +376,7 @@ export default function OrderQueuePage() {
                   </div>
                   <div>
                     <h3 className="font-bold text-lg">{order.vehicleId}</h3>
-                    <p className="text-xs text-muted-foreground">{order.mileage.toLocaleString()} km</p>
+                    <p className="text-xs text-muted-foreground">{Number(order.mileage ?? 0).toLocaleString()} km</p>
                   </div>
                 </div>
                 <Badge className={`${priorityColors[order.priority]} border-none text-white text-[10px]`}>
@@ -430,7 +473,7 @@ export default function OrderQueuePage() {
                   <SelectValue placeholder="Select bay" />
                 </SelectTrigger>
                 <SelectContent>
-                  {BAYS.map(bay => <SelectItem key={bay} value={bay}>{bay}</SelectItem>)}
+                  {baysList.map(bay => <SelectItem key={bay.id} value={bay.name}>{bay.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -444,7 +487,7 @@ export default function OrderQueuePage() {
                   <SelectValue placeholder="Select technician" />
                 </SelectTrigger>
                 <SelectContent>
-                  {TECHNICIANS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {techsList.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

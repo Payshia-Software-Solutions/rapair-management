@@ -1,11 +1,13 @@
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Wrench, Mail, Lock, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/hooks/use-toast';
 import { 
   Card, 
   CardContent, 
@@ -16,9 +18,39 @@ import {
 } from '@/components/ui/card';
 
 export default function LoginPage() {
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [email, setEmail] = useState('admin@local');
+  const [password, setPassword] = useState('admin123');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    window.location.href = '/dashboard';
+    setSubmitting(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const res = await fetch(`${baseUrl}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success' || !data.data?.token) {
+        throw new Error(data?.message || 'Login failed');
+      }
+      window.localStorage.setItem('auth_token', data.data.token);
+      toast({ title: 'Signed in', description: 'Welcome back.' });
+      router.replace('/dashboard');
+    } catch (err) {
+      toast({
+        title: 'Login failed',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -50,6 +82,8 @@ export default function LoginPage() {
                     type="email" 
                     placeholder="name@workshop.com" 
                     className="pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required 
                   />
                 </div>
@@ -67,11 +101,13 @@ export default function LoginPage() {
                     id="password" 
                     type="password" 
                     className="pl-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required 
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 py-6 text-lg rounded-xl font-bold mt-2">
+              <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary/90 py-6 text-lg rounded-xl font-bold mt-2">
                 Sign In
                 <ArrowRight className="w-5 h-5 ml-2" />
               </Button>

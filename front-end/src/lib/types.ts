@@ -1,5 +1,5 @@
 export type Priority = 'Emergency' | 'High' | 'Medium' | 'Low';
-export type RepairStatus = 'Pending' | 'In Progress' | 'Completed';
+export type RepairStatus = 'Pending' | 'In Progress' | 'Completed' | 'Cancelled';
 export type BayLocation = 'Bay 1' | 'Bay 2' | 'Bay 3' | 'Bay 4' | 'Bay 5' | 'Bay 6' | 'Bay 7' | 'Bay 8' | 'Bay 9' | 'Outside';
 
 export type UserRole = 'Admin' | 'Workshop Officer' | 'Factory Officer';
@@ -41,3 +41,25 @@ export const REPAIR_CATEGORIES = [
   'Oil & Filter',
   'Interior/AC'
 ];
+export interface Vehicle {
+  id: number;
+  make: string;
+  model: string;
+  year: number;
+  vin: string;
+  created_at: string;
+}
+
+export interface VehicleMake {
+  id: number;
+  name: string;
+  created_at: string;
+}
+
+export interface VehicleModel {
+  id: number;
+  make_id: number;
+  make_name: string;
+  name: string;
+  created_at: string;
+}

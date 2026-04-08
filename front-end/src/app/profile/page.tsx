@@ -1,206 +1,148 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardDescription,
-  CardFooter
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  User, 
-  Settings, 
-  LogOut, 
-  Shield, 
-  Bell, 
-  Moon,
-  ChevronRight,
-  Mail,
-  Briefcase,
-  UserCircle
-} from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
-import { UserRole } from '@/lib/types';
-import { MOCK_USER } from '@/lib/mock-data';
-import { useToast } from '@/hooks/use-toast';
+import React, { useEffect, useMemo, useState } from "react";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { api } from "@/lib/api";
+import { LogOut, Mail, Shield, UserCircle, Briefcase } from "lucide-react";
+
+type Me = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  created_at: string;
+};
 
 export default function ProfilePage() {
-  const [isDarkMode, setIsDarkMode] = useState(false);
-  const [userRole, setUserRole] = useState<UserRole>('Admin');
   const { toast } = useToast();
+  const [me, setMe] = useState<Me | null>(null);
+  const [perms, setPerms] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Sync UI with actual document state
-    const isDark = document.documentElement.classList.contains('dark');
-    setIsDarkMode(isDark);
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [meRes, pRes] = await Promise.all([
+          api("/api/auth/me"),
+          api("/api/auth/permissions"),
+        ]);
+        const meJson = await meRes.json();
+        const pJson = await pRes.json();
+        if (meJson.status !== "success") throw new Error(meJson?.message || "Failed to load profile");
+        if (pJson.status !== "success") throw new Error(pJson?.message || "Failed to load permissions");
+        setMe(meJson.data);
+        setPerms(pJson.data || []);
 
-    const savedRole = localStorage.getItem('userRole') as UserRole;
-    setUserRole(savedRole || MOCK_USER.role);
+        // Keep legacy prototype checks in sync with real user role.
+        window.localStorage.setItem("userRole", meJson.data.role);
+      } catch (err) {
+        toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
   }, []);
 
-  const handleToggleDarkMode = (checked: boolean) => {
-    setIsDarkMode(checked);
-    if (checked) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  };
+  const initials = useMemo(() => {
+    const name = me?.name || "";
+    const parts = name.split(" ").filter(Boolean);
+    const a = parts[0]?.[0] || "U";
+    const b = parts[1]?.[0] || "";
+    return (a + b).toUpperCase();
+  }, [me?.name]);
 
-  const handleRoleChange = (role: string) => {
-    setUserRole(role as UserRole);
-    localStorage.setItem('userRole', role);
-    toast({
-      title: "Role Updated",
-      description: `Testing as ${role} now.`
-    });
-    // Force reload to apply permissions globally in prototype
-    setTimeout(() => window.location.reload(), 500);
-  };
-
-  const handleLogout = () => {
-    // Basic redirect for UI prototype
-    window.location.href = '/login';
+  const logout = () => {
+    window.localStorage.removeItem("auth_token");
+    window.location.href = "/login";
   };
 
   return (
     <DashboardLayout>
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-3xl mx-auto space-y-6">
         <div className="flex flex-col items-center text-center space-y-3 py-6">
           <div className="relative">
-            <Avatar className="h-24 w-24 border-4 border-white shadow-xl dark:border-slate-800">
+            <Avatar className="h-24 w-24 border-4 border-white shadow-xl">
               <AvatarImage src="https://picsum.photos/seed/user/96/96" />
-              <AvatarFallback className="text-2xl">FO</AvatarFallback>
+              <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
             </Avatar>
-            <div className="absolute bottom-1 right-1 p-1.5 bg-accent rounded-full border-2 border-white shadow-sm dark:border-slate-800">
+            <div className="absolute bottom-1 right-1 p-1.5 bg-accent rounded-full border-2 border-white shadow-sm">
               <Shield className="w-4 h-4 text-primary" />
             </div>
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">{MOCK_USER.name}</h1>
-            <p className="text-muted-foreground text-sm font-medium">{userRole} • Bay Area Center</p>
+            <h1 className="text-2xl font-bold tracking-tight">{me?.name || (loading ? "Loading..." : "Unknown User")}</h1>
+            <div className="mt-1 flex items-center justify-center gap-2">
+              {me?.role ? (
+                <Badge variant="outline" className="bg-primary/5 border-primary/20 text-primary">
+                  {me.role}
+                </Badge>
+              ) : null}
+              <p className="text-muted-foreground text-sm font-medium">{me?.email || ""}</p>
+            </div>
           </div>
         </div>
 
-        {/* Prototype: Role Switcher for Testing */}
-        <Card className="border-2 border-dashed border-primary/20 shadow-none bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <UserCircle className="w-4 h-4 text-primary" />
-              Test Privilege Level (Prototype Only)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Select value={userRole} onValueChange={handleRoleChange}>
-              <SelectTrigger className="bg-white dark:bg-slate-900">
-                <SelectValue placeholder="Select role to test" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Admin">Admin (Full Access + Delete)</SelectItem>
-                <SelectItem value="Workshop Officer">Workshop Officer (Assign + Complete)</SelectItem>
-                <SelectItem value="Factory Officer">Factory Officer (Edit Orders - Pre-Progress)</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-
         <Card className="border-none shadow-md overflow-hidden">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Account Information</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <UserCircle className="w-5 h-5 text-primary" />
+              Account
+            </CardTitle>
+            <CardDescription>Live user data from JWT session</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-50 rounded-lg text-primary dark:bg-blue-900/30 dark:text-blue-400">
+                <div className="p-2 bg-blue-50 rounded-lg text-primary">
                   <Mail className="w-4 h-4" />
                 </div>
                 <div>
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Email</p>
-                  <p className="text-sm font-semibold">{MOCK_USER.email}</p>
+                  <p className="text-sm font-semibold">{me?.email || "-"}</p>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="text-primary font-bold">Edit</Button>
             </div>
+
             <div className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/50 transition-colors">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-orange-50 rounded-lg text-orange-600 dark:bg-orange-900/30 dark:text-orange-400">
+                <div className="p-2 bg-amber-50 rounded-lg text-amber-700">
                   <Briefcase className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Workshop ID</p>
-                  <p className="text-sm font-semibold">SB-WEST-992</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Role</p>
+                  <p className="text-sm font-semibold">{me?.role || "-"}</p>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        <Card className="border-none shadow-md">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg">Preferences</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-3">
-                <Bell className="w-4 h-4 text-muted-foreground" />
-                <Label htmlFor="notifications">Push Notifications</Label>
+            <div className="flex items-start justify-between gap-3 p-3 rounded-xl bg-muted/20">
+              <div>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Permissions</p>
+                <p className="text-xs text-muted-foreground">Role-based access is enforced on the API. Register/login with a different role to simulate access.</p>
               </div>
-              <Switch id="notifications" defaultChecked />
-            </div>
-            <div className="flex items-center justify-between py-2">
-              <div className="flex items-center gap-3">
-                <Moon className="w-4 h-4 text-muted-foreground" />
-                <Label htmlFor="darkmode">Dark Mode</Label>
+              <div className="flex flex-wrap gap-2 justify-end">
+                {(perms.length ? perms : ["(none)"]).slice(0, 12).map((p) => (
+                  <Badge key={p} variant="outline" className="text-[10px]">
+                    {p}
+                  </Badge>
+                ))}
               </div>
-              <Switch 
-                id="darkmode" 
-                checked={isDarkMode} 
-                onCheckedChange={handleToggleDarkMode}
-              />
             </div>
           </CardContent>
+          <CardFooter className="flex items-center justify-end">
+            <Button variant="destructive" className="gap-2" onClick={logout}>
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </Button>
+          </CardFooter>
         </Card>
-
-        <div className="space-y-3">
-          <Button 
-            variant="outline" 
-            className="w-full justify-between h-14 px-6 rounded-2xl border-none shadow-sm hover:bg-muted/50"
-          >
-            <div className="flex items-center gap-3">
-              <Settings className="w-5 h-5 text-muted-foreground" />
-              <span className="font-semibold">Security Settings</span>
-            </div>
-            <ChevronRight className="w-5 h-5 text-muted-foreground" />
-          </Button>
-
-          <Button 
-            variant="destructive" 
-            className="w-full h-14 rounded-2xl gap-2 font-bold shadow-lg shadow-destructive/20"
-            onClick={handleLogout}
-          >
-            <LogOut className="w-5 h-5" />
-            Sign Out
-          </Button>
-        </div>
-
-        <p className="text-center text-[10px] text-muted-foreground uppercase tracking-widest font-bold pt-4">
-          ServiceBay v1.2.4 • Production
-        </p>
       </div>
     </DashboardLayout>
   );

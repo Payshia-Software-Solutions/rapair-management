@@ -20,12 +20,17 @@ import {
   Tags,
   CheckSquare,
   ChevronRight,
-  Database
+  Database,
+  Car,
+  Layers,
+  Tag,
+  Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { api } from '@/lib/api';
 import {
   Sidebar,
   SidebarContent,
@@ -46,23 +51,81 @@ import { Preloader } from "@/components/ui/preloader";
 
 const mainNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: ClipboardList, label: 'Order Queue', href: '/orders' },
-  { icon: PlayCircle, label: 'Active Jobs', href: '/orders/active' },
-  { icon: PlusCircle, label: 'Create Order', href: '/orders/new' },
-  { icon: BarChart3, label: 'Reports', href: '/reports' },
+  { icon: ClipboardList, label: 'Order Queue', href: '/orders', perm: 'orders.read' },
+  { icon: PlayCircle, label: 'Active Jobs', href: '/orders/active', perm: 'orders.read' },
+  { icon: PlusCircle, label: 'Create Order', href: '/orders/new', perm: 'orders.write' },
+  { icon: BarChart3, label: 'Reports', href: '/reports', perm: 'reports.read' },
 ];
 
 const masterDataItems = [
-  { icon: Users, label: 'Technicians', href: '/master-data/technicians' },
-  { icon: Grid, label: 'Service Bays', href: '/master-data/bays' },
-  { icon: Tags, label: 'Repair Categories', href: '/master-data/categories' },
-  { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists' },
+  { icon: Car, label: 'Vehicles', href: '/master-data/vehicles', perm: 'vehicles.read' },
+  { icon: Tag, label: 'Vehicle Makes', href: '/master-data/makes', perm: 'makes.read' },
+  { icon: Layers, label: 'Vehicle Models', href: '/master-data/models', perm: 'models.read' },
+  { icon: Users, label: 'Technicians', href: '/master-data/technicians', perm: 'technicians.read' },
+  { icon: Grid, label: 'Service Bays', href: '/master-data/bays', perm: 'bays.read' },
+  { icon: Tags, label: 'Repair Categories', href: '/master-data/categories', perm: 'categories.read' },
+  { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists', perm: 'checklists.read' },
 ];
 
-export function DashboardLayout({ children }: { children: React.ReactNode }) {
+export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
+  const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    // Basic client-side guard. Server APIs also enforce auth via JWT.
+    const token = window.localStorage.getItem('auth_token');
+    if (!token) {
+      router.replace('/login');
+      return;
+    }
+    try {
+      const part = token.split('.')[1];
+      const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+      setUserRole(String(json.role || ''));
+    } catch {
+      setUserRole('');
+    }
+
+    const loadPerms = async () => {
+      try {
+        const res = await api('/api/auth/permissions');
+        const data = await res.json();
+        if (data.status === 'success' && Array.isArray(data.data)) {
+          setPermissionKeys(data.data);
+        } else {
+          setPermissionKeys([]);
+        }
+      } catch {
+        setPermissionKeys([]);
+      }
+    };
+    void loadPerms();
+  }, []);
+
+  useEffect(() => {
+    const onPermsUpdated = () => {
+      // Re-fetch permissions so nav updates immediately after RBAC changes.
+      void (async () => {
+        try {
+          const res = await api('/api/auth/permissions');
+          const data = await res.json();
+          if (data.status === 'success' && Array.isArray(data.data)) {
+            setPermissionKeys(data.data);
+          } else {
+            setPermissionKeys([]);
+          }
+        } catch {
+          setPermissionKeys([]);
+        }
+      })();
+    };
+
+    window.addEventListener('rbac:updated', onPermsUpdated);
+    return () => window.removeEventListener('rbac:updated', onPermsUpdated);
+  }, []);
 
   useEffect(() => {
     setIsNavigating(true);
@@ -73,8 +136,23 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
   }, [pathname]);
 
   const handleLogout = () => {
+    window.localStorage.removeItem('auth_token');
     router.push('/login');
   };
+
+  const hasPerm = (perm?: string) => {
+    if (!perm) return true;
+    if (!permissionKeys) return true; // render immediately; will filter once loaded
+    if (permissionKeys.includes('*')) return true;
+    return permissionKeys.includes(perm);
+  };
+
+  const adminItems = userRole === 'Admin'
+    ? [
+        { icon: Shield, label: 'RBAC', href: '/admin/rbac' },
+        { icon: Users, label: 'Users', href: '/admin/users' },
+      ]
+    : [];
 
   return (
     <SidebarProvider>
@@ -98,6 +176,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <SidebarMenu>
                   {mainNavItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
+                      {!hasPerm((item as any).perm) ? null : (
                       <SidebarMenuButton 
                         asChild 
                         isActive={pathname === item.href}
@@ -112,6 +191,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                           <span className="text-base sm:text-sm font-medium">{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
+                      )}
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
@@ -124,6 +204,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                 <SidebarMenu>
                   {masterDataItems.map((item) => (
                     <SidebarMenuItem key={item.href}>
+                      {!hasPerm((item as any).perm) ? null : (
                       <SidebarMenuButton 
                         asChild 
                         isActive={pathname === item.href}
@@ -138,6 +219,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
                           <span className="text-base sm:text-sm font-medium">{item.label}</span>
                         </Link>
                       </SidebarMenuButton>
+                      )}
                     </SidebarMenuItem>
                   ))}
                 </SidebarMenu>
@@ -146,6 +228,24 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
 
             <SidebarGroup className="mt-auto">
               <SidebarMenu>
+                {adminItems.map((item) => (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === item.href}
+                      tooltip={item.label}
+                      className={cn(
+                        "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                        pathname === item.href ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                      )}
+                    >
+                      <Link href={item.href}>
+                        <item.icon className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">{item.label}</span>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
@@ -211,7 +311,7 @@ export function DashboardLayout({ children }: { children: React.ReactNode }) {
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">
-            <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+            <div className={cn(fullWidth ? "w-full space-y-6 sm:space-y-8" : "max-w-7xl mx-auto space-y-6 sm:space-y-8")}>
               {children}
             </div>
           </main>

@@ -1,8 +1,9 @@
 "use client"
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { Wrench, Mail, Lock, User, ShieldCheck, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Wrench, Mail, Lock, User, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,12 +16,42 @@ import {
   CardTitle 
 } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useToast } from '@/hooks/use-toast';
 
 export default function RegisterPage() {
-  const handleSubmit = (e: React.FormEvent) => {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Logic will be added later
-    window.location.href = '/dashboard';
+    setSubmitting(true);
+    try {
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+      const res = await fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'omit',
+        body: JSON.stringify({ name: fullName, email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.status !== 'success') {
+        throw new Error(data?.message || 'Registration failed');
+      }
+      toast({ title: 'Account created', description: 'Please sign in.' });
+      router.replace('/login');
+    } catch (err) {
+      toast({
+        title: 'Registration failed',
+        description: (err as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -51,6 +82,8 @@ export default function RegisterPage() {
                     id="fullname" 
                     placeholder="John Doe" 
                     className="pl-10"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
                     required 
                   />
                 </div>
@@ -64,6 +97,8 @@ export default function RegisterPage() {
                     type="email" 
                     placeholder="name@workshop.com" 
                     className="pl-10"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     required 
                   />
                 </div>
@@ -75,8 +110,10 @@ export default function RegisterPage() {
                   <Input 
                     id="password" 
                     type="password" 
-                    placeholder="••••••••"
+                    placeholder="********"
                     className="pl-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     required 
                   />
                 </div>
@@ -89,7 +126,7 @@ export default function RegisterPage() {
                 </Label>
               </div>
 
-              <Button type="submit" className="w-full bg-primary hover:bg-primary/90 py-6 text-lg rounded-xl font-bold mt-2">
+              <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary/90 py-6 text-lg rounded-xl font-bold mt-2">
                 Get Started
                 <ShieldCheck className="w-5 h-5 ml-2" />
               </Button>
