@@ -38,6 +38,53 @@ class InstallController extends Controller {
         // Seed roles
         $pdo->exec("INSERT IGNORE INTO roles (name) VALUES ('Admin'), ('Workshop Officer'), ('Factory Officer')");
 
+        // Company + multi-location setup
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS company (
+                id INT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                address VARCHAR(255) NULL,
+                phone VARCHAR(50) NULL,
+                email VARCHAR(255) NULL,
+                logo_filename VARCHAR(255) NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        ");
+        $pdo->exec("INSERT IGNORE INTO company (id, name) VALUES (1, 'ServiceBay')");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS service_locations (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                address VARCHAR(255) NULL,
+                phone VARCHAR(50) NULL,
+                created_by INT NULL,
+                updated_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_service_locations_name (name)
+            )
+        ");
+        // Default location
+        $pdo->exec("INSERT IGNORE INTO service_locations (id, name) VALUES (1, 'Main')");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS departments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                location_id INT NOT NULL,
+                name VARCHAR(100) NOT NULL,
+                created_by INT NULL,
+                updated_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_departments_loc_name (location_id, name),
+                FOREIGN KEY (location_id) REFERENCES service_locations(id) ON DELETE CASCADE
+            )
+        ");
+        // Default department
+        $pdo->exec("INSERT IGNORE INTO departments (location_id, name) VALUES (1, 'General')");
+
         // Core auth + logging tables
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS users (
@@ -46,9 +93,25 @@ class InstallController extends Controller {
                 email VARCHAR(255) NOT NULL UNIQUE,
                 password_hash VARCHAR(255) NOT NULL,
                 role_id INT NOT NULL,
+                location_id INT NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_users_role (role_id),
+                INDEX idx_users_location (location_id),
                 FOREIGN KEY (role_id) REFERENCES roles(id)
+                ,FOREIGN KEY (location_id) REFERENCES service_locations(id)
+            )
+        ");
+
+        // Allow assigning a user to multiple locations.
+        // users.location_id is treated as the default/primary location.
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS user_locations (
+                user_id INT NOT NULL,
+                location_id INT NOT NULL,
+                PRIMARY KEY (user_id, location_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (location_id) REFERENCES service_locations(id) ON DELETE CASCADE,
+                INDEX idx_user_locations_location (location_id)
             )
         ");
 
@@ -56,6 +119,7 @@ class InstallController extends Controller {
             CREATE TABLE IF NOT EXISTS audit_logs (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 user_id INT NULL,
+                location_id INT NULL,
                 action VARCHAR(100) NOT NULL,
                 entity VARCHAR(100) NOT NULL,
                 entity_id BIGINT NULL,
@@ -66,6 +130,7 @@ class InstallController extends Controller {
                 details JSON NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_audit_user (user_id),
+                INDEX idx_audit_location (location_id),
                 INDEX idx_audit_entity (entity, entity_id),
                 INDEX idx_audit_action (action),
                 INDEX idx_audit_created (created_at)
@@ -83,6 +148,19 @@ class InstallController extends Controller {
         if (!$hasRoleId) {
             // Add nullable first so we can backfill without failing.
             $pdo->exec("ALTER TABLE users ADD COLUMN role_id INT NULL");
+        }
+
+        // Ensure users.location_id exists and is populated.
+        $hasLocationId = false;
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'location_id'");
+            $hasLocationId = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $hasLocationId = false;
+        }
+        if (!$hasLocationId) {
+            // Add nullable first to backfill safely.
+            $pdo->exec("ALTER TABLE users ADD COLUMN location_id INT NULL");
         }
         // Ensure role_id has values.
         $hasLegacyRoleCol = false;
@@ -119,6 +197,38 @@ class InstallController extends Controller {
             try { $pdo->exec("ALTER TABLE users ADD CONSTRAINT fk_users_role_id FOREIGN KEY (role_id) REFERENCES roles(id)"); } catch (Exception $e) {}
         }
 
+        // Backfill / enforce location_id with default location 1.
+        $pdo->exec("UPDATE users SET location_id = 1 WHERE location_id IS NULL");
+        if (!$hasLocationId) {
+            $pdo->exec("ALTER TABLE users MODIFY location_id INT NOT NULL DEFAULT 1");
+            try { $pdo->exec("ALTER TABLE users ADD INDEX idx_users_location (location_id)"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE users ADD CONSTRAINT fk_users_location_id FOREIGN KEY (location_id) REFERENCES service_locations(id)"); } catch (Exception $e) {}
+        }
+
+        // Ensure every user has at least one entry in user_locations (their primary location).
+        try {
+            $pdo->exec("
+                INSERT IGNORE INTO user_locations (user_id, location_id)
+                SELECT id, location_id
+                FROM users
+                WHERE location_id IS NOT NULL
+            ");
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Ensure audit_logs.location_id exists (nullable).
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM audit_logs LIKE 'location_id'");
+            $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$exists) {
+                $pdo->exec("ALTER TABLE audit_logs ADD COLUMN location_id INT NULL");
+                try { $pdo->exec("ALTER TABLE audit_logs ADD INDEX idx_audit_location (location_id)"); } catch (Exception $e) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
         // Seed permissions (Admin is treated as superuser in code, but we still keep a list here)
         $pdo->exec("
             INSERT IGNORE INTO permissions (perm_key, description) VALUES
@@ -138,6 +248,11 @@ class InstallController extends Controller {
             ('categories.write', 'Create/update/delete repair categories'),
             ('checklists.read', 'View checklist items'),
             ('checklists.write', 'Create/update/delete checklist items'),
+            ('locations.read', 'View service center locations'),
+            ('locations.write', 'Create/update/delete service center locations'),
+            ('departments.read', 'View departments'),
+            ('departments.write', 'Create/update/delete departments'),
+            ('company.write', 'Update company details'),
             ('reports.read', 'View reports')
         ");
 
@@ -240,6 +355,73 @@ class InstallController extends Controller {
                     $pdo->exec("ALTER TABLE {$t} ADD COLUMN {$col} INT NULL");
                 }
             }
+        }
+
+        // Ensure repair_orders has the fields used by the frontend create/order flow.
+        $orderCols = [
+            'location_id' => "INT NULL",
+            'vehicle_id' => "INT NULL",
+            'vehicle_identifier' => "VARCHAR(100) NULL",
+            'mileage' => "INT NULL",
+            'priority' => "VARCHAR(20) NULL",
+            'expected_time' => "DATETIME NULL",
+            'comments' => "TEXT NULL",
+            'categories_json' => "TEXT NULL",
+            'checklist_json' => "TEXT NULL",
+            'attachments_json' => "TEXT NULL",
+            'location' => "VARCHAR(50) NULL",
+            'technician' => "VARCHAR(255) NULL",
+        ];
+        foreach ($orderCols as $col => $def) {
+            try {
+                $stmt = $pdo->query("SHOW COLUMNS FROM repair_orders LIKE '{$col}'");
+                $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$exists) {
+                    $pdo->exec("ALTER TABLE repair_orders ADD COLUMN {$col} {$def}");
+                }
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+
+        // Multi-location support:
+        // Only repair_orders and service_bays are location-scoped.
+        foreach (['repair_orders', 'service_bays'] as $t) {
+            try {
+                $stmt = $pdo->query("SHOW COLUMNS FROM {$t} LIKE 'location_id'");
+                $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+                if (!$exists) {
+                    $pdo->exec("ALTER TABLE {$t} ADD COLUMN location_id INT NULL");
+                }
+                try { $pdo->exec("UPDATE {$t} SET location_id = 1 WHERE location_id IS NULL"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE {$t} MODIFY location_id INT NOT NULL DEFAULT 1"); } catch (Exception $e3) {}
+                try { $pdo->exec("ALTER TABLE {$t} ADD INDEX idx_{$t}_location (location_id)"); } catch (Exception $e4) {}
+            } catch (Exception $e) {
+                // ignore
+            }
+        }
+
+        // Ensure vehicles can be assigned to departments.
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM vehicles LIKE 'department_id'");
+            $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$exists) {
+                $pdo->exec("ALTER TABLE vehicles ADD COLUMN department_id INT NULL");
+                try { $pdo->exec("ALTER TABLE vehicles ADD INDEX idx_vehicles_department (department_id)"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Ensure vehicles has image filename column for FTP-hosted images.
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM vehicles LIKE 'image_filename'");
+            $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$exists) {
+                $pdo->exec("ALTER TABLE vehicles ADD COLUMN image_filename VARCHAR(255) NULL");
+            }
+        } catch (Exception $e) {
+            // ignore
         }
     }
 

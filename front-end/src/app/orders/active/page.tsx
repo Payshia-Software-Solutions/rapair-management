@@ -17,14 +17,18 @@ export default function ActiveJobsPage() {
   const [orders, setOrders] = useState<RepairOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [completingId, setCompletingId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await fetchOrders();
       setOrders(data);
     } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+      const msg = (err as Error).message || "Failed to load active jobs";
+      setLoadError(msg);
+      toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -69,6 +73,18 @@ export default function ActiveJobsPage() {
           <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
           <p className="text-muted-foreground">Loading active jobs...</p>
         </div>
+      ) : loadError ? (
+        <Card className="border-dashed p-12 flex flex-col items-center justify-center text-center">
+          <div className="p-4 bg-muted rounded-full mb-4">
+            <AlertCircle className="w-8 h-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-bold">Unable to Load Active Jobs</h3>
+          <p className="text-muted-foreground max-w-md mt-1">{loadError}</p>
+          <div className="flex gap-2 mt-6">
+            <Button variant="outline" onClick={() => void load()}>Retry</Button>
+            <Button onClick={() => router.push('/orders')}>Go to Orders</Button>
+          </div>
+        </Card>
       ) : active.length === 0 ? (
         <Card className="border-dashed p-12 flex flex-col items-center justify-center text-center">
           <div className="p-4 bg-muted rounded-full mb-4">
@@ -120,4 +136,3 @@ export default function ActiveJobsPage() {
     </DashboardLayout>
   );
 }
-

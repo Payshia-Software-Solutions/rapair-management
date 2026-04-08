@@ -47,6 +47,24 @@ class AuthController extends Controller {
         }
 
         $now = time();
+
+        // Allowed locations for this user (supports multi-location assignment).
+        $allowedLocationIds = [];
+        try {
+            $db = new Database();
+            $db->query("SELECT location_id FROM user_locations WHERE user_id = :uid ORDER BY location_id ASC");
+            $db->bind(':uid', (int)$user->id);
+            $locRows = $db->resultSet() ?: [];
+            foreach ($locRows as $r) {
+                $allowedLocationIds[] = (int)$r->location_id;
+            }
+        } catch (Exception $e) {
+            $allowedLocationIds = [];
+        }
+        if (count($allowedLocationIds) === 0) {
+            $allowedLocationIds = [isset($user->location_id) ? (int)$user->location_id : 1];
+        }
+
         $payload = [
             'iss' => JWT_ISSUER,
             'iat' => $now,
@@ -55,7 +73,11 @@ class AuthController extends Controller {
             'sub' => (int)$user->id,
             'email' => $user->email,
             'role' => $user->role,
+            'role_id' => isset($user->role_id) ? (int)$user->role_id : null,
             'name' => $user->name,
+            'location_id' => isset($user->location_id) ? (int)$user->location_id : 1,
+            'location_name' => $user->location_name ?? null,
+            'allowed_location_ids' => $allowedLocationIds,
         ];
         $token = JwtHelper::encode($payload, JWT_SECRET);
 
@@ -66,6 +88,9 @@ class AuthController extends Controller {
                 'name' => $user->name,
                 'email' => $user->email,
                 'role' => $user->role,
+                'role_id' => isset($user->role_id) ? (int)$user->role_id : null,
+                'location_id' => isset($user->location_id) ? (int)$user->location_id : 1,
+                'location_name' => $user->location_name ?? null,
             ],
         ], 'Login successful');
     }
@@ -81,7 +106,8 @@ class AuthController extends Controller {
         $name = trim((string)($data['name'] ?? ''));
         $email = strtolower(trim((string)($data['email'] ?? '')));
         $password = (string)($data['password'] ?? '');
-        $role = trim((string)($data['role'] ?? 'Workshop Officer'));
+        // Role assignment is admin-only. Self-registration always defaults to Workshop Officer.
+        $role = 'Workshop Officer';
 
         if ($name === '' || $email === '' || $password === '') {
             $this->error('Name, email and password are required', 400);
@@ -114,6 +140,8 @@ class AuthController extends Controller {
             'email' => $email,
             'password_hash' => password_hash($password, PASSWORD_BCRYPT),
             'role_id' => $roleId,
+            // Default new users into the main location; Admin can reassign later if needed.
+            'location_id' => 1,
         ]);
         if ($ok) {
             $this->success(null, 'User created');

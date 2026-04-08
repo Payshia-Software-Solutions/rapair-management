@@ -5,6 +5,7 @@
 class CheckController extends Controller {
     private $db;
     private $requiredTables = [
+        // Core business tables
         'repair_orders',
         'technicians',
         'service_bays',
@@ -15,9 +16,17 @@ class CheckController extends Controller {
         'vehicles',
         'vehicle_makes',
         'vehicle_models',
+        // Auth/RBAC + setup tables
         'users',
         'audit_logs',
-        'checklist_templates'
+        'checklist_templates',
+        'roles',
+        'permissions',
+        'role_permissions',
+        'company',
+        'service_locations',
+        'departments',
+        'user_locations'
     ];
 
     public function __construct() {

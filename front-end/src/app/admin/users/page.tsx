@@ -6,8 +6,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { adminFetchUsers, adminSetUserRole, rbacFetchRoles } from "@/lib/api";
+import { adminFetchUserLocations, adminFetchUsers, adminSetUserLocations, adminSetUserLocation, adminSetUserRole, fetchLocations, rbacFetchRoles } from "@/lib/api";
 import { Loader2, Users } from "lucide-react";
 import {
   Table,
@@ -31,25 +34,36 @@ type UserRow = {
   email: string;
   role_id: number;
   role: string;
+  location_id: number;
+  location_name: string;
+  allowed_locations?: string | null;
+  allowed_location_ids?: string | null;
   created_at: string;
 };
 
 type RoleRow = { id: number; name: string; created_at: string };
+type LocationRow = { id: number; name: string };
 
 export default function AdminUsersPage() {
   const { toast } = useToast();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
+  const [locations, setLocations] = useState<LocationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingUserId, setSavingUserId] = useState<number | null>(null);
   const [query, setQuery] = useState("");
+  const [isLocDialogOpen, setIsLocDialogOpen] = useState(false);
+  const [locDialogUser, setLocDialogUser] = useState<UserRow | null>(null);
+  const [locDialogIds, setLocDialogIds] = useState<number[]>([]);
+  const [locDialogLoading, setLocDialogLoading] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [u, r] = await Promise.all([adminFetchUsers(), rbacFetchRoles()]);
+      const [u, r, l] = await Promise.all([adminFetchUsers(), rbacFetchRoles(), fetchLocations()]);
       setUsers(u);
       setRoles(r);
+      setLocations(l);
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -67,7 +81,8 @@ export default function AdminUsersPage() {
     return users.filter((u) =>
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
-      u.role.toLowerCase().includes(q)
+      u.role.toLowerCase().includes(q) ||
+      (u.allowed_locations ?? "").toLowerCase().includes(q)
     );
   }, [users, query]);
 
@@ -84,6 +99,61 @@ export default function AdminUsersPage() {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
       setSavingUserId(null);
+    }
+  };
+
+  const setLocation = async (userId: number, locationId: number) => {
+    setSavingUserId(userId);
+    try {
+      await adminSetUserLocation(String(userId), locationId);
+      const locationName = locations.find((l) => l.id === locationId)?.name ?? "";
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, location_id: locationId, location_name: locationName } : u))
+      );
+      toast({ title: "Updated", description: "User location updated" });
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSavingUserId(null);
+    }
+  };
+
+  const openLocationsDialog = async (user: UserRow) => {
+    setLocDialogUser(user);
+    setIsLocDialogOpen(true);
+    setLocDialogLoading(true);
+    try {
+      const ids = await adminFetchUserLocations(String(user.id));
+      setLocDialogIds(Array.isArray(ids) ? ids : []);
+    } catch (err) {
+      setLocDialogIds([]);
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setLocDialogLoading(false);
+    }
+  };
+
+  const toggleDialogLocation = (locationId: number, checked: boolean) => {
+    setLocDialogIds((prev) => {
+      const set = new Set(prev);
+      if (checked) set.add(locationId);
+      else set.delete(locationId);
+      return Array.from(set.values()).sort((a, b) => a - b);
+    });
+  };
+
+  const saveDialogLocations = async () => {
+    if (!locDialogUser) return;
+    setLocDialogLoading(true);
+    try {
+      await adminSetUserLocations(String(locDialogUser.id), locDialogIds);
+      toast({ title: "Updated", description: "Allowed locations updated" });
+      setIsLocDialogOpen(false);
+      setLocDialogUser(null);
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setLocDialogLoading(false);
     }
   };
 
@@ -128,6 +198,8 @@ export default function AdminUsersPage() {
                   <TableHead>User</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead>Allowed Locations</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -155,6 +227,42 @@ export default function AdminUsersPage() {
                         </Select>
                       </div>
                     </TableCell>
+                    <TableCell>
+                      <div className="max-w-xs">
+                        <Select
+                          value={String(u.location_id)}
+                          onValueChange={(v) => void setLocation(u.id, Number(v))}
+                          disabled={savingUserId === u.id || locations.length === 0}
+                        >
+                          <SelectTrigger className="h-9">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {locations.map((l) => (
+                              <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-between gap-3">
+                        <div
+                          className="text-xs text-muted-foreground max-w-[240px] truncate"
+                          title={u.allowed_locations ?? ""}
+                        >
+                          {u.allowed_locations ? u.allowed_locations : "-"}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void openLocationsDialog(u)}
+                          disabled={savingUserId === u.id || locations.length === 0}
+                        >
+                          Assign
+                        </Button>
+                      </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="outline"
@@ -172,7 +280,69 @@ export default function AdminUsersPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={isLocDialogOpen} onOpenChange={(v) => {
+        setIsLocDialogOpen(v);
+        if (!v) {
+          setLocDialogUser(null);
+          setLocDialogIds([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Assign Locations</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground">
+              {locDialogUser ? (
+                <>
+                  Select which service locations <span className="font-semibold text-foreground">{locDialogUser.name}</span> can view.
+                </>
+              ) : null}
+            </div>
+
+            {locDialogLoading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+              </div>
+            ) : (
+              <div className="rounded-lg border p-3 max-h-[280px] overflow-auto space-y-2">
+                {locations.map((l) => {
+                  const checked = locDialogIds.includes(l.id);
+                  return (
+                    <div key={l.id} className="flex items-center justify-between gap-3 rounded-md px-2 py-1.5 hover:bg-muted/20">
+                      <div className="flex items-center gap-3">
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(v) => toggleDialogLocation(l.id, Boolean(v))}
+                          id={`loc-${l.id}`}
+                        />
+                        <Label htmlFor={`loc-${l.id}`} className="cursor-pointer">
+                          {l.name}
+                        </Label>
+                      </div>
+                      <span className="text-xs text-muted-foreground font-mono">#{l.id}</span>
+                    </div>
+                  );
+                })}
+                {locations.length === 0 ? (
+                  <div className="text-sm text-muted-foreground p-2">No locations available.</div>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setIsLocDialogOpen(false)} disabled={locDialogLoading}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveDialogLocations()} disabled={locDialogLoading || locDialogIds.length === 0}>
+              {locDialogLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
-

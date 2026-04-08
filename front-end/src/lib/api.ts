@@ -2,10 +2,13 @@ export const api = (path: string, options: RequestInit = {}) => {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
   const token =
     typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+  const locationId =
+    typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null;
   const defaults: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
     },
     // JWT auth uses the Authorization header, not cookies.
     credentials: 'omit',
@@ -43,7 +46,16 @@ export interface ApiSuccess<T> {
 
 export const fetchOrders = async () => {
   const res = await api('/api/order/list');
-  if (!res.ok) throw new Error('Failed to load orders');
+  if (!res.ok) {
+    let msg = `Failed to load orders (HTTP ${res.status})`;
+    try {
+      const j = await res.json();
+      if (j && typeof j.message === 'string' && j.message) msg = j.message;
+    } catch {
+      // ignore
+    }
+    throw new Error(msg);
+  }
   const data = await res.json();
   const rows = data.status === 'success' ? data.data : [];
 
@@ -51,17 +63,37 @@ export const fetchOrders = async () => {
   if (Array.isArray(rows) && rows.length > 0 && ('vehicle_model' in rows[0] || 'problem_description' in rows[0])) {
     return rows.map((r: any) => {
       const createdAt = typeof r.created_at === 'string' ? r.created_at.replace(' ', 'T') : new Date().toISOString();
+      const expectedAtRaw =
+        typeof r.expected_time === 'string'
+          ? r.expected_time
+          : (typeof r.expectedTime === 'string' ? r.expectedTime : null);
+      const expectedTime = expectedAtRaw ? expectedAtRaw.replace(' ', 'T') : createdAt;
       const status = (r.status === 'Cancelled' ? 'Cancelled' : (r.status || 'Pending'));
+
+      const parseJsonArray = (value: any) => {
+        if (!value) return [];
+        if (Array.isArray(value)) return value;
+        if (typeof value === 'string') {
+          try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch {
+            return [];
+          }
+        }
+        return [];
+      };
       return {
         id: String(r.id),
         vehicleId: r.vehicle_model ?? '',
-        mileage: 0,
-        priority: 'Low',
-        expectedTime: createdAt,
+        mileage: typeof r.mileage === 'number' ? r.mileage : (r.mileage ? Number(r.mileage) : 0),
+        priority: r.priority ?? 'Low',
+        expectedTime,
         problemDescription: r.problem_description ?? '',
-        checklist: [],
-        categories: [],
-        comments: '',
+        checklist: parseJsonArray(r.checklist_json),
+        categories: parseJsonArray(r.categories_json),
+        attachments: parseJsonArray(r.attachments_json),
+        comments: r.comments ?? '',
         status,
         createdAt,
       };
@@ -79,6 +111,7 @@ export const fetchOrder = async (id: string) => {
 };
 
 export const createOrder = async (order: any) => {
+  // Allow UI-friendly payloads (camelCase) while backend also accepts snake_case.
   const res = await api('/api/order/create', { method: 'POST', body: JSON.stringify(order) });
   if (!res.ok) throw new Error('Failed to create order');
   return res.json();
@@ -145,6 +178,31 @@ export const fetchReportOverview = async () => {
   if (!res.ok) throw new Error('Failed to load reports');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export type DashboardOverview = {
+  ordersByStatus: Record<string, number>;
+  completedToday: number;
+  avgRepairHours: number;
+  throughputLast7Days: Array<{ date: string; received: number; completed: number }>;
+  urgentAttention: Array<{
+    id: number;
+    vehicle_model: string;
+    priority: string;
+    status: string;
+    expected_time: string | null;
+    created_at: string;
+  }>;
+  recentCompletions: Array<{ id: number; vehicle_model: string; completed_at: string }>;
+  serviceBaysByStatus: Record<string, number>;
+  serviceBaysTotal: number;
+};
+
+export const fetchDashboardOverview = async () => {
+  const res = await api('/api/dashboard/overview');
+  if (!res.ok) throw new Error('Failed to load dashboard overview');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as DashboardOverview) : data;
 };
 
 export const fetchTechnicians = async () => {
@@ -261,6 +319,107 @@ export const adminSetUserRole = async (userId: string, roleId: number) => {
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
+export const adminSetUserLocation = async (userId: string, locationId: number) => {
+  const res = await api(`/api/admin/set_user_location/${userId}`, {
+    method: 'POST',
+    body: JSON.stringify({ location_id: locationId }),
+  });
+  if (!res.ok) throw new Error('Failed to update user location');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const adminFetchUserLocations = async (userId: string) => {
+  const res = await api(`/api/admin/user_locations/${userId}`);
+  if (!res.ok) throw new Error('Failed to load user locations');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as number[]) : data;
+};
+
+export const adminSetUserLocations = async (userId: string, locationIds: number[]) => {
+  const res = await api(`/api/admin/set_user_locations/${userId}`, {
+    method: 'POST',
+    body: JSON.stringify({ location_ids: locationIds }),
+  });
+  if (!res.ok) throw new Error('Failed to update user locations');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export type ServiceLocationRow = {
+  id: number;
+  name: string;
+  address?: string | null;
+  phone?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export const fetchLocations = async () => {
+  const res = await api('/api/location/list');
+  if (!res.ok) throw new Error('Failed to load locations');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as ServiceLocationRow[]) : data;
+};
+
+export const createLocation = async (payload: { name: string; address?: string; phone?: string }) => {
+  const res = await api('/api/location/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create location');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateLocation = async (id: string, payload: { name: string; address?: string; phone?: string }) => {
+  const res = await api(`/api/location/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update location');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteLocation = async (id: string) => {
+  const res = await api(`/api/location/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete location');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export type DepartmentRow = { id: number; location_id: number; name: string; created_at?: string; updated_at?: string };
+
+export const fetchDepartments = async () => {
+  const res = await api('/api/department/list');
+  if (!res.ok) throw new Error('Failed to load departments');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as DepartmentRow[]) : data;
+};
+
+export const createDepartment = async (payload: { name: string }) => {
+  const res = await api('/api/department/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create department');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateDepartment = async (id: string, payload: { name: string }) => {
+  const res = await api(`/api/department/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update department');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteDepartment = async (id: string) => {
+  const res = await api(`/api/department/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete department');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export type CompanyRow = { id: number; name: string; address?: string | null; phone?: string | null; email?: string | null; logo_filename?: string | null };
+
+export const fetchCompany = async () => {
+  const res = await api('/api/company/get');
+  if (!res.ok) throw new Error('Failed to load company');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as CompanyRow) : data;
+};
+
+export const updateCompany = async (payload: Partial<CompanyRow>) => {
+  const res = await api('/api/company/update', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update company');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
 export const fetchChecklist = async (orderId: string) => {
   const res = await api(`/api/checklist/list/${orderId}`);
   if (!res.ok) throw new Error('Failed to load checklist');
@@ -346,4 +505,54 @@ export const checkTables = async () => {
   const res = await api('/api/check/check');
   if (!res.ok) throw new Error('Failed to check database tables');
   return res.json() as Promise<SystemCheckResponse>;
+};
+
+export const CONTENT_BASE_URL =
+  (process.env.NEXT_PUBLIC_CONTENT_BASE_URL ?? 'https://content-provider.payshia.com/service-center-system/').replace(/\/+$/, '') + '/';
+
+export const contentUrl = (folder: 'vehicles' | 'orders', filename: string) => {
+  const safe = filename.replace(/^\/+/, '');
+  return `${CONTENT_BASE_URL}${folder}/${encodeURIComponent(safe)}`;
+};
+
+export const uploadVehicleImage = async (file: File) => {
+  const fd = new FormData();
+  fd.append('image', file);
+  const token =
+    typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+  const locationId =
+    typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null;
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/upload/vehicle_image`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
+    },
+    body: fd,
+    credentials: 'omit',
+  });
+  if (!res.ok) throw new Error('Failed to upload image');
+  return res.json() as Promise<ApiSuccess<{ filename: string; url: string }>>;
+};
+
+export const uploadOrderAttachment = async (file: File) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  const token =
+    typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+  const locationId =
+    typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null;
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/upload/order_attachment`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
+    },
+    body: fd,
+    credentials: 'omit',
+  });
+  if (!res.ok) throw new Error('Failed to upload attachment');
+  return res.json() as Promise<ApiSuccess<{ filename: string; url: string }>>;
 };

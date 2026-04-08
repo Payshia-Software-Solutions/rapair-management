@@ -1,65 +1,152 @@
-"use client"
+﻿"use client";
 
-import React, { use, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { DashboardLayout } from '@/components/dashboard-layout';
-import { INITIAL_REPAIR_ORDERS, MOCK_USER } from '@/lib/mock-data';
-import { UserRole } from '@/lib/types';
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
+import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
   CardTitle,
-  CardDescription
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { 
-  ChevronLeft, 
-  Clock, 
-  Wrench, 
-  CheckCircle2, 
-  MapPin, 
-  Car, 
-  AlertCircle, 
-  Calendar,
-  User,
-  History,
-  FileText,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { fetchOrder, contentUrl } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import {
+  AlertCircle,
+  CalendarDays,
+  Car,
+  ChevronLeft,
+  ClipboardList,
+  Clock,
+  Gauge,
+  Hash,
+  Loader2,
   Printer,
-  Share2
-} from 'lucide-react';
-import { Separator } from '@/components/ui/separator';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+  Tag,
+} from "lucide-react";
+import { format } from "date-fns";
 
-const priorityColors = {
-  'Emergency': 'bg-red-500',
-  'High': 'bg-orange-500',
-  'Medium': 'bg-blue-500',
-  'Low': 'bg-slate-400'
+function parseMysqlDatetime(value: any): Date | null {
+  if (!value || typeof value !== "string") return null;
+  const iso = value.includes("T") ? value : value.replace(" ", "T");
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function safeJsonArray(value: any): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+const statusStyles: Record<string, string> = {
+  Pending: "bg-slate-100 text-slate-700",
+  "In Progress": "bg-blue-100 text-blue-800",
+  Completed: "bg-green-100 text-green-800",
+  Cancelled: "bg-red-100 text-red-800",
 };
 
-const statusColors = {
-  'Pending': 'bg-slate-100 text-slate-700',
-  'In Progress': 'bg-blue-100 text-primary',
-  'Completed': 'bg-green-100 text-green-700'
+const priorityStyles: Record<string, string> = {
+  Low: "bg-slate-100 text-slate-700",
+  Medium: "bg-blue-100 text-blue-800",
+  High: "bg-amber-100 text-amber-900",
+  Urgent: "bg-red-100 text-red-800",
 };
 
-export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
+function timeRemaining(expectedAt: Date | null) {
+  if (!expectedAt) return null;
+  const ms = expectedAt.getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  const sign = ms < 0 ? -1 : 1;
+  const abs = Math.abs(ms);
+  const mins = Math.floor(abs / 60000);
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const label = h > 0 ? `${h}h ${m}m` : `${m}m`;
+  return sign < 0 ? `Overdue by ${label}` : `${label} remaining`;
+}
+
+export default function OrderDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
-  const { id } = use(params);
-  const [userRole, setUserRole] = useState<UserRole>('Admin');
-  
+  const id = params?.id;
+
+  const [loading, setLoading] = useState(true);
+  const [order, setOrder] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
-    const savedRole = localStorage.getItem('userRole') as UserRole;
-    setUserRole(savedRole || MOCK_USER.role);
-  }, []);
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const o = await fetchOrder(String(id));
+        setOrder(o);
+      } catch (e: any) {
+        setOrder(null);
+        setError(e?.message || "Failed to load order");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) void run();
+  }, [id]);
 
-  // Find the order from mock data
-  const order = INITIAL_REPAIR_ORDERS.find(o => o.id === id);
+  const data = useMemo(() => {
+    const o: any = order || {};
+    const createdAt = parseMysqlDatetime(o.created_at);
+    const expectedAt = parseMysqlDatetime(o.expected_time);
 
-  if (!order) {
+    return {
+      id: o.id ?? id,
+      status: String(o.status || "Pending"),
+      priority: String(o.priority || "Medium"),
+      vehicleModel: String(o.vehicle_model || "Repair Order"),
+      vehicleIdentifier: String(o.vehicle_identifier || ""),
+      mileage: o.mileage ?? null,
+      problem: String(o.problem_description || ""),
+      comments: String(o.comments || ""),
+      createdAt,
+      expectedAt,
+      categories: safeJsonArray(o.categories_json),
+      checklist: safeJsonArray(o.checklist_json),
+      attachments: safeJsonArray(o.attachments_json),
+    };
+  }, [order, id]);
+
+  const remaining = useMemo(() => timeRemaining(data.expectedAt), [data.expectedAt]);
+
+  const onPrint = () => {
+    const url = `/orders/print/${encodeURIComponent(String(data.id))}?autoprint=1`;
+    const w = window.open(url, "_blank", "noopener,noreferrer");
+    if (!w) router.push(url);
+  };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-24 text-muted-foreground">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          Loading order...
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (!order || error) {
     return (
       <DashboardLayout>
         <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -67,25 +154,22 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <AlertCircle className="w-10 h-10 text-muted-foreground" />
           </div>
           <h2 className="text-2xl font-bold">Order Not Found</h2>
-          <p className="text-muted-foreground mb-6">The repair order ID {id} does not exist.</p>
-          <Button onClick={() => router.push('/orders')}>Back to Queue</Button>
+          <p className="text-muted-foreground mb-6">
+            {error ? error : `The repair order ID ${id} does not exist.`}
+          </p>
+          <Button onClick={() => router.push("/orders")}>Back to Queue</Button>
         </div>
       </DashboardLayout>
     );
   }
 
-  // Permission Checks: 
-  // Factory Officer can edit UNTIL In Progress
-  // Admin can always edit
-  const canEdit = userRole === 'Admin' || (userRole === 'Factory Officer' && order.status === 'Pending');
-
   return (
     <DashboardLayout>
       <div className="flex flex-col gap-6">
         <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="sm" 
+          <Button
+            variant="ghost"
+            size="sm"
             className="gap-2 -ml-2 text-muted-foreground hover:text-foreground"
             onClick={() => router.back()}
           >
@@ -93,220 +177,256 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             Back
           </Button>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={onPrint}>
               <Printer className="w-4 h-4" />
               Print
             </Button>
-            <Button variant="outline" size="sm" className="hidden sm:flex gap-2">
-              <Share2 className="w-4 h-4" />
-              Share
-            </Button>
-            {canEdit && <Button size="sm" className="bg-primary">Edit Order</Button>}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            {/* Main Header Card */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          <div className="lg:col-span-8 space-y-6">
             <Card className="border-none shadow-sm overflow-hidden">
-              <CardHeader className="bg-muted/30 p-6 border-b">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 bg-white rounded-2xl shadow-sm">
-                      <Car className="w-8 h-8 text-primary" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <h1 className="text-2xl font-bold tracking-tight">{order.vehicleId}</h1>
-                        <Badge className={cn(priorityColors[order.priority], "border-none text-white text-[10px]")}>
-                          {order.priority}
+              <CardHeader className="p-0">
+                <div className="p-6 bg-gradient-to-br from-primary/10 via-background to-background border-b">
+                  <div className="flex flex-col gap-4">
+                    <div className="flex items-start justify-between gap-6">
+                      <div className="flex items-start gap-4 min-w-0">
+                        <div className="p-3 bg-white rounded-2xl shadow-sm shrink-0">
+                          <Car className="w-8 h-8 text-primary" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h1 className="text-2xl font-bold tracking-tight truncate">{data.vehicleModel}</h1>
+                            <Badge
+                              variant="secondary"
+                              className={cn(priorityStyles[data.priority] || "bg-slate-100 text-slate-700", "border-none")}
+                            >
+                              {data.priority}
+                            </Badge>
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground font-mono uppercase tracking-widest">
+                            <span>Order</span>
+                            <span>#{data.id}</span>
+                          </div>
+                          {data.vehicleIdentifier ? (
+                            <div className="mt-1 text-xs text-muted-foreground truncate">{data.vehicleIdentifier}</div>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge
+                          variant="secondary"
+                          className={cn(statusStyles[data.status] || "bg-slate-100 text-slate-700", "px-4 py-1 text-sm font-bold")}
+                        >
+                          {data.status}
                         </Badge>
                       </div>
-                      <p className="text-xs text-muted-foreground font-mono uppercase tracking-widest">{order.id}</p>
                     </div>
-                  </div>
-                  <Badge variant="secondary" className={cn(statusColors[order.status], "px-4 py-1 text-sm font-bold h-fit self-start sm:self-center")}>
-                    {order.status}
-                  </Badge>
-                </div>
-                
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4">
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Mileage</p>
-                    <p className="text-sm font-semibold">{order.mileage.toLocaleString()} km</p>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Location</p>
-                    <div className="flex items-center gap-1 text-sm font-semibold">
-                      <MapPin className="w-3.5 h-3.5 text-primary" />
-                      {order.location || 'Not Assigned'}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Technician</p>
-                    <div className="flex items-center gap-1 text-sm font-semibold">
-                      <User className="w-3.5 h-3.5 text-primary" />
-                      {order.technician || 'Unassigned'}
-                    </div>
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Created At</p>
-                    <div className="flex items-center gap-1 text-sm font-semibold">
-                      <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
-                      {format(new Date(order.createdAt), 'MMM d, yyyy')}
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <Gauge className="w-3.5 h-3.5" />
+                          Mileage
+                        </div>
+                        <div className="mt-1 text-sm font-bold">
+                          {data.mileage ? `${Number(data.mileage).toLocaleString()} km` : "-"}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <CalendarDays className="w-3.5 h-3.5" />
+                          Created
+                        </div>
+                        <div className="mt-1 text-sm font-bold">
+                          {data.createdAt ? format(data.createdAt, "MMM d, yyyy HH:mm") : "-"}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <Clock className="w-3.5 h-3.5" />
+                          Expected
+                        </div>
+                        <div className="mt-1 text-sm font-bold">
+                          {data.expectedAt ? format(data.expectedAt, "MMM d, yyyy HH:mm") : "-"}
+                        </div>
+                        {remaining ? (
+                          <div className={cn("mt-1 text-xs", remaining.startsWith("Overdue") ? "text-red-700" : "text-muted-foreground")}>
+                            {remaining}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <Hash className="w-3.5 h-3.5" />
+                          Checklist
+                        </div>
+                        <div className="mt-1 text-sm font-bold">{data.checklist.length}</div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </CardHeader>
+
               <CardContent className="p-6 space-y-6">
-                <div>
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-orange-500" />
-                    Problem Description
-                  </h3>
-                  <div className="p-4 bg-orange-50/30 border border-orange-100 rounded-xl">
-                    <p className="text-sm leading-relaxed italic text-slate-800">
-                      "{order.problemDescription}"
-                    </p>
-                  </div>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="border shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ClipboardList className="w-4 h-4 text-muted-foreground" />
+                        Problem Description
+                      </CardTitle>
+                      <CardDescription>Reported issue for this repair order</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-xl border bg-muted/10 p-4 whitespace-pre-wrap min-h-[92px]">
+                        {data.problem || "-"}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border shadow-none">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-muted-foreground" />
+                        Comments
+                      </CardTitle>
+                      <CardDescription>Optional notes captured during intake</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="rounded-xl border bg-muted/10 p-4 whitespace-pre-wrap min-h-[92px]">
+                        {data.comments || "-"}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                <Separator />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      Repair Checklist
-                    </h3>
-                    <div className="space-y-2">
-                      {order.checklist.map((item, i) => (
-                        <div key={i} className="flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/20 transition-colors">
-                          <div className="w-5 h-5 rounded-md border-2 border-muted flex items-center justify-center shrink-0 mt-0.5" />
-                          <span className="text-sm font-medium">{item}</span>
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  <Card className="border shadow-none lg:col-span-5">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Categories</CardTitle>
+                      <CardDescription>Tags for reporting and routing</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {data.categories.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {data.categories.map((c) => (
+                            <Badge key={c} variant="secondary" className="rounded-full">
+                              {c}
+                            </Badge>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  </div>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No categories</div>
+                      )}
+                    </CardContent>
+                  </Card>
 
-                  <div className="space-y-4">
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Wrench className="w-4 h-4 text-primary" />
-                      Assigned Categories
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {order.categories.map((cat, i) => (
-                        <Badge key={i} variant="outline" className="px-3 py-1.5 text-xs font-semibold bg-blue-50/50 border-blue-100 text-primary">
-                          {cat}
-                        </Badge>
-                      ))}
-                    </div>
-                    {order.comments && (
-                      <div className="mt-6 space-y-2">
-                        <h4 className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Office Notes</h4>
-                        <p className="text-xs text-muted-foreground leading-relaxed">{order.comments}</p>
+                  <Card className="border shadow-none lg:col-span-7">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Checklist</CardTitle>
+                      <CardDescription>Items to verify for this repair</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {data.checklist.length ? (
+                        <ScrollArea className="h-[200px] pr-3">
+                          <div className="space-y-2">
+                            {data.checklist.map((c) => (
+                              <label key={c} className="flex items-start gap-3 rounded-lg border bg-muted/5 p-3">
+                                <Checkbox checked={false} disabled />
+                                <div className="text-sm leading-tight">{c}</div>
+                              </label>
+                            ))}
+                          </div>
+                        </ScrollArea>
+                      ) : (
+                        <div className="text-sm text-muted-foreground">No checklist items</div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="border shadow-none">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Attachments</CardTitle>
+                    <CardDescription>Files uploaded to the content provider</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {data.attachments.length ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {data.attachments.map((fn) => (
+                          <a
+                            key={fn}
+                            href={contentUrl('orders', fn)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="rounded-lg border bg-muted/5 px-3 py-2 text-sm hover:bg-muted/20 transition-colors"
+                          >
+                            {fn}
+                          </a>
+                        ))}
                       </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground">No attachments</div>
                     )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Timeline / History */}
-            <Card className="border-none shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <History className="w-5 h-5 text-primary" />
-                  Order Timeline
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-muted-foreground/20 before:to-transparent">
-                  <div className="relative flex items-center justify-between gap-6 group">
-                    <div className="flex items-center gap-4">
-                      <div className="relative w-10 h-10 flex items-center justify-center bg-white rounded-full border-2 border-primary shadow-sm z-10">
-                        <FileText className="w-4 h-4 text-primary" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold">Order Registered</p>
-                        <p className="text-xs text-muted-foreground">{format(new Date(order.createdAt), 'MMM d, yyyy • h:mm a')}</p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">Officer</Badge>
-                  </div>
-
-                  {order.status !== 'Pending' && (
-                    <div className="relative flex items-center justify-between gap-6 group">
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-10 h-10 flex items-center justify-center bg-white rounded-full border-2 border-blue-500 shadow-sm z-10">
-                          <Wrench className="w-4 h-4 text-blue-500" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">Technician Assigned</p>
-                          <p className="text-xs text-muted-foreground">{order.technician} assigned to {order.location}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {order.status === 'Completed' && (
-                    <div className="relative flex items-center justify-between gap-6 group">
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-10 h-10 flex items-center justify-center bg-white rounded-full border-2 border-green-500 shadow-sm z-10">
-                          <CheckCircle2 className="w-4 h-4 text-green-500" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">Repair Finalized</p>
-                          <p className="text-xs text-muted-foreground">Verification completed and vehicle ready.</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  </CardContent>
+                </Card>
               </CardContent>
             </Card>
           </div>
 
-          <div className="space-y-6">
-            <Card className="border-none shadow-sm bg-primary text-white">
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-lg text-white">Expected Completion</CardTitle>
                 <CardDescription className="text-white/70">Estimated deadline for this job</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-white/10 rounded-xl">
-                    <Clock className="w-8 h-8 text-white" />
+                  <div className="p-3 bg-white/10 rounded-2xl">
+                    <Clock className="w-7 h-7 text-white" />
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold">{format(new Date(order.expectedTime), 'h:mm a')}</p>
-                    <p className="text-xs text-white/70">{format(new Date(order.expectedTime), 'EEEE, MMM d')}</p>
+                  <div className="min-w-0">
+                    <p className="text-3xl font-bold leading-none">
+                      {data.expectedAt ? format(data.expectedAt, "HH:mm") : "-"}
+                    </p>
+                    <p className="text-xs text-white/70 truncate mt-1">
+                      {data.expectedAt ? format(data.expectedAt, "EEEE, MMM d") : "Not set"}
+                    </p>
+                    {remaining ? (
+                      <p className="text-xs mt-2 text-white/80">{remaining}</p>
+                    ) : null}
                   </div>
                 </div>
-                
+
                 <Separator className="bg-white/10" />
-                
+
                 <div className="space-y-2">
-                  <p className="text-[10px] uppercase font-bold text-white/60 tracking-widest">Time Remaining</p>
-                  <p className="text-sm font-medium">Approx. 4 hours 20 mins</p>
+                  <p className="text-[10px] uppercase font-bold text-white/60 tracking-widest">Status</p>
+                  <p className="text-sm font-medium">{data.status}</p>
                 </div>
               </CardContent>
             </Card>
 
             <Card className="border-none shadow-sm">
               <CardHeader>
-                <CardTitle className="text-lg">Customer Contact</CardTitle>
+                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <CardDescription>Print or go back to queue</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Name</span>
-                  <span className="text-sm font-bold">Confidential</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Phone</span>
-                  <span className="text-sm font-bold">+1 (555) 012-3456</span>
-                </div>
-                <Button variant="outline" className="w-full mt-2">Send Status SMS</Button>
+              <CardContent className="space-y-3">
+                <Button className="w-full gap-2" onClick={onPrint}>
+                  <Printer className="w-4 h-4" />
+                  Print Thermal Receipt
+                </Button>
+                <Button variant="outline" className="w-full gap-2" onClick={() => router.push("/orders")}>
+                  <ChevronLeft className="w-4 h-4" />
+                  Back to Orders
+                </Button>
               </CardContent>
             </Card>
           </div>

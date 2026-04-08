@@ -118,4 +118,3 @@ class ChecklistrepoController extends Controller {
         }
     }
 }
-

@@ -23,7 +23,7 @@ import {
   Hash,
   Calendar
 } from 'lucide-react';
-import { fetchMakes, fetchModels, fetchVehicles, createVehicle, deleteVehicle, updateVehicle } from '@/lib/api';
+import { fetchDepartments, fetchMakes, fetchModels, fetchVehicles, createVehicle, deleteVehicle, updateVehicle, uploadVehicleImage, contentUrl } from '@/lib/api';
 import { Vehicle, VehicleMake, VehicleModel } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -56,19 +56,24 @@ export default function VehiclesPage() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [makes, setMakes] = useState<VehicleMake[]>([]);
   const [models, setModels] = useState<VehicleModel[]>([]);
+  const [departments, setDepartments] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingModels, setLoadingModels] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingVehicleId, setEditingVehicleId] = useState<number | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>('');
   
   // Form state
   const [formData, setFormData] = useState({
+    department_id: null as number | null,
     make: '',
     model: '',
     year: new Date().getFullYear().toString(),
-    vin: ''
+    vin: '',
+    image_filename: '' as string,
   });
 
   const loadModelsForMake = async (makeName: string) => {
@@ -114,9 +119,10 @@ export default function VehiclesPage() {
     const loadAll = async () => {
       setLoading(true);
       try {
-        const [vehicleData, makeData] = await Promise.all([fetchVehicles(), fetchMakes()]);
+        const [vehicleData, makeData, deptData] = await Promise.all([fetchVehicles(), fetchMakes(), fetchDepartments()]);
         setVehicles(vehicleData);
         setMakes(makeData);
+        setDepartments(Array.isArray(deptData) ? deptData.map((d: any) => ({ id: Number(d.id), name: String(d.name) })) : []);
 
         const defaultMake = makeData?.[0]?.name ?? '';
         setFormData((prev) => ({
@@ -144,9 +150,15 @@ export default function VehiclesPage() {
     e.preventDefault();
     setIsSubmitting(true);
     try {
+      let imageFilename = formData.image_filename || '';
+      if (imageFile) {
+        const up = await uploadVehicleImage(imageFile);
+        imageFilename = up.data?.filename ?? imageFilename;
+      }
       const payload = {
         ...formData,
-        year: parseInt(formData.year)
+        year: parseInt(formData.year),
+        image_filename: imageFilename || undefined,
       };
 
       if (editingVehicleId) {
@@ -158,11 +170,15 @@ export default function VehiclesPage() {
       }
       setIsAddDialogOpen(false);
       setEditingVehicleId(null);
+      setImageFile(null);
+      setImagePreview('');
       setFormData({
+        department_id: null,
         make: makes?.[0]?.name ?? '',
         model: '',
         year: new Date().getFullYear().toString(),
-        vin: ''
+        vin: '',
+        image_filename: '',
       });
       if (makes?.[0]?.name) {
         await loadModelsForMake(makes[0].name);
@@ -185,11 +201,15 @@ export default function VehiclesPage() {
     setEditingVehicleId(null);
     const defaultMake = makes?.[0]?.name ?? '';
     setFormData({
+      department_id: null,
       make: defaultMake,
       model: '',
       year: new Date().getFullYear().toString(),
-      vin: ''
+      vin: '',
+      image_filename: '',
     });
+    setImageFile(null);
+    setImagePreview('');
     if (defaultMake) {
       await loadModelsForMake(defaultMake);
     } else {
@@ -201,11 +221,16 @@ export default function VehiclesPage() {
   const openEditDialog = async (vehicle: Vehicle) => {
     setEditingVehicleId(vehicle.id);
     setFormData({
+      department_id: (vehicle as any).department_id ?? null,
       make: vehicle.make,
       model: vehicle.model,
       year: String(vehicle.year),
-      vin: vehicle.vin
+      vin: vehicle.vin,
+      image_filename: (vehicle as any).image_filename ?? '',
     });
+    setImageFile(null);
+    const fn = (vehicle as any).image_filename as string | null | undefined;
+    setImagePreview(fn ? contentUrl('vehicles', fn) : '');
     await loadModelsForMake(vehicle.make);
     setIsAddDialogOpen(true);
   };
@@ -235,6 +260,12 @@ export default function VehiclesPage() {
     v.vin.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const departmentName = (deptId: any) => {
+    const id = typeof deptId === "number" ? deptId : (deptId ? Number(deptId) : null);
+    if (!id) return null;
+    return departments.find((d) => d.id === id)?.name ?? null;
+  };
+
   return (
     <DashboardLayout>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -260,6 +291,67 @@ export default function VehiclesPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Department</Label>
+                    <div className="col-span-3">
+                      <Select
+                        value={formData.department_id ? String(formData.department_id) : "none"}
+                        onValueChange={(value) => {
+                          setFormData((prev) => ({
+                            ...prev,
+                            department_id: value === "none" ? null : Number(value),
+                          }));
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No department</SelectItem>
+                          {departments.map((d) => (
+                            <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Departments are managed in Master Data → Departments.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label className="text-right">Image</Label>
+                    <div className="col-span-3 space-y-2">
+                      {imagePreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={imagePreview}
+                          alt="Vehicle"
+                          className="h-20 w-20 rounded-lg object-cover border"
+                        />
+                      ) : (
+                        <div className="h-20 w-20 rounded-lg border border-dashed bg-muted/20 flex items-center justify-center text-xs text-muted-foreground">
+                          No image
+                        </div>
+                      )}
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          setImageFile(f);
+                          if (f) {
+                            const url = URL.createObjectURL(f);
+                            setImagePreview(url);
+                          } else {
+                            setImagePreview(formData.image_filename ? contentUrl('vehicles', formData.image_filename) : '');
+                          }
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Uploads to FTP and stores only the filename in the database.
+                      </p>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="make" className="text-right">Make</Label>
                     {makes.length === 0 ? (
@@ -397,6 +489,7 @@ export default function VehiclesPage() {
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead>Vehicle</TableHead>
+                    <TableHead>Department</TableHead>
                     <TableHead>Year</TableHead>
                     <TableHead>VIN</TableHead>
                     <TableHead>Added On</TableHead>
@@ -408,14 +501,28 @@ export default function VehiclesPage() {
                     <TableRow key={vehicle.id} className="hover:bg-muted/10 transition-colors">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="p-2 bg-primary/10 rounded-lg">
-                            <Car className="w-5 h-5 text-primary" />
-                          </div>
+                          {(vehicle as any).image_filename ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={contentUrl('vehicles', (vehicle as any).image_filename)}
+                              alt="Vehicle"
+                              className="h-10 w-10 rounded-lg object-cover border"
+                            />
+                          ) : (
+                            <div className="p-2 bg-primary/10 rounded-lg">
+                              <Car className="w-5 h-5 text-primary" />
+                            </div>
+                          )}
                           <div>
                             <p className="font-bold">{vehicle.make} {vehicle.model}</p>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">MASTER DATA REF: #{vehicle.id}</p>
                           </div>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="text-xs text-muted-foreground">
+                          {departmentName((vehicle as any).department_id) ?? "-"}
+                        </span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">

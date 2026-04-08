@@ -308,7 +308,7 @@ export default function OrderQueuePage() {
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
+                    <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" className="h-8 w-8 p-0">
                           <MoreHorizontal className="w-4 h-4" />
@@ -413,7 +413,7 @@ export default function OrderQueuePage() {
                     Assign
                   </Button>
                 )}
-                <DropdownMenu>
+                <DropdownMenu modal={false}>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="px-2">
                       <MoreHorizontal className="w-4 h-4" />

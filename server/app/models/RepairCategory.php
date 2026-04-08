@@ -32,4 +32,3 @@ class RepairCategory extends Model {
         return $this->db->execute();
     }
 }
-

@@ -100,4 +100,30 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--primary) / 0.3) hsl(var(--muted));
   }
+
+  /* Sidebar scrollbar override (avoid bright track on dark sidebar) */
+  [data-sidebar="content"] {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--sidebar-foreground) / 0.28) transparent;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-thumb {
+    background: hsl(var(--sidebar-foreground) / 0.22);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+
+  [data-sidebar="content"]::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--sidebar-foreground) / 0.38);
+  }
 }

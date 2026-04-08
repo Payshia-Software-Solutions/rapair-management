@@ -78,6 +78,38 @@ class Controller {
         return $u;
     }
 
+    protected function isAdmin($u) {
+        return (string)($u['role'] ?? '') === 'Admin';
+    }
+
+    // Location scoping:
+    // - Non-admin users are restricted to their token's location_id (default 1).
+    // - Admin users can switch context by sending X-Location-Id header.
+    protected function currentLocationId($u = null) {
+        if ($u === null) {
+            $u = $this->requireAuth();
+        }
+
+        $locFromToken = isset($u['location_id']) ? (int)$u['location_id'] : 1;
+        if ($locFromToken <= 0) $locFromToken = 1;
+
+        $hdr = $_SERVER['HTTP_X_LOCATION_ID'] ?? '';
+        $hdrId = (int)$hdr;
+        if ($hdrId > 0) {
+            if ($this->isAdmin($u)) {
+                return $hdrId;
+            }
+
+            // Non-admins can only switch to locations explicitly assigned to them.
+            $allowed = $u['allowed_location_ids'] ?? null;
+            if (is_array($allowed) && in_array($hdrId, array_map('intval', $allowed), true)) {
+                return $hdrId;
+            }
+        }
+
+        return $locFromToken;
+    }
+
     protected function requirePermission($permKey) {
         $u = $this->requireAuth();
         $role = (string)($u['role'] ?? '');

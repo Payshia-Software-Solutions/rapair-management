@@ -1,0 +1,130 @@
+<?php
+/**
+ * Upload Controller
+ * Uploads vehicle images and order attachments to FTP storage.
+ *
+ * Endpoints:
+ *  - POST /api/upload/vehicle_image (field: image)
+ *  - POST /api/upload/order_attachment (field: file)
+ */
+
+class UploadController extends Controller {
+    private $auditModel;
+
+    public function __construct() {
+        $this->auditModel = $this->model('AuditLog');
+    }
+
+    private function extFromName($name) {
+        $name = strtolower((string)$name);
+        $dot = strrpos($name, '.');
+        if ($dot === false) return '';
+        return substr($name, $dot + 1);
+    }
+
+    private function safeFilename($prefix, $originalName) {
+        $ext = $this->extFromName($originalName);
+        $ext = preg_replace('/[^a-z0-9]+/', '', $ext);
+        if ($ext === '') $ext = 'bin';
+
+        $rand = bin2hex(random_bytes(8));
+        $ts = date('Ymd_His');
+        return $prefix . '_' . $ts . '_' . $rand . '.' . $ext;
+    }
+
+    private function requireFile($field) {
+        if (!isset($_FILES[$field])) {
+            $this->error('Missing file field: ' . $field, 400);
+        }
+        $f = $_FILES[$field];
+        if (!is_array($f) || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            $msg = 'Upload failed';
+            $err = $f['error'] ?? null;
+            if ($err === UPLOAD_ERR_INI_SIZE || $err === UPLOAD_ERR_FORM_SIZE) $msg = 'File too large';
+            $this->error($msg, 400);
+        }
+        if (!is_uploaded_file($f['tmp_name'])) {
+            $this->error('Invalid upload', 400);
+        }
+        return $f;
+    }
+
+    // POST /api/upload/vehicle_image
+    public function vehicle_image() {
+        $u = $this->requirePermission('vehicles.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+
+        $f = $this->requireFile('image');
+        $allowed = ['jpg','jpeg','png','webp','gif'];
+        $ext = strtolower($this->extFromName($f['name'] ?? ''));
+        if ($ext && !in_array($ext, $allowed, true)) {
+            $this->error('Unsupported image type', 400);
+        }
+
+        $filename = $this->safeFilename('veh', $f['name'] ?? 'image');
+        $dir = trim((string)CONTENT_VEHICLES_DIR, '/');
+
+        try {
+            $ftp = new FtpStorage();
+            $ftp->upload($f['tmp_name'], $dir, $filename);
+        } catch (Exception $e) {
+            $this->error('FTP upload failed', 500);
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'action' => 'upload',
+            'entity' => 'vehicle_image',
+            'entity_id' => null,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['filename' => $filename]),
+        ]);
+
+        $this->success([
+            'filename' => $filename,
+            'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_VEHICLES_DIR, '/') . '/' . $filename,
+        ], 'Uploaded');
+    }
+
+    // POST /api/upload/order_attachment
+    public function order_attachment() {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+
+        $f = $this->requireFile('file');
+        $filename = $this->safeFilename('ord', $f['name'] ?? 'file');
+        $dir = trim((string)CONTENT_ORDERS_DIR, '/');
+
+        try {
+            $ftp = new FtpStorage();
+            $ftp->upload($f['tmp_name'], $dir, $filename);
+        } catch (Exception $e) {
+            $this->error('FTP upload failed', 500);
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'action' => 'upload',
+            'entity' => 'order_attachment',
+            'entity_id' => null,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['filename' => $filename]),
+        ]);
+
+        $this->success([
+            'filename' => $filename,
+            'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_ORDERS_DIR, '/') . '/' . $filename,
+        ], 'Uploaded');
+    }
+}
+

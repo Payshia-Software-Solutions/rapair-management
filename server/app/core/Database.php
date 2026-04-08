@@ -61,6 +61,11 @@ class Database {
         return $this->stmt->execute();
     }
 
+    // Execute a raw SQL statement directly on the connection (DDL/migrations).
+    public function exec($sql) {
+        return $this->dbh->exec($sql);
+    }
+
     // Get result set as array of objects
     public function resultSet() {
         $this->execute();
@@ -76,5 +81,10 @@ class Database {
     // Get row count
     public function rowCount() {
         return $this->stmt->rowCount();
+    }
+
+    // Get the last inserted id for the current connection.
+    public function lastInsertId() {
+        return $this->dbh->lastInsertId();
     }
 }

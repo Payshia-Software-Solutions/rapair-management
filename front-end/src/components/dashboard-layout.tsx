@@ -24,7 +24,9 @@ import {
   Car,
   Layers,
   Tag,
-  Shield
+  Shield,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
   SidebarInset,
@@ -63,6 +68,7 @@ const masterDataItems = [
   { icon: Layers, label: 'Vehicle Models', href: '/master-data/models', perm: 'models.read' },
   { icon: Users, label: 'Technicians', href: '/master-data/technicians', perm: 'technicians.read' },
   { icon: Grid, label: 'Service Bays', href: '/master-data/bays', perm: 'bays.read' },
+  { icon: Grid, label: 'Departments', href: '/master-data/departments', perm: 'departments.read' },
   { icon: Tags, label: 'Repair Categories', href: '/master-data/categories', perm: 'categories.read' },
   { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists', perm: 'checklists.read' },
 ];
@@ -73,6 +79,9 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const [isNavigating, setIsNavigating] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
+  const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
     // Basic client-side guard. Server APIs also enforce auth via JWT.
@@ -103,6 +112,20 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       }
     };
     void loadPerms();
+  }, []);
+
+  useEffect(() => {
+    // Reflect the current theme (class on <html>) so both toggles stay in sync.
+    const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+    setTheme(current);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== 'theme') return;
+      const next = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      setTheme(next);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
   }, []);
 
   useEffect(() => {
@@ -140,6 +163,19 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     router.push('/login');
   };
 
+  const toggleTheme = () => {
+    const isDark = document.documentElement.classList.contains('dark');
+    if (isDark) {
+      document.documentElement.classList.remove('dark');
+      window.localStorage.setItem('theme', 'light');
+      setTheme('light');
+    } else {
+      document.documentElement.classList.add('dark');
+      window.localStorage.setItem('theme', 'dark');
+      setTheme('dark');
+    }
+  };
+
   const hasPerm = (perm?: string) => {
     if (!perm) return true;
     if (!permissionKeys) return true; // render immediately; will filter once loaded
@@ -147,12 +183,18 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     return permissionKeys.includes(perm);
   };
 
+  const visibleMasterDataItems = masterDataItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeMasterData = visibleMasterDataItems.length > 0;
+
   const adminItems = userRole === 'Admin'
     ? [
         { icon: Shield, label: 'RBAC', href: '/admin/rbac' },
         { icon: Users, label: 'Users', href: '/admin/users' },
+        { icon: Database, label: 'Locations', href: '/admin/locations' },
+        { icon: Settings, label: 'Company', href: '/admin/company' },
       ]
     : [];
+  const canSeeAdmin = adminItems.length > 0;
 
   return (
     <SidebarProvider>
@@ -202,50 +244,91 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               <SidebarGroupLabel className="text-white/50 px-4 mb-2 group-data-[collapsible=icon]:hidden uppercase tracking-widest text-[10px] font-bold">Master Data</SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {masterDataItems.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                      {!hasPerm((item as any).perm) ? null : (
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={pathname === item.href}
-                        tooltip={item.label}
+                  {!canSeeMasterData ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsMasterDataOpen((v) => !v)}
+                        isActive={pathname.startsWith('/master-data')}
+                        tooltip="Master Data"
                         className={cn(
                           "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname === item.href ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          pathname.startsWith('/master-data') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                         )}
                       >
-                        <Link href={item.href}>
-                          <item.icon className="w-5 h-5" />
-                          <span className="text-base sm:text-sm font-medium">{item.label}</span>
-                        </Link>
+                        <Grid className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Master Data</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            isMasterDataOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
                       </SidebarMenuButton>
-                      )}
+
+                      {isMasterDataOpen ? (
+                        <SidebarMenuSub>
+                          {visibleMasterDataItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton
+                                asChild
+                                isActive={pathname === item.href}
+                              >
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
                     </SidebarMenuItem>
-                  ))}
+                  )}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
 
             <SidebarGroup className="mt-auto">
               <SidebarMenu>
-                {adminItems.map((item) => (
-                  <SidebarMenuItem key={item.href}>
+                {!canSeeAdmin ? null : (
+                  <SidebarMenuItem>
                     <SidebarMenuButton
-                      asChild
-                      isActive={pathname === item.href}
-                      tooltip={item.label}
+                      type="button"
+                      onClick={() => setIsAdminOpen((v) => !v)}
+                      isActive={pathname.startsWith('/admin')}
+                      tooltip="Administration"
                       className={cn(
                         "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                        pathname === item.href ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        pathname.startsWith('/admin') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                       )}
                     >
-                      <Link href={item.href}>
-                        <item.icon className="w-5 h-5" />
-                        <span className="text-base sm:text-sm font-medium">{item.label}</span>
-                      </Link>
+                      <Shield className="w-5 h-5" />
+                      <span className="text-base sm:text-sm font-medium">Administration</span>
+                      <ChevronRight
+                        className={cn(
+                          "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                          isAdminOpen ? "rotate-90" : "rotate-0"
+                        )}
+                      />
                     </SidebarMenuButton>
+
+                    {isAdminOpen ? (
+                      <SidebarMenuSub>
+                        {adminItems.map((item) => (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                              <Link href={item.href}>
+                                <item.icon className="w-4 h-4" />
+                                <span>{item.label}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    ) : null}
                   </SidebarMenuItem>
-                ))}
+                )}
                 <SidebarMenuItem>
                   <SidebarMenuButton 
                     asChild 
@@ -267,6 +350,18 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
           </SidebarContent>
           <SidebarFooter className="p-4 border-t border-sidebar-border">
             <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  tooltip={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  className="text-white/70 hover:text-white py-6 sm:py-2"
+                  onClick={toggleTheme}
+                >
+                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                  <span className="text-base sm:text-sm font-medium">
+                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                  </span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   tooltip="Logout" 
@@ -298,6 +393,15 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-10 w-10"
+                onClick={toggleTheme}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </Button>
               <Button variant="ghost" size="icon" className="relative h-10 w-10">
                 <Bell className="w-5 h-5" />
                 <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-background" />

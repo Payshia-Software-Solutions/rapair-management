@@ -32,4 +32,3 @@ class ChecklistTemplate extends Model {
         return $this->db->execute();
     }
 }
-

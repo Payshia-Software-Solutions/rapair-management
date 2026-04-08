@@ -14,9 +14,10 @@ class BayController extends Controller {
 
     // GET /api/bay/list
     public function list() {
-        $this->requirePermission('bays.read');
+        $u = $this->requirePermission('bays.read');
         if ($_SERVER['REQUEST_METHOD'] == 'GET') {
-            $bays = $this->bayModel->getAll();
+            $locId = $this->currentLocationId($u);
+            $bays = $this->bayModel->getAllByLocation($locId);
             $this->success($bays);
         } else {
             $this->error('Method Not Allowed', 405);
@@ -37,7 +38,8 @@ class BayController extends Controller {
             return;
         }
 
-        $ok = $this->bayModel->create(trim($data['name']), (int)$u['sub']);
+        $locId = $this->currentLocationId($u);
+        $ok = $this->bayModel->create(trim($data['name']), (int)$u['sub'], $locId);
         if ($ok) {
             $this->success(null, 'Bay created');
         } else {
@@ -63,7 +65,8 @@ class BayController extends Controller {
             return;
         }
 
-        $ok = $this->bayModel->update($id, trim($data['name']), (int)$u['sub']);
+        $locId = $this->currentLocationId($u);
+        $ok = $this->bayModel->update($id, trim($data['name']), (int)$u['sub'], $locId);
         if ($ok) {
             $this->success(null, 'Bay updated');
         } else {
@@ -73,7 +76,7 @@ class BayController extends Controller {
 
     // DELETE /api/bay/delete/1
     public function delete($id = null) {
-        $this->requirePermission('bays.write');
+        $u = $this->requirePermission('bays.write');
         $method = $_SERVER['REQUEST_METHOD'];
         if ($method === 'POST') {
             $raw = file_get_contents('php://input');
@@ -91,7 +94,8 @@ class BayController extends Controller {
             return;
         }
 
-        $ok = $this->bayModel->delete($id);
+        $locId = $this->currentLocationId($u);
+        $ok = $this->bayModel->delete($id, $locId);
         if ($ok) {
             $this->success(null, 'Bay deleted');
         } else {
@@ -110,7 +114,8 @@ class BayController extends Controller {
                 $this->error('Missing required data', 400);
             }
 
-            if ($this->bayModel->updateStatus($id, $data['status'], (int)$u['sub'])) {
+            $locId = $this->currentLocationId($u);
+            if ($this->bayModel->updateStatus($id, $data['status'], (int)$u['sub'], $locId)) {
                 $this->success(['id' => $id, 'status' => $data['status']], 'Bay status updated');
             } else {
                 $this->error('Update failed');

@@ -18,6 +18,7 @@ export interface RepairOrder {
   problemDescription: string;
   checklist: string[];
   categories: string[];
+  attachments?: string[];
   comments: string;
   status: RepairStatus;
   createdAt: string;
@@ -43,10 +44,12 @@ export const REPAIR_CATEGORIES = [
 ];
 export interface Vehicle {
   id: number;
+  department_id?: number | null;
   make: string;
   model: string;
   year: number;
   vin: string;
+  image_filename?: string | null;
   created_at: string;
 }
 
