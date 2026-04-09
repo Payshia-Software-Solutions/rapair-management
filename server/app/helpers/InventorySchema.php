@@ -1,0 +1,376 @@
+<?php
+/**
+ * InventorySchema
+ * Lightweight auto-migrations for inventory tables so the API doesn't crash on older installs.
+ *
+ * We keep this intentionally defensive:
+ * - CREATE TABLE IF NOT EXISTS for new tables
+ * - ALTER TABLE ADD COLUMN when missing
+ * - best-effort only (failures won't break the API response layer)
+ */
+class InventorySchema {
+    private static $done = false;
+
+    private static function pdo() {
+        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
+        $pdo = new PDO($dsn, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $pdo;
+    }
+
+    private static function hasColumn(PDO $pdo, $table, $col) {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM {$table} LIKE ?");
+        $stmt->execute([$col]);
+        return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    private static function hasTable(PDO $pdo, $table) {
+        $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+        $stmt->execute([$table]);
+        return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public static function ensure() {
+        if (self::$done) return;
+        self::$done = true;
+
+        try {
+            $pdo = self::pdo();
+        } catch (Exception $e) {
+            return;
+        }
+
+        // Ensure RBAC permission keys exist for inventory even on older installs (best-effort).
+        try {
+            if (self::hasTable($pdo, 'permissions')) {
+                $pdo->exec("
+                    INSERT IGNORE INTO permissions (perm_key, description) VALUES
+                    ('parts.read', 'View item master (parts)'),
+                    ('parts.write', 'Create/update/delete item master (parts)'),
+                    ('suppliers.read', 'View suppliers'),
+                    ('suppliers.write', 'Create/update/delete suppliers'),
+                    ('purchase.read', 'View purchase orders'),
+                    ('purchase.write', 'Create/update/delete purchase orders'),
+                    ('grn.read', 'View goods receive notes'),
+                    ('grn.write', 'Create/update goods receive notes'),
+                    ('stock.read', 'View stock movements and balances'),
+                    ('stock.adjust', 'Adjust stock quantity')
+                ");
+
+                // Best-effort grants to default roles (non-admin). Admin is implicit superuser.
+                // This mirrors InstallController defaults so existing installs behave the same.
+                try {
+                    $roleId = function($name) use ($pdo) {
+                        $stmt = $pdo->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+                        $stmt->execute([$name]);
+                        return (int)$stmt->fetchColumn();
+                    };
+                    $permId = function($key) use ($pdo) {
+                        $stmt = $pdo->prepare("SELECT id FROM permissions WHERE perm_key = ? LIMIT 1");
+                        $stmt->execute([$key]);
+                        return (int)$stmt->fetchColumn();
+                    };
+                    $grant = function($roleName, $permKey) use ($pdo, $roleId, $permId) {
+                        $rid = $roleId($roleName);
+                        $pid = $permId($permKey);
+                        if ($rid && $pid) {
+                            $stmt = $pdo->prepare("INSERT IGNORE INTO role_permissions (role_id, permission_id) VALUES (?, ?)");
+                            $stmt->execute([$rid, $pid]);
+                        }
+                    };
+
+                    foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read'] as $p) {
+                        $grant('Workshop Officer', $p);
+                    }
+                    foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read'] as $p) {
+                        $grant('Factory Officer', $p);
+                    }
+                } catch (Exception $e2) {
+                    // ignore
+                }
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Parts table upgrades
+        try {
+            if (self::hasTable($pdo, 'parts')) {
+                $cols = [
+                    'sku' => "VARCHAR(64) NULL",
+                    'part_number' => "VARCHAR(64) NULL",
+                    'barcode_number' => "VARCHAR(64) NULL",
+                    'unit' => "VARCHAR(32) NULL",
+                    'cost_price' => "DECIMAL(10,2) NULL",
+                    'reorder_level' => "INT NULL",
+                    'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
+                    'image_filename' => "VARCHAR(255) NULL",
+                ];
+                foreach ($cols as $col => $def) {
+                    if (!self::hasColumn($pdo, 'parts', $col)) {
+                        $pdo->exec("ALTER TABLE parts ADD COLUMN {$col} {$def}");
+                    }
+                }
+                // Support fractional stock quantities (e.g., oils) with 3 decimals.
+                try { $pdo->exec("ALTER TABLE parts MODIFY COLUMN stock_quantity DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
+                // Unique SKU if possible (ignore duplicates / existing index)
+                try { $pdo->exec("ALTER TABLE parts ADD UNIQUE KEY uq_parts_sku (sku)"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // order_parts upgrades (add id PK + prices)
+        try {
+            if (self::hasTable($pdo, 'order_parts')) {
+                if (!self::hasColumn($pdo, 'order_parts', 'id')) {
+                    // Make it the primary key so we can update/delete specific lines.
+                    $pdo->exec("ALTER TABLE order_parts ADD COLUMN id INT NOT NULL AUTO_INCREMENT PRIMARY KEY FIRST");
+                }
+                $cols = [
+                    'unit_cost' => "DECIMAL(10,2) NULL",
+                    'unit_price' => "DECIMAL(10,2) NULL",
+                    'line_total' => "DECIMAL(10,2) NULL",
+                ];
+                foreach ($cols as $col => $def) {
+                    if (!self::hasColumn($pdo, 'order_parts', $col)) {
+                        $pdo->exec("ALTER TABLE order_parts ADD COLUMN {$col} {$def}");
+                    }
+                }
+                try { $pdo->exec("ALTER TABLE order_parts ADD INDEX idx_order_parts_order (order_id)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE order_parts ADD INDEX idx_order_parts_part (part_id)"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Suppliers
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS suppliers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NULL,
+                    phone VARCHAR(50) NULL,
+                    address VARCHAR(255) NULL,
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    created_by INT NULL,
+                    updated_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_suppliers_name (name)
+                )
+            ");
+        } catch (Exception $e) {}
+
+        // Purchase Orders
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS purchase_orders (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    supplier_id INT NOT NULL,
+                    po_number VARCHAR(50) NOT NULL,
+                    status ENUM('Draft','Sent','Partially Received','Received','Cancelled') NOT NULL DEFAULT 'Draft',
+                    notes TEXT NULL,
+                    ordered_at DATETIME NULL,
+                    expected_at DATETIME NULL,
+                    created_by INT NULL,
+                    updated_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_purchase_orders_number (po_number),
+                    INDEX idx_purchase_orders_supplier (supplier_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE purchase_orders ADD CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS purchase_order_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    purchase_order_id INT NOT NULL,
+                    part_id INT NOT NULL,
+                    qty_ordered DECIMAL(12,3) NOT NULL,
+                    unit_cost DECIMAL(10,2) NOT NULL,
+                    received_qty DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    line_total DECIMAL(10,2) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_poi_po (purchase_order_id),
+                    INDEX idx_poi_part (part_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE purchase_order_items ADD CONSTRAINT fk_poi_po FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE"); } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE purchase_order_items ADD CONSTRAINT fk_poi_part FOREIGN KEY (part_id) REFERENCES parts(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        // GRN + GRN items
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS goods_receive_notes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    grn_number VARCHAR(50) NOT NULL,
+                    purchase_order_id INT NULL,
+                    supplier_id INT NOT NULL,
+                    received_at DATETIME NOT NULL,
+                    notes TEXT NULL,
+                    created_by INT NULL,
+                    updated_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_grn_number (grn_number),
+                    INDEX idx_grn_supplier (supplier_id),
+                    INDEX idx_grn_po (purchase_order_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"); } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_po FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS grn_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    grn_id INT NOT NULL,
+                    part_id INT NOT NULL,
+                    qty_received DECIMAL(12,3) NOT NULL,
+                    unit_cost DECIMAL(10,2) NOT NULL,
+                    line_total DECIMAL(10,2) NOT NULL,
+                    INDEX idx_grni_grn (grn_id),
+                    INDEX idx_grni_part (part_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE grn_items ADD CONSTRAINT fk_grni_grn FOREIGN KEY (grn_id) REFERENCES goods_receive_notes(id) ON DELETE CASCADE"); } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE grn_items ADD CONSTRAINT fk_grni_part FOREIGN KEY (part_id) REFERENCES parts(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        // purchase_order_items upgrades (decimal quantities)
+        try {
+            if (self::hasTable($pdo, 'purchase_order_items')) {
+                try { $pdo->exec("ALTER TABLE purchase_order_items MODIFY COLUMN qty_ordered DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE purchase_order_items MODIFY COLUMN received_qty DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // grn_items upgrades (decimal quantities)
+        try {
+            if (self::hasTable($pdo, 'grn_items')) {
+                try { $pdo->exec("ALTER TABLE grn_items MODIFY COLUMN qty_received DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Stock movement ledger
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_movements (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    location_id INT NOT NULL DEFAULT 1,
+                    part_id INT NOT NULL,
+                    qty_change DECIMAL(12,3) NOT NULL,
+                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT') NOT NULL,
+                    ref_table VARCHAR(64) NULL,
+                    ref_id INT NULL,
+                    unit_cost DECIMAL(10,2) NULL,
+                    unit_price DECIMAL(10,2) NULL,
+                    notes VARCHAR(255) NULL,
+                    created_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_stock_movements_location (location_id),
+                    INDEX idx_stock_movements_part (part_id),
+                    INDEX idx_stock_movements_type (movement_type)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE stock_movements ADD CONSTRAINT fk_stock_movements_part FOREIGN KEY (part_id) REFERENCES parts(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        // stock_movements upgrades (location_id)
+        try {
+            if (self::hasTable($pdo, 'stock_movements')) {
+                if (!self::hasColumn($pdo, 'stock_movements', 'location_id')) {
+                    $pdo->exec("ALTER TABLE stock_movements ADD COLUMN location_id INT NOT NULL DEFAULT 1 AFTER id");
+                }
+                try { $pdo->exec("ALTER TABLE stock_movements ADD INDEX idx_stock_movements_location (location_id)"); } catch (Exception $e2) {}
+                // qty_change should support decimal quantities
+                try { $pdo->exec("ALTER TABLE stock_movements MODIFY COLUMN qty_change DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        // Stock adjustment batches
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_adjustments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    location_id INT NOT NULL DEFAULT 1,
+                    adjustment_number VARCHAR(50) NOT NULL,
+                    adjusted_at DATETIME NOT NULL,
+                    reason VARCHAR(255) NULL,
+                    notes TEXT NULL,
+                    created_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_stock_adjustments_number (adjustment_number),
+                    INDEX idx_stock_adjustments_location (location_id),
+                    INDEX idx_stock_adjustments_date (adjusted_at)
+                )
+            ");
+        } catch (Exception $e) {}
+
+        // stock_adjustments upgrades (location_id)
+        try {
+            if (self::hasTable($pdo, 'stock_adjustments')) {
+                if (!self::hasColumn($pdo, 'stock_adjustments', 'location_id')) {
+                    $pdo->exec("ALTER TABLE stock_adjustments ADD COLUMN location_id INT NOT NULL DEFAULT 1 AFTER id");
+                }
+                try { $pdo->exec("ALTER TABLE stock_adjustments ADD INDEX idx_stock_adjustments_location (location_id)"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_adjustment_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    stock_adjustment_id INT NOT NULL,
+                    part_id INT NOT NULL,
+                    system_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    physical_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    qty_change DECIMAL(12,3) NOT NULL,
+                    notes VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_sai_adj (stock_adjustment_id),
+                    INDEX idx_sai_part (part_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE stock_adjustment_items ADD CONSTRAINT fk_sai_adj FOREIGN KEY (stock_adjustment_id) REFERENCES stock_adjustments(id) ON DELETE CASCADE"); } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE stock_adjustment_items ADD CONSTRAINT fk_sai_part FOREIGN KEY (part_id) REFERENCES parts(id)"); } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        // stock_adjustment_items upgrades (system_stock, physical_stock)
+        try {
+            if (self::hasTable($pdo, 'stock_adjustment_items')) {
+                $cols = [
+                    'system_stock' => "DECIMAL(12,3) NOT NULL DEFAULT 0.000",
+                    'physical_stock' => "DECIMAL(12,3) NOT NULL DEFAULT 0.000",
+                ];
+                foreach ($cols as $col => $def) {
+                    if (!self::hasColumn($pdo, 'stock_adjustment_items', $col)) {
+                        $pdo->exec("ALTER TABLE stock_adjustment_items ADD COLUMN {$col} {$def}");
+                    }
+                }
+                // Ensure decimal types (existing installs might have INT columns).
+                try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN system_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN physical_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN qty_change DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+            }
+        } catch (Exception $e) {
+            // ignore
+        }
+    }
+}

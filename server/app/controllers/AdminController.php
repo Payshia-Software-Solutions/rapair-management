@@ -8,6 +8,7 @@
  * - POST /api/admin/set_user_location/{id}
  * - GET  /api/admin/user_locations/{id}
  * - POST /api/admin/set_user_locations/{id}
+ * - POST /api/admin/set_user_active/{id}
  */
 class AdminController extends Controller {
     private $db;
@@ -74,6 +75,7 @@ class AdminController extends Controller {
                 r.name AS role,
                 u.location_id,
                 sl.name AS location_name,
+                u.is_active,
                 GROUP_CONCAT(DISTINCT sl2.name ORDER BY sl2.name SEPARATOR ', ') AS allowed_locations,
                 GROUP_CONCAT(DISTINCT ul.location_id ORDER BY ul.location_id SEPARATOR ',') AS allowed_location_ids,
                 u.created_at
@@ -82,7 +84,7 @@ class AdminController extends Controller {
             INNER JOIN service_locations sl ON sl.id = u.location_id
             LEFT JOIN user_locations ul ON ul.user_id = u.id
             LEFT JOIN service_locations sl2 ON sl2.id = ul.location_id
-            GROUP BY u.id, u.name, u.email, u.role_id, r.name, u.location_id, sl.name, u.created_at
+            GROUP BY u.id, u.name, u.email, u.role_id, r.name, u.location_id, sl.name, u.is_active, u.created_at
             ORDER BY u.id ASC
         ");
         $rows = $this->db->resultSet();
@@ -312,5 +314,57 @@ class AdminController extends Controller {
         ]);
 
         $this->success(null, 'User locations updated');
+    }
+
+    // POST /api/admin/set_user_active/{id}
+    public function set_user_active($id = null) {
+        $u = $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+        if (!$id) {
+            $this->error('User ID required', 400);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $isActive = isset($data['is_active']) ? (int)$data['is_active'] : -1;
+        if (!in_array($isActive, [0, 1], true)) {
+            $this->error('is_active must be 0 or 1', 400);
+            return;
+        }
+
+        // Ensure column exists (older installs).
+        try {
+            $this->db->exec("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");
+        } catch (Exception $e) {
+            // ignore (exists)
+        }
+
+        $this->db->query("UPDATE users SET is_active = :is_active WHERE id = :id");
+        $this->db->bind(':is_active', $isActive);
+        $this->db->bind(':id', (int)$id);
+        $ok = $this->db->execute();
+        if (!$ok) {
+            $this->error('Failed to update user status');
+            return;
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'location_id' => null,
+            'action' => 'update',
+            'entity' => 'user',
+            'entity_id' => (int)$id,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['is_active' => $isActive]),
+        ]);
+
+        $this->success(null, $isActive === 1 ? 'User activated' : 'User deactivated');
     }
 }

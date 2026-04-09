@@ -29,6 +29,7 @@ define('FTP_PASS', getenv('FTP_PASS') ?: '4pxRF9{.QK],9$SB'); // set via env in 
 define('CONTENT_BASE_URL', getenv('CONTENT_BASE_URL') ?: 'https://content-provider.payshia.com/service-center-system/');
 define('CONTENT_VEHICLES_DIR', getenv('CONTENT_VEHICLES_DIR') ?: 'vehicles');
 define('CONTENT_ORDERS_DIR', getenv('CONTENT_ORDERS_DIR') ?: 'orders');
+define('CONTENT_ITEMS_DIR', getenv('CONTENT_ITEMS_DIR') ?: 'items');
 
 // Autoloading Configuration (PSR-4)
 // This will be handled in index.php for simplicity or through a helper.

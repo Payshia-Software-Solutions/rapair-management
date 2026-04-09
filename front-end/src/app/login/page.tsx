@@ -24,6 +24,15 @@ export default function LoginPage() {
   const [password, setPassword] = useState('admin123');
   const [submitting, setSubmitting] = useState(false);
 
+  const decodeJwtPayload = (token: string): any | null => {
+    try {
+      const part = token.split('.')[1];
+      return JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -40,6 +49,30 @@ export default function LoginPage() {
         throw new Error(data?.message || 'Login failed');
       }
       window.localStorage.setItem('auth_token', data.data.token);
+
+      // Pick default location based on allowed locations.
+      const payload = decodeJwtPayload(data.data.token);
+      const allowed = Array.isArray(payload?.allowed_locations) ? payload.allowed_locations : [];
+      const defaultId = payload?.location_id ? Number(payload.location_id) : 1;
+
+      if (Array.isArray(allowed) && allowed.length > 1) {
+        // Ask user to choose which location context to use now.
+        window.localStorage.removeItem('location_id');
+        toast({ title: 'Signed in', description: 'Choose your location to continue.' });
+        router.replace('/select-location');
+        return;
+      }
+
+      // Single location: set it immediately.
+      if (Array.isArray(allowed) && allowed.length === 1 && allowed[0]?.id) {
+        window.localStorage.setItem('location_id', String(allowed[0].id));
+        if (allowed[0]?.name) window.localStorage.setItem('location_name', String(allowed[0].name));
+      } else {
+        window.localStorage.setItem('location_id', String(defaultId));
+        const defaultName = payload?.location_name ? String(payload.location_name) : '';
+        if (defaultName) window.localStorage.setItem('location_name', defaultName);
+      }
+
       toast({ title: 'Signed in', description: 'Welcome back.' });
       router.replace('/dashboard');
     } catch (err) {

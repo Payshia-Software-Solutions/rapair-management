@@ -15,7 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { fetchOrder, contentUrl } from "@/lib/api";
+import {
+  addOrderPart,
+  contentUrl,
+  deleteOrderPart,
+  fetchOrder,
+  fetchOrderParts,
+  fetchParts,
+  updateOrderPart,
+  type OrderPartRow,
+  type PartRow,
+} from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   AlertCircle,
@@ -27,10 +37,26 @@ import {
   Gauge,
   Hash,
   Loader2,
+  Plus,
   Printer,
   Tag,
+  Trash2,
+  Boxes,
 } from "lucide-react";
 import { format } from "date-fns";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 function parseMysqlDatetime(value: any): Date | null {
   if (!value || typeof value !== "string") return null;
@@ -83,10 +109,21 @@ function timeRemaining(expectedAt: Date | null) {
 export default function OrderDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const id = params?.id;
+  const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [partsUsed, setPartsUsed] = useState<OrderPartRow[]>([]);
+  const [partsMaster, setPartsMaster] = useState<PartRow[]>([]);
+  const [partsLoading, setPartsLoading] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [addPartId, setAddPartId] = useState<string>("");
+  const [addQty, setAddQty] = useState<string>("1");
+  const [savingPart, setSavingPart] = useState(false);
+  const [editingLineId, setEditingLineId] = useState<number | null>(null);
+  const [editQty, setEditQty] = useState<string>("");
 
   useEffect(() => {
     const run = async () => {
@@ -103,6 +140,25 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       }
     };
     if (id) void run();
+  }, [id]);
+
+  const loadParts = async () => {
+    if (!id) return;
+    setPartsLoading(true);
+    try {
+      const [lines, master] = await Promise.all([fetchOrderParts(String(id)), fetchParts("")]);
+      setPartsUsed(Array.isArray(lines) ? lines : []);
+      setPartsMaster(Array.isArray(master) ? master : []);
+    } catch (e: any) {
+      setPartsUsed([]);
+      toast({ title: "Inventory", description: e?.message || "Failed to load parts", variant: "destructive" });
+    } finally {
+      setPartsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadParts();
   }, [id]);
 
   const data = useMemo(() => {
@@ -133,6 +189,71 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     const url = `/orders/print/${encodeURIComponent(String(data.id))}?autoprint=1`;
     const w = window.open(url, "_blank", "noopener,noreferrer");
     if (!w) router.push(url);
+  };
+
+  const totalParts = useMemo(() => {
+    return partsUsed.reduce((sum, l) => sum + (l.line_total ? Number(l.line_total) : 0), 0);
+  }, [partsUsed]);
+
+  const openAddPart = () => {
+    setAddPartId("");
+    setAddQty("1");
+    setAddOpen(true);
+  };
+
+  const submitAddPart = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const pid = Number(addPartId);
+    const qty = Math.trunc(Number(addQty));
+    if (!pid || qty <= 0) return;
+    setSavingPart(true);
+    try {
+      await addOrderPart(String(id), { part_id: pid, quantity: qty });
+      toast({ title: "Added", description: "Part issued to the order" });
+      setAddOpen(false);
+      await loadParts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to add part", variant: "destructive" });
+    } finally {
+      setSavingPart(false);
+    }
+  };
+
+  const startEditQty = (line: OrderPartRow) => {
+    setEditingLineId(line.id);
+    setEditQty(String(line.quantity ?? ""));
+  };
+
+  const saveEditQty = async () => {
+    if (!editingLineId) return;
+    const qty = Math.trunc(Number(editQty));
+    if (qty <= 0) return;
+    setSavingPart(true);
+    try {
+      await updateOrderPart(String(editingLineId), qty);
+      toast({ title: "Updated", description: "Part quantity updated" });
+      setEditingLineId(null);
+      setEditQty("");
+      await loadParts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Update failed", variant: "destructive" });
+    } finally {
+      setSavingPart(false);
+    }
+  };
+
+  const removeLine = async (line: OrderPartRow) => {
+    if (!confirm(`Remove "${line.part_name ?? "item"}" from this order? Stock will be returned.`)) return;
+    setSavingPart(true);
+    try {
+      await deleteOrderPart(String(line.id));
+      toast({ title: "Removed", description: "Part removed from the order" });
+      await loadParts();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Remove failed", variant: "destructive" });
+    } finally {
+      setSavingPart(false);
+    }
   };
 
   if (loading) {
@@ -352,6 +473,96 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 </div>
 
                 <Card className="border shadow-none">
+                  <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Boxes className="w-4 h-4 text-muted-foreground" />
+                        Parts Used
+                      </CardTitle>
+                      <CardDescription>Items issued to this repair order (stock is deducted)</CardDescription>
+                    </div>
+                    <Button onClick={openAddPart} className="gap-2" disabled={partsLoading || savingPart}>
+                      <Plus className="w-4 h-4" />
+                      Add Part
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {partsLoading ? (
+                      <div className="flex items-center justify-center py-10 text-muted-foreground">
+                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                        Loading parts...
+                      </div>
+                    ) : partsUsed.length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No parts issued yet</div>
+                    ) : (
+                      <div className="rounded-md border overflow-hidden">
+                        <Table>
+                          <TableHeader className="bg-muted/30">
+                            <TableRow>
+                              <TableHead>Item</TableHead>
+                              <TableHead className="w-[120px]">Qty</TableHead>
+                              <TableHead className="hidden md:table-cell w-[140px]">Unit Price</TableHead>
+                              <TableHead className="w-[140px]">Total</TableHead>
+                              <TableHead className="text-right w-[120px]">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {partsUsed.map((l) => {
+                              const isEditing = editingLineId === l.id;
+                              return (
+                                <TableRow key={l.id}>
+                                  <TableCell>
+                                    <div className="font-semibold">{l.part_name ?? `Part #${l.part_id}`}</div>
+                                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                                      {l.sku ? `SKU: ${l.sku}` : `LINE ID: #${l.id}`}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    {isEditing ? (
+                                      <Input value={editQty} onChange={(e) => setEditQty(e.target.value)} inputMode="numeric" />
+                                    ) : (
+                                      <div className="font-bold">
+                                        {Number(l.quantity ?? 0).toLocaleString()} {l.unit ? <span className="text-xs text-muted-foreground font-normal">{l.unit}</span> : null}
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    <span className="text-sm text-muted-foreground">{l.unit_price !== null ? Number(l.unit_price).toFixed(2) : "-"}</span>
+                                  </TableCell>
+                                  <TableCell className="font-semibold">
+                                    {l.line_total !== null ? Number(l.line_total).toFixed(2) : "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    {isEditing ? (
+                                      <div className="inline-flex items-center gap-2 justify-end">
+                                        <Button size="sm" onClick={() => void saveEditQty()} disabled={savingPart}>Save</Button>
+                                        <Button size="sm" variant="outline" onClick={() => setEditingLineId(null)} disabled={savingPart}>Cancel</Button>
+                                      </div>
+                                    ) : (
+                                      <div className="inline-flex items-center gap-2 justify-end">
+                                        <Button size="sm" variant="outline" onClick={() => startEditQty(l)} disabled={savingPart}>Edit</Button>
+                                        <Button size="sm" variant="destructive" onClick={() => void removeLine(l)} disabled={savingPart}>
+                                          <Trash2 className="w-4 h-4" />
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                            <TableRow>
+                              <TableCell colSpan={3} className="text-right font-semibold">Total</TableCell>
+                              <TableCell className="font-bold">{totalParts.toFixed(2)}</TableCell>
+                              <TableCell />
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border shadow-none">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Attachments</CardTitle>
                     <CardDescription>Files uploaded to the content provider</CardDescription>
@@ -432,6 +643,56 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </div>
         </div>
       </div>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <form onSubmit={submitAddPart}>
+            <DialogHeader>
+              <DialogTitle>Add Part</DialogTitle>
+              <DialogDescription>Select an item and quantity to issue to this order.</DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Item</Label>
+                <div className="col-span-3">
+                  <Select value={addPartId} onValueChange={setAddPartId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select item..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[280px]">
+                      {partsMaster.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="qty" className="text-right">Qty</Label>
+                <Input
+                  id="qty"
+                  className="col-span-3"
+                  value={addQty}
+                  onChange={(e) => setAddQty(e.target.value)}
+                  inputMode="numeric"
+                  required
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={savingPart}>
+                {savingPart && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Add
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

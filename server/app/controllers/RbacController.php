@@ -14,6 +14,10 @@ class RbacController extends Controller {
     private $db;
 
     public function __construct() {
+        // Ensure any newly-added modules (like inventory) can seed their permission keys
+        // so they appear in the RBAC UI without requiring a full reinstall.
+        try { InventorySchema::ensure(); } catch (Exception $e) {}
+        try { UnitSchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 
@@ -198,4 +202,3 @@ class RbacController extends Controller {
         }
     }
 }
-

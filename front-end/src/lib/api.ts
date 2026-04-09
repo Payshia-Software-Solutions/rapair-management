@@ -344,6 +344,15 @@ export const adminSetUserLocations = async (userId: string, locationIds: number[
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
+export const adminSetUserActive = async (userId: string, isActive: boolean) => {
+  const res = await api(`/api/admin/set_user_active/${userId}`, {
+    method: 'POST',
+    body: JSON.stringify({ is_active: isActive ? 1 : 0 }),
+  });
+  if (!res.ok) throw new Error('Failed to update user status');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
 export type ServiceLocationRow = {
   id: number;
   name: string;
@@ -501,6 +510,404 @@ export const deleteVehicle = async (id: string) => {
   if (!res.ok) throw new Error('Failed to delete vehicle');
   return res.json();
 };
+
+// Inventory - Items (Parts)
+export type PartRow = {
+  id: number;
+  sku: string | null;
+  part_number?: string | null;
+  barcode_number?: string | null;
+  part_name: string;
+  unit: string | null;
+  stock_quantity: number;
+  cost_price: number | null;
+  price: number;
+  reorder_level: number | null;
+  is_active: number;
+};
+
+export const fetchParts = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/part/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load parts');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as PartRow[]) : data;
+};
+
+export const createPart = async (payload: Partial<PartRow>) => {
+  const res = await api('/api/part/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create part');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updatePart = async (id: string, payload: Partial<PartRow>) => {
+  const res = await api(`/api/part/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update part');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deletePart = async (id: string) => {
+  const res = await api(`/api/part/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete part');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const adjustPartStock = async (payload: { part_id: number; qty_change: number; notes?: string }) => {
+  const res = await api('/api/part/adjust_stock', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to adjust stock');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const fetchPartMovements = async (id: string, limit: number = 200) => {
+  const res = await api(`/api/part/movements/${id}?limit=${encodeURIComponent(String(limit))}`);
+  if (!res.ok) throw new Error('Failed to load stock movements');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export type StockAdjustmentRow = {
+  id: number;
+  part_id: number;
+  part_name: string;
+  sku: string | null;
+  qty_change: number;
+  notes: string | null;
+  created_at: string;
+  created_by: number | null;
+  created_by_name: string | null;
+};
+
+export const fetchStockAdjustments = async (opts: { partId?: number; limit?: number } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.partId) qs.set('part_id', String(opts.partId));
+  qs.set('limit', String(opts.limit ?? 200));
+  const res = await api(`/api/part/adjustments?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load stock adjustments');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as StockAdjustmentRow[]) : data;
+};
+
+// Stock Adjustment Batches (header + lines)
+export type StockAdjustmentBatchRow = {
+  id: number;
+  location_id?: number;
+  location_name?: string | null;
+  adjustment_number: string;
+  adjusted_at: string;
+  reason: string | null;
+  notes: string | null;
+  created_by: number | null;
+  created_by_name: string | null;
+  created_at: string;
+  line_count: number;
+  total_qty_change: number | null;
+};
+
+export type StockAdjustmentBatchItem = {
+  id: number;
+  stock_adjustment_id: number;
+  part_id: number;
+  part_name: string;
+  sku: string | null;
+  unit: string | null;
+  system_stock?: number;
+  physical_stock?: number;
+  qty_change: number;
+  notes: string | null;
+  created_at: string;
+};
+
+export const fetchStockAdjustmentBatches = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/stockadjustment/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load stock adjustments');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as StockAdjustmentBatchRow[]) : data;
+};
+
+export const fetchStockAdjustmentBatchesForLocation = async (q: string = '', locationId?: number) => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/stockadjustment/list${qs}`, {
+    headers: locationId ? { 'X-Location-Id': String(locationId) } : {},
+  });
+  if (!res.ok) throw new Error('Failed to load stock adjustments');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as StockAdjustmentBatchRow[]) : data;
+};
+
+export const fetchStockAdjustmentBatch = async (id: string) => {
+  const res = await api(`/api/stockadjustment/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load stock adjustment');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchStockAdjustmentBatchForLocation = async (id: string, locationId?: number) => {
+  const res = await api(`/api/stockadjustment/get/${id}`, {
+    headers: locationId ? { 'X-Location-Id': String(locationId) } : {},
+  });
+  if (!res.ok) throw new Error('Failed to load stock adjustment');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createStockAdjustmentBatch = async (payload: {
+  adjusted_at?: string;
+  reason?: string;
+  notes?: string;
+  items: Array<{ part_id: number; qty_change: number; notes?: string }>;
+}) => {
+  const res = await api('/api/stockadjustment/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create stock adjustment');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const createStockAdjustmentBatchForLocation = async (
+  payload: {
+    adjusted_at?: string;
+    reason?: string;
+    notes?: string;
+    items: Array<{ part_id: number; physical_stock: number; notes?: string; include_when_zero?: boolean }>;
+  },
+  locationId?: number
+) => {
+  const res = await api('/api/stockadjustment/create', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: locationId ? { 'X-Location-Id': String(locationId) } : {},
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create stock adjustment');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+// Inventory - Suppliers
+export type SupplierRow = {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  is_active: number;
+};
+
+export const fetchSuppliers = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/supplier/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load suppliers');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as SupplierRow[]) : data;
+};
+
+export const createSupplier = async (payload: Partial<SupplierRow>) => {
+  const res = await api('/api/supplier/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create supplier');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateSupplier = async (id: string, payload: Partial<SupplierRow>) => {
+  const res = await api(`/api/supplier/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update supplier');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteSupplier = async (id: string) => {
+  const res = await api(`/api/supplier/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete supplier');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Inventory - Purchase Orders
+export type PurchaseOrderRow = {
+  id: number;
+  supplier_id: number;
+  supplier_name?: string;
+  po_number: string;
+  status: string;
+  notes: string | null;
+  ordered_at: string | null;
+  expected_at: string | null;
+  created_at: string;
+};
+export type PurchaseOrderItemRow = {
+  id?: number;
+  purchase_order_id?: number;
+  part_id: number;
+  part_name?: string;
+  sku?: string | null;
+  qty_ordered: number;
+  unit_cost: number;
+  received_qty?: number;
+  line_total?: number;
+};
+
+export const fetchPurchaseOrders = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/purchase/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load purchase orders');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as PurchaseOrderRow[]) : data;
+};
+
+export const fetchPurchaseOrder = async (id: string) => {
+  const res = await api(`/api/purchase/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load purchase order');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createPurchaseOrder = async (payload: { supplier_id: number; notes?: string; ordered_at?: string | null; expected_at?: string | null; items: PurchaseOrderItemRow[] }) => {
+  const res = await api('/api/purchase/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create purchase order');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const updatePurchaseOrder = async (id: string, payload: { supplier_id: number; notes?: string; ordered_at?: string | null; expected_at?: string | null; items: PurchaseOrderItemRow[] }) => {
+  const res = await api(`/api/purchase/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to update purchase order');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const setPurchaseOrderStatus = async (id: string, status: string) => {
+  const res = await api(`/api/purchase/set_status/${id}`, { method: 'POST', body: JSON.stringify({ status }) });
+  if (!res.ok) throw new Error('Failed to update PO status');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Inventory - GRN
+export type GrnRow = {
+  id: number;
+  grn_number: string;
+  purchase_order_id: number | null;
+  supplier_id: number;
+  supplier_name?: string;
+  po_number?: string | null;
+  received_at: string;
+  notes: string | null;
+  created_at: string;
+};
+export type GrnItemRow = {
+  id?: number;
+  grn_id?: number;
+  part_id: number;
+  part_name?: string;
+  sku?: string | null;
+  qty_received: number;
+  unit_cost: number;
+  line_total?: number;
+};
+
+export const fetchGrns = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/grn/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load GRNs');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as GrnRow[]) : data;
+};
+
+export const fetchGrn = async (id: string) => {
+  const res = await api(`/api/grn/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load GRN');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createGrn = async (payload: { supplier_id: number; purchase_order_id?: number | null; received_at: string; notes?: string; items: GrnItemRow[] }) => {
+  const res = await api('/api/grn/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create GRN');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+// Orders - Parts used
+export type OrderPartRow = {
+  id: number;
+  order_id: number;
+  part_id: number;
+  part_name?: string;
+  sku?: string | null;
+  unit?: string | null;
+  quantity: number;
+  unit_cost: number | null;
+  unit_price: number | null;
+  line_total: number | null;
+};
+
+// Units
+export type UnitRow = { id: number; name: string; created_at?: string; updated_at?: string };
+
+export const fetchUnits = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/unit/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load units');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as UnitRow[]) : data;
+};
+
+export const createUnit = async (payload: { name: string }) => {
+  const res = await api('/api/unit/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create unit');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateUnit = async (id: string, payload: { name: string }) => {
+  const res = await api(`/api/unit/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update unit');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteUnit = async (id: string) => {
+  const res = await api(`/api/unit/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete unit');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const fetchOrderParts = async (orderId: string) => {
+  const res = await api(`/api/order/parts/${orderId}`);
+  if (!res.ok) throw new Error('Failed to load order parts');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as OrderPartRow[]) : data;
+};
+
+export const addOrderPart = async (orderId: string, payload: { part_id: number; quantity: number }) => {
+  const res = await api(`/api/order/add_part/${orderId}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to add part');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const updateOrderPart = async (lineId: string, quantity: number) => {
+  const res = await api(`/api/order/update_part/${lineId}`, { method: 'POST', body: JSON.stringify({ quantity }) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to update part');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteOrderPart = async (lineId: string) => {
+  const res = await api(`/api/order/delete_part/${lineId}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete part');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
 export const checkTables = async () => {
   const res = await api('/api/check/check');
   if (!res.ok) throw new Error('Failed to check database tables');
@@ -510,7 +917,7 @@ export const checkTables = async () => {
 export const CONTENT_BASE_URL =
   (process.env.NEXT_PUBLIC_CONTENT_BASE_URL ?? 'https://content-provider.payshia.com/service-center-system/').replace(/\/+$/, '') + '/';
 
-export const contentUrl = (folder: 'vehicles' | 'orders', filename: string) => {
+export const contentUrl = (folder: 'vehicles' | 'orders' | 'items', filename: string) => {
   const safe = filename.replace(/^\/+/, '');
   return `${CONTENT_BASE_URL}${folder}/${encodeURIComponent(safe)}`;
 };
@@ -555,4 +962,38 @@ export const uploadOrderAttachment = async (file: File) => {
   });
   if (!res.ok) throw new Error('Failed to upload attachment');
   return res.json() as Promise<ApiSuccess<{ filename: string; url: string }>>;
+};
+
+export const uploadPartImage = async (file: File) => {
+  const fd = new FormData();
+  fd.append('image', file);
+  const token =
+    typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
+  const locationId =
+    typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null;
+
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/api/upload/part_image`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
+    },
+    body: fd,
+    credentials: 'omit',
+  });
+  if (!res.ok) throw new Error('Failed to upload image');
+  return res.json() as Promise<ApiSuccess<{ filename: string; url: string }>>;
+};
+
+export const fetchPart = async (id: string) => {
+  const res = await api(`/api/part/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load part');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const setPartImage = async (id: string, filename: string) => {
+  const res = await api(`/api/part/set_image/${id}`, { method: 'POST', body: JSON.stringify({ image_filename: filename }) });
+  if (!res.ok) throw new Error('Failed to set image');
+  return res.json() as Promise<ApiSuccess<null>>;
 };

@@ -13,6 +13,15 @@ class CheckController extends Controller {
         'checklist_items',
         'parts',
         'order_parts',
+        'units',
+        'suppliers',
+        'purchase_orders',
+        'purchase_order_items',
+        'goods_receive_notes',
+        'grn_items',
+        'stock_movements',
+        'stock_adjustments',
+        'stock_adjustment_items',
         'vehicles',
         'vehicle_makes',
         'vehicle_models',
@@ -32,6 +41,8 @@ class CheckController extends Controller {
     public function __construct() {
         // Other controllers use models (which create their own Database instance).
         // This controller queries table existence directly, so it needs its own DB handle.
+        try { InventorySchema::ensure(); } catch (Exception $e) {}
+        try { UnitSchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 

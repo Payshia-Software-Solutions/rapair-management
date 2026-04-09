@@ -40,6 +40,12 @@ const pagePermissionMatrix: Array<{ page: string; read: string; write?: string }
   { page: "Vehicle Models", read: "models.read", write: "models.write" },
   { page: "Repair Categories", read: "categories.read", write: "categories.write" },
   { page: "Checklist Items", read: "checklists.read", write: "checklists.write" },
+  { page: "Units", read: "units.read", write: "units.write" },
+  { page: "Items (Parts)", read: "parts.read", write: "parts.write" },
+  { page: "Suppliers", read: "suppliers.read", write: "suppliers.write" },
+  { page: "Purchase Orders", read: "purchase.read", write: "purchase.write" },
+  { page: "Goods Receive Notes", read: "grn.read", write: "grn.write" },
+  { page: "Stock", read: "stock.read", write: "stock.adjust" },
   { page: "Reports", read: "reports.read" },
 ];
 

@@ -41,7 +41,7 @@ export default function RegisterPage() {
       if (!res.ok || data.status !== 'success') {
         throw new Error(data?.message || 'Registration failed');
       }
-      toast({ title: 'Account created', description: 'Please sign in.' });
+      toast({ title: 'Account created', description: 'Your account is pending admin activation. You will be able to sign in once it is activated.' });
       router.replace('/login');
     } catch (err) {
       toast({

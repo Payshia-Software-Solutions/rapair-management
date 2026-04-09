@@ -6,10 +6,12 @@
 
 class OrderController extends Controller {
     private $orderModel;
+    private $orderPartModel;
     private $auditModel;
 
     public function __construct() {
         $this->orderModel = $this->model('Order');
+        $this->orderPartModel = $this->model('OrderPart');
         $this->auditModel = $this->model('AuditLog');
     }
 
@@ -145,5 +147,109 @@ class OrderController extends Controller {
         } else {
             $this->error('Method Not Allowed', 405);
         }
+    }
+
+    // GET /api/order/parts/1
+    public function parts($id = null) {
+        $u = $this->requirePermission('orders.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation($id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $rows = $this->orderPartModel->listByOrder($id);
+        $this->success($rows);
+    }
+
+    // POST /api/order/add_part/1
+    public function add_part($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation($id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $partId = (int)($data['part_id'] ?? $data['partId'] ?? 0);
+        $qty = (int)($data['quantity'] ?? $data['qty'] ?? 0);
+        if ($partId <= 0 || $qty <= 0) $this->error('Invalid part/quantity', 400);
+
+        $res = $this->orderPartModel->addLine((int)$id, $partId, $qty, (int)$u['sub']);
+        if (is_array($res) && isset($res['error'])) {
+            $this->error($res['error'], 400);
+        }
+        if ($res) {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'location_id' => $locId,
+                'action' => 'create',
+                'entity' => 'order_part',
+                'entity_id' => (int)$res,
+                'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['order_id' => (int)$id, 'part_id' => $partId, 'quantity' => $qty]),
+            ]);
+            $this->success(['id' => (int)$res], 'Part added to order');
+        }
+        $this->error('Failed to add part to order', 500);
+    }
+
+    // POST /api/order/update_part/123  (123 = order_parts.id)
+    public function update_part($lineId = null) {
+        $u = $this->requirePermission('orders.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$lineId) $this->error('Line ID required', 400);
+
+        $line = $this->orderPartModel->getLine($lineId);
+        if (!$line) $this->error('Not found', 404);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$line->order_id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $qty = (int)($data['quantity'] ?? $data['qty'] ?? 0);
+        if ($qty <= 0) $this->error('Invalid quantity', 400);
+
+        $res = $this->orderPartModel->updateQty((int)$lineId, $qty, (int)$u['sub']);
+        if (is_array($res) && isset($res['error'])) {
+            $this->error($res['error'], 400);
+        }
+        if ($res) {
+            $this->success(null, 'Order part updated');
+        }
+        $this->error('Update failed', 500);
+    }
+
+    // DELETE /api/order/delete_part/123 (123 = order_parts.id)
+    public function delete_part($lineId = null) {
+        $u = $this->requirePermission('orders.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$lineId) $this->error('Line ID required', 400);
+
+        $line = $this->orderPartModel->getLine($lineId);
+        if (!$line) $this->error('Not found', 404);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$line->order_id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $ok = $this->orderPartModel->deleteLine((int)$lineId, (int)$u['sub']);
+        if ($ok) $this->success(null, 'Order part deleted');
+        $this->error('Delete failed', 500);
     }
 }

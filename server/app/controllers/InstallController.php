@@ -94,9 +94,11 @@ class InstallController extends Controller {
                 password_hash VARCHAR(255) NOT NULL,
                 role_id INT NOT NULL,
                 location_id INT NOT NULL DEFAULT 1,
+                is_active TINYINT(1) NOT NULL DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_users_role (role_id),
                 INDEX idx_users_location (location_id),
+                INDEX idx_users_active (is_active),
                 FOREIGN KEY (role_id) REFERENCES roles(id)
                 ,FOREIGN KEY (location_id) REFERENCES service_locations(id)
             )
@@ -114,6 +116,19 @@ class InstallController extends Controller {
                 INDEX idx_user_locations_location (location_id)
             )
         ");
+
+        // Units master data (company-wide)
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS units (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(50) NOT NULL UNIQUE,
+                created_by INT NULL,
+                updated_by INT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            )
+        ");
+        $pdo->exec("INSERT IGNORE INTO units (name) VALUES ('pcs'), ('ltr'), ('kg')");
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS audit_logs (
@@ -161,6 +176,22 @@ class InstallController extends Controller {
         if (!$hasLocationId) {
             // Add nullable first to backfill safely.
             $pdo->exec("ALTER TABLE users ADD COLUMN location_id INT NULL");
+        }
+
+        // Ensure users.is_active exists and defaults to 1 for existing installs.
+        $hasIsActive = false;
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM users LIKE 'is_active'");
+            $hasIsActive = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $hasIsActive = false;
+        }
+        if (!$hasIsActive) {
+            $pdo->exec("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NULL");
+            // Backfill existing users as active so we don't lock out current installs.
+            $pdo->exec("UPDATE users SET is_active = 1 WHERE is_active IS NULL");
+            $pdo->exec("ALTER TABLE users MODIFY is_active TINYINT(1) NOT NULL DEFAULT 1");
+            try { $pdo->exec("ALTER TABLE users ADD INDEX idx_users_active (is_active)"); } catch (Exception $e) {}
         }
         // Ensure role_id has values.
         $hasLegacyRoleCol = false;
@@ -248,12 +279,24 @@ class InstallController extends Controller {
             ('categories.write', 'Create/update/delete repair categories'),
             ('checklists.read', 'View checklist items'),
             ('checklists.write', 'Create/update/delete checklist items'),
+            ('parts.read', 'View item master (parts)'),
+            ('parts.write', 'Create/update/delete item master (parts)'),
+            ('suppliers.read', 'View suppliers'),
+            ('suppliers.write', 'Create/update/delete suppliers'),
+            ('purchase.read', 'View purchase orders'),
+            ('purchase.write', 'Create/update/delete purchase orders'),
+            ('grn.read', 'View goods receive notes'),
+            ('grn.write', 'Create/update goods receive notes'),
+            ('stock.read', 'View stock movements and balances'),
+            ('stock.adjust', 'Adjust stock quantity'),
             ('locations.read', 'View service center locations'),
             ('locations.write', 'Create/update/delete service center locations'),
             ('departments.read', 'View departments'),
             ('departments.write', 'Create/update/delete departments'),
             ('company.write', 'Update company details'),
-            ('reports.read', 'View reports')
+            ('reports.read', 'View reports'),
+            ('units.read', 'View units'),
+            ('units.write', 'Create/update/delete units')
         ");
 
         // Seed role permissions (Admin is superuser; mappings below are for non-admin roles)
@@ -283,9 +326,21 @@ class InstallController extends Controller {
         foreach (['makes.read','models.read'] as $p) {
             $grant('Workshop Officer', $p);
         }
+        foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read'] as $p) {
+            $grant('Workshop Officer', $p);
+        }
+        foreach (['units.read'] as $p) {
+            $grant('Workshop Officer', $p);
+        }
 
         // Factory Officer: read-mostly, can update orders
         foreach (['orders.read','orders.write','vehicles.read','bays.read','technicians.read','makes.read','models.read','categories.read','checklists.read','reports.read'] as $p) {
+            $grant('Factory Officer', $p);
+        }
+        foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read'] as $p) {
+            $grant('Factory Officer', $p);
+        }
+        foreach (['units.read'] as $p) {
             $grant('Factory Officer', $p);
         }
 
@@ -320,6 +375,15 @@ class InstallController extends Controller {
             'repair_orders',
             'parts',
             'order_parts',
+            'units',
+            'suppliers',
+            'purchase_orders',
+            'purchase_order_items',
+            'goods_receive_notes',
+            'grn_items',
+            'stock_movements',
+            'stock_adjustments',
+            'stock_adjustment_items',
             'technicians',
             'service_bays',
             'repair_categories',

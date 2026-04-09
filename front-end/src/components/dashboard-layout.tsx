@@ -26,13 +26,21 @@ import {
   Tag,
   Shield,
   Sun,
-  Moon
+  Moon,
+  MapPin,
+  Boxes,
+  ArrowLeftRight,
+  Truck,
+  FileText,
+  PackageCheck,
+  History
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { api } from '@/lib/api';
+import { api, fetchLocations } from '@/lib/api';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Sidebar,
   SidebarContent,
@@ -59,6 +67,7 @@ const mainNavItems = [
   { icon: ClipboardList, label: 'Order Queue', href: '/orders', perm: 'orders.read' },
   { icon: PlayCircle, label: 'Active Jobs', href: '/orders/active', perm: 'orders.read' },
   { icon: PlusCircle, label: 'Create Order', href: '/orders/new', perm: 'orders.write' },
+  { icon: Grid, label: 'Bays Board', href: '/dashboard/bays', perm: 'bays.read' },
   { icon: BarChart3, label: 'Reports', href: '/reports', perm: 'reports.read' },
 ];
 
@@ -69,8 +78,18 @@ const masterDataItems = [
   { icon: Users, label: 'Technicians', href: '/master-data/technicians', perm: 'technicians.read' },
   { icon: Grid, label: 'Service Bays', href: '/master-data/bays', perm: 'bays.read' },
   { icon: Grid, label: 'Departments', href: '/master-data/departments', perm: 'departments.read' },
+  { icon: Tags, label: 'Units', href: '/master-data/units', perm: 'units.read' },
   { icon: Tags, label: 'Repair Categories', href: '/master-data/categories', perm: 'categories.read' },
   { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists', perm: 'checklists.read' },
+];
+
+const inventoryItems = [
+  { icon: Boxes, label: 'Items', href: '/inventory/items', perm: 'parts.read' },
+  { icon: Truck, label: 'Suppliers', href: '/inventory/suppliers', perm: 'suppliers.read' },
+  { icon: FileText, label: 'Purchase Orders', href: '/inventory/purchase-orders', perm: 'purchase.read' },
+  { icon: PackageCheck, label: 'GRN', href: '/inventory/grn', perm: 'grn.read' },
+  { icon: History, label: 'Stock', href: '/inventory/stock', perm: 'stock.read' },
+  { icon: ArrowLeftRight, label: 'Stock Adjustments', href: '/inventory/stock/adjustments', perm: 'stock.read' },
 ];
 
 export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
@@ -79,9 +98,13 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const [isNavigating, setIsNavigating] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
-  const [isMasterDataOpen, setIsMasterDataOpen] = useState(true);
+  const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
+  const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
+  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
+  const [currentLocationName, setCurrentLocationName] = useState<string>('');
 
   useEffect(() => {
     // Basic client-side guard. Server APIs also enforce auth via JWT.
@@ -94,6 +117,25 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       const part = token.split('.')[1];
       const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
       setUserRole(String(json.role || ''));
+
+      // Initialize current location from localStorage if present; fallback to JWT.
+      const lsId = window.localStorage.getItem('location_id');
+      const lsName = window.localStorage.getItem('location_name');
+      const tokenLocId = json.location_id ? Number(json.location_id) : 1;
+      const tokenLocName = String(json.location_name || 'Main');
+      const initId = lsId ? Number(lsId) : tokenLocId;
+      const initName = lsName || tokenLocName;
+      setCurrentLocationId(Number.isFinite(initId) ? initId : tokenLocId);
+      setCurrentLocationName(initName);
+
+      // Available locations: Admin can load all. Non-admin uses allowed_locations from JWT.
+      const allowed = Array.isArray(json.allowed_locations) ? json.allowed_locations : [];
+      const allowedClean = allowed
+        .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? '') }))
+        .filter((x: any) => x.id > 0 && x.name);
+      if (String(json.role || '') !== 'Admin') {
+        setAvailableLocations(allowedClean.length > 0 ? allowedClean : [{ id: tokenLocId, name: tokenLocName }]);
+      }
     } catch {
       setUserRole('');
     }
@@ -113,6 +155,31 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     };
     void loadPerms();
   }, []);
+
+  useEffect(() => {
+    if (userRole !== 'Admin') return;
+
+    // Admin can switch context to any location.
+    void (async () => {
+      try {
+        const locs = await fetchLocations();
+        const cleaned = Array.isArray(locs)
+          ? locs.map((l: any) => ({ id: Number(l.id), name: String(l.name ?? '') })).filter((l: any) => l.id > 0 && l.name)
+          : [];
+        setAvailableLocations(cleaned);
+
+        // If we have no selection yet, pick #1.
+        if (!currentLocationId && cleaned.length > 0) {
+          setCurrentLocationId(cleaned[0].id);
+          setCurrentLocationName(cleaned[0].name);
+          window.localStorage.setItem('location_id', String(cleaned[0].id));
+          window.localStorage.setItem('location_name', String(cleaned[0].name));
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, [userRole]);
 
   useEffect(() => {
     // Reflect the current theme (class on <html>) so both toggles stay in sync.
@@ -160,6 +227,8 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
   const handleLogout = () => {
     window.localStorage.removeItem('auth_token');
+    window.localStorage.removeItem('location_id');
+    window.localStorage.removeItem('location_name');
     router.push('/login');
   };
 
@@ -176,6 +245,14 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     }
   };
 
+  const setLocationContext = (id: number) => {
+    const loc = availableLocations.find((l) => l.id === id);
+    setCurrentLocationId(id);
+    setCurrentLocationName(loc?.name ?? '');
+    window.localStorage.setItem('location_id', String(id));
+    if (loc?.name) window.localStorage.setItem('location_name', String(loc.name));
+  };
+
   const hasPerm = (perm?: string) => {
     if (!perm) return true;
     if (!permissionKeys) return true; // render immediately; will filter once loaded
@@ -185,6 +262,9 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
   const visibleMasterDataItems = masterDataItems.filter((it) => hasPerm((it as any).perm));
   const canSeeMasterData = visibleMasterDataItems.length > 0;
+
+  const visibleInventoryItems = inventoryItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeInventory = visibleInventoryItems.length > 0;
 
   const adminItems = userRole === 'Admin'
     ? [
@@ -206,12 +286,17 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               <div className="p-1.5 bg-accent rounded-lg">
                 <Wrench className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               </div>
-              <span className="text-lg sm:text-xl font-bold tracking-tight text-white group-data-[collapsible=icon]:hidden">
-                ServiceBay
-              </span>
+              <div className="group-data-[collapsible=icon]:hidden">
+                <div className="text-lg sm:text-xl font-bold tracking-tight text-white">
+                  ServiceBay
+                </div>
+                <div className="text-[10px] text-white/70 uppercase tracking-widest font-bold truncate max-w-[160px]">
+                  {currentLocationName ? `Location: ${currentLocationName}` : "Location: -"}
+                </div>
+              </div>
             </div>
           </SidebarHeader>
-          <SidebarContent className="px-2 py-4">
+          <SidebarContent className="px-2 py-4 gap-1">
             <SidebarGroup>
               <SidebarGroupLabel className="text-white/50 px-4 mb-2 group-data-[collapsible=icon]:hidden">Core Features</SidebarGroupLabel>
               <SidebarGroupContent>
@@ -240,8 +325,52 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup className="mt-4">
-              <SidebarGroupLabel className="text-white/50 px-4 mb-2 group-data-[collapsible=icon]:hidden uppercase tracking-widest text-[10px] font-bold">Master Data</SidebarGroupLabel>
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeInventory ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsInventoryOpen((v) => !v)}
+                        isActive={pathname.startsWith('/inventory')}
+                        tooltip="Inventory"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/inventory') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Boxes className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Inventory</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            isInventoryOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {isInventoryOpen ? (
+                        <SidebarMenuSub>
+                          {visibleInventoryItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
                   {!canSeeMasterData ? null : (
@@ -393,6 +522,28 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
+              {availableLocations.length > 0 ? (
+                <div className="hidden md:flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <Select
+                    value={currentLocationId ? String(currentLocationId) : undefined}
+                    onValueChange={(v) => {
+                      const id = Number(v);
+                      if (!Number.isFinite(id) || id <= 0) return;
+                      setLocationContext(id);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-[210px] bg-muted/20 border-none">
+                      <SelectValue placeholder="Select location" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableLocations.map((l) => (
+                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
               <Button
                 variant="ghost"
                 size="icon"
@@ -415,7 +566,10 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
             </div>
           </header>
           <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">
-            <div className={cn(fullWidth ? "w-full space-y-6 sm:space-y-8" : "max-w-7xl mx-auto space-y-6 sm:space-y-8")}>
+            <div
+              key={currentLocationId ? `loc-${currentLocationId}` : 'loc-none'}
+              className={cn(fullWidth ? "w-full space-y-6 sm:space-y-8" : "max-w-7xl mx-auto space-y-6 sm:space-y-8")}
+            >
               {children}
             </div>
           </main>

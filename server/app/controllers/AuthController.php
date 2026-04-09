@@ -46,23 +46,56 @@ class AuthController extends Controller {
             return;
         }
 
+        // Block login for inactive accounts.
+        $isActive = true;
+        if (isset($user->is_active)) {
+            $isActive = ((int)$user->is_active) === 1;
+        }
+        if (!$isActive) {
+            $this->auditModel->write([
+                'user_id' => (int)$user->id,
+                'action' => 'login_blocked_inactive',
+                'entity' => 'user',
+                'entity_id' => (int)$user->id,
+                'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['email' => $email]),
+            ]);
+            $this->error('Your account is not active yet. Please contact an administrator to activate your account.', 403);
+            return;
+        }
+
         $now = time();
 
         // Allowed locations for this user (supports multi-location assignment).
         $allowedLocationIds = [];
+        $allowedLocations = [];
         try {
             $db = new Database();
-            $db->query("SELECT location_id FROM user_locations WHERE user_id = :uid ORDER BY location_id ASC");
+            $db->query("
+                SELECT ul.location_id, sl.name
+                FROM user_locations ul
+                INNER JOIN service_locations sl ON sl.id = ul.location_id
+                WHERE ul.user_id = :uid
+                ORDER BY ul.location_id ASC
+            ");
             $db->bind(':uid', (int)$user->id);
             $locRows = $db->resultSet() ?: [];
             foreach ($locRows as $r) {
                 $allowedLocationIds[] = (int)$r->location_id;
+                $allowedLocations[] = ['id' => (int)$r->location_id, 'name' => (string)$r->name];
             }
         } catch (Exception $e) {
             $allowedLocationIds = [];
+            $allowedLocations = [];
         }
         if (count($allowedLocationIds) === 0) {
-            $allowedLocationIds = [isset($user->location_id) ? (int)$user->location_id : 1];
+            $fallbackId = isset($user->location_id) ? (int)$user->location_id : 1;
+            $fallbackName = (string)($user->location_name ?? 'Main');
+            $allowedLocationIds = [$fallbackId];
+            $allowedLocations = [['id' => $fallbackId, 'name' => $fallbackName]];
         }
 
         $payload = [
@@ -78,6 +111,7 @@ class AuthController extends Controller {
             'location_id' => isset($user->location_id) ? (int)$user->location_id : 1,
             'location_name' => $user->location_name ?? null,
             'allowed_location_ids' => $allowedLocationIds,
+            'allowed_locations' => $allowedLocations,
         ];
         $token = JwtHelper::encode($payload, JWT_SECRET);
 
@@ -91,6 +125,7 @@ class AuthController extends Controller {
                 'role_id' => isset($user->role_id) ? (int)$user->role_id : null,
                 'location_id' => isset($user->location_id) ? (int)$user->location_id : 1,
                 'location_name' => $user->location_name ?? null,
+                'allowed_locations' => $allowedLocations,
             ],
         ], 'Login successful');
     }
@@ -142,6 +177,8 @@ class AuthController extends Controller {
             'role_id' => $roleId,
             // Default new users into the main location; Admin can reassign later if needed.
             'location_id' => 1,
+            // New accounts must be activated by an admin.
+            'is_active' => 0,
         ]);
         if ($ok) {
             $this->success(null, 'User created');

@@ -6,6 +6,7 @@
  * Endpoints:
  *  - POST /api/upload/vehicle_image (field: image)
  *  - POST /api/upload/order_attachment (field: file)
+ *  - POST /api/upload/part_image (field: image)
  */
 
 class UploadController extends Controller {
@@ -126,5 +127,46 @@ class UploadController extends Controller {
             'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_ORDERS_DIR, '/') . '/' . $filename,
         ], 'Uploaded');
     }
-}
 
+    // POST /api/upload/part_image
+    public function part_image() {
+        $u = $this->requirePermission('parts.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+
+        $f = $this->requireFile('image');
+        $allowed = ['jpg','jpeg','png','webp','gif'];
+        $ext = strtolower($this->extFromName($f['name'] ?? ''));
+        if ($ext && !in_array($ext, $allowed, true)) {
+            $this->error('Unsupported image type', 400);
+        }
+
+        $filename = $this->safeFilename('itm', $f['name'] ?? 'image');
+        $dir = trim((string)CONTENT_ITEMS_DIR, '/');
+
+        try {
+            $ftp = new FtpStorage();
+            $ftp->upload($f['tmp_name'], $dir, $filename);
+        } catch (Exception $e) {
+            $this->error('FTP upload failed', 500);
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'action' => 'upload',
+            'entity' => 'part_image',
+            'entity_id' => null,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['filename' => $filename]),
+        ]);
+
+        $this->success([
+            'filename' => $filename,
+            'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_ITEMS_DIR, '/') . '/' . $filename,
+        ], 'Uploaded');
+    }
+}

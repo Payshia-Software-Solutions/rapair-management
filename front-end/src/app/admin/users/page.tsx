@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { adminFetchUserLocations, adminFetchUsers, adminSetUserLocations, adminSetUserLocation, adminSetUserRole, fetchLocations, rbacFetchRoles } from "@/lib/api";
+import { adminFetchUserLocations, adminFetchUsers, adminSetUserActive, adminSetUserLocations, adminSetUserLocation, adminSetUserRole, fetchLocations, rbacFetchRoles } from "@/lib/api";
 import { Loader2, Users } from "lucide-react";
 import {
   Table,
@@ -38,6 +39,7 @@ type UserRow = {
   location_name: string;
   allowed_locations?: string | null;
   allowed_location_ids?: string | null;
+  is_active?: number | null;
   created_at: string;
 };
 
@@ -111,6 +113,19 @@ export default function AdminUsersPage() {
         prev.map((u) => (u.id === userId ? { ...u, location_id: locationId, location_name: locationName } : u))
       );
       toast({ title: "Updated", description: "User location updated" });
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSavingUserId(null);
+    }
+  };
+
+  const setActive = async (userId: number, active: boolean) => {
+    setSavingUserId(userId);
+    try {
+      await adminSetUserActive(String(userId), active);
+      setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, is_active: active ? 1 : 0 } : u)));
+      toast({ title: "Updated", description: active ? "User activated" : "User deactivated" });
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -200,6 +215,7 @@ export default function AdminUsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Allowed Locations</TableHead>
+                  <TableHead>Active</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -261,6 +277,16 @@ export default function AdminUsersPage() {
                         >
                           Assign
                         </Button>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center justify-center">
+                        <Switch
+                          checked={(u.is_active ?? 1) === 1}
+                          onCheckedChange={(v) => void setActive(u.id, Boolean(v))}
+                          disabled={savingUserId === u.id || u.email === "admin@local"}
+                          aria-label="Active"
+                        />
                       </div>
                     </TableCell>
                     <TableCell className="text-right">

@@ -1,0 +1,137 @@
+"use client";
+
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { fetchGrns, type GrnRow } from "@/lib/api";
+import { AlertCircle, Loader2, PackageCheck, Plus, Search } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+export default function GrnPage() {
+  const { toast } = useToast();
+  const [rows, setRows] = useState<GrnRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const grnRows = await fetchGrns("");
+      setRows(Array.isArray(grnRows) ? grnRows : []);
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load GRNs", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const grn = String(r.grn_number ?? "").toLowerCase();
+      const supplier = String(r.supplier_name ?? "").toLowerCase();
+      const po = String(r.po_number ?? "").toLowerCase();
+      return grn.includes(q) || supplier.includes(q) || po.includes(q);
+    });
+  }, [rows, query]);
+
+  return (
+    <DashboardLayout>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Goods Receive Notes</h1>
+          <p className="text-muted-foreground mt-1">Receive stock, link to PO, and update average cost</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant="outline" className="hidden sm:inline-flex">
+            {rows.length} GRNs
+          </Badge>
+          <Button asChild className="gap-2">
+            <Link href="/inventory/grn/new">
+              <Plus className="w-4 h-4" />
+              New GRN
+            </Link>
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Search GRNs..." className="pl-9 h-11" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+
+        <Card className="border-none shadow-md overflow-hidden">
+          <CardContent className="p-0">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+                <p className="text-muted-foreground">Loading GRNs...</p>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="p-4 bg-muted rounded-full mb-4">
+                  <AlertCircle className="w-8 h-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-bold">No GRNs</h3>
+                <p className="text-muted-foreground max-w-xs">{query ? "No results match your search." : "Create a GRN to receive stock."}</p>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/30">
+                  <TableRow>
+                    <TableHead>GRN</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead className="hidden md:table-cell">PO</TableHead>
+                    <TableHead className="hidden md:table-cell">Received</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((g) => (
+                    <TableRow key={g.id} className="hover:bg-muted/10 transition-colors">
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-primary/10 rounded-lg">
+                            <PackageCheck className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-bold">{g.grn_number}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">GRN ID: #{g.id}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium">{g.supplier_name ?? g.supplier_id}</TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {g.po_number ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            {g.po_number}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
+                        {g.received_at ? new Date(String(g.received_at).replace(" ", "T")).toLocaleString() : "-"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </DashboardLayout>
+  );
+}
