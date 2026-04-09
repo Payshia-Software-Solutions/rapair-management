@@ -63,13 +63,11 @@ import {
   SidebarGroupContent
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
-import { Preloader } from "@/components/ui/preloader";
 import { mainNavItems, masterDataItems, inventoryItems, adminNavItems } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isNavigating, setIsNavigating] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
@@ -77,8 +75,40 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 	  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
-	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
-	  const [currentLocationName, setCurrentLocationName] = useState<string>('');
+	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(() => {
+      // Initialize immediately to avoid a re-mount "flash" when location loads after first paint.
+      try {
+        if (typeof window === 'undefined') return null;
+        const lsId = window.localStorage.getItem('location_id');
+        if (lsId) {
+          const n = Number(lsId);
+          return Number.isFinite(n) ? n : null;
+        }
+        const token = window.localStorage.getItem('auth_token');
+        if (!token) return 1;
+        const part = token.split('.')[1];
+        const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+        const tokenLocId = json.location_id ? Number(json.location_id) : 1;
+        return Number.isFinite(tokenLocId) ? tokenLocId : 1;
+      } catch {
+        return 1;
+      }
+    });
+	  const [currentLocationName, setCurrentLocationName] = useState<string>(() => {
+      try {
+        if (typeof window === 'undefined') return '';
+        const lsId = window.localStorage.getItem('location_id');
+        const lsName = window.localStorage.getItem('location_name');
+        if (lsId && lsName) return String(lsName);
+        const token = window.localStorage.getItem('auth_token');
+        if (!token) return 'Main';
+        const part = token.split('.')[1];
+        const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+        return String(json.location_name || 'Main');
+      } catch {
+        return 'Main';
+      }
+    });
 	  const [docTitle, setDocTitle] = useState<string>('');
 	  // Location switching uses the /select-location page (card UI) for a consistent UX.
 
@@ -219,14 +249,6 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     return () => window.removeEventListener('rbac:updated', onPermsUpdated);
   }, []);
 
-  useEffect(() => {
-    setIsNavigating(true);
-    const timer = setTimeout(() => {
-      setIsNavigating(false);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [pathname]);
-
   const handleLogout = () => {
     window.localStorage.removeItem('auth_token');
     window.localStorage.removeItem('location_id');
@@ -286,7 +308,6 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
   return (
     <SidebarProvider>
-      {isNavigating && <Preloader />}
       <div className="flex min-h-screen w-full bg-background relative">
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
@@ -510,18 +531,6 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
-
-            <div className="mt-3 pt-3 border-t border-sidebar-border/60 text-[11px] leading-snug text-white/55">
-              <div>Powered by Payshia Software Solutions Pvt Ltd</div>
-              <a
-                className="inline-block text-white/70 hover:text-white underline underline-offset-2"
-                href="https://www.payshia.com"
-                target="_blank"
-                rel="noreferrer"
-              >
-                www.payshia.com
-              </a>
-            </div>
           </SidebarFooter>
         </Sidebar>
 
@@ -584,10 +593,26 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
           </header>
           <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">
             <div
-              key={currentLocationId ? `loc-${currentLocationId}` : 'loc-none'}
-              className={cn(fullWidth ? "w-full space-y-6 sm:space-y-8" : "max-w-7xl mx-auto space-y-6 sm:space-y-8")}
+              className={cn(
+                fullWidth ? "w-full" : "max-w-7xl mx-auto",
+                "min-h-full flex flex-col"
+              )}
             >
-              {children}
+              <div className="flex-1 space-y-6 sm:space-y-8">
+                {children}
+              </div>
+
+              <div className="pt-6 border-t text-[11px] text-muted-foreground flex flex-row flex-wrap items-center justify-between gap-2">
+                <span>Powered by Payshia Software Solutions Pvt Ltd</span>
+                <a
+                  className="text-foreground/80 hover:text-foreground underline underline-offset-2"
+                  href="https://www.payshia.com"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  www.payshia.com
+                </a>
+              </div>
             </div>
           </main>
         </SidebarInset>

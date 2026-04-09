@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -31,23 +30,38 @@ import {
 type RoleRow = { id: number; name: string; created_at: string };
 type PermRow = { id: number; perm_key: string; description: string | null };
 
-const pagePermissionMatrix: Array<{ page: string; read: string; write?: string }> = [
-  { page: "Orders", read: "orders.read", write: "orders.write" },
+const basePagePermissionMatrix: Array<{ page: string; read: string; write?: string }> = [
+  // Core workflow
+  { page: "Orders (Queue / Active / Completed)", read: "orders.read", write: "orders.write" },
+  { page: "Create Order", read: "orders.write" },
+
+  // Master data
   { page: "Vehicles", read: "vehicles.read", write: "vehicles.write" },
-  { page: "Brands", read: "brands.read", write: "brands.write" },
-  { page: "Taxes", read: "taxes.read", write: "taxes.write" },
-  { page: "Service Bays", read: "bays.read", write: "bays.write" },
-  { page: "Technicians", read: "technicians.read", write: "technicians.write" },
   { page: "Vehicle Makes", read: "makes.read", write: "makes.write" },
   { page: "Vehicle Models", read: "models.read", write: "models.write" },
+  { page: "Service Bays", read: "bays.read", write: "bays.write" },
+  { page: "Bays Board", read: "bays.read" },
+  { page: "Technicians", read: "technicians.read", write: "technicians.write" },
   { page: "Repair Categories", read: "categories.read", write: "categories.write" },
   { page: "Checklist Items", read: "checklists.read", write: "checklists.write" },
   { page: "Units", read: "units.read", write: "units.write" },
+  { page: "Brands", read: "brands.read", write: "brands.write" },
+  { page: "Taxes", read: "taxes.read", write: "taxes.write" },
+  { page: "Departments", read: "departments.read", write: "departments.write" },
+
+  // Locations / company
+  { page: "Locations", read: "locations.read", write: "locations.write" },
+  { page: "Company Details", read: "company.write" }, // view is open to authenticated users; edit is controlled by company.write
+
+  // Inventory
   { page: "Items (Parts)", read: "parts.read", write: "parts.write" },
   { page: "Suppliers", read: "suppliers.read", write: "suppliers.write" },
   { page: "Purchase Orders", read: "purchase.read", write: "purchase.write" },
-  { page: "Goods Receive Notes", read: "grn.read", write: "grn.write" },
-  { page: "Stock", read: "stock.read", write: "stock.adjust" },
+  { page: "Goods Receive Notes (GRN)", read: "grn.read", write: "grn.write" },
+  { page: "Stock (Balances / Movements)", read: "stock.read", write: "stock.adjust" },
+  { page: "Stock Requests / Transfers", read: "transfer.read", write: "transfer.write" },
+
+  // Reports
   { page: "Reports", read: "reports.read" },
 ];
 
@@ -69,26 +83,31 @@ export default function RbacPage() {
     [roles, selectedRoleId]
   );
 
-  const filteredPerms = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return perms;
-    return perms.filter((p) =>
-      p.perm_key.toLowerCase().includes(q) || (p.description ?? "").toLowerCase().includes(q)
-    );
-  }, [perms, filter]);
-
   const matrixKeys = useMemo(() => {
     const s = new Set<string>();
-    for (const row of pagePermissionMatrix) {
+    for (const row of basePagePermissionMatrix) {
       s.add(row.read);
       if (row.write) s.add(row.write);
     }
     return s;
   }, []);
 
-  const extraPerms = useMemo(() => {
-    return perms.filter((p) => !matrixKeys.has(p.perm_key));
+  const pagePermissionMatrix = useMemo<Array<{ page: string; read: string; write?: string }>>(() => {
+    // Bring any "advanced" permission keys into the same table automatically.
+    const extras = perms
+      .filter((p) => !matrixKeys.has(p.perm_key))
+      .map((p) => ({ page: p.perm_key, read: p.perm_key as string, write: undefined }));
+    return [...basePagePermissionMatrix, ...extras];
   }, [perms, matrixKeys]);
+
+  const filteredMatrix = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return pagePermissionMatrix;
+    return pagePermissionMatrix.filter((row) => {
+      const hay = `${row.page} ${row.read} ${row.write ?? ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [pagePermissionMatrix, filter]);
 
   const load = async () => {
     setLoading(true);
@@ -298,7 +317,7 @@ export default function RbacPage() {
                   <div>Write</div>
                 </div>
                 <div className="divide-y">
-                  {pagePermissionMatrix.map((row) => {
+                  {filteredMatrix.map((row) => {
                     const readChecked = roleKeys.has(row.read);
                     const writeChecked = row.write ? roleKeys.has(row.write) : false;
                     const disabled = selectedRole?.name === "Admin" || !selectedRoleId || loadingRolePerms || saving;
@@ -327,46 +346,17 @@ export default function RbacPage() {
                 </div>
               </div>
 
-              {extraPerms.length > 0 && (
-                <div className="space-y-3 pt-2">
-                  <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-semibold">Advanced</p>
-                      <p className="text-xs text-muted-foreground">Other permissions not mapped to pages.</p>
-                    </div>
-                    <Input
-                      placeholder="Filter permissions..."
-                      value={filter}
-                      onChange={(e) => setFilter(e.target.value)}
-                      className="sm:max-w-sm"
-                    />
-                  </div>
-
-                  <ScrollArea className="h-[260px] rounded-md border">
-                    <div className="p-4 space-y-3">
-                      {filteredPerms
-                        .filter((p) => !matrixKeys.has(p.perm_key))
-                        .map((p) => {
-                          const checked = roleKeys.has(p.perm_key);
-                          const disabled = selectedRole?.name === "Admin" || !selectedRoleId;
-                          return (
-                            <div key={p.id} className="flex items-start justify-between gap-3 rounded-lg border bg-background px-3 py-2">
-                              <div className="min-w-0">
-                                <p className="font-semibold text-sm">{p.perm_key}</p>
-                                {p.description && <p className="text-xs text-muted-foreground">{p.description}</p>}
-                              </div>
-                              <Checkbox
-                                checked={checked}
-                                disabled={disabled}
-                                onCheckedChange={(v) => toggle(p.perm_key, Boolean(v))}
-                              />
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </ScrollArea>
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
+                <div className="text-xs text-muted-foreground">
+                  Tip: use search to find a permission key quickly (e.g., <span className="font-mono">transfer</span>, <span className="font-mono">stock</span>).
                 </div>
-              )}
+                <Input
+                  placeholder="Search pages / permission keys..."
+                  value={filter}
+                  onChange={(e) => setFilter(e.target.value)}
+                  className="sm:max-w-sm"
+                />
+              </div>
             </CardContent>
           </Card>
         </div>

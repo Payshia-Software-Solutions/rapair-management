@@ -30,6 +30,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock,
+  LayoutGrid,
   RefreshCcw,
   TrendingUp,
   Wrench,
@@ -240,6 +241,12 @@ export default function DashboardPage() {
               <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
               Refresh
             </Button>
+            <Link href="/dashboard/bays">
+              <Button variant="outline" size="sm" className="gap-2 bg-background/60">
+                <LayoutGrid className="w-4 h-4" />
+                Bays Board
+              </Button>
+            </Link>
             <Link href="/orders/new">
               <Button size="sm" className="gap-2">
                 <TrendingUp className="w-4 h-4" />
@@ -355,8 +362,18 @@ export default function DashboardPage() {
 
         <Card className="lg:col-span-4 border-none shadow-sm">
           <CardHeader className="p-4 sm:p-6">
-            <CardTitle className="text-lg sm:text-xl font-bold">Service Bays</CardTitle>
-            <CardDescription>Occupied vs available</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg sm:text-xl font-bold">Service Bays</CardTitle>
+                <CardDescription>Occupied vs available</CardDescription>
+              </div>
+              <Link href="/dashboard/bays" className="shrink-0">
+                <Button variant="outline" size="sm" className="gap-2">
+                  <LayoutGrid className="w-4 h-4" />
+                  Bays Board
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent className="p-4 sm:p-6">
             <div className="grid grid-cols-2 gap-4 items-center">

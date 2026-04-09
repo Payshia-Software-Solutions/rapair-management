@@ -163,7 +163,6 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [addPartId, setAddPartId] = useState<string>("");
   const [addQty, setAddQty] = useState<string>("1");
   const [savingPart, setSavingPart] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
   const [checklistState, setChecklistState] = useState<ChecklistDoneItem[]>([]);
   const [completionNotes, setCompletionNotes] = useState("");
   const [completeOpen, setCompleteOpen] = useState(false);
@@ -238,6 +237,15 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   }, [order, id]);
 
   const remaining = useMemo(() => timeRemaining(data.expectedAt), [data.expectedAt]);
+  const isLocked = data.status === "Completed" || data.status === "Cancelled";
+
+  useEffect(() => {
+    if (!isLocked) return;
+    // Ensure any edit UIs are closed when the job becomes locked.
+    setAddOpen(false);
+    setCompleteOpen(false);
+    setEditingLineId(null);
+  }, [isLocked]);
 
   useEffect(() => {
     if (!order) return;
@@ -267,22 +275,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     if (!w) router.push(url);
   };
 
-  const handleStatusUpdate = async (nextStatus: string) => {
-    if (!id) return;
-    setSavingStatus(true);
-    try {
-      await updateOrder(String(id), { status: nextStatus });
-      setOrder((prev: any) => ({ ...(prev || {}), status: nextStatus }));
-      toast({ title: "Status updated", description: `Order marked ${nextStatus}.` });
-    } catch (e: any) {
-      toast({ title: "Update failed", description: e?.message || "Failed to update status", variant: "destructive" });
-    } finally {
-      setSavingStatus(false);
-    }
-  };
-
   const handleComplete = async () => {
     if (!id) return;
+    if (isLocked) return;
     setCompleting(true);
     try {
       await completeOrder(String(id), {
@@ -310,6 +305,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
   const handleReleaseSave = async () => {
     if (!id) return;
+    if (isLocked) {
+      toast({ title: "Locked", description: "Completed jobs cannot be edited." });
+      return;
+    }
     setSavingRelease(true);
     try {
       const payload = releaseTime ? releaseTime : null;
@@ -330,6 +329,10 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const checklistChecked = useMemo(() => checklistState.filter((c) => c.checked).length, [checklistState]);
 
   const openAddPart = () => {
+    if (isLocked) {
+      toast({ title: "Locked", description: "Completed jobs cannot be edited." });
+      return;
+    }
     setAddPartId("");
     setAddQty("1");
     setAddOpen(true);
@@ -337,6 +340,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
 
   const submitAddPart = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLocked) return;
     const pid = Number(addPartId);
     const qty = Math.trunc(Number(addQty));
     if (!pid || qty <= 0) return;
@@ -354,12 +358,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   };
 
   const startEditQty = (line: OrderPartRow) => {
+    if (isLocked) {
+      toast({ title: "Locked", description: "Completed jobs cannot be edited." });
+      return;
+    }
     setEditingLineId(line.id);
     setEditQty(String(line.quantity ?? ""));
   };
 
   const saveEditQty = async () => {
     if (!editingLineId) return;
+    if (isLocked) return;
     const qty = Math.trunc(Number(editQty));
     if (qty <= 0) return;
     setSavingPart(true);
@@ -377,6 +386,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   };
 
   const removeLine = async (line: OrderPartRow) => {
+    if (isLocked) return;
     if (!confirm(`Remove "${line.part_name ?? "item"}" from this order? Stock will be returned.`)) return;
     setSavingPart(true);
     try {
@@ -432,7 +442,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             Back
           </Button>
           <div className="flex items-center gap-2">
-            {data.status !== "Completed" && data.status !== "Cancelled" ? (
+            {!isLocked ? (
               <Button variant="outline" size="sm" className="gap-2" onClick={() => setCompleteOpen(true)}>
                 <CheckCircle2 className="w-4 h-4" />
                 Complete Job
@@ -453,7 +463,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                   <div className="flex flex-col gap-4">
                     <div className="flex items-start justify-between gap-6">
                       <div className="flex items-start gap-4 min-w-0">
-                        <div className="p-3 bg-white rounded-2xl shadow-sm shrink-0">
+                        <div className="p-3 bg-card border border-border/60 rounded-2xl shadow-sm dark:shadow-black/20 shrink-0">
                           <Car className="w-8 h-8 text-primary" />
                         </div>
                         <div className="min-w-0">
@@ -483,25 +493,17 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         >
                           {data.status}
                         </Badge>
-                        <Select
-                          value={data.status}
-                          onValueChange={handleStatusUpdate}
-                          disabled={savingStatus}
-                        >
-                          <SelectTrigger className="h-8 w-[160px] text-xs">
-                            <SelectValue placeholder="Update status" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {["Pending", "In Progress", "Completed", "Cancelled"].map((s) => (
-                              <SelectItem key={s} value={s}>{s}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
                     </div>
 
+                    {isLocked ? (
+                      <div className="rounded-lg border bg-muted/20 p-3 text-xs text-muted-foreground">
+                        This job is <span className="font-semibold text-foreground">{data.status}</span> and is locked for editing.
+                      </div>
+                    ) : null}
+
                     <div className="grid grid-cols-2 md:grid-cols-6 gap-4 pt-2">
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <Gauge className="w-3.5 h-3.5" />
                           Mileage
@@ -511,7 +513,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <CalendarDays className="w-3.5 h-3.5" />
                           Created
@@ -521,7 +523,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <Clock className="w-3.5 h-3.5" />
                           Expected
@@ -530,13 +532,18 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                           {data.expectedAt ? format(data.expectedAt, "MMM d, yyyy HH:mm") : "-"}
                         </div>
                         {remaining ? (
-                          <div className={cn("mt-1 text-xs", remaining.startsWith("Overdue") ? "text-red-700" : "text-muted-foreground")}>
+                          <div
+                            className={cn(
+                              "mt-1 text-xs",
+                              remaining.startsWith("Overdue") ? "text-red-600 dark:text-red-300" : "text-muted-foreground"
+                            )}
+                          >
                             {remaining}
                           </div>
                         ) : null}
                       </div>
 
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <MapPin className="w-3.5 h-3.5" />
                           Bay
@@ -546,7 +553,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <User className="w-3.5 h-3.5" />
                           Technician
@@ -556,7 +563,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         </div>
                       </div>
 
-                      <div className="rounded-xl bg-white/70 border p-4">
+                      <div className="rounded-xl border border-border/60 bg-card p-4 shadow-sm dark:shadow-black/20">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <Hash className="w-3.5 h-3.5" />
                           Checklist
@@ -636,6 +643,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                                 <label className="flex items-start gap-3">
                                   <Checkbox
                                     checked={c.checked}
+                                    disabled={isLocked}
                                     onCheckedChange={(v) => {
                                       const next = [...checklistState];
                                       next[idx] = { ...next[idx], checked: Boolean(v) };
@@ -647,6 +655,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                                 <Input
                                   placeholder="Optional comment"
                                   value={c.comment ?? ""}
+                                  disabled={isLocked}
                                   onChange={(e) => {
                                     const next = [...checklistState];
                                     next[idx] = { ...next[idx], comment: e.target.value };
@@ -673,10 +682,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       </CardTitle>
                       <CardDescription>Items issued to this repair order (stock is deducted)</CardDescription>
                     </div>
-                    <Button onClick={openAddPart} className="gap-2" disabled={partsLoading || savingPart}>
-                      <Plus className="w-4 h-4" />
-                      Add Part
-                    </Button>
+                    {isLocked ? null : (
+                      <Button onClick={openAddPart} className="gap-2" disabled={partsLoading || savingPart}>
+                        <Plus className="w-4 h-4" />
+                        Add Part
+                      </Button>
+                    )}
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {partsLoading ? (
@@ -695,7 +706,7 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                               <TableHead className="w-[120px]">Qty</TableHead>
                               <TableHead className="hidden md:table-cell w-[140px]">Unit Price</TableHead>
                               <TableHead className="w-[140px]">Total</TableHead>
-                              <TableHead className="text-right w-[120px]">Actions</TableHead>
+                              {isLocked ? null : <TableHead className="text-right w-[120px]">Actions</TableHead>}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
@@ -724,28 +735,30 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                                   <TableCell className="font-semibold">
                                     {l.line_total !== null ? Number(l.line_total).toFixed(2) : "-"}
                                   </TableCell>
-                                  <TableCell className="text-right">
-                                    {isEditing ? (
-                                      <div className="inline-flex items-center gap-2 justify-end">
-                                        <Button size="sm" onClick={() => void saveEditQty()} disabled={savingPart}>Save</Button>
-                                        <Button size="sm" variant="outline" onClick={() => setEditingLineId(null)} disabled={savingPart}>Cancel</Button>
-                                      </div>
-                                    ) : (
-                                      <div className="inline-flex items-center gap-2 justify-end">
-                                        <Button size="sm" variant="outline" onClick={() => startEditQty(l)} disabled={savingPart}>Edit</Button>
-                                        <Button size="sm" variant="destructive" onClick={() => void removeLine(l)} disabled={savingPart}>
-                                          <Trash2 className="w-4 h-4" />
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </TableCell>
+                                  {isLocked ? null : (
+                                    <TableCell className="text-right">
+                                      {isEditing ? (
+                                        <div className="inline-flex items-center gap-2 justify-end">
+                                          <Button size="sm" onClick={() => void saveEditQty()} disabled={savingPart}>Save</Button>
+                                          <Button size="sm" variant="outline" onClick={() => setEditingLineId(null)} disabled={savingPart}>Cancel</Button>
+                                        </div>
+                                      ) : (
+                                        <div className="inline-flex items-center gap-2 justify-end">
+                                          <Button size="sm" variant="outline" onClick={() => startEditQty(l)} disabled={savingPart}>Edit</Button>
+                                          <Button size="sm" variant="destructive" onClick={() => void removeLine(l)} disabled={savingPart}>
+                                            <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                  )}
                                 </TableRow>
                               );
                             })}
                             <TableRow>
                               <TableCell colSpan={3} className="text-right font-semibold">Total</TableCell>
                               <TableCell className="font-bold">{totalParts.toFixed(2)}</TableCell>
-                              <TableCell />
+                              {isLocked ? null : <TableCell />}
                             </TableRow>
                           </TableBody>
                         </Table>
@@ -790,14 +803,22 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                 <CardDescription>Set the planned release time (can differ from expected time)</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Input
-                  type="datetime-local"
-                  value={releaseTime}
-                  onChange={(e) => setReleaseTime(e.target.value)}
-                />
-                <Button className="w-full" onClick={handleReleaseSave} disabled={savingRelease}>
-                  {savingRelease ? "Saving..." : "Save Release Time"}
-                </Button>
+                {isLocked ? (
+                  <div className="rounded-xl border bg-muted/10 p-4 text-sm">
+                    {data.releaseAt ? format(data.releaseAt, "MMM d, yyyy HH:mm") : <span className="text-muted-foreground">Not set</span>}
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      type="datetime-local"
+                      value={releaseTime}
+                      onChange={(e) => setReleaseTime(e.target.value)}
+                    />
+                    <Button className="w-full" onClick={handleReleaseSave} disabled={savingRelease}>
+                      {savingRelease ? "Saving..." : "Save Release Time"}
+                    </Button>
+                  </>
+                )}
               </CardContent>
             </Card>
 
