@@ -1,12 +1,13 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Loader2, MapPin, ArrowRight } from "lucide-react";
+import { fetchLocations, type ServiceLocationRow } from "@/lib/api";
 
 type AllowedLocation = { id: number; name: string };
 
@@ -22,6 +23,7 @@ function decodeJwtPayload(token: string): any | null {
 
 export default function SelectLocationPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [locations, setLocations] = useState<AllowedLocation[]>([]);
   const [selectedId, setSelectedId] = useState<string>("");
@@ -34,6 +36,7 @@ export default function SelectLocationPage() {
     }
 
     const payload = decodeJwtPayload(token);
+    const role = String(payload?.role ?? "");
     const allowed: AllowedLocation[] = Array.isArray(payload?.allowed_locations)
       ? payload.allowed_locations
           .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
@@ -42,12 +45,34 @@ export default function SelectLocationPage() {
 
     const fallbackId = payload?.location_id ? Number(payload.location_id) : 1;
     const fallbackName = payload?.location_name ? String(payload.location_name) : "Main";
-    const finalAllowed = allowed.length > 0 ? allowed : [{ id: fallbackId, name: fallbackName }];
 
-    setLocations(finalAllowed);
-    const pre = finalAllowed.find((l) => l.id === fallbackId)?.id ?? finalAllowed[0].id;
-    setSelectedId(String(pre));
-    setLoading(false);
+    const setFromList = (list: AllowedLocation[]) => {
+      const finalAllowed = list.length > 0 ? list : [{ id: fallbackId, name: fallbackName }];
+      setLocations(finalAllowed);
+      const pre = finalAllowed.find((l) => l.id === fallbackId)?.id ?? finalAllowed[0].id;
+      setSelectedId(String(pre));
+      setLoading(false);
+    };
+
+    if (role === "Admin") {
+      // Admin can switch to any location (service + warehouse).
+      void (async () => {
+        try {
+          const locRows = await fetchLocations();
+          const cleaned = Array.isArray(locRows)
+            ? (locRows as ServiceLocationRow[])
+                .map((l) => ({ id: Number(l.id), name: String(l.name ?? "") }))
+                .filter((x) => x.id > 0 && x.name)
+            : [];
+          setFromList(cleaned);
+        } catch {
+          setFromList([{ id: fallbackId, name: fallbackName }]);
+        }
+      })();
+      return;
+    }
+
+    setFromList(allowed);
   }, []);
 
   useEffect(() => {
@@ -55,7 +80,9 @@ export default function SelectLocationPage() {
     if (!loading && locations.length === 1 && selectedId) {
       window.localStorage.setItem("location_id", String(locations[0].id));
       window.localStorage.setItem("location_name", String(locations[0].name));
-      router.replace("/dashboard");
+      const ret = searchParams?.get("return") ?? "/dashboard";
+      // Full reload so all modules re-initialize with X-Location-Id context.
+      window.location.href = ret;
     }
   }, [loading, locations, selectedId, router]);
 
@@ -70,7 +97,8 @@ export default function SelectLocationPage() {
     const loc = locations.find((l) => l.id === id);
     window.localStorage.setItem("location_id", String(selectedId));
     if (loc?.name) window.localStorage.setItem("location_name", String(loc.name));
-    router.replace("/dashboard");
+    const ret = searchParams?.get("return") ?? "/dashboard";
+    window.location.href = ret;
   };
 
   return (
@@ -81,7 +109,7 @@ export default function SelectLocationPage() {
             <MapPin className="w-7 h-7" />
           </div>
           <CardTitle className="text-2xl">Choose Location</CardTitle>
-          <CardDescription>Select the service center you want to work in</CardDescription>
+          <CardDescription>Select the location you want to work in</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {loading ? (

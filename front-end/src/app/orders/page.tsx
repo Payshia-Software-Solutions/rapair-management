@@ -271,7 +271,9 @@ export default function OrderQueuePage() {
     });
   };
 
-  const sortedOrders = [...orders].sort((a, b) => {
+  const pendingOrders = orders.filter((o) => o.status === "Pending");
+
+  const sortedOrders = [...pendingOrders].sort((a, b) => {
     const priorityWeight = { 'Emergency': 4, 'High': 3, 'Medium': 2, 'Low': 1 };
     if (priorityWeight[b.priority] !== priorityWeight[a.priority]) {
       return priorityWeight[b.priority] - priorityWeight[a.priority];

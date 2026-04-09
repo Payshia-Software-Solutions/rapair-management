@@ -7,8 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { Grid, Loader2, RefreshCcw, Clock, User as UserIcon, ArrowUpRight, MapPin } from "lucide-react";
+import { Grid, Loader2, RefreshCcw, Clock, User as UserIcon, ArrowUpRight, MapPin, Plus } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 
 type BayRow = {
   id: number;
@@ -58,8 +62,11 @@ function statusMeta(status: string) {
 }
 
 export default function BaysBoardPage() {
+  const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"current" | "all">("current");
+  const [canWrite, setCanWrite] = useState(false);
   const [locations, setLocations] = useState<Array<{
     location_id: number;
     location_name: string;
@@ -68,16 +75,100 @@ export default function BaysBoardPage() {
     unknown_assigned_orders: any[];
   }>>([]);
 
+  const [addOpen, setAddOpen] = useState(false);
+  const [addLocationId, setAddLocationId] = useState<number | null>(null);
+  const [addBayName, setAddBayName] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const decodeToken = () => {
+    try {
+      const token = window.localStorage.getItem("auth_token");
+      if (!token) return null;
+      const part = token.split(".")[1];
+      return JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    } catch {
+      return null;
+    }
+  };
+
+  const openAddBay = (locId: number) => {
+    setAddLocationId(locId);
+    setAddBayName("");
+    setAddOpen(true);
+  };
+
+  const submitAddBay = async () => {
+    const locId = Number(addLocationId ?? 0);
+    const name = addBayName.trim();
+    if (!locId || !name) return;
+    setAdding(true);
+    try {
+      const res = await api("/api/bay/create", {
+        method: "POST",
+        headers: { "X-Location-Id": String(locId) },
+        body: JSON.stringify({ name }),
+      });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || j?.status !== "success") throw new Error(j?.message || `Failed to create bay (HTTP ${res.status})`);
+      toast({ title: "Bay created", description: `Created "${name}"` });
+      setAddOpen(false);
+      setAddLocationId(null);
+      setAddBayName("");
+      await load();
+    } catch (e: any) {
+      toast({ title: "Create failed", description: e?.message || "Failed to create bay", variant: "destructive" });
+    } finally {
+      setAdding(false);
+    }
+  };
+
   const load = async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api("/api/bay/board_all");
+      const tokenJson: any = decodeToken();
+      const role = String(tokenJson?.role ?? "");
+      const allowed = Array.isArray(tokenJson?.allowed_locations) ? tokenJson.allowed_locations : [];
+      const allowedClean = allowed
+        .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
+        .filter((x: any) => x.id > 0 && x.name);
+
+      // If user has access to multiple locations, show location-wise board.
+      const multi = role === "Admin" || allowedClean.length > 1;
+      setViewMode(multi ? "all" : "current");
+
+      // Permission check for creating bays.
+      let perms: string[] = [];
+      try {
+        const pr = await api("/api/auth/permissions");
+        const pj = await pr.json();
+        perms = pj?.status === "success" && Array.isArray(pj.data) ? pj.data : [];
+      } catch {
+        perms = [];
+      }
+      setCanWrite(role === "Admin" || perms.includes("*") || perms.includes("bays.write"));
+
+      const res = await api(multi ? "/api/bay/board_all" : "/api/bay/board");
       if (!res.ok) throw new Error(`Failed to load bays (HTTP ${res.status})`);
       const json = await res.json();
       const data = json?.status === "success" ? json.data : null;
-      const locs = data?.locations ?? [];
-      setLocations(Array.isArray(locs) ? locs : []);
+
+      if (multi) {
+        const locs = data?.locations ?? [];
+        setLocations(Array.isArray(locs) ? locs : []);
+      } else {
+        const locId = Number(data?.location_id ?? 0);
+        const nameFromLs = (typeof window !== "undefined" ? window.localStorage.getItem("location_name") : "") || "";
+        const locName = nameFromLs || (locId > 0 ? `Location #${locId}` : "Current Location");
+        const one = {
+          location_id: locId > 0 ? locId : 0,
+          location_name: locName,
+          bays: Array.isArray(data?.bays) ? data.bays : [],
+          unassigned_active_orders: Array.isArray(data?.unassigned_active_orders) ? data.unassigned_active_orders : [],
+          unknown_assigned_orders: Array.isArray(data?.unknown_assigned_orders) ? data.unknown_assigned_orders : [],
+        };
+        setLocations([one]);
+      }
     } catch (e) {
       setLocations([]);
       setError((e as Error).message || "Failed to load bays");
@@ -182,10 +273,25 @@ export default function BaysBoardPage() {
 
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-lg">All Bays (By Location)</CardTitle>
-          <CardDescription>
-            Only locations you are allowed to access are shown. Assignment is taken from each active order's "Bay" field.
-          </CardDescription>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">
+                {viewMode === "all" ? "Workshop Bays (By Location)" : "Workshop Bays (Current Location)"}
+              </CardTitle>
+              <CardDescription>
+                {viewMode === "all"
+                  ? "All bays for locations you are allowed to access."
+                  : "Uses the current location selected from the header switcher."}{" "}
+                Assignment is taken from each active order's "Bay" field.
+              </CardDescription>
+            </div>
+            {viewMode === "current" && canWrite && locations[0]?.location_id ? (
+              <Button type="button" className="gap-2" onClick={() => openAddBay(Number(locations[0].location_id))}>
+                <Plus className="w-4 h-4" />
+                New Bay
+              </Button>
+            ) : null}
+          </div>
         </CardHeader>
         <CardContent className="p-6">
           {loading ? (
@@ -237,6 +343,14 @@ export default function BaysBoardPage() {
                       </div>
                     </AccordionTrigger>
                     <AccordionContent>
+                      {canWrite ? (
+                        <div className="flex items-center justify-end pb-3">
+                          <Button type="button" variant="outline" className="gap-2" onClick={() => openAddBay(Number(loc.location_id))}>
+                            <Plus className="w-4 h-4" />
+                            Add Bay to {loc.location_name}
+                          </Button>
+                        </div>
+                      ) : null}
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 pt-2">
                         {locBays.map((b) => {
                           const m = statusMeta(b.status);
@@ -383,8 +497,45 @@ export default function BaysBoardPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Create New Bay</DialogTitle>
+            <DialogDescription>
+              {addLocationId ? `Location ID: ${addLocationId}` : "Select a location in the board to add a bay."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="bayName">Bay Name</Label>
+            <Input
+              id="bayName"
+              value={addBayName}
+              onChange={(e) => setAddBayName(e.target.value)}
+              placeholder="e.g., Bay 5"
+              autoFocus
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={adding}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => void submitAddBay()}
+              disabled={adding || !addLocationId || addBayName.trim() === ""}
+              className="gap-2"
+            >
+              {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Create
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
+
 
 

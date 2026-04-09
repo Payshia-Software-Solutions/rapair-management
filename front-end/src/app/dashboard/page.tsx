@@ -75,27 +75,27 @@ function kpiCardTone(key: string) {
   switch (key) {
     case "pending":
       return {
-        bg: "bg-gradient-to-br from-orange-50 via-white to-white",
-        icon: "bg-orange-500/10 text-orange-600",
-        ring: "ring-orange-500/15",
+        bg: "bg-gradient-to-br from-orange-50 via-white to-white dark:from-orange-500/10 dark:via-card dark:to-card",
+        icon: "bg-orange-500/10 text-orange-600 dark:bg-orange-500/15 dark:text-orange-300",
+        ring: "ring-orange-500/15 dark:ring-orange-500/20",
       };
     case "inProgress":
       return {
-        bg: "bg-gradient-to-br from-blue-50 via-white to-white",
-        icon: "bg-primary/10 text-primary",
-        ring: "ring-primary/15",
+        bg: "bg-gradient-to-br from-blue-50 via-white to-white dark:from-primary/15 dark:via-card dark:to-card",
+        icon: "bg-primary/10 text-primary dark:bg-primary/15 dark:text-primary",
+        ring: "ring-primary/15 dark:ring-primary/20",
       };
     case "completed":
       return {
-        bg: "bg-gradient-to-br from-green-50 via-white to-white",
-        icon: "bg-green-600/10 text-green-700",
-        ring: "ring-green-600/15",
+        bg: "bg-gradient-to-br from-green-50 via-white to-white dark:from-green-500/10 dark:via-card dark:to-card",
+        icon: "bg-green-600/10 text-green-700 dark:bg-green-500/15 dark:text-green-300",
+        ring: "ring-green-600/15 dark:ring-green-500/20",
       };
     default:
       return {
-        bg: "bg-gradient-to-br from-cyan-50 via-white to-white",
-        icon: "bg-cyan-600/10 text-cyan-700",
-        ring: "ring-cyan-600/15",
+        bg: "bg-gradient-to-br from-cyan-50 via-white to-white dark:from-cyan-500/10 dark:via-card dark:to-card",
+        icon: "bg-cyan-600/10 text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-200",
+        ring: "ring-cyan-600/15 dark:ring-cyan-500/20",
       };
   }
 }
@@ -198,6 +198,17 @@ export default function DashboardPage() {
   const urgent = data?.urgentAttention ?? [];
   const recent = data?.recentCompletions ?? [];
 
+  const chartStroke = "hsl(var(--border))";
+  const chartTick = "hsl(var(--muted-foreground))";
+  const tooltipStyle = {
+    borderRadius: "12px",
+    border: "1px solid hsl(var(--border))",
+    background: "hsl(var(--popover))",
+    color: "hsl(var(--popover-foreground))",
+    boxShadow: "0 10px 30px rgba(2, 6, 23, 0.25)",
+    fontSize: "12px",
+  } as const;
+
   return (
     <DashboardLayout>
       <div className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-primary/10 via-background to-background p-6 sm:p-8">
@@ -293,7 +304,10 @@ export default function DashboardPage() {
                   Received vs completed (last 7 days)
                 </CardDescription>
               </div>
-              <Badge variant="outline" className="text-green-700 border-green-200 bg-green-50 gap-1 text-[10px] sm:text-xs">
+              <Badge
+                variant="outline"
+                className="text-green-700 border-green-200 bg-green-50 gap-1 text-[10px] sm:text-xs dark:text-green-300 dark:border-green-500/20 dark:bg-green-500/10"
+              >
                 <TrendingUp className="w-3 h-3" />
                 Live
               </Badge>
@@ -312,16 +326,11 @@ export default function DashboardPage() {
                     <stop offset="95%" stopColor={COLORS.completed} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: "#64748b", fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fill: "#64748b", fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={chartStroke} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: chartTick, fontSize: 11 }} />
+                <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fill: chartTick, fontSize: 11 }} />
                 <Tooltip
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 10px 30px rgba(2, 6, 23, 0.10)",
-                    fontSize: "12px",
-                  }}
+                  contentStyle={tooltipStyle}
                 />
                 <Area
                   type="monotone"
@@ -361,7 +370,7 @@ export default function DashboardPage() {
                       innerRadius={48}
                       outerRadius={70}
                       paddingAngle={4}
-                      stroke="rgba(255,255,255,0.9)"
+                      stroke="hsl(var(--background))"
                       strokeWidth={2}
                     >
                       {bayPie.map((entry) => (
@@ -369,12 +378,7 @@ export default function DashboardPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{
-                        borderRadius: "12px",
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 10px 30px rgba(2, 6, 23, 0.10)",
-                        fontSize: "12px",
-                      }}
+                      contentStyle={tooltipStyle}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -425,7 +429,10 @@ export default function DashboardPage() {
               urgent.map((u) => {
                 const due = u.expected_time ? niceDateTime(u.expected_time) : null;
                 const created = niceDateTime(u.created_at);
-                const tone = u.priority === "Emergency" || u.priority === "Urgent" ? "border-orange-200 bg-orange-50/40" : "border-amber-200 bg-amber-50/40";
+                const tone =
+                  u.priority === "Emergency" || u.priority === "Urgent"
+                    ? "border-orange-200 bg-orange-50/40 dark:border-orange-500/20 dark:bg-orange-500/10"
+                    : "border-amber-200 bg-amber-50/40 dark:border-amber-500/20 dark:bg-amber-500/10";
                 return (
                   <Link
                     key={u.id}
@@ -470,8 +477,8 @@ export default function DashboardPage() {
                   className="flex items-center justify-between p-3 rounded-xl hover:bg-muted/30 transition-colors"
                 >
                   <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-9 h-9 rounded-full bg-green-50 flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-5 h-5 text-green-600" />
+                    <div className="w-9 h-9 rounded-full bg-green-50 dark:bg-green-500/10 flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-300" />
                     </div>
                     <div className="overflow-hidden">
                       <div className="text-sm font-semibold truncate">{r.vehicle_model || `Order #${r.id}`}</div>

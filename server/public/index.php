@@ -12,6 +12,9 @@ $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = [
     'http://localhost:9003',
     'http://localhost:3000',
+    // Production frontend (Netlify)
+    'https://kdu-service.netlify.app',
+    // If you later use a custom frontend domain, add it here as well.
 ];
 
 if ($origin && in_array($origin, $allowedOrigins, true)) {

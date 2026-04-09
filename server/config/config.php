@@ -16,7 +16,7 @@ define('DB_NAME', 'repair_management_db');
 
 // JWT Configuration
 // Change this in production.
-define('JWT_SECRET', 'change_me_dev_secret');
+define('JWT_SECRET', 'io3pq9L-FMfAWKpIygRtwXYoFCLyflGk-VbMF70r79buhnYini9azrlI_q_U7nO59ta24seDguike1Xygj5XYg');
 define('JWT_ISSUER', 'repair-management');
 define('JWT_TTL_SECONDS', 60 * 60 * 8); // 8 hours
 

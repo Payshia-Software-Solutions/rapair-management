@@ -64,40 +64,7 @@ import {
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
 import { Preloader } from "@/components/ui/preloader";
-
-const mainNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-  { icon: ClipboardList, label: 'Order Queue', href: '/orders', perm: 'orders.read' },
-  { icon: PlayCircle, label: 'Active Jobs', href: '/orders/active', perm: 'orders.read' },
-  { icon: PlusCircle, label: 'Create Order', href: '/orders/new', perm: 'orders.write' },
-  { icon: Grid, label: 'Bays Board', href: '/dashboard/bays', perm: 'bays.read' },
-  { icon: BarChart3, label: 'Reports', href: '/reports', perm: 'reports.read' },
-];
-
-const masterDataItems = [
-  { icon: Car, label: 'Vehicles', href: '/master-data/vehicles', perm: 'vehicles.read' },
-  { icon: Tag, label: 'Brands', href: '/master-data/brands', perm: 'brands.read' },
-  { icon: Percent, label: 'Taxes', href: '/master-data/taxes', perm: 'taxes.read' },
-  { icon: Tag, label: 'Vehicle Makes', href: '/master-data/makes', perm: 'makes.read' },
-  { icon: Layers, label: 'Vehicle Models', href: '/master-data/models', perm: 'models.read' },
-  { icon: Users, label: 'Technicians', href: '/master-data/technicians', perm: 'technicians.read' },
-  { icon: Grid, label: 'Service Bays', href: '/master-data/bays', perm: 'bays.read' },
-  { icon: Grid, label: 'Departments', href: '/master-data/departments', perm: 'departments.read' },
-  { icon: Tags, label: 'Units', href: '/master-data/units', perm: 'units.read' },
-  { icon: Tags, label: 'Repair Categories', href: '/master-data/categories', perm: 'categories.read' },
-  { icon: CheckSquare, label: 'Checklist Items', href: '/master-data/checklists', perm: 'checklists.read' },
-];
-
-const inventoryItems = [
-  { icon: Boxes, label: 'Items', href: '/inventory/items', perm: 'parts.read' },
-  { icon: Truck, label: 'Suppliers', href: '/inventory/suppliers', perm: 'suppliers.read' },
-  { icon: FileText, label: 'Purchase Orders', href: '/inventory/purchase-orders', perm: 'purchase.read' },
-  { icon: PackageCheck, label: 'GRN', href: '/inventory/grn', perm: 'grn.read' },
-  { icon: ClipboardList, label: 'Stock Requests', href: '/inventory/stock-requests', perm: 'transfer.read' },
-  { icon: ArrowLeftRight, label: 'Stock Transfers', href: '/inventory/transfers', perm: 'transfer.read' },
-  { icon: History, label: 'Stock', href: '/inventory/stock', perm: 'stock.read' },
-  { icon: ArrowLeftRight, label: 'Stock Adjustments', href: '/inventory/stock/adjustments', perm: 'stock.read' },
-];
+import { mainNavItems, masterDataItems, inventoryItems, adminNavItems } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
   const pathname = usePathname();
@@ -113,8 +80,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
 	  const [currentLocationName, setCurrentLocationName] = useState<string>('');
 	  const [docTitle, setDocTitle] = useState<string>('');
-	  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
-	  const [pendingLocationId, setPendingLocationId] = useState<string>('');
+	  // Location switching uses the /select-location page (card UI) for a consistent UX.
 
 	  useEffect(() => {
     // Basic client-side guard. Server APIs also enforce auth via JWT.
@@ -134,7 +100,8 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       const tokenLocId = json.location_id ? Number(json.location_id) : 1;
       const tokenLocName = String(json.location_name || 'Main');
       const initId = lsId ? Number(lsId) : tokenLocId;
-      const initName = lsName || tokenLocName;
+      // Only trust the stored name if we also have a stored id (prevents mismatched/stale name after login).
+      const initName = lsId ? (lsName || tokenLocName) : tokenLocName;
       setCurrentLocationId(Number.isFinite(initId) ? initId : tokenLocId);
       setCurrentLocationName(initName);
 
@@ -207,6 +174,16 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   }, [userRole]);
 
   useEffect(() => {
+    // Keep current location name synced when locations list arrives/changes.
+    if (!currentLocationId) return;
+    const match = availableLocations.find((l) => l.id === currentLocationId);
+    if (match?.name && match.name !== currentLocationName) {
+      setCurrentLocationName(match.name);
+      window.localStorage.setItem('location_name', match.name);
+    }
+  }, [availableLocations, currentLocationId, currentLocationName]);
+
+  useEffect(() => {
     // Reflect the current theme (class on <html>) so both toggles stay in sync.
     const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
     setTheme(current);
@@ -276,24 +253,12 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     setCurrentLocationName(loc?.name ?? '');
     window.localStorage.setItem('location_id', String(id));
     if (loc?.name) window.localStorage.setItem('location_name', String(loc.name));
+    else window.localStorage.removeItem('location_name');
   };
 
-  const openLocationDialog = () => {
-    const init = currentLocationId ? String(currentLocationId) : (availableLocations[0]?.id ? String(availableLocations[0].id) : "");
-    setPendingLocationId(init);
-    setLocationDialogOpen(true);
-  };
-
-  const confirmLocationDialog = () => {
-    const id = Number(pendingLocationId);
-    if (!Number.isFinite(id) || id <= 0) return;
-    const changed = Number(currentLocationId ?? 0) !== id;
-    setLocationContext(id);
-    setLocationDialogOpen(false);
-    if (changed) {
-      // Full reload to re-initialize all pages/modules with the new location context.
-      window.setTimeout(() => window.location.reload(), 50);
-    }
+  const openLocationSwitcher = () => {
+    const ret = encodeURIComponent(pathname || "/dashboard");
+    router.push(`/select-location?return=${ret}`);
   };
 
   const hasPerm = (perm?: string) => {
@@ -309,14 +274,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const visibleInventoryItems = inventoryItems.filter((it) => hasPerm((it as any).perm));
   const canSeeInventory = visibleInventoryItems.length > 0;
 
-  const adminItems = userRole === 'Admin'
-    ? [
-        { icon: Shield, label: 'RBAC', href: '/admin/rbac' },
-        { icon: Users, label: 'Users', href: '/admin/users' },
-        { icon: Database, label: 'Locations', href: '/admin/locations' },
-        { icon: Settings, label: 'Company', href: '/admin/company' },
-      ]
-    : [];
+  const adminItems = userRole === 'Admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
   const isActiveRoute = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -552,6 +510,18 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
+
+            <div className="mt-3 pt-3 border-t border-sidebar-border/60 text-[11px] leading-snug text-white/55">
+              <div>Powered by Payshia Software Solutions Pvt Ltd</div>
+              <a
+                className="inline-block text-white/70 hover:text-white underline underline-offset-2"
+                href="https://www.payshia.com"
+                target="_blank"
+                rel="noreferrer"
+              >
+                www.payshia.com
+              </a>
+            </div>
           </SidebarFooter>
         </Sidebar>
 
@@ -576,7 +546,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 	                    type="button"
 	                    variant="outline"
 	                    className="h-9 w-[240px] justify-between bg-muted/20 border-none"
-	                    onClick={openLocationDialog}
+	                    onClick={openLocationSwitcher}
 	                  >
 	                    <span className="truncate">{currentLocationName || "Select location"}</span>
 	                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -624,31 +594,6 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
         <DockMenu />
       </div>
-
-      <Dialog open={locationDialogOpen} onOpenChange={setLocationDialogOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
-            <DialogTitle>Switch Location</DialogTitle>
-            <DialogDescription>Select a default location for stock, orders, and inventory pages.</DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2">
-            <div className="text-xs text-muted-foreground">Location</div>
-            <SearchableSelect
-              value={pendingLocationId}
-              onValueChange={setPendingLocationId}
-              options={availableLocations.map((l) => ({ value: String(l.id), label: l.name }))}
-              placeholder="Select location..."
-              searchPlaceholder="Search locations..."
-            />
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLocationDialogOpen(false)}>Cancel</Button>
-            <Button onClick={confirmLocationDialog} disabled={!pendingLocationId}>Apply & Reload</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </SidebarProvider>
   );
 }

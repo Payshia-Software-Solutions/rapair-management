@@ -1,0 +1,3 @@
+# Local secrets / environment-specific config
+server/config/config.php
+

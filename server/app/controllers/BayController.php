@@ -14,6 +14,41 @@ class BayController extends Controller {
         $this->db = new Database();
     }
 
+    // Resolve service-type location ids the user can access.
+    // - Admin: all non-warehouse locations
+    // - Non-admin: allowed_location_ids from JWT (fallback to token location_id)
+    private function allowedServiceLocationIds($u) {
+        $ids = [];
+        if ($this->isAdmin($u)) {
+            $this->db->query("SELECT id FROM service_locations WHERE location_type <> 'warehouse' ORDER BY id ASC");
+            $rows = $this->db->resultSet() ?: [];
+            foreach ($rows as $r) $ids[] = (int)$r->id;
+        } else {
+            $raw = $u['allowed_location_ids'] ?? null;
+            if (is_array($raw)) {
+                foreach ($raw as $id) {
+                    $id = (int)$id;
+                    if ($id > 0) $ids[] = $id;
+                }
+            }
+            if (count($ids) === 0) {
+                $ids = [isset($u['location_id']) ? (int)$u['location_id'] : 1];
+            }
+        }
+
+        $ids = array_values(array_unique(array_filter($ids, function($x) { return (int)$x > 0; })));
+        if (count($ids) === 0) return [];
+
+        // Filter out warehouse locations defensively.
+        $inCheck = implode(',', array_fill(0, count($ids), '?'));
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $stmt = $pdo->prepare("SELECT id FROM service_locations WHERE id IN ($inCheck) AND location_type <> 'warehouse'");
+        $stmt->execute($ids);
+        $clean = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN, 0) ?: []);
+        return array_values(array_unique(array_filter($clean, function($x) { return (int)$x > 0; })));
+    }
+
     // GET /api/bay/list
     public function list() {
         $u = $this->requirePermission('bays.read');
@@ -32,6 +67,73 @@ class BayController extends Controller {
         } else {
             $this->error('Method Not Allowed', 405);
         }
+    }
+
+    // GET /api/bay/list_all
+    // Returns bays for all locations the user is allowed to access (service locations only).
+    // Shape is tailored for master-data screens (no order details).
+    public function list_all() {
+        $u = $this->requirePermission('bays.read');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        $allowedIds = $this->allowedServiceLocationIds($u);
+        if (count($allowedIds) === 0) {
+            $this->success([
+                'location_ids' => [],
+                'locations' => [],
+                'bays' => [],
+            ]);
+            return;
+        }
+
+        $in = implode(',', array_fill(0, count($allowedIds), '?'));
+        $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+        $stmt = $pdo->prepare("SELECT id, name, location_type FROM service_locations WHERE id IN ($in) ORDER BY name ASC");
+        $stmt->execute($allowedIds);
+        $locations = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $stmt = $pdo->prepare("
+            SELECT
+                b.id,
+                b.location_id,
+                l.name AS location_name,
+                b.name,
+                b.status,
+                b.created_at
+            FROM service_bays b
+            INNER JOIN service_locations l ON l.id = b.location_id
+            WHERE b.location_id IN ($in)
+              AND l.location_type <> 'warehouse'
+            ORDER BY l.name ASC, b.name ASC
+        ");
+        $stmt->execute($allowedIds);
+        $bays = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $this->success([
+            'location_ids' => $allowedIds,
+            'locations' => array_map(function($r) {
+                return [
+                    'id' => (int)$r['id'],
+                    'name' => (string)$r['name'],
+                    'location_type' => isset($r['location_type']) ? (string)$r['location_type'] : 'service',
+                ];
+            }, $locations),
+            'bays' => array_map(function($r) {
+                return [
+                    'id' => (int)$r['id'],
+                    'location_id' => (int)$r['location_id'],
+                    'location_name' => (string)$r['location_name'],
+                    'name' => (string)$r['name'],
+                    'status' => (string)$r['status'],
+                    'created_at' => (string)$r['created_at'],
+                ];
+            }, $bays),
+        ]);
     }
 
     // GET /api/bay/board
@@ -390,18 +492,17 @@ class BayController extends Controller {
             return;
         }
         $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
+        $data = json_decode($raw, true) ?: [];
         if (!isset($data['name']) || trim($data['name']) === '') {
             $this->error('Bay name is required', 400);
             return;
         }
 
-        $locId = $this->currentLocationId($u);
-        $this->db->query("SELECT location_type FROM service_locations WHERE id = :id LIMIT 1");
-        $this->db->bind(':id', $locId);
-        $locRow = $this->db->single();
-        if ($locRow && isset($locRow->location_type) && $locRow->location_type === 'warehouse') {
-            $this->error('Cannot create bays for warehouse locations', 400);
+        $requestedLocId = (int)($data['location_id'] ?? 0);
+        $locId = $requestedLocId > 0 ? $requestedLocId : $this->currentLocationId($u);
+        $allowedIds = $this->allowedServiceLocationIds($u);
+        if (!in_array((int)$locId, array_map('intval', $allowedIds), true)) {
+            $this->error('Forbidden', 403);
             return;
         }
         $ok = $this->bayModel->create(trim($data['name']), (int)$u['sub'], $locId);
@@ -424,13 +525,26 @@ class BayController extends Controller {
             return;
         }
         $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
+        $data = json_decode($raw, true) ?: [];
         if (!isset($data['name']) || trim($data['name']) === '') {
             $this->error('Bay name is required', 400);
             return;
         }
 
-        $locId = $this->currentLocationId($u);
+        // Resolve the bay's actual location_id and ensure it's allowed for this user.
+        $this->db->query("SELECT location_id FROM service_bays WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', (int)$id);
+        $row = $this->db->single();
+        if (!$row || !isset($row->location_id)) {
+            $this->error('Bay not found', 404);
+            return;
+        }
+        $locId = (int)$row->location_id;
+        $allowedIds = $this->allowedServiceLocationIds($u);
+        if (!in_array((int)$locId, array_map('intval', $allowedIds), true)) {
+            $this->error('Forbidden', 403);
+            return;
+        }
         $ok = $this->bayModel->update($id, trim($data['name']), (int)$u['sub'], $locId);
         if ($ok) {
             $this->success(null, 'Bay updated');
@@ -459,7 +573,19 @@ class BayController extends Controller {
             return;
         }
 
-        $locId = $this->currentLocationId($u);
+        $this->db->query("SELECT location_id FROM service_bays WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', (int)$id);
+        $row = $this->db->single();
+        if (!$row || !isset($row->location_id)) {
+            $this->error('Bay not found', 404);
+            return;
+        }
+        $locId = (int)$row->location_id;
+        $allowedIds = $this->allowedServiceLocationIds($u);
+        if (!in_array((int)$locId, array_map('intval', $allowedIds), true)) {
+            $this->error('Forbidden', 403);
+            return;
+        }
         $ok = $this->bayModel->delete($id, $locId);
         if ($ok) {
             $this->success(null, 'Bay deleted');
@@ -473,13 +599,25 @@ class BayController extends Controller {
         $u = $this->requirePermission('bays.write');
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $raw_data = file_get_contents('php://input');
-            $data = json_decode($raw_data, true);
+            $data = json_decode($raw_data, true) ?: [];
 
             if (!$id || !isset($data['status'])) {
                 $this->error('Missing required data', 400);
             }
 
-            $locId = $this->currentLocationId($u);
+            $this->db->query("SELECT location_id FROM service_bays WHERE id = :id LIMIT 1");
+            $this->db->bind(':id', (int)$id);
+            $row = $this->db->single();
+            if (!$row || !isset($row->location_id)) {
+                $this->error('Bay not found', 404);
+                return;
+            }
+            $locId = (int)$row->location_id;
+            $allowedIds = $this->allowedServiceLocationIds($u);
+            if (!in_array((int)$locId, array_map('intval', $allowedIds), true)) {
+                $this->error('Forbidden', 403);
+                return;
+            }
             if ($this->bayModel->updateStatus($id, $data['status'], (int)$u['sub'], $locId)) {
                 $this->success(['id' => $id, 'status' => $data['status']], 'Bay status updated');
             } else {

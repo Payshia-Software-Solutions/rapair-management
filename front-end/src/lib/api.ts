@@ -453,7 +453,28 @@ export const fetchBays = async () => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const createBay = async (payload: { name: string }) => {
+export type BayListAllRow = {
+  id: number;
+  location_id: number;
+  location_name: string;
+  name: string;
+  status: string;
+  created_at?: string;
+};
+
+export const fetchBaysAll = async () => {
+  const res = await api('/api/bay/list_all');
+  if (!res.ok) throw new Error('Failed to load bays');
+  const data = await res.json();
+  if (data.status !== 'success') return data;
+  return data.data as {
+    location_ids: number[];
+    locations: Array<{ id: number; name: string; location_type?: string }>;
+    bays: BayListAllRow[];
+  };
+};
+
+export const createBay = async (payload: { name: string; location_id?: number }) => {
   const res = await api('/api/bay/create', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to create bay');
   return res.json() as Promise<ApiSuccess<null>>;

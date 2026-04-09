@@ -58,6 +58,7 @@ export default function LoginPage() {
       if (Array.isArray(allowed) && allowed.length > 1) {
         // Ask user to choose which location context to use now.
         window.localStorage.removeItem('location_id');
+        window.localStorage.removeItem('location_name');
         toast({ title: 'Signed in', description: 'Choose your location to continue.' });
         router.replace('/select-location');
         return;
