@@ -233,13 +233,15 @@ export default function DashboardPage() {
             <Button
               type="button"
               variant="outline"
-              size="sm"
-              className="gap-2 bg-background/60"
+              size="icon"
+              className="bg-background/60"
               onClick={() => void load()}
               disabled={loading}
+              aria-label="Refresh"
+              title="Refresh"
             >
               <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
-              Refresh
+              <span className="sr-only">Refresh</span>
             </Button>
             <Link href="/dashboard/bays">
               <Button variant="outline" size="sm" className="gap-2 bg-background/60">

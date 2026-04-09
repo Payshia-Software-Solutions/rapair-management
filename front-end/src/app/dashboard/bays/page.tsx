@@ -234,9 +234,16 @@ export default function BaysBoardPage() {
           <Badge variant="outline" className="px-3 py-1 bg-primary/5 border-primary/20 text-primary">
             {totalBays} Bays
           </Badge>
-          <Button variant="outline" className="gap-2" onClick={() => void load()} disabled={loading}>
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label="Refresh"
+            title="Refresh"
+          >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-            Refresh
+            <span className="sr-only">Refresh</span>
           </Button>
         </div>
       </div>
