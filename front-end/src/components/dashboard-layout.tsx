@@ -33,14 +33,17 @@ import {
   Truck,
   FileText,
   PackageCheck,
-  History
+  History,
+  ChevronDown,
+  Percent
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { api, fetchLocations } from '@/lib/api';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Sidebar,
   SidebarContent,
@@ -73,6 +76,8 @@ const mainNavItems = [
 
 const masterDataItems = [
   { icon: Car, label: 'Vehicles', href: '/master-data/vehicles', perm: 'vehicles.read' },
+  { icon: Tag, label: 'Brands', href: '/master-data/brands', perm: 'brands.read' },
+  { icon: Percent, label: 'Taxes', href: '/master-data/taxes', perm: 'taxes.read' },
   { icon: Tag, label: 'Vehicle Makes', href: '/master-data/makes', perm: 'makes.read' },
   { icon: Layers, label: 'Vehicle Models', href: '/master-data/models', perm: 'models.read' },
   { icon: Users, label: 'Technicians', href: '/master-data/technicians', perm: 'technicians.read' },
@@ -88,6 +93,8 @@ const inventoryItems = [
   { icon: Truck, label: 'Suppliers', href: '/inventory/suppliers', perm: 'suppliers.read' },
   { icon: FileText, label: 'Purchase Orders', href: '/inventory/purchase-orders', perm: 'purchase.read' },
   { icon: PackageCheck, label: 'GRN', href: '/inventory/grn', perm: 'grn.read' },
+  { icon: ClipboardList, label: 'Stock Requests', href: '/inventory/stock-requests', perm: 'transfer.read' },
+  { icon: ArrowLeftRight, label: 'Stock Transfers', href: '/inventory/transfers', perm: 'transfer.read' },
   { icon: History, label: 'Stock', href: '/inventory/stock', perm: 'stock.read' },
   { icon: ArrowLeftRight, label: 'Stock Adjustments', href: '/inventory/stock/adjustments', perm: 'stock.read' },
 ];
@@ -100,13 +107,16 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
-  const [isAdminOpen, setIsAdminOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
-  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
-  const [currentLocationName, setCurrentLocationName] = useState<string>('');
+	  const [isAdminOpen, setIsAdminOpen] = useState(false);
+	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
+	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
+	  const [currentLocationName, setCurrentLocationName] = useState<string>('');
+	  const [docTitle, setDocTitle] = useState<string>('');
+	  const [locationDialogOpen, setLocationDialogOpen] = useState(false);
+	  const [pendingLocationId, setPendingLocationId] = useState<string>('');
 
-  useEffect(() => {
+	  useEffect(() => {
     // Basic client-side guard. Server APIs also enforce auth via JWT.
     const token = window.localStorage.getItem('auth_token');
     if (!token) {
@@ -154,7 +164,22 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       }
     };
     void loadPerms();
-  }, []);
+	  }, []);
+
+	  useEffect(() => {
+	    // Keep a lightweight "document title" label in the header.
+	    // Next.js updates document.title after navigation; read it on pathname changes.
+	    try {
+	      const t = window.setTimeout(() => {
+	        const raw = (document.title || "").trim();
+	        const pretty = raw.includes("|") ? raw.split("|").slice(-1)[0].trim() : raw;
+	        setDocTitle(pretty);
+	      }, 0);
+	      return () => window.clearTimeout(t);
+	    } catch {
+	      // ignore
+	    }
+	  }, [pathname]);
 
   useEffect(() => {
     if (userRole !== 'Admin') return;
@@ -253,6 +278,24 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     if (loc?.name) window.localStorage.setItem('location_name', String(loc.name));
   };
 
+  const openLocationDialog = () => {
+    const init = currentLocationId ? String(currentLocationId) : (availableLocations[0]?.id ? String(availableLocations[0].id) : "");
+    setPendingLocationId(init);
+    setLocationDialogOpen(true);
+  };
+
+  const confirmLocationDialog = () => {
+    const id = Number(pendingLocationId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    const changed = Number(currentLocationId ?? 0) !== id;
+    setLocationContext(id);
+    setLocationDialogOpen(false);
+    if (changed) {
+      // Full reload to re-initialize all pages/modules with the new location context.
+      window.setTimeout(() => window.location.reload(), 50);
+    }
+  };
+
   const hasPerm = (perm?: string) => {
     if (!perm) return true;
     if (!permissionKeys) return true; // render immediately; will filter once loaded
@@ -275,6 +318,13 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       ]
     : [];
   const canSeeAdmin = adminItems.length > 0;
+
+  const isActiveRoute = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  // If a child route is active, force its dropdown open (users can still close when not on that section).
+  const inventoryOpen = isInventoryOpen || pathname.startsWith('/inventory');
+  const masterDataOpen = isMasterDataOpen || pathname.startsWith('/master-data');
+  const adminOpen = isAdminOpen || pathname.startsWith('/admin');
 
   return (
     <SidebarProvider>
@@ -345,16 +395,16 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                         <ChevronRight
                           className={cn(
                             "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                            isInventoryOpen ? "rotate-90" : "rotate-0"
+                            inventoryOpen ? "rotate-90" : "rotate-0"
                           )}
                         />
                       </SidebarMenuButton>
 
-                      {isInventoryOpen ? (
+                      {inventoryOpen ? (
                         <SidebarMenuSub>
                           {visibleInventoryItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
-                              <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>
                                   <item.icon className="w-4 h-4" />
                                   <span>{item.label}</span>
@@ -390,18 +440,18 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                         <ChevronRight
                           className={cn(
                             "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                            isMasterDataOpen ? "rotate-90" : "rotate-0"
+                            masterDataOpen ? "rotate-90" : "rotate-0"
                           )}
                         />
                       </SidebarMenuButton>
 
-                      {isMasterDataOpen ? (
+                      {masterDataOpen ? (
                         <SidebarMenuSub>
                           {visibleMasterDataItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton
                                 asChild
-                                isActive={pathname === item.href}
+                                isActive={isActiveRoute(item.href)}
                               >
                                 <Link href={item.href}>
                                   <item.icon className="w-4 h-4" />
@@ -437,16 +487,16 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                       <ChevronRight
                         className={cn(
                           "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                          isAdminOpen ? "rotate-90" : "rotate-0"
+                          adminOpen ? "rotate-90" : "rotate-0"
                         )}
                       />
                     </SidebarMenuButton>
 
-                    {isAdminOpen ? (
+                    {adminOpen ? (
                       <SidebarMenuSub>
                         {adminItems.map((item) => (
                           <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={pathname === item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                               <Link href={item.href}>
                                 <item.icon className="w-4 h-4" />
                                 <span>{item.label}</span>
@@ -506,47 +556,44 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
         </Sidebar>
 
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
-                <Wrench className="w-4 h-4 text-primary" />
-              </div>
-              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
-              <div className="relative w-48 md:w-96 hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search orders..." 
-                  className="pl-9 bg-muted/30 border-none ring-offset-background"
-                />
-              </div>
-              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              {availableLocations.length > 0 ? (
-                <div className="hidden md:flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-muted-foreground" />
-                  <Select
-                    value={currentLocationId ? String(currentLocationId) : undefined}
-                    onValueChange={(v) => {
-                      const id = Number(v);
-                      if (!Number.isFinite(id) || id <= 0) return;
-                      setLocationContext(id);
-                    }}
-                  >
-                    <SelectTrigger className="h-9 w-[210px] bg-muted/20 border-none">
-                      <SelectValue placeholder="Select location" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableLocations.map((l) => (
-                        <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
-              <Button
-                variant="ghost"
-                size="icon"
+	          <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+	            <div className="flex items-center gap-2 sm:gap-4">
+	              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
+	                <Wrench className="w-4 h-4 text-primary" />
+	              </div>
+	              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
+	              <div className="relative w-48 md:w-96 hidden sm:block">
+	                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+	                <Input 
+	                  placeholder="Search orders..." 
+	                  className="pl-9 bg-muted/30 border-none ring-offset-background"
+	                />
+	              </div>
+	              {availableLocations.length > 0 ? (
+	                <div className="hidden md:flex items-center gap-2">
+	                  <MapPin className="w-4 h-4 text-muted-foreground" />
+	                  <Button
+	                    type="button"
+	                    variant="outline"
+	                    className="h-9 w-[240px] justify-between bg-muted/20 border-none"
+	                    onClick={openLocationDialog}
+	                  >
+	                    <span className="truncate">{currentLocationName || "Select location"}</span>
+	                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+	                  </Button>
+	                </div>
+	              ) : null}
+	              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
+	            </div>
+	            <div className="flex items-center gap-2 sm:gap-4">
+	              {docTitle ? (
+	                <div className="hidden md:block max-w-[260px] truncate text-sm font-semibold text-foreground/90">
+	                  {docTitle}
+	                </div>
+	              ) : null}
+	              <Button
+	                variant="ghost"
+	                size="icon"
                 className="relative h-10 w-10"
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -577,6 +624,31 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
         <DockMenu />
       </div>
+
+      <Dialog open={locationDialogOpen} onOpenChange={setLocationDialogOpen}>
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Switch Location</DialogTitle>
+            <DialogDescription>Select a default location for stock, orders, and inventory pages.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <div className="text-xs text-muted-foreground">Location</div>
+            <SearchableSelect
+              value={pendingLocationId}
+              onValueChange={setPendingLocationId}
+              options={availableLocations.map((l) => ({ value: String(l.id), label: l.name }))}
+              placeholder="Select location..."
+              searchPlaceholder="Search locations..."
+            />
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLocationDialogOpen(false)}>Cancel</Button>
+            <Button onClick={confirmLocationDialog} disabled={!pendingLocationId}>Apply & Reload</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }

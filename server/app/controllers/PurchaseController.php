@@ -13,18 +13,20 @@ class PurchaseController extends Controller {
 
     // GET /api/purchase/list?q=
     public function list() {
-        $this->requirePermission('purchase.read');
+        $u = $this->requirePermission('purchase.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
-        $rows = $this->poModel->list($_GET['q'] ?? '');
+        $locId = $this->currentLocationId($u);
+        $rows = $this->poModel->list($_GET['q'] ?? '', $locId);
         $this->success($rows);
     }
 
     // GET /api/purchase/get/1
     public function get($id = null) {
-        $this->requirePermission('purchase.read');
+        $u = $this->requirePermission('purchase.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('PO ID required', 400);
-        $row = $this->poModel->getById($id);
+        $locId = $this->currentLocationId($u);
+        $row = $this->poModel->getById($id, $locId);
         if (!$row) $this->error('Not found', 404);
         $this->success($row);
     }
@@ -34,7 +36,8 @@ class PurchaseController extends Controller {
         $u = $this->requirePermission('purchase.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
-        $poId = $this->poModel->create($data, (int)$u['sub']);
+        $locId = $this->currentLocationId($u);
+        $poId = $this->poModel->create($data, (int)$u['sub'], $locId);
         if ($poId) {
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
@@ -55,7 +58,9 @@ class PurchaseController extends Controller {
 
     // POST /api/purchase/update/1
     public function update($id = null) {
-        $u = $this->requirePermission('purchase.write');
+        // Editing POs is restricted to Admin only (even if role has purchase.write).
+        $u = $this->requireAuth();
+        if (!$this->isAdmin($u)) $this->error('Forbidden', 403);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('PO ID required', 400);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -80,7 +85,9 @@ class PurchaseController extends Controller {
 
     // POST /api/purchase/set_status/1
     public function set_status($id = null) {
-        $u = $this->requirePermission('purchase.write');
+        // Status changes are restricted to Admin only.
+        $u = $this->requireAuth();
+        if (!$this->isAdmin($u)) $this->error('Forbidden', 403);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('PO ID required', 400);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -91,4 +98,3 @@ class PurchaseController extends Controller {
         $this->error('Failed to update status', 400);
     }
 }
-

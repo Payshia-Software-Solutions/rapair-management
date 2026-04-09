@@ -18,13 +18,13 @@ class DepartmentController extends Controller {
     }
 
     public function list() {
-        $u = $this->requirePermission('departments.read');
+        $this->requirePermission('departments.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
         }
-        $locId = $this->currentLocationId($u);
-        $rows = $this->deptModel->getAllByLocation($locId);
+        // Departments are company-wide (not location-scoped).
+        $rows = $this->deptModel->getAll();
         $this->success($rows);
     }
 
@@ -40,15 +40,14 @@ class DepartmentController extends Controller {
             $this->error('Name is required', 400);
             return;
         }
-        $locId = $this->currentLocationId($u);
-        $ok = $this->deptModel->create($data, (int)$u['sub'], $locId);
+        $ok = $this->deptModel->create($data, (int)$u['sub']);
         if (!$ok) {
             $this->error('Failed to create department');
             return;
         }
         $this->auditModel->write([
             'user_id' => (int)$u['sub'],
-            'location_id' => $locId,
+            'location_id' => $this->currentLocationId($u),
             'action' => 'create',
             'entity' => 'department',
             'entity_id' => null,
@@ -77,8 +76,7 @@ class DepartmentController extends Controller {
             $this->error('Name is required', 400);
             return;
         }
-        $locId = $this->currentLocationId($u);
-        $ok = $this->deptModel->update((int)$id, $data, (int)$u['sub'], $locId);
+        $ok = $this->deptModel->update((int)$id, $data, (int)$u['sub']);
         if (!$ok) {
             $this->error('Failed to update department');
             return;
@@ -104,8 +102,7 @@ class DepartmentController extends Controller {
             $this->error('Department ID required', 400);
             return;
         }
-        $locId = $this->currentLocationId($u);
-        $ok = $this->deptModel->delete((int)$id, $locId);
+        $ok = $this->deptModel->delete((int)$id);
         if (!$ok) {
             $this->error('Failed to delete department');
             return;
@@ -113,4 +110,3 @@ class DepartmentController extends Controller {
         $this->success(null, 'Department deleted');
     }
 }
-

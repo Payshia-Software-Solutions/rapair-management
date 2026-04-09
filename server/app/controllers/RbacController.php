@@ -18,6 +18,7 @@ class RbacController extends Controller {
         // so they appear in the RBAC UI without requiring a full reinstall.
         try { InventorySchema::ensure(); } catch (Exception $e) {}
         try { UnitSchema::ensure(); } catch (Exception $e) {}
+        try { TaxSchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 

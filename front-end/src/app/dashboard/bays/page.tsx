@@ -23,6 +23,7 @@ type BayRow = {
     priority: string | null;
     status: string;
     expected_time: string | null;
+    release_time?: string | null;
     technician: string | null;
     created_at: string;
     updated_at: string;
@@ -267,7 +268,7 @@ export default function BaysBoardPage() {
                                       <div className="min-w-0">
                                         <div className="font-semibold truncate">{o.vehicle_model}</div>
                                         <div className="text-[11px] text-muted-foreground">
-                                          Order #{o.id}
+                                          Order #{o.id} • {o.status}{o.priority ? ` • ${o.priority}` : ""}{o.expected_time ? ` • Expected ${fmtExpected(o.expected_time)}` : ""}{o.release_time ? ` • Release ${fmtExpected(o.release_time)}` : ""}
                                           {o.vehicle_identifier ? ` • ${o.vehicle_identifier}` : ""}
                                         </div>
                                       </div>
@@ -302,6 +303,12 @@ export default function BaysBoardPage() {
                                         </span>
                                       </div>
                                       <div className="flex items-center gap-2 text-muted-foreground">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        <span className="truncate">
+                                          Release: {fmtExpected((o as any).release_time ?? null) ?? "-"}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 text-muted-foreground">
                                         <UserIcon className="w-3.5 h-3.5" />
                                         <span className="truncate">
                                           Technician: {o.technician ?? "Unassigned"}
@@ -330,7 +337,7 @@ export default function BaysBoardPage() {
                                     <div className="min-w-0">
                                       <div className="font-semibold truncate">{o.vehicle_model}</div>
                                       <div className="text-xs text-muted-foreground truncate">
-                                        Order #{o.id} • {o.status}{o.priority ? ` • ${o.priority}` : ""}{o.expected_time ? ` • Expected ${fmtExpected(o.expected_time)}` : ""}
+                                        Order #{o.id} • {o.status}{o.priority ? ` • ${o.priority}` : ""}{o.expected_time ? ` • Expected ${fmtExpected(o.expected_time)}` : ""}{o.release_time ? ` • Release ${fmtExpected(o.release_time)}` : ""}
                                       </div>
                                     </div>
                                     <a href={`/orders/${o.id}`} className="text-xs font-semibold text-primary hover:underline">
@@ -357,7 +364,7 @@ export default function BaysBoardPage() {
                                   <div key={`${o.id}-${o.location}`} className="rounded-lg border p-3">
                                     <div className="font-semibold truncate">{o.vehicle_model}</div>
                                     <div className="text-xs text-muted-foreground">
-                                      Order #{o.id} • Bay "{o.location}" • {o.status}
+                                      Order #{o.id} • {o.status}{o.priority ? ` • ${o.priority}` : ""}{o.expected_time ? ` • Expected ${fmtExpected(o.expected_time)}` : ""}{o.release_time ? ` • Release ${fmtExpected(o.release_time)}` : ""}
                                     </div>
                                   </div>
                                 ))}
@@ -379,3 +386,5 @@ export default function BaysBoardPage() {
     </DashboardLayout>
   );
 }
+
+

@@ -57,6 +57,7 @@ class InstallController extends Controller {
             CREATE TABLE IF NOT EXISTS service_locations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
+                location_type ENUM('service','warehouse') NOT NULL DEFAULT 'service',
                 address VARCHAR(255) NULL,
                 phone VARCHAR(50) NULL,
                 created_by INT NULL,
@@ -68,6 +69,14 @@ class InstallController extends Controller {
         ");
         // Default location
         $pdo->exec("INSERT IGNORE INTO service_locations (id, name) VALUES (1, 'Main')");
+        // Best-effort add location_type on older installs
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM service_locations LIKE 'location_type'");
+            $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$exists) {
+                $pdo->exec("ALTER TABLE service_locations ADD COLUMN location_type ENUM('service','warehouse') NOT NULL DEFAULT 'service' AFTER name");
+            }
+        } catch (Exception $e) {}
 
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS departments (
@@ -289,6 +298,8 @@ class InstallController extends Controller {
             ('grn.write', 'Create/update goods receive notes'),
             ('stock.read', 'View stock movements and balances'),
             ('stock.adjust', 'Adjust stock quantity'),
+            ('transfer.read', 'View stock transfer requests'),
+            ('transfer.write', 'Create/update stock transfer requests'),
             ('locations.read', 'View service center locations'),
             ('locations.write', 'Create/update/delete service center locations'),
             ('departments.read', 'View departments'),
@@ -326,7 +337,7 @@ class InstallController extends Controller {
         foreach (['makes.read','models.read'] as $p) {
             $grant('Workshop Officer', $p);
         }
-        foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read'] as $p) {
+        foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read','transfer.read','transfer.write'] as $p) {
             $grant('Workshop Officer', $p);
         }
         foreach (['units.read'] as $p) {
@@ -337,7 +348,7 @@ class InstallController extends Controller {
         foreach (['orders.read','orders.write','vehicles.read','bays.read','technicians.read','makes.read','models.read','categories.read','checklists.read','reports.read'] as $p) {
             $grant('Factory Officer', $p);
         }
-        foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read'] as $p) {
+        foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read','transfer.read'] as $p) {
             $grant('Factory Officer', $p);
         }
         foreach (['units.read'] as $p) {

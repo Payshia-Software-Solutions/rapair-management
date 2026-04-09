@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { fetchOrders, updateOrder } from "@/lib/api";
 import type { RepairOrder } from "@/lib/types";
-import { AlertCircle, CheckCircle2, ExternalLink, Loader2, PlayCircle, Wrench } from "lucide-react";
+import { AlertCircle, CheckCircle2, ExternalLink, Loader2, PlayCircle, Wrench, MapPin, User } from "lucide-react";
 
 export default function ActiveJobsPage() {
   const router = useRouter();
@@ -39,6 +39,14 @@ export default function ActiveJobsPage() {
   }, []);
 
   const active = useMemo(() => orders.filter((o) => o.status === "In Progress"), [orders]);
+
+  const fmt = (value?: string) => {
+    if (!value) return "-";
+    const iso = value.includes("T") ? value : value.replace(" ", "T");
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleString();
+  };
 
   const markComplete = async (order: RepairOrder) => {
     setCompletingId(order.id);
@@ -106,6 +114,22 @@ export default function ActiveJobsPage() {
                   <Badge variant="secondary" className="font-semibold">In Progress</Badge>
                   <span className="text-xs text-muted-foreground">ID: {o.id}</span>
                 </div>
+                <div className="grid grid-cols-1 gap-2 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <MapPin className="w-4 h-4" />
+                    <span className="font-medium text-foreground">{o.location || "Unassigned bay"}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <User className="w-4 h-4" />
+                    <span className="font-medium text-foreground">{o.technician || "Unassigned technician"}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Expected: <span className="text-foreground">{fmt(o.expectedTime)}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Release: <span className="text-foreground">{fmt(o.releaseTime)}</span>
+                  </div>
+                </div>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
@@ -126,7 +150,7 @@ export default function ActiveJobsPage() {
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <AlertCircle className="w-3.5 h-3.5" />
-                  Backend currently stores minimal order fields; this view shows what’s available.
+                  Assignment shows the latest bay/technician from the order.
                 </div>
               </CardContent>
             </Card>
@@ -136,3 +160,4 @@ export default function ActiveJobsPage() {
     </DashboardLayout>
   );
 }
+

@@ -9,56 +9,104 @@ class GoodsReceiveNote extends Model {
         InventorySchema::ensure();
     }
 
-    private function genNumber() {
-        $dt = new DateTime('now');
-        $stamp = $dt->format('Ymd-His');
-        $rand = substr(strtoupper(bin2hex(random_bytes(4))), 0, 8);
-        return "GRN-{$stamp}-{$rand}";
+    private function nextDocNumber($docType) {
+        // Short sequential number allocation using document_sequences (safe under concurrency).
+        $this->ensureSchema();
+        $type = strtoupper(trim((string)$docType));
+        if ($type === '') $type = 'GRN';
+
+        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
+        $this->db->bind(':t', $type);
+        $row = $this->db->single();
+        if (!$row) {
+            // Best-effort seed, then retry.
+            try {
+                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
+                $this->db->bind(':t', $type);
+                $this->db->bind(':p', $type . '-');
+                $this->db->execute();
+            } catch (Exception $e) {}
+
+            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
+            $this->db->bind(':t', $type);
+            $row = $this->db->single();
+            if (!$row) return $type . "-000001";
+        }
+
+        $prefix = (string)($row->prefix ?? ($type . '-'));
+        $next = (int)($row->next_number ?? 1);
+        $pad = (int)($row->padding ?? 6);
+        if ($next <= 0) $next = 1;
+        if ($pad <= 0) $pad = 6;
+
+        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
+        $this->db->bind(':t', $type);
+        $this->db->execute();
+
+        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
     }
 
-    public function list($q = '') {
+    public function list($q = '', $locationId = 1) {
         $this->ensureSchema();
+        $locId = (int)$locationId;
+        if ($locId <= 0) $locId = 1;
         $q = is_string($q) ? trim($q) : '';
         if ($q !== '') {
             $this->db->query("
-                SELECT g.*, s.name AS supplier_name, po.po_number
+                SELECT g.*, s.name AS supplier_name, po.po_number, u.name AS created_by_name,
+                       sl.name AS location_name
                 FROM {$this->table} g
                 INNER JOIN suppliers s ON s.id = g.supplier_id
                 LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
-                WHERE g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q
+                LEFT JOIN users u ON u.id = g.created_by
+                LEFT JOIN service_locations sl ON sl.id = g.location_id
+                WHERE g.location_id = :loc AND (g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q OR sl.name LIKE :q)
                 ORDER BY g.id DESC
             ");
+            $this->db->bind(':loc', $locId);
             $this->db->bind(':q', '%' . $q . '%');
             return $this->db->resultSet();
         }
         $this->db->query("
-            SELECT g.*, s.name AS supplier_name, po.po_number
+            SELECT g.*, s.name AS supplier_name, po.po_number, u.name AS created_by_name,
+                   sl.name AS location_name
             FROM {$this->table} g
             INNER JOIN suppliers s ON s.id = g.supplier_id
             LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
+            LEFT JOIN users u ON u.id = g.created_by
+            LEFT JOIN service_locations sl ON sl.id = g.location_id
+            WHERE g.location_id = :loc
             ORDER BY g.id DESC
         ");
+        $this->db->bind(':loc', $locId);
         return $this->db->resultSet();
     }
 
-    public function getById($id) {
+    public function getById($id, $locationId = 1) {
         $this->ensureSchema();
+        $locId = (int)$locationId;
+        if ($locId <= 0) $locId = 1;
         $this->db->query("
-            SELECT g.*, s.name AS supplier_name, po.po_number
+            SELECT g.*, s.name AS supplier_name, po.po_number, u.name AS created_by_name,
+                   sl.name AS location_name
             FROM {$this->table} g
             INNER JOIN suppliers s ON s.id = g.supplier_id
             LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
-            WHERE g.id = :id
+            LEFT JOIN users u ON u.id = g.created_by
+            LEFT JOIN service_locations sl ON sl.id = g.location_id
+            WHERE g.id = :id AND g.location_id = :loc
             LIMIT 1
         ");
         $this->db->bind(':id', (int)$id);
+        $this->db->bind(':loc', $locId);
         $grn = $this->db->single();
         if (!$grn) return null;
 
         $this->db->query("
-            SELECT i.*, p.part_name, p.sku
+            SELECT i.*, p.part_name, p.sku, b.name AS brand_name
             FROM grn_items i
             INNER JOIN parts p ON p.id = i.part_id
+            LEFT JOIN brands b ON b.id = p.brand_id
             WHERE i.grn_id = :id
             ORDER BY i.id ASC
         ");
@@ -81,20 +129,67 @@ class GoodsReceiveNote extends Model {
         $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
         if ($supplierId <= 0 || !$receivedAt || count($items) === 0) return false;
 
-        $grnNumber = trim((string)($data['grn_number'] ?? ''));
-        if ($grnNumber === '') $grnNumber = $this->genNumber();
+        // Merge duplicate lines (same part_id) into a single GRN item.
+        // If duplicate lines have conflicting unit_cost values, we reject the GRN create (data quality).
+        $mergedItems = [];
+        foreach ($items as $it) {
+            $partId = (int)($it['part_id'] ?? $it['partId'] ?? 0);
+            $qty = round((float)($it['qty_received'] ?? $it['qty'] ?? 0), 3);
+            $unitCost = (float)($it['unit_cost'] ?? $it['unitCost'] ?? 0);
+            if ($partId <= 0 || $qty <= 0) continue;
+            if (!isset($mergedItems[$partId])) {
+                $mergedItems[$partId] = ['part_id' => $partId, 'qty' => 0.0, 'unit_cost' => $unitCost];
+            } else {
+                $prevCost = (float)$mergedItems[$partId]['unit_cost'];
+                if (abs($prevCost - $unitCost) > 0.0001) return false;
+            }
+            $mergedItems[$partId]['qty'] = round(((float)$mergedItems[$partId]['qty']) + $qty, 3);
+        }
+        if (count($mergedItems) === 0) return false;
 
         try {
             $this->db->exec("START TRANSACTION");
 
+            $grnNumber = trim((string)($data['grn_number'] ?? ''));
+            if ($grnNumber === '') {
+                $grnNumber = $this->nextDocNumber('GRN');
+            }
+
+            // If linked to a PO, lock and validate it up-front so we can reliably close it in this same transaction.
+            if ($poId) {
+                $this->db->query("SELECT id, supplier_id, status, location_id FROM purchase_orders WHERE id = :id FOR UPDATE");
+                $this->db->bind(':id', $poId);
+                $poRow = $this->db->single();
+                if (!$poRow) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+                $poStatus = (string)($poRow->status ?? '');
+                if (in_array($poStatus, ['Received', 'Cancelled'], true)) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+                $poSupplierId = (int)($poRow->supplier_id ?? 0);
+                if ($poSupplierId > 0 && $supplierId > 0 && $poSupplierId !== $supplierId) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+                $poLocId = (int)($poRow->location_id ?? 0);
+                if ($poLocId > 0) {
+                    // GRN location must match PO location.
+                    $locId = $poLocId;
+                }
+            }
+
             $this->db->query("
                 INSERT INTO {$this->table}
-                (grn_number, purchase_order_id, supplier_id, received_at, notes, created_by, updated_by)
+                (grn_number, purchase_order_id, location_id, supplier_id, received_at, notes, created_by, updated_by)
                 VALUES
-                (:grn_number, :po_id, :supplier_id, :received_at, :notes, :created_by, :updated_by)
+                (:grn_number, :po_id, :location_id, :supplier_id, :received_at, :notes, :created_by, :updated_by)
             ");
             $this->db->bind(':grn_number', $grnNumber);
             $this->db->bind(':po_id', $poId);
+            $this->db->bind(':location_id', $locId);
             $this->db->bind(':supplier_id', $supplierId);
             $this->db->bind(':received_at', $receivedAt);
             $this->db->bind(':notes', $data['notes'] ?? null);
@@ -107,10 +202,10 @@ class GoodsReceiveNote extends Model {
             }
             $grnId = (int)$this->db->lastInsertId();
 
-            foreach ($items as $it) {
-                $partId = (int)($it['part_id'] ?? $it['partId'] ?? 0);
-                $qty = round((float)($it['qty_received'] ?? $it['qty'] ?? 0), 3);
-                $unitCost = (float)($it['unit_cost'] ?? $it['unitCost'] ?? 0);
+            foreach ($mergedItems as $row) {
+                $partId = (int)$row['part_id'];
+                $qty = round((float)$row['qty'], 3);
+                $unitCost = (float)$row['unit_cost'];
                 if ($partId <= 0 || $qty <= 0) continue;
                 $lineTotal = round($qty * $unitCost, 2);
 
@@ -173,7 +268,7 @@ class GoodsReceiveNote extends Model {
                 if ($poId) {
                     $this->db->query("
                         UPDATE purchase_order_items
-                        SET received_qty = received_qty + :qty
+                        SET received_qty = LEAST(qty_ordered, received_qty + :qty)
                         WHERE purchase_order_id = :po_id AND part_id = :part_id
                     ");
                     $this->db->bind(':qty', $qty);
@@ -185,8 +280,26 @@ class GoodsReceiveNote extends Model {
 
             // Update PO status if linked
             if ($poId) {
-                $po = new PurchaseOrder();
-                $po->applyReceipt($poId);
+                // IMPORTANT: do this with the same DB connection/transaction,
+                // otherwise a new connection won't see uncommitted received_qty updates.
+                $this->db->query("
+                    SELECT SUM(CASE WHEN received_qty >= qty_ordered THEN 1 ELSE 0 END) AS done_cnt,
+                           COUNT(*) AS total_cnt
+                    FROM purchase_order_items
+                    WHERE purchase_order_id = :id
+                ");
+                $this->db->bind(':id', (int)$poId);
+                $row = $this->db->single();
+                $done = (int)($row->done_cnt ?? 0);
+                $total = (int)($row->total_cnt ?? 0);
+                if ($total > 0) {
+                    $status = ($done >= $total) ? 'Received' : 'Partially Received';
+                    $this->db->query("UPDATE purchase_orders SET status = :s, updated_by = :u WHERE id = :id AND status <> 'Cancelled'");
+                    $this->db->bind(':s', $status);
+                    $this->db->bind(':u', $userId);
+                    $this->db->bind(':id', (int)$poId);
+                    $this->db->execute();
+                }
             }
 
             $this->db->exec("COMMIT");

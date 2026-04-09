@@ -1,13 +1,16 @@
-"use client"
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fetchReportOverview } from "@/lib/api";
-import { BarChart3, Calendar, Download, FileText, Clock, Wrench, Layers, Tags, ListChecks } from "lucide-react";
+import { BarChart3, Calendar, Download, FileText, Clock, Wrench, Tags, ListChecks, Boxes, ArrowLeftRight, Car, Activity, AlertTriangle, Filter, ChevronRight } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const COLORS = ["#2952A3", "#13C9EC", "#4AD991", "#FF9F43", "#FF4D4D", "#6C5CE7"];
@@ -25,10 +28,45 @@ type Overview = {
   };
 };
 
+type ReportLink = {
+  title: string;
+  desc: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+};
+
+function ReportList({ items }: { items: ReportLink[] }) {
+  return (
+    <Card className="border-none shadow-md overflow-hidden">
+      <CardContent className="p-0">
+        <div className="divide-y">
+          {items.map((r) => (
+            <Link
+              key={r.href}
+              href={r.href}
+              className="flex items-start gap-3 px-4 py-3 hover:bg-muted/10 transition-colors"
+            >
+              <div className="mt-0.5 rounded-md bg-primary/10 p-2">
+                <r.icon className="w-4 h-4 text-primary" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-semibold leading-tight">{r.title}</div>
+                <div className="text-xs text-muted-foreground mt-0.5 leading-snug">{r.desc}</div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-muted-foreground mt-2" />
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function ReportsPage() {
   const { toast } = useToast();
   const [data, setData] = useState<Overview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeGroup, setActiveGroup] = useState<string>("overview");
 
   const load = async () => {
     setLoading(true);
@@ -51,15 +89,47 @@ export default function ReportsPage() {
     return Object.keys(by).map((k) => ({ name: k, value: by[k] }));
   }, [data]);
 
+  const groups = useMemo(() => {
+    const inventory: ReportLink[] = [
+      { title: "Stock Balance", desc: "All items, all or location-wise balances", href: "/reports/stock-balance", icon: Boxes },
+      { title: "Item Movements", desc: "Pick an item to view its movements (GRN, adjustment, transfer, issues)", href: "/reports/item-movements", icon: Activity },
+      { title: "Low Stock", desc: "Items below reorder level", href: "/reports/low-stock", icon: AlertTriangle },
+      { title: "Stock Transfers", desc: "Transfer requests and fulfillment", href: "/reports/stock-transfers", icon: ArrowLeftRight },
+      { title: "Item Master (Filters)", desc: "Filter items by brand/supplier/active", href: "/reports/items", icon: Filter },
+    ];
+    const purchasing: ReportLink[] = [
+      { title: "Purchase Orders", desc: "PO list and exports", href: "/reports/purchase-orders", icon: FileText },
+      { title: "GRN Summary", desc: "GRN list and exports", href: "/reports/grn", icon: FileText },
+    ];
+    const fleet: ReportLink[] = [
+      { title: "Vehicles", desc: "Vehicle register and filters", href: "/reports/vehicles", icon: Car },
+      { title: "Maintenance History", desc: "Pick a vehicle to view job history", href: "/reports/maintenance-history", icon: FileText },
+    ];
+    return [
+      { id: "overview", label: "Overview", icon: BarChart3, items: [] as ReportLink[] },
+      { id: "inventory", label: "Stock", icon: Boxes, items: inventory },
+      { id: "purchasing", label: "Purchasing", icon: FileText, items: purchasing },
+      { id: "fleet", label: "Vehicles", icon: Car, items: fleet },
+    ];
+  }, []);
+
+  const groupById = useMemo(() => {
+    const m = new Map<string, (typeof groups)[number]>();
+    for (const g of groups) m.set(g.id, g);
+    return m;
+  }, [groups]);
+
+  const currentGroup = groupById.get(activeGroup) ?? groups[0];
+
   return (
     <DashboardLayout>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
             <BarChart3 className="w-7 h-7 text-primary" />
-            Reporting & Analytics
+            Reports
           </h1>
-          <p className="text-muted-foreground mt-1">Live operational stats from your database</p>
+          <p className="text-muted-foreground mt-1">Operational reports, exports, and audits</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" className="gap-2" onClick={() => void load()} disabled={loading}>
@@ -73,14 +143,70 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {loading || !data ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
-          <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
-          <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
+      <div className="md:hidden mb-6">
+        <Card className="border-none shadow-md overflow-hidden">
+          <CardContent className="p-4">
+            <div className="text-xs text-muted-foreground mb-2">Report Group</div>
+            <Select value={activeGroup} onValueChange={setActiveGroup}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select group" />
+              </SelectTrigger>
+              <SelectContent>
+                {groups.map((g) => (
+                  <SelectItem key={g.id} value={g.id}>{g.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="hidden md:block mb-6">
+        <Tabs value={activeGroup} onValueChange={setActiveGroup}>
+          <TabsList className="w-full justify-start overflow-x-auto">
+            {groups.map((g) => (
+              <TabsTrigger key={g.id} value={g.id} className="gap-2">
+                <g.icon className="w-4 h-4" />
+                {g.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+          {groups.map((g) => (
+            <TabsContent key={g.id} value={g.id}>
+              {g.id === "overview" ? null : <ReportList items={g.items} />}
+            </TabsContent>
+          ))}
+        </Tabs>
+      </div>
+
+      {activeGroup !== "overview" ? (
+        <div className="md:hidden mb-6">
+          <ReportList items={currentGroup.items} />
         </div>
-      ) : (
+      ) : null}
+
+      {activeGroup === "overview" ? (
         <>
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div>
+              <h2 className="text-xl font-bold tracking-tight">Overview</h2>
+              <p className="text-muted-foreground mt-1">Quick snapshot from the last 7 days</p>
+            </div>
+            {data ? (
+              <Badge variant="outline" className="hidden sm:inline-flex">
+                Total Orders: {data.totalOrders}
+              </Badge>
+            ) : null}
+          </div>
+
+          {loading || !data ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
+              <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
+              <Card className="border-none shadow-md"><CardContent className="p-6">Loading...</CardContent></Card>
+            </div>
+          ) : (
+            <>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
             <Card className="border-none shadow-md md:col-span-1">
               <CardContent className="p-6 flex flex-col items-center text-center">
@@ -176,9 +302,10 @@ export default function ReportsPage() {
               </CardContent>
             </Card>
           </div>
+            </>
+          )}
         </>
-      )}
+      ) : null}
     </DashboardLayout>
   );
 }
-

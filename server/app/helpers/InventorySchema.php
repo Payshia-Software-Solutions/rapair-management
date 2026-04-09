@@ -40,6 +40,72 @@ class InventorySchema {
             return;
         }
 
+        // Brands are used by parts (brand_id). Ensure the brands table and permissions exist.
+        try { BrandSchema::ensure(); } catch (Exception $e) {}
+        // Taxes are used by purchasing documents; keep it available on older installs.
+        try { TaxSchema::ensure(); } catch (Exception $e) {}
+
+        // Short document numbering sequences (PO/GRN). Best-effort and safe under concurrency.
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS document_sequences (
+                    doc_type VARCHAR(30) PRIMARY KEY,
+                    prefix VARCHAR(10) NOT NULL,
+                    next_number INT NOT NULL DEFAULT 1,
+                    padding INT NOT NULL DEFAULT 6,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                )
+            ");
+
+            // Seed with defaults. next_number will be corrected below based on existing rows.
+            $pdo->exec("
+                INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES
+                ('PO', 'PO-', 1, 6),
+                ('GRN', 'GRN-', 1, 6),
+                ('TR', 'TR-', 1, 6),
+                ('REQ', 'REQ-', 1, 6)
+            ");
+
+            // If this is an existing install, bump next_number to (MAX(id)+1) as a sensible default.
+            // This is best-effort; if the sequence has already been used, we won't try to guess.
+            try {
+                if (self::hasTable($pdo, 'purchase_orders')) {
+                    $pdo->exec("
+                        UPDATE document_sequences
+                        SET next_number = GREATEST(next_number, (SELECT IFNULL(MAX(id),0) + 1 FROM purchase_orders))
+                        WHERE doc_type = 'PO'
+                    ");
+                }
+            } catch (Exception $e2) {}
+            try {
+                if (self::hasTable($pdo, 'goods_receive_notes')) {
+                    $pdo->exec("
+                        UPDATE document_sequences
+                        SET next_number = GREATEST(next_number, (SELECT IFNULL(MAX(id),0) + 1 FROM goods_receive_notes))
+                        WHERE doc_type = 'GRN'
+                    ");
+                }
+            } catch (Exception $e2) {}
+            try {
+                if (self::hasTable($pdo, 'stock_transfer_requests')) {
+                    $pdo->exec("
+                        UPDATE document_sequences
+                        SET next_number = GREATEST(next_number, (SELECT IFNULL(MAX(id),0) + 1 FROM stock_transfer_requests))
+                        WHERE doc_type = 'TR'
+                    ");
+                }
+            } catch (Exception $e2) {}
+            try {
+                if (self::hasTable($pdo, 'stock_transfer_requisitions')) {
+                    $pdo->exec("
+                        UPDATE document_sequences
+                        SET next_number = GREATEST(next_number, (SELECT IFNULL(MAX(id),0) + 1 FROM stock_transfer_requisitions))
+                        WHERE doc_type = 'REQ'
+                    ");
+                }
+            } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
         // Ensure RBAC permission keys exist for inventory even on older installs (best-effort).
         try {
             if (self::hasTable($pdo, 'permissions')) {
@@ -54,7 +120,11 @@ class InventorySchema {
                     ('grn.read', 'View goods receive notes'),
                     ('grn.write', 'Create/update goods receive notes'),
                     ('stock.read', 'View stock movements and balances'),
-                    ('stock.adjust', 'Adjust stock quantity')
+                    ('stock.adjust', 'Adjust stock quantity'),
+                    ('transfer.read', 'View stock transfer requests'),
+                    ('transfer.write', 'Create/update stock transfer requests'),
+                    ('taxes.read', 'View taxes master'),
+                    ('taxes.write', 'Create/update/delete taxes master')
                 ");
 
                 // Best-effort grants to default roles (non-admin). Admin is implicit superuser.
@@ -79,10 +149,10 @@ class InventorySchema {
                         }
                     };
 
-                    foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read'] as $p) {
+                    foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read','transfer.read','transfer.write','taxes.read'] as $p) {
                         $grant('Workshop Officer', $p);
                     }
-                    foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read'] as $p) {
+                    foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read','transfer.read','taxes.read'] as $p) {
                         $grant('Factory Officer', $p);
                     }
                 } catch (Exception $e2) {
@@ -101,6 +171,7 @@ class InventorySchema {
                     'part_number' => "VARCHAR(64) NULL",
                     'barcode_number' => "VARCHAR(64) NULL",
                     'unit' => "VARCHAR(32) NULL",
+                    'brand_id' => "INT NULL",
                     'cost_price' => "DECIMAL(10,2) NULL",
                     'reorder_level' => "INT NULL",
                     'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
@@ -115,6 +186,7 @@ class InventorySchema {
                 try { $pdo->exec("ALTER TABLE parts MODIFY COLUMN stock_quantity DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
                 // Unique SKU if possible (ignore duplicates / existing index)
                 try { $pdo->exec("ALTER TABLE parts ADD UNIQUE KEY uq_parts_sku (sku)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE parts ADD INDEX idx_parts_brand (brand_id)"); } catch (Exception $e2) {}
             }
         } catch (Exception $e) {
             // ignore
@@ -153,6 +225,7 @@ class InventorySchema {
                     email VARCHAR(255) NULL,
                     phone VARCHAR(50) NULL,
                     address VARCHAR(255) NULL,
+                    tax_reg_no VARCHAR(100) NULL,
                     is_active TINYINT(1) NOT NULL DEFAULT 1,
                     created_by INT NULL,
                     updated_by INT NULL,
@@ -161,6 +234,140 @@ class InventorySchema {
                     UNIQUE KEY uq_suppliers_name (name)
                 )
             ");
+
+            // Best-effort upgrade for existing installs
+            try {
+                if (!self::hasColumn($pdo, 'suppliers', 'tax_reg_no')) {
+                    $pdo->exec("ALTER TABLE suppliers ADD COLUMN tax_reg_no VARCHAR(100) NULL");
+                }
+            } catch (Exception $e2) {}
+        } catch (Exception $e) {}
+
+        // Supplier -> taxes mapping
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS supplier_taxes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    supplier_id INT NOT NULL,
+                    tax_id INT NOT NULL,
+                    created_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_supplier_tax (supplier_id, tax_id),
+                    INDEX idx_supplier_tax_supplier (supplier_id),
+                    INDEX idx_supplier_tax_tax (tax_id)
+                )
+            ");
+        } catch (Exception $e) {}
+
+        // Stock transfer requests
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_transfer_requests (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    transfer_number VARCHAR(50) NOT NULL,
+                    requisition_id INT NULL,
+                    from_location_id INT NOT NULL,
+                    to_location_id INT NOT NULL,
+                    status ENUM('Requested','Received','Cancelled') NOT NULL DEFAULT 'Requested',
+                    requested_at DATETIME NULL,
+                    notes TEXT NULL,
+                    created_by INT NULL,
+                    received_by INT NULL,
+                    received_at DATETIME NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_str_req (requisition_id),
+                    INDEX idx_str_from (from_location_id),
+                    INDEX idx_str_to (to_location_id),
+                    INDEX idx_str_status (status),
+                    UNIQUE KEY uq_str_number (transfer_number)
+                )
+            ");
+            // Upgrades for older installs
+            try {
+                if (!self::hasColumn($pdo, 'stock_transfer_requests', 'requisition_id')) {
+                    $pdo->exec("ALTER TABLE stock_transfer_requests ADD COLUMN requisition_id INT NULL AFTER transfer_number");
+                }
+                try { $pdo->exec("ALTER TABLE stock_transfer_requests ADD INDEX idx_str_req (requisition_id)"); } catch (Exception $e2) {}
+            } catch (Exception $e2) {}
+
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_transfer_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    transfer_id INT NOT NULL,
+                    part_id INT NOT NULL,
+                    qty DECIMAL(12,3) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_sti_transfer (transfer_id),
+                    INDEX idx_sti_part (part_id),
+                    FOREIGN KEY (transfer_id) REFERENCES stock_transfer_requests(id) ON DELETE CASCADE,
+                    FOREIGN KEY (part_id) REFERENCES parts(id)
+                )
+            ");
+        } catch (Exception $e) {}
+
+        // Stock transfer requisitions (requested by the destination location)
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_transfer_requisitions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    requisition_number VARCHAR(50) NOT NULL,
+                    from_location_id INT NULL,
+                    to_location_id INT NOT NULL,
+                    status ENUM('Requested','Approved','Cancelled','Fulfilled') NOT NULL DEFAULT 'Requested',
+                    requested_at DATETIME NULL,
+                    notes TEXT NULL,
+                    created_by INT NULL,
+                    approved_by INT NULL,
+                    approved_at DATETIME NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_strq_from (from_location_id),
+                    INDEX idx_strq_to (to_location_id),
+                    INDEX idx_strq_status (status),
+                    UNIQUE KEY uq_strq_number (requisition_number)
+                )
+            ");
+
+            // Upgrades for older installs
+            try {
+                if (!self::hasColumn($pdo, 'stock_transfer_requisitions', 'from_location_id')) {
+                    $pdo->exec("ALTER TABLE stock_transfer_requisitions ADD COLUMN from_location_id INT NULL AFTER requisition_number");
+                }
+                try { $pdo->exec("ALTER TABLE stock_transfer_requisitions ADD INDEX idx_strq_from (from_location_id)"); } catch (Exception $e2) {}
+            } catch (Exception $e2) {}
+
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS stock_transfer_requisition_items (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    requisition_id INT NOT NULL,
+                    part_id INT NOT NULL,
+                    qty_requested DECIMAL(12,3) NOT NULL,
+                    qty_fulfilled DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    notes VARCHAR(255) NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_strqi_req (requisition_id),
+                    INDEX idx_strqi_part (part_id),
+                    FOREIGN KEY (requisition_id) REFERENCES stock_transfer_requisitions(id) ON DELETE CASCADE,
+                    FOREIGN KEY (part_id) REFERENCES parts(id)
+                )
+            ");
+        } catch (Exception $e) {}
+
+        // Part ↔ Supplier mapping (many-to-many)
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS part_suppliers (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    part_id INT NOT NULL,
+                    supplier_id INT NOT NULL,
+                    created_by INT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_part_sup (part_id, supplier_id),
+                    INDEX idx_part_sup_part (part_id),
+                    INDEX idx_part_sup_supplier (supplier_id)
+                )
+            ");
+            try { $pdo->exec("ALTER TABLE part_suppliers ADD CONSTRAINT fk_part_sup_part FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE"); } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE part_suppliers ADD CONSTRAINT fk_part_sup_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"); } catch (Exception $e2) {}
         } catch (Exception $e) {}
 
         // Purchase Orders
@@ -168,6 +375,7 @@ class InventorySchema {
             $pdo->exec("
                 CREATE TABLE IF NOT EXISTS purchase_orders (
                     id INT AUTO_INCREMENT PRIMARY KEY,
+                    location_id INT NOT NULL DEFAULT 1,
                     supplier_id INT NOT NULL,
                     po_number VARCHAR(50) NOT NULL,
                     status ENUM('Draft','Sent','Partially Received','Received','Cancelled') NOT NULL DEFAULT 'Draft',
@@ -179,10 +387,19 @@ class InventorySchema {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_purchase_orders_number (po_number),
+                    INDEX idx_purchase_orders_location (location_id),
                     INDEX idx_purchase_orders_supplier (supplier_id)
                 )
             ");
             try { $pdo->exec("ALTER TABLE purchase_orders ADD CONSTRAINT fk_po_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"); } catch (Exception $e2) {}
+            // Older installs: add location_id if missing (best-effort).
+            try {
+                if (self::hasTable($pdo, 'purchase_orders') && !self::hasColumn($pdo, 'purchase_orders', 'location_id')) {
+                    $pdo->exec("ALTER TABLE purchase_orders ADD COLUMN location_id INT NOT NULL DEFAULT 1");
+                    try { $pdo->exec("ALTER TABLE purchase_orders ADD INDEX idx_purchase_orders_location (location_id)"); } catch (Exception $e3) {}
+                }
+            } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE purchase_orders ADD CONSTRAINT fk_po_location FOREIGN KEY (location_id) REFERENCES service_locations(id)"); } catch (Exception $e2) {}
         } catch (Exception $e) {}
 
         try {
@@ -212,6 +429,7 @@ class InventorySchema {
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     grn_number VARCHAR(50) NOT NULL,
                     purchase_order_id INT NULL,
+                    location_id INT NOT NULL DEFAULT 1,
                     supplier_id INT NOT NULL,
                     received_at DATETIME NOT NULL,
                     notes TEXT NULL,
@@ -220,12 +438,21 @@ class InventorySchema {
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                     UNIQUE KEY uq_grn_number (grn_number),
+                    INDEX idx_grn_location (location_id),
                     INDEX idx_grn_supplier (supplier_id),
                     INDEX idx_grn_po (purchase_order_id)
                 )
             ");
             try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_supplier FOREIGN KEY (supplier_id) REFERENCES suppliers(id)"); } catch (Exception $e2) {}
             try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_po FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)"); } catch (Exception $e2) {}
+            // Older installs: add location_id if missing (best-effort).
+            try {
+                if (self::hasTable($pdo, 'goods_receive_notes') && !self::hasColumn($pdo, 'goods_receive_notes', 'location_id')) {
+                    $pdo->exec("ALTER TABLE goods_receive_notes ADD COLUMN location_id INT NOT NULL DEFAULT 1");
+                    try { $pdo->exec("ALTER TABLE goods_receive_notes ADD INDEX idx_grn_location (location_id)"); } catch (Exception $e3) {}
+                }
+            } catch (Exception $e2) {}
+            try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_location FOREIGN KEY (location_id) REFERENCES service_locations(id)"); } catch (Exception $e2) {}
         } catch (Exception $e) {}
 
         try {
@@ -272,7 +499,7 @@ class InventorySchema {
                     location_id INT NOT NULL DEFAULT 1,
                     part_id INT NOT NULL,
                     qty_change DECIMAL(12,3) NOT NULL,
-                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT') NOT NULL,
+                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT') NOT NULL,
                     ref_table VARCHAR(64) NULL,
                     ref_id INT NULL,
                     unit_cost DECIMAL(10,2) NULL,
@@ -297,6 +524,27 @@ class InventorySchema {
                 try { $pdo->exec("ALTER TABLE stock_movements ADD INDEX idx_stock_movements_location (location_id)"); } catch (Exception $e2) {}
                 // qty_change should support decimal quantities
                 try { $pdo->exec("ALTER TABLE stock_movements MODIFY COLUMN qty_change DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+
+                // Add stock transfer movement types (older installs had a limited ENUM set).
+                // Without this, MySQL stores invalid enum inserts as '' (blank), which is what the UI shows.
+                try {
+                    $pdo->exec("
+                        ALTER TABLE stock_movements
+                        MODIFY COLUMN movement_type
+                        ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT')
+                        NOT NULL
+                    ");
+                } catch (Exception $e2) {}
+
+                // Best-effort fix for existing blank movement_type rows created by stock transfers.
+                try {
+                    $pdo->exec("
+                        UPDATE stock_movements
+                        SET movement_type = CASE WHEN qty_change >= 0 THEN 'TRANSFER_IN' ELSE 'TRANSFER_OUT' END
+                        WHERE (movement_type = '' OR movement_type IS NULL)
+                          AND ref_table = 'stock_transfer_requests'
+                    ");
+                } catch (Exception $e2) {}
             }
         } catch (Exception $e) {
             // ignore

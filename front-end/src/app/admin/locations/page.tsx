@@ -30,6 +30,7 @@ import { Label } from "@/components/ui/label";
 type LocationRow = {
   id: number;
   name: string;
+  location_type?: "service" | "warehouse";
   address?: string | null;
   phone?: string | null;
 };
@@ -44,6 +45,7 @@ export default function AdminLocationsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [name, setName] = useState("");
+  const [locationType, setLocationType] = useState<"service" | "warehouse">("service");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -78,6 +80,7 @@ export default function AdminLocationsPage() {
   const openCreate = () => {
     setEditingId(null);
     setName("");
+    setLocationType("service");
     setAddress("");
     setPhone("");
     setIsDialogOpen(true);
@@ -86,6 +89,7 @@ export default function AdminLocationsPage() {
   const openEdit = (row: LocationRow) => {
     setEditingId(row.id);
     setName(row.name ?? "");
+    setLocationType(row.location_type ?? "service");
     setAddress(row.address ?? "");
     setPhone(row.phone ?? "");
     setIsDialogOpen(true);
@@ -98,7 +102,7 @@ export default function AdminLocationsPage() {
 
     setIsSubmitting(true);
     try {
-      const payload = { name: n, address: address.trim() || undefined, phone: phone.trim() || undefined };
+    const payload = { name: n, location_type: locationType, address: address.trim() || undefined, phone: phone.trim() || undefined };
       if (editingId) {
         await updateLocation(String(editingId), payload);
         toast({ title: "Updated", description: "Location updated" });
@@ -173,6 +177,7 @@ export default function AdminLocationsPage() {
                 <TableRow>
                   <TableHead className="w-[90px]">ID</TableHead>
                   <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Address</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -183,6 +188,7 @@ export default function AdminLocationsPage() {
                   <TableRow key={r.id} className="hover:bg-muted/10 transition-colors">
                     <TableCell className="font-mono text-xs font-bold">#{r.id}</TableCell>
                     <TableCell className="font-semibold">{r.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.location_type ?? "service"}</TableCell>
                     <TableCell className="text-muted-foreground">{r.address ?? "-"}</TableCell>
                     <TableCell className="text-muted-foreground">{r.phone ?? "-"}</TableCell>
                     <TableCell className="text-right">
@@ -206,7 +212,7 @@ export default function AdminLocationsPage() {
                 ))}
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
+                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                       No locations found.
                     </TableCell>
                   </TableRow>
@@ -236,6 +242,25 @@ export default function AdminLocationsPage() {
                   onChange={(e) => setName(e.target.value)}
                   required
                 />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Type</Label>
+                <div className="col-span-3 flex gap-2">
+                  <Button
+                    type="button"
+                    variant={locationType === "service" ? "default" : "outline"}
+                    onClick={() => setLocationType("service")}
+                  >
+                    Service Center
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={locationType === "warehouse" ? "default" : "outline"}
+                    onClick={() => setLocationType("warehouse")}
+                  >
+                    Warehouse
+                  </Button>
+                </div>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="loc-address" className="text-right">Address</Label>
@@ -270,4 +295,3 @@ export default function AdminLocationsPage() {
     </DashboardLayout>
   );
 }
-

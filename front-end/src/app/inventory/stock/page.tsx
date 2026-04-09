@@ -1,87 +1,114 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { fetchPartMovements, fetchParts, type PartRow } from "@/lib/api";
+import { fetchLocationStockBalances, fetchLocations, type LocationStockBalanceRow, type PartRow, type ServiceLocationRow } from "@/lib/api";
 import { Search, Loader2, AlertCircle, ListOrdered, History } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 export default function StockPage() {
   const { toast } = useToast();
-  const [items, setItems] = useState<PartRow[]>([]);
+  const router = useRouter();
+  const [items, setItems] = useState<LocationStockBalanceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
+  const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
+  const [locationId, setLocationId] = useState<number>(1);
 
-  const [movementsOpen, setMovementsOpen] = useState(false);
-  const [movementsLoading, setMovementsLoading] = useState(false);
-  const [movements, setMovements] = useState<any[]>([]);
-  const [activePart, setActivePart] = useState<PartRow | null>(null);
+  // Movements are now shown on a separate page.
 
-  const load = async () => {
+  const load = async (opts: { locationId?: number; q?: string } = {}) => {
     setLoading(true);
     try {
-      const data = await fetchParts();
+      const lid = Number(opts.locationId ?? locationId ?? 1) || 1;
+      const q = String(opts.q ?? query ?? "");
+      const data = await fetchLocationStockBalances(lid, q);
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load stock", variant: "destructive" });
+      setItems([]);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    void load();
+    const decodeToken = () => {
+      try {
+        const token = window.localStorage.getItem("auth_token");
+        if (!token) return null;
+        const part = token.split(".")[1];
+        return JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+      } catch {
+        return null;
+      }
+    };
+
+    const init = async () => {
+      try {
+        const tokenJson: any = decodeToken();
+        const role = String(tokenJson?.role ?? "");
+        const allowed = Array.isArray(tokenJson?.allowed_locations) ? tokenJson.allowed_locations : [];
+        const allowedLocs = allowed
+          .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
+          .filter((x: any) => x.id > 0 && x.name);
+
+        let locs: Array<{ id: number; name: string }> = [];
+        if (role === "Admin") {
+          const rows = await fetchLocations();
+          locs = Array.isArray(rows)
+            ? (rows as ServiceLocationRow[]).map((l) => ({ id: Number(l.id), name: String(l.name ?? "") })).filter((l) => l.id > 0 && l.name)
+            : [];
+        } else {
+          locs = allowedLocs;
+        }
+        if (locs.length === 0) locs = [{ id: 1, name: "Main" }];
+        setLocations(locs);
+
+        const ls = Number(window.localStorage.getItem("location_id") || 0);
+        const initId = (ls > 0 ? ls : (locs[0]?.id ?? 1));
+        setLocationId(initId);
+        await load({ locationId: initId, q: "" });
+      } catch (e: any) {
+        setLocations([{ id: 1, name: "Main" }]);
+        setLocationId(1);
+        await load({ locationId: 1, q: "" });
+      }
+    };
+    void init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
     let base = items;
-    if (q) {
-      base = base.filter((p) => (p.part_name ?? "").toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q));
-    }
     if (onlyLow) {
-      base = base.filter((p) => p.reorder_level !== null && p.reorder_level !== undefined && p.stock_quantity <= Number(p.reorder_level));
+      base = base.filter((p: any) => {
+        const qty = Number((p as any).location_stock_quantity ?? 0);
+        return p.reorder_level !== null && p.reorder_level !== undefined && qty <= Number(p.reorder_level);
+      });
     }
     return base;
-  }, [items, query, onlyLow]);
+  }, [items, onlyLow]);
 
   const totals = useMemo(() => {
-    const totalQty = items.reduce((sum, p) => sum + Number(p.stock_quantity ?? 0), 0);
+    const totalQty = items.reduce((sum, p: any) => sum + Number((p as any).location_stock_quantity ?? 0), 0);
     const totalValue = items.reduce((sum, p) => {
       const cost = p.cost_price !== null && p.cost_price !== undefined ? Number(p.cost_price) : 0;
-      const qty = Number(p.stock_quantity ?? 0);
+      const qty = Number((p as any).location_stock_quantity ?? 0);
       return sum + cost * qty;
     }, 0);
     return { totalQty, totalValue };
   }, [items]);
 
-  const openMovements = async (p: PartRow) => {
-    setActivePart(p);
-    setMovementsOpen(true);
-    setMovements([]);
-    setMovementsLoading(true);
-    try {
-      const data = await fetchPartMovements(String(p.id), 200);
-      setMovements(Array.isArray(data) ? data : []);
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to load movements", variant: "destructive" });
-    } finally {
-      setMovementsLoading(false);
-    }
+  const openMovements = (p: PartRow) => {
+    router.push(`/inventory/stock/movements/${encodeURIComponent(String(p.id))}?location_id=${encodeURIComponent(String(locationId))}`);
   };
 
   return (
@@ -107,7 +134,38 @@ export default function StockPage() {
       <div className="space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input placeholder="Search items..." className="pl-9 h-11" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Input
+            placeholder="Search items..."
+            className="pl-9 h-11"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void load({ locationId, q: query.trim() });
+              }
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div className="space-y-1">
+            <div className="text-xs text-muted-foreground">Location</div>
+            <select
+              className="h-11 min-w-[260px] rounded-md border bg-background px-3 text-sm"
+              value={String(locationId)}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setLocationId(v);
+                void load({ locationId: v, q: query.trim() });
+              }}
+            >
+              {locations.map((l) => (
+                <option key={l.id} value={String(l.id)}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+          <Button variant="outline" onClick={() => void load({ locationId, q: query.trim() })}>Search</Button>
         </div>
 
         <Card className="border-none shadow-md overflow-hidden">
@@ -141,7 +199,8 @@ export default function StockPage() {
                 <TableBody>
                   {filtered.map((p) => {
                     const cost = p.cost_price !== null && p.cost_price !== undefined ? Number(p.cost_price) : 0;
-                    const qty = Number(p.stock_quantity ?? 0);
+                    const qty = Number((p as any).location_stock_quantity ?? 0);
+                    const sys = Number((p as any).system_stock_quantity ?? (p as any).stock_quantity ?? 0);
                     const value = cost * qty;
                     const low = p.reorder_level !== null && p.reorder_level !== undefined ? qty <= Number(p.reorder_level) : false;
                     return (
@@ -159,7 +218,11 @@ export default function StockPage() {
                           </div>
                         </TableCell>
                         <TableCell className="font-bold">
-                          {qty.toLocaleString()} {p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
+                          <div>
+                            {qty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}{" "}
+                            {p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-normal">System: {sys.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{cost ? cost.toFixed(2) : "-"}</TableCell>
                         <TableCell className="hidden lg:table-cell text-sm">{value ? value.toFixed(2) : "-"}</TableCell>
@@ -178,71 +241,6 @@ export default function StockPage() {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={movementsOpen} onOpenChange={setMovementsOpen}>
-        <DialogContent className="sm:max-w-[860px]">
-          <DialogHeader>
-            <DialogTitle>Stock Movements</DialogTitle>
-            <DialogDescription>
-              {activePart ? (
-                <span>
-                  {activePart.part_name} {activePart.sku ? `(${activePart.sku})` : ""} | On hand:{" "}
-                  {Number(activePart.stock_quantity ?? 0).toLocaleString()}
-                </span>
-              ) : null}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md border overflow-hidden">
-            <Table>
-              <TableHeader className="bg-muted/30">
-                <TableRow>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Qty</TableHead>
-                  <TableHead>Ref</TableHead>
-                  <TableHead className="hidden md:table-cell">When</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {movementsLoading ? (
-                  <TableRow>
-                    <TableCell colSpan={5}>
-                      <div className="flex items-center justify-center py-10 text-muted-foreground">
-                        <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        Loading movements...
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ) : movements.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-muted-foreground py-10 text-center">No movements</TableCell>
-                  </TableRow>
-                ) : (
-                  movements.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className="font-mono text-xs">{m.id}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-[10px]">{m.movement_type}</Badge></TableCell>
-                      <TableCell className={`font-bold ${Number(m.qty_change) < 0 ? "text-destructive" : "text-green-700"}`}>
-                        {Number(m.qty_change).toLocaleString()}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {m.ref_table ? `${m.ref_table}#${m.ref_id ?? ""}` : "-"}
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                        {m.created_at ? new Date(String(m.created_at).replace(" ", "T")).toLocaleString() : "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setMovementsOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }
-

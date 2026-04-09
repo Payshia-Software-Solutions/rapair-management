@@ -11,18 +11,25 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import {
   contentUrl,
   deletePart,
+  fetchBrands,
   fetchPart,
+  fetchSuppliers,
   fetchUnits,
   setPartImage,
   updatePart,
   uploadPartImage,
+  type BrandRow,
+  type SupplierRow,
   type UnitRow,
 } from "@/lib/api";
-import { ArrowLeft, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ChevronDown, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
 
 function asNumOrNull(v: string) {
   const t = v.trim();
@@ -57,6 +64,8 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const [brands, setBrands] = useState<BrandRow[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [part, setPart] = useState<any>(null);
 
   const [form, setForm] = useState({
@@ -65,11 +74,15 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     barcode_number: "",
     part_name: "",
     unit: "",
+    brand_id: "",
     cost_price: "",
     price: "",
     reorder_level: "",
     is_active: true,
   });
+
+  const [supplierIds, setSupplierIds] = useState<number[]>([]);
+  const [supplierQuery, setSupplierQuery] = useState("");
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -77,20 +90,25 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     if (!id) return;
     setLoading(true);
     try {
-      const [p, u] = await Promise.all([fetchPart(String(id)), fetchUnits("")]);
+      const [p, u, b, s] = await Promise.all([fetchPart(String(id)), fetchUnits(""), fetchBrands(""), fetchSuppliers("")]);
       setPart(p);
       setUnits(Array.isArray(u) ? u : []);
+      setBrands(Array.isArray(b) ? b : []);
+      setSuppliers(Array.isArray(s) ? s : []);
       setForm({
         sku: p?.sku ?? "",
         part_number: p?.part_number ?? "",
         barcode_number: p?.barcode_number ?? "",
         part_name: p?.part_name ?? "",
         unit: p?.unit ?? "",
+        brand_id: p?.brand_id ? String(p.brand_id) : "",
         cost_price: p?.cost_price !== null && p?.cost_price !== undefined ? String(p.cost_price) : "",
         price: p?.price !== null && p?.price !== undefined ? String(p.price) : "",
         reorder_level: p?.reorder_level !== null && p?.reorder_level !== undefined ? String(p.reorder_level) : "",
         is_active: Boolean(p?.is_active),
       });
+      const ids = Array.isArray(p?.supplier_ids) ? (p.supplier_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
+      setSupplierIds(Array.from(new Set(ids)).sort((a, b) => a - b));
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load product", variant: "destructive" });
       setPart(null);
@@ -130,6 +148,8 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         barcode_number: form.barcode_number.trim() ? form.barcode_number.trim() : null,
         part_name: name,
         unit: form.unit.trim() ? form.unit.trim() : null,
+        brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
+        supplier_ids: supplierIds,
         cost_price: asNumOrNull(form.cost_price),
         price,
         reorder_level: asNumOrNull(form.reorder_level),
@@ -234,25 +254,17 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                           e.currentTarget.value = "";
                         }}
                       />
-                      <div className="flex gap-2">
-                        <Button variant="outline" className="gap-2 w-full" onClick={() => fileRef.current?.click()} disabled={saving}>
-                          <Upload className="w-4 h-4" />
-                          Upload Image
-                        </Button>
-                        <Button asChild variant="outline" className="w-full">
-                          <Link href={`/inventory/items/${id}/image`}>Image Page</Link>
-                        </Button>
-                      </div>
-                      <Button asChild variant="outline" className="w-full">
-                        <Link href={`/inventory/stock/adjustments/new?part_id=${encodeURIComponent(String(id))}`}>
-                          Stock Adjustment
-                        </Link>
-                      </Button>
-                      {part?.image_filename ? (
-                        <div className="text-xs text-muted-foreground">
-                          Filename: <span className="font-mono">{String(part.image_filename)}</span>
-                        </div>
-                      ) : null}
+	                      <div className="flex gap-2">
+	                        <Button variant="outline" className="gap-2 w-full" onClick={() => fileRef.current?.click()} disabled={saving}>
+	                          <Upload className="w-4 h-4" />
+	                          Upload Image
+	                        </Button>
+	                      </div>
+	                      {part?.image_filename ? (
+	                        <div className="text-xs text-muted-foreground">
+	                          Filename: <span className="font-mono">{String(part.image_filename)}</span>
+	                        </div>
+	                      ) : null}
                     </div>
                   </div>
 
@@ -285,14 +297,32 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                         <Input value={form.barcode_number} onChange={(e) => setForm((p) => ({ ...p, barcode_number: e.target.value }))} />
                         <div className="text-[11px] text-muted-foreground">Optional</div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Name</Label>
-                        <Input value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Unit</Label>
-                        <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
-                          <SelectTrigger>
+	                      <div className="space-y-2">
+	                        <Label>Name</Label>
+	                        <Input value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
+	                      </div>
+	                      <div className="space-y-2">
+	                        <Label>Brand</Label>
+	                        <Select value={form.brand_id} onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}>
+	                          <SelectTrigger>
+	                            <SelectValue placeholder="Select brand..." />
+	                          </SelectTrigger>
+	                          <SelectContent className="max-h-[280px]">
+	                            {brands.map((b) => (
+	                              <SelectItem key={b.id} value={String(b.id)}>
+	                                {b.name}
+	                              </SelectItem>
+	                            ))}
+	                          </SelectContent>
+	                        </Select>
+	                        <div className="text-[11px] text-muted-foreground">
+	                          Manage brands in <Link className="underline" href="/master-data/brands">Master Data → Brands</Link>
+	                        </div>
+	                      </div>
+	                      <div className="space-y-2">
+	                        <Label>Unit</Label>
+	                        <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
+	                          <SelectTrigger>
                             <SelectValue placeholder="Select unit..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -307,12 +337,60 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                           Manage units in <Link className="underline" href="/master-data/units">Master Data → Units</Link>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Active</Label>
-                        <div className="h-11 flex items-center">
-                          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
-                        </div>
-                      </div>
+	                      <div className="space-y-2">
+	                        <Label>Suppliers</Label>
+	                        <Popover>
+	                          <PopoverTrigger asChild>
+	                            <Button type="button" variant="outline" className="w-full justify-between" disabled={saving}>
+	                              <span className="truncate">
+	                                {supplierIds.length === 0 ? "Select suppliers..." : `${supplierIds.length} selected`}
+	                              </span>
+	                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+	                            </Button>
+	                          </PopoverTrigger>
+	                          <PopoverContent className="w-[360px] p-3" align="start">
+	                            <div className="space-y-2">
+	                              <Input placeholder="Search suppliers..." value={supplierQuery} onChange={(e) => setSupplierQuery(e.target.value)} />
+	                              <ScrollArea className="h-[240px] pr-2">
+	                                <div className="space-y-2">
+	                                  {suppliers
+	                                    .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+	                                    .map((s) => {
+	                                      const sid = Number(s.id);
+	                                      const checked = supplierIds.includes(sid);
+	                                      return (
+	                                        <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+	                                          <Checkbox
+	                                            checked={checked}
+	                                            onCheckedChange={(v) => {
+	                                              setSupplierIds((prev) => {
+	                                                const next = new Set(prev);
+	                                                if (v) next.add(sid);
+	                                                else next.delete(sid);
+	                                                return Array.from(next).sort((a, b) => a - b);
+	                                              });
+	                                            }}
+	                                          />
+	                                          <span className="truncate">{s.name}</span>
+	                                        </label>
+	                                      );
+	                                    })}
+	                                  {suppliers.length === 0 ? (
+	                                    <div className="text-xs text-muted-foreground py-4 text-center">No suppliers</div>
+	                                  ) : null}
+	                                </div>
+	                              </ScrollArea>
+	                            </div>
+	                          </PopoverContent>
+	                        </Popover>
+	                        <div className="text-[11px] text-muted-foreground">Optional. You can assign multiple suppliers.</div>
+	                      </div>
+	                      <div className="space-y-2">
+	                        <Label>Active</Label>
+	                        <div className="h-11 flex items-center">
+	                          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+	                        </div>
+	                      </div>
                       <div className="space-y-2">
                         <Label>Cost Price</Label>
                         <Input inputMode="decimal" value={form.cost_price} onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} />

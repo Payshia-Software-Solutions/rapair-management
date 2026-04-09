@@ -34,6 +34,8 @@ type PermRow = { id: number; perm_key: string; description: string | null };
 const pagePermissionMatrix: Array<{ page: string; read: string; write?: string }> = [
   { page: "Orders", read: "orders.read", write: "orders.write" },
   { page: "Vehicles", read: "vehicles.read", write: "vehicles.write" },
+  { page: "Brands", read: "brands.read", write: "brands.write" },
+  { page: "Taxes", read: "taxes.read", write: "taxes.write" },
   { page: "Service Bays", read: "bays.read", write: "bays.write" },
   { page: "Technicians", read: "technicians.read", write: "technicians.write" },
   { page: "Vehicle Makes", read: "makes.read", write: "makes.write" },

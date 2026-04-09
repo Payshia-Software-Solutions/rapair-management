@@ -54,10 +54,13 @@ class LocationController extends Controller {
         }
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $name = trim((string)($data['name'] ?? ''));
+        $type = trim((string)($data['location_type'] ?? 'service'));
+        if (!in_array($type, ['service','warehouse'], true)) $type = 'service';
         if ($name === '') {
             $this->error('Name is required', 400);
             return;
         }
+        $data['location_type'] = $type;
         $ok = $this->locationModel->create($data, (int)$u['sub']);
         if (!$ok) {
             $this->error('Failed to create location');
@@ -90,10 +93,13 @@ class LocationController extends Controller {
         }
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $name = trim((string)($data['name'] ?? ''));
+        $type = trim((string)($data['location_type'] ?? 'service'));
+        if (!in_array($type, ['service','warehouse'], true)) $type = 'service';
         if ($name === '') {
             $this->error('Name is required', 400);
             return;
         }
+        $data['location_type'] = $type;
         $ok = $this->locationModel->update((int)$id, $data, (int)$u['sub']);
         if (!$ok) {
             $this->error('Failed to update location');
@@ -145,4 +151,3 @@ class LocationController extends Controller {
         $this->success(null, 'Location deleted');
     }
 }
-

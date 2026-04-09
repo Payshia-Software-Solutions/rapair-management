@@ -1,0 +1,432 @@
+<?php
+/**
+ * StockTransfer Model
+ * Handles stock transfer requests between locations.
+ */
+class StockTransfer extends Model {
+    private function ensureSchema() {
+        InventorySchema::ensure();
+    }
+
+    private function nextDocNumber($docType) {
+        // Short sequential number allocation using document_sequences (safe under concurrency).
+        $this->ensureSchema();
+        $type = strtoupper(trim((string)$docType));
+        if ($type === '') $type = 'TR';
+
+        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
+        $this->db->bind(':t', $type);
+        $row = $this->db->single();
+        if (!$row) {
+            // Best-effort seed, then retry.
+            try {
+                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
+                $this->db->bind(':t', $type);
+                $this->db->bind(':p', $type . '-');
+                $this->db->execute();
+            } catch (Exception $e) {}
+
+            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
+            $this->db->bind(':t', $type);
+            $row = $this->db->single();
+            if (!$row) return $type . "-000001";
+        }
+
+        $prefix = (string)($row->prefix ?? ($type . '-'));
+        $next = (int)($row->next_number ?? 1);
+        $pad = (int)($row->padding ?? 6);
+        if ($next <= 0) $next = 1;
+        if ($pad <= 0) $pad = 6;
+
+        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
+        $this->db->bind(':t', $type);
+        $this->db->execute();
+
+        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    }
+
+    private function movementQtyIfAny($locationId, $partId) {
+        // Prefer per-location ledger if there is any movement history for this part+location.
+        // Fall back to parts.stock_quantity for older installs that don't have a complete ledger.
+        $loc = (int)$locationId;
+        $pid = (int)$partId;
+        if ($loc <= 0 || $pid <= 0) return null;
+        try {
+            $this->db->query("
+                SELECT COUNT(*) AS c, COALESCE(SUM(qty_change), 0) AS qty
+                FROM stock_movements
+                WHERE location_id = :loc AND part_id = :pid
+            ");
+            $this->db->bind(':loc', $loc);
+            $this->db->bind(':pid', $pid);
+            $row = $this->db->single();
+            $cnt = (int)($row->c ?? 0);
+            if ($cnt <= 0) return null;
+            return (float)($row->qty ?? 0);
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    private function reservedQtyForPendingTransfers($fromLocationId, $partId) {
+        $loc = (int)$fromLocationId;
+        $pid = (int)$partId;
+        if ($loc <= 0 || $pid <= 0) return 0.0;
+        try {
+            $this->db->query("
+                SELECT COALESCE(SUM(i.qty), 0) AS reserved
+                FROM stock_transfer_requests r
+                INNER JOIN stock_transfer_items i ON i.transfer_id = r.id
+                WHERE r.status = 'Requested' AND r.from_location_id = :loc AND i.part_id = :pid
+            ");
+            $this->db->bind(':loc', $loc);
+            $this->db->bind(':pid', $pid);
+            $row = $this->db->single();
+            return (float)($row->reserved ?? 0);
+        } catch (Exception $e) {
+            return 0.0;
+        }
+    }
+
+    private function availableQtyForTransferCreate($fromLocationId, $partId) {
+        $loc = (int)$fromLocationId;
+        $pid = (int)$partId;
+        if ($loc <= 0 || $pid <= 0) return 0.0;
+
+        $base = $this->movementQtyIfAny($loc, $pid);
+        if ($base === null) {
+            // Fallback: global stock quantity (best-effort).
+            try {
+                $this->db->query("SELECT stock_quantity FROM parts WHERE id = :id LIMIT 1");
+                $this->db->bind(':id', $pid);
+                $row = $this->db->single();
+                $base = (float)($row->stock_quantity ?? 0);
+            } catch (Exception $e) {
+                $base = 0.0;
+            }
+        }
+
+        $reserved = $this->reservedQtyForPendingTransfers($loc, $pid);
+        $avail = (float)$base - (float)$reserved;
+        return $avail;
+    }
+
+    private function genNumber() {
+        // Keep old method as a fallback; prefer sequential doc numbers.
+        try {
+            return $this->nextDocNumber('TR');
+        } catch (Exception $e) {
+            $dt = new DateTime('now');
+            $stamp = $dt->format('Ymd');
+            $rand = substr(strtoupper(bin2hex(random_bytes(3))), 0, 6);
+            return "TR-{$stamp}-{$rand}";
+        }
+    }
+
+    public function listByLocations($locationIds = []) {
+        $this->ensureSchema();
+        $ids = array_values(array_filter(array_map('intval', (array)$locationIds), function($x) { return $x > 0; }));
+        if (count($ids) === 0) return [];
+        $in = implode(',', array_fill(0, count($ids), '?'));
+        $sql = "
+            SELECT r.*, 
+                   lf.name AS from_location_name,
+                   lt.name AS to_location_name,
+                   u.name AS created_by_name,
+                   u2.name AS received_by_name,
+                   COUNT(i.id) AS line_count,
+                   SUM(i.qty) AS total_qty
+            FROM stock_transfer_requests r
+            LEFT JOIN service_locations lf ON lf.id = r.from_location_id
+            LEFT JOIN service_locations lt ON lt.id = r.to_location_id
+            LEFT JOIN users u ON u.id = r.created_by
+            LEFT JOIN users u2 ON u2.id = r.received_by
+            LEFT JOIN stock_transfer_items i ON i.transfer_id = r.id
+            WHERE r.from_location_id IN ($in) OR r.to_location_id IN ($in)
+            GROUP BY r.id
+            ORDER BY r.id DESC
+        ";
+        $this->db->query($sql);
+        // $in is used twice (from_location_id IN (...) OR to_location_id IN (...))
+        // so we must bind the ids twice as positional parameters.
+        foreach ($ids as $i => $id) {
+            $this->db->bind(($i + 1), $id);
+        }
+        $offset = count($ids);
+        foreach ($ids as $i => $id) {
+            $this->db->bind(($offset + $i + 1), $id);
+        }
+        return $this->db->resultSet();
+    }
+
+    public function getById($id) {
+        $this->ensureSchema();
+        $this->db->query("
+            SELECT r.*, 
+                   lf.name AS from_location_name,
+                   lt.name AS to_location_name
+            FROM stock_transfer_requests r
+            LEFT JOIN service_locations lf ON lf.id = r.from_location_id
+            LEFT JOIN service_locations lt ON lt.id = r.to_location_id
+            WHERE r.id = :id LIMIT 1
+        ");
+        $this->db->bind(':id', (int)$id);
+        $hdr = $this->db->single();
+        if (!$hdr) return null;
+
+        $this->db->query("
+            SELECT i.*, p.part_name, p.sku, p.unit, p.cost_price, b.name AS brand_name
+            FROM stock_transfer_items i
+            INNER JOIN parts p ON p.id = i.part_id
+            LEFT JOIN brands b ON b.id = p.brand_id
+            WHERE i.transfer_id = :id
+            ORDER BY i.id ASC
+        ");
+        $this->db->bind(':id', (int)$id);
+        $items = $this->db->resultSet();
+
+        return (object)[
+            'transfer' => $hdr,
+            'items' => $items,
+        ];
+    }
+
+    public function create($data, $userId = null) {
+        $this->ensureSchema();
+        $fromId = (int)($data['from_location_id'] ?? $data['fromLocationId'] ?? 0);
+        $toId = (int)($data['to_location_id'] ?? $data['toLocationId'] ?? 0);
+        $reqId = (int)($data['requisition_id'] ?? $data['requisitionId'] ?? 0);
+        if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) return false;
+
+        $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
+        if (count($items) === 0) return false;
+
+        $merged = [];
+        foreach ($items as $it) {
+            $pid = (int)($it['part_id'] ?? $it['partId'] ?? 0);
+            $qty = $it['qty'] ?? $it['quantity'] ?? null;
+            $qty = ($qty === '' || $qty === null) ? null : (float)$qty;
+            if ($pid <= 0 || $qty === null || $qty <= 0) continue;
+            if (!isset($merged[$pid])) $merged[$pid] = 0;
+            $merged[$pid] += $qty;
+        }
+        if (count($merged) === 0) return false;
+
+        $num = trim((string)($data['transfer_number'] ?? ''));
+        if ($num === '') $num = $this->genNumber();
+        $requestedAt = $data['requested_at'] ?? null;
+        if (!$requestedAt) $requestedAt = (new DateTime('now'))->format('Y-m-d H:i:s');
+
+        try {
+            $this->db->exec("START TRANSACTION");
+
+            // If created from a requisition, validate it and lock destination.
+            if ($reqId > 0) {
+                $this->db->query("SELECT to_location_id, status FROM stock_transfer_requisitions WHERE id = :id LIMIT 1");
+                $this->db->bind(':id', $reqId);
+                $req = $this->db->single();
+                if (!$req) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+                if (!in_array((string)$req->status, ['Requested','Approved'], true)) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+                $toId = (int)$req->to_location_id;
+                if ($toId <= 0) {
+                    $this->db->exec("ROLLBACK");
+                    return false;
+                }
+            }
+
+            // Verify stock availability at source before creating the request.
+            // Uses per-location ledger when available, otherwise falls back to parts.stock_quantity.
+            foreach ($merged as $pid => $qty) {
+                $pid = (int)$pid;
+                $need = (float)$qty;
+                if ($pid <= 0 || $need <= 0) continue;
+                $avail = $this->availableQtyForTransferCreate($fromId, $pid);
+                if ($avail + 0.000001 < $need) {
+                    // Fetch name for friendlier error (best-effort)
+                    $name = null;
+                    try {
+                        $this->db->query("SELECT part_name FROM parts WHERE id = :id LIMIT 1");
+                        $this->db->bind(':id', $pid);
+                        $row = $this->db->single();
+                        $name = $row ? (string)($row->part_name ?? '') : null;
+                    } catch (Exception $e2) {}
+                    $label = $name ? $name : ("Item #" . $pid);
+                    $this->db->exec("ROLLBACK");
+                    return ['error' => "Insufficient stock at source for {$label}. Available: " . number_format(max(0, $avail), 3, '.', '') . ", requested: " . number_format($need, 3, '.', '')];
+                }
+            }
+
+            $this->db->query("
+                INSERT INTO stock_transfer_requests
+                (transfer_number, requisition_id, from_location_id, to_location_id, status, requested_at, notes, created_by)
+                VALUES (:num, :req_id, :from_id, :to_id, 'Requested', :dt, :notes, :u)
+            ");
+            $this->db->bind(':num', $num);
+            $this->db->bind(':req_id', $reqId > 0 ? $reqId : null);
+            $this->db->bind(':from_id', $fromId);
+            $this->db->bind(':to_id', $toId);
+            $this->db->bind(':dt', $requestedAt);
+            $this->db->bind(':notes', $data['notes'] ?? null);
+            $this->db->bind(':u', $userId);
+            $ok = $this->db->execute();
+            if (!$ok) {
+                $this->db->exec("ROLLBACK");
+                return false;
+            }
+            $id = (int)$this->db->lastInsertId();
+
+            // If requisition is present, ensure shipped qty does not exceed remaining requested qty per item.
+            $remaining = [];
+            if ($reqId > 0) {
+                $this->db->query("
+                    SELECT part_id, qty_requested, qty_fulfilled
+                    FROM stock_transfer_requisition_items
+                    WHERE requisition_id = :id
+                ");
+                $this->db->bind(':id', $reqId);
+                $reqItems = $this->db->resultSet() ?: [];
+                foreach ($reqItems as $ri) {
+                    $pid = (int)$ri->part_id;
+                    $rem = (float)$ri->qty_requested - (float)$ri->qty_fulfilled;
+                    if ($rem < 0) $rem = 0;
+                    $remaining[$pid] = $rem;
+                }
+            }
+
+            foreach ($merged as $pid => $qty) {
+                if ($reqId > 0) {
+                    $rem = isset($remaining[(int)$pid]) ? (float)$remaining[(int)$pid] : 0.0;
+                    if ($rem <= 0 || $qty > $rem + 0.000001) {
+                        $this->db->exec("ROLLBACK");
+                        return false;
+                    }
+                }
+                $this->db->query("INSERT INTO stock_transfer_items (transfer_id, part_id, qty) VALUES (:tid, :pid, :qty)");
+                $this->db->bind(':tid', $id);
+                $this->db->bind(':pid', (int)$pid);
+                $this->db->bind(':qty', $qty);
+                $this->db->execute();
+            }
+
+            $this->db->exec("COMMIT");
+            return $id;
+        } catch (Exception $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            return false;
+        }
+    }
+
+    public function receive($id, $userId = null) {
+        $this->ensureSchema();
+        $tid = (int)$id;
+        if ($tid <= 0) return ['error' => 'Invalid transfer'];
+
+        $this->db->query("SELECT * FROM stock_transfer_requests WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', $tid);
+        $hdr = $this->db->single();
+        if (!$hdr) return ['error' => 'Transfer not found'];
+        if ($hdr->status !== 'Requested') return ['error' => 'Transfer already processed'];
+
+        $fromId = (int)$hdr->from_location_id;
+        $toId = (int)$hdr->to_location_id;
+        $transferNumber = (string)$hdr->transfer_number;
+        $reqId = isset($hdr->requisition_id) ? (int)$hdr->requisition_id : 0;
+
+        // If there are open requisitions for this destination, we can optionally settle fulfilled qty.
+        // The UI will create shipments from a requisition; we detect it by notes prefix "REQ:" is not reliable.
+        // For now, we best-effort match by transfer_number embedded in stock_movements only.
+
+        $this->db->query("SELECT * FROM stock_transfer_items WHERE transfer_id = :id");
+        $this->db->bind(':id', $tid);
+        $items = $this->db->resultSet();
+        if (!$items || count($items) === 0) return ['error' => 'No transfer items'];
+
+        try {
+            $this->db->exec("START TRANSACTION");
+
+            foreach ($items as $it) {
+                $pid = (int)$it->part_id;
+                $qty = (float)$it->qty;
+                if ($qty <= 0) continue;
+
+                // Best-effort availability check (global stock)
+                $this->db->query("SELECT stock_quantity FROM parts WHERE id = :id LIMIT 1");
+                $this->db->bind(':id', $pid);
+                $row = $this->db->single();
+                if (!$row) {
+                    $this->db->exec("ROLLBACK");
+                    return ['error' => 'Invalid item'];
+                }
+                $available = (float)$row->stock_quantity;
+                if ($available < $qty) {
+                    $this->db->exec("ROLLBACK");
+                    return ['error' => 'Insufficient stock for transfer'];
+                }
+
+                // Stock movement: out
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                    VALUES (:loc, :pid, :qty, 'TRANSFER_OUT', 'stock_transfer_requests', :ref, :notes, :u)
+                ");
+                $this->db->bind(':loc', $fromId);
+                $this->db->bind(':pid', $pid);
+                $this->db->bind(':qty', -abs($qty));
+                $this->db->bind(':ref', $tid);
+                $this->db->bind(':notes', $transferNumber);
+                $this->db->bind(':u', $userId);
+                $this->db->execute();
+
+                // Stock movement: in
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                    VALUES (:loc, :pid, :qty, 'TRANSFER_IN', 'stock_transfer_requests', :ref, :notes, :u)
+                ");
+                $this->db->bind(':loc', $toId);
+                $this->db->bind(':pid', $pid);
+                $this->db->bind(':qty', abs($qty));
+                $this->db->bind(':ref', $tid);
+                $this->db->bind(':notes', $transferNumber);
+                $this->db->bind(':u', $userId);
+                $this->db->execute();
+
+                // If this shipment came from a requisition, settle fulfilled qty on receive.
+                if ($reqId > 0) {
+                    try {
+                        $rq = new StockRequisition();
+                        $rq->addFulfilledQty($reqId, $pid, abs($qty));
+                    } catch (Exception $e3) {
+                        // ignore best-effort
+                    }
+                }
+            }
+
+            $this->db->query("
+                UPDATE stock_transfer_requests
+                SET status = 'Received', received_by = :u, received_at = NOW()
+                WHERE id = :id
+            ");
+            $this->db->bind(':u', $userId);
+            $this->db->bind(':id', $tid);
+            $this->db->execute();
+
+            $this->db->exec("COMMIT");
+
+            if ($reqId > 0) {
+                try {
+                    $rq = new StockRequisition();
+                    $rq->markFulfilledIfComplete($reqId);
+                } catch (Exception $e3) {}
+            }
+            return true;
+        } catch (Exception $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            return ['error' => 'Receive failed'];
+        }
+    }
+}

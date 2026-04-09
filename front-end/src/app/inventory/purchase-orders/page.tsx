@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   fetchParts,
   fetchPurchaseOrder,
   fetchPurchaseOrders,
+  fetchPartsForSupplier,
   fetchSuppliers,
   setPurchaseOrderStatus,
   updatePurchaseOrder,
@@ -22,7 +24,7 @@ import {
   type PurchaseOrderRow,
   type SupplierRow,
 } from "@/lib/api";
-import { Plus, Search, Loader2, AlertCircle, FileText, Pencil, Send, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Loader2, AlertCircle, FileText, Pencil, Send, Printer, PackageCheck } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
@@ -45,12 +47,14 @@ function toLocalDatetimeValue(v: string | null) {
 }
 
 export default function PurchaseOrdersPage() {
+  const router = useRouter();
   const { toast } = useToast();
   const [rows, setRows] = useState<PurchaseOrderRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [parts, setParts] = useState<PartRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -63,13 +67,22 @@ export default function PurchaseOrdersPage() {
     items: [] as PurchaseOrderItemRow[],
   });
 
+  const onPrint = (id: number) => {
+    const url = `/inventory/purchase-orders/print/${encodeURIComponent(String(id))}?autoprint=1`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const onReceive = (id: number) => {
+    router.push(`/inventory/grn/new?po=${encodeURIComponent(String(id))}`);
+  };
+
   const load = async () => {
     setLoading(true);
     try {
-      const [poRows, supRows, partRows] = await Promise.all([fetchPurchaseOrders(), fetchSuppliers(), fetchParts()]);
+      const [poRows, supRows] = await Promise.all([fetchPurchaseOrders(), fetchSuppliers()]);
       setRows(Array.isArray(poRows) ? poRows : []);
       setSuppliers(Array.isArray(supRows) ? supRows : []);
-      setParts(Array.isArray(partRows) ? partRows : []);
+      setParts([]);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load purchase orders", variant: "destructive" });
     } finally {
@@ -79,6 +92,18 @@ export default function PurchaseOrdersPage() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  useEffect(() => {
+    try {
+      const token = window.localStorage.getItem("auth_token");
+      if (!token) return;
+      const part = token.split(".")[1];
+      const json = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+      setIsAdmin(String(json?.role ?? "") === "Admin");
+    } catch {
+      setIsAdmin(false);
+    }
   }, []);
 
   const filtered = useMemo(() => {
@@ -96,6 +121,10 @@ export default function PurchaseOrdersPage() {
   };
 
   const openEdit = async (id: number) => {
+    if (!isAdmin) {
+      toast({ title: "Forbidden", description: "Only Admin can edit purchase orders.", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     try {
       const data: any = await fetchPurchaseOrder(String(id));
@@ -115,6 +144,14 @@ export default function PurchaseOrdersPage() {
           received_qty: Number(it.received_qty ?? 0),
         })),
       });
+
+      const sid = Number(po?.supplier_id ?? 0);
+      if (sid > 0) {
+        const partRows = await fetchPartsForSupplier(sid, "");
+        setParts(Array.isArray(partRows) ? partRows : []);
+      } else {
+        setParts([]);
+      }
       setDialogOpen(true);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load PO", variant: "destructive" });
@@ -123,11 +160,32 @@ export default function PurchaseOrdersPage() {
     }
   };
 
+  useEffect(() => {
+    const sid = Number(form.supplier_id);
+    if (!dialogOpen) return;
+    if (!Number.isFinite(sid) || sid <= 0) {
+      setParts([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const partRows = await fetchPartsForSupplier(sid, "");
+        setParts(Array.isArray(partRows) ? partRows : []);
+      } catch {
+        setParts([]);
+      }
+    })();
+  }, [form.supplier_id, dialogOpen]);
+
   const addLine = () => setForm((p) => ({ ...p, items: [...p.items, { part_id: 0, qty_ordered: 1, unit_cost: 0 }] }));
   const removeLine = (idx: number) => setForm((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editId && !isAdmin) {
+      toast({ title: "Forbidden", description: "Only Admin can edit purchase orders.", variant: "destructive" });
+      return;
+    }
     const supplierId = Number(form.supplier_id);
     const items = form.items
       .map((it) => ({
@@ -164,6 +222,10 @@ export default function PurchaseOrdersPage() {
   };
 
   const quickStatus = async (id: number, status: string) => {
+    if (!isAdmin) {
+      toast({ title: "Forbidden", description: "Only Admin can update purchase order status.", variant: "destructive" });
+      return;
+    }
     try {
       await setPurchaseOrderStatus(String(id), status);
       toast({ title: "Updated", description: `Status set to ${status}` });
@@ -178,6 +240,15 @@ export default function PurchaseOrdersPage() {
     if (!p) return "Select item...";
     return p.sku ? `${p.part_name} (${p.sku})` : p.part_name;
   };
+
+  const selectedPartIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const it of form.items) {
+      const id = Number(it.part_id);
+      if (Number.isFinite(id) && id > 0) s.add(id);
+    }
+    return s;
+  }, [form.items]);
 
   return (
     <DashboardLayout>
@@ -247,6 +318,14 @@ export default function PurchaseOrdersPage() {
                               value={String(it.part_id || "")}
                               onValueChange={(v) => {
                                 const partId = Number(v);
+                                // Prevent duplicate selection
+                                if (partId > 0) {
+                                  const usedElsewhere = form.items.some((x, i) => i !== idx && Number(x.part_id) === partId);
+                                  if (usedElsewhere) {
+                                    toast({ title: "Duplicate item", description: "This item is already added to the PO.", variant: "destructive" });
+                                    return;
+                                  }
+                                }
                                 const p = parts.find((x) => x.id === partId);
                                 const defaultCost = p?.cost_price ?? 0;
                                 setForm((p) => ({
@@ -264,7 +343,11 @@ export default function PurchaseOrdersPage() {
                               </SelectTrigger>
                               <SelectContent className="max-h-[280px]">
                                 {parts.map((p) => (
-                                  <SelectItem key={p.id} value={String(p.id)}>
+                                  <SelectItem
+                                    key={p.id}
+                                    value={String(p.id)}
+                                    disabled={selectedPartIds.has(Number(p.id)) && Number(p.id) !== Number(it.part_id)}
+                                  >
                                     {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
                                   </SelectItem>
                                 ))}
@@ -354,6 +437,7 @@ export default function PurchaseOrdersPage() {
                     <TableHead>PO</TableHead>
                     <TableHead>Supplier</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="hidden lg:table-cell">GRN</TableHead>
                     <TableHead className="hidden md:table-cell">Ordered</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -376,20 +460,54 @@ export default function PurchaseOrdersPage() {
                       <TableCell>
                         <Badge variant="secondary" className="text-[10px]">{po.status}</Badge>
                       </TableCell>
+                      <TableCell className="hidden lg:table-cell text-sm">
+                        {po.last_grn_number ? (
+                          <Badge variant="outline" className="text-[10px]">{po.last_grn_number}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {po.ordered_at ? new Date(po.ordered_at.replace(" ", "T")).toLocaleString() : "-"}
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="inline-flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => void openEdit(po.id)} title="Edit">
-                            <Pencil className="w-4 h-4" />
+                          {isAdmin ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => void openEdit(po.id)}
+                              title="Edit"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                          ) : null}
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => onPrint(po.id)} title="Print">
+                            <Printer className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => void quickStatus(po.id, "Sent")} title="Mark Sent">
-                            <Send className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => void quickStatus(po.id, "Cancelled")} title="Cancel">
-                            <CheckCircle2 className="w-4 h-4 rotate-45" />
-                          </Button>
+                          {isAdmin && String(po.status) !== "Received" ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => onReceive(po.id)}
+                              title="Mark as received (create GRN)"
+                            >
+                              <PackageCheck className="w-4 h-4" />
+                            </Button>
+                          ) : null}
+                          {isAdmin ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => void quickStatus(po.id, "Sent")}
+                              title="Mark Sent"
+                            >
+                              <Send className="w-4 h-4" />
+                            </Button>
+                          ) : null}
                         </div>
                       </TableCell>
                     </TableRow>

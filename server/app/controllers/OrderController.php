@@ -63,6 +63,7 @@ class OrderController extends Controller {
                 'mileage' => $data['mileage'] ?? null,
                 'priority' => $data['priority'] ?? null,
                 'expected_time' => $data['expected_time'] ?? $data['expectedTime'] ?? null,
+                'release_time' => $data['release_time'] ?? $data['releaseTime'] ?? null,
                 'comments' => $data['comments'] ?? null,
                 'location' => $data['location'] ?? null,
                 'technician' => $data['technician'] ?? null,
@@ -139,7 +140,41 @@ class OrderController extends Controller {
             }
 
             $locId = $this->currentLocationId($u);
-            if ($this->orderModel->updateStatus($id, $data['status'], (int)$u['sub'], $locId)) {
+            $newStatus = (string)$data['status'];
+            if ($this->orderModel->updateStatus($id, $newStatus, (int)$u['sub'], $locId)) {
+                // If the order is closed, release its bay if no other active orders remain.
+                if (in_array($newStatus, ['Completed', 'Cancelled'], true)) {
+                    try {
+                        $db = new Database();
+                        $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc LIMIT 1");
+                        $db->bind(':id', (int)$id);
+                        $db->bind(':loc', $locId);
+                        $row = $db->single();
+                        $bay = $row ? trim((string)($row->location ?? '')) : '';
+                        if ($bay !== '') {
+                            $db->query("
+                                SELECT COUNT(*) AS cnt
+                                FROM repair_orders
+                                WHERE location_id = :loc
+                                  AND status IN ('Pending','In Progress')
+                                  AND location = :bay
+                            ");
+                            $db->bind(':loc', $locId);
+                            $db->bind(':bay', $bay);
+                            $r2 = $db->single();
+                            $cnt = (int)($r2->cnt ?? 0);
+                            if ($cnt <= 0) {
+                                $db->query("UPDATE service_bays SET status = 'Available', updated_by = :u WHERE name = :name AND location_id = :loc");
+                                $db->bind(':u', (int)$u['sub']);
+                                $db->bind(':name', $bay);
+                                $db->bind(':loc', $locId);
+                                $db->execute();
+                            }
+                        }
+                    } catch (Exception $e) {
+                        // ignore best-effort
+                    }
+                }
                 $this->success(['id' => $id, 'status' => $data['status']], 'Status updated');
             } else {
                 $this->error('Update failed');
@@ -147,6 +182,303 @@ class OrderController extends Controller {
         } else {
             $this->error('Method Not Allowed', 405);
         }
+    }
+
+    // POST /api/order/update_release/1
+    // Body: { release_time?: string|null }
+    public function update_release($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $release = $data['release_time'] ?? $data['releaseTime'] ?? null;
+        $release = $release === '' ? null : $release;
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $db = new Database();
+        $db->query("UPDATE repair_orders SET release_time = :release_time, updated_by = :u WHERE id = :id AND location_id = :loc");
+        $db->bind(':release_time', $release);
+        $db->bind(':u', (int)$u['sub']);
+        $db->bind(':id', (int)$id);
+        $db->bind(':loc', $locId);
+        if ($db->execute()) {
+            $this->success(['id' => (int)$id, 'release_time' => $release], 'Release time updated');
+        } else {
+            $this->error('Update failed');
+        }
+    }
+
+    // POST /api/order/complete/1
+    // Body: { status?: "Completed", checklist_done?: Array, checklist_done_json?: string, completion_comments?: string }
+    public function complete($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $status = isset($data['status']) ? trim((string)$data['status']) : 'Completed';
+        if ($status === '') $status = 'Completed';
+
+        $checklistDoneJson = null;
+        if (isset($data['checklist_done_json'])) {
+            $checklistDoneJson = $data['checklist_done_json'];
+        } elseif (isset($data['checklist_done']) && is_array($data['checklist_done'])) {
+            $checklistDoneJson = json_encode($data['checklist_done']);
+        }
+
+        $completionComments = isset($data['completion_comments']) ? trim((string)$data['completion_comments']) : null;
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $db = new Database();
+        try {
+            $db->exec("START TRANSACTION");
+            $db->query("
+                UPDATE repair_orders
+                SET status = :status,
+                    checklist_done_json = :checklist_done_json,
+                    completion_comments = :completion_comments,
+                    completed_at = NOW(),
+                    updated_by = :u
+                WHERE id = :id AND location_id = :loc
+            ");
+            $db->bind(':status', $status);
+            $db->bind(':checklist_done_json', $checklistDoneJson);
+            $db->bind(':completion_comments', $completionComments);
+            $db->bind(':u', (int)$u['sub']);
+            $db->bind(':id', (int)$id);
+            $db->bind(':loc', $locId);
+            $ok = $db->execute();
+            if (!$ok) {
+                $db->exec("ROLLBACK");
+                $this->error('Update failed', 400);
+            }
+
+            // Release bay if no other active orders remain in that bay.
+            if (in_array($status, ['Completed', 'Cancelled'], true)) {
+                $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc LIMIT 1");
+                $db->bind(':id', (int)$id);
+                $db->bind(':loc', $locId);
+                $row = $db->single();
+                $bay = $row ? trim((string)($row->location ?? '')) : '';
+                if ($bay !== '') {
+                    $db->query("
+                        SELECT COUNT(*) AS cnt
+                        FROM repair_orders
+                        WHERE location_id = :loc
+                          AND status IN ('Pending','In Progress')
+                          AND location = :bay
+                    ");
+                    $db->bind(':loc', $locId);
+                    $db->bind(':bay', $bay);
+                    $r2 = $db->single();
+                    $cnt = (int)($r2->cnt ?? 0);
+                    if ($cnt <= 0) {
+                        $db->query("UPDATE service_bays SET status = 'Available', updated_by = :u WHERE name = :name AND location_id = :loc");
+                        $db->bind(':u', (int)$u['sub']);
+                        $db->bind(':name', $bay);
+                        $db->bind(':loc', $locId);
+                        $db->execute();
+                    }
+                }
+            }
+
+            $db->exec("COMMIT");
+        } catch (Exception $e) {
+            try { $db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            $this->error('Update failed', 400);
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'location_id' => $locId,
+            'action' => 'update',
+            'entity' => 'repair_order_complete',
+            'entity_id' => (int)$id,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['status' => $status]),
+        ]);
+
+        $this->success(['id' => (int)$id, 'status' => $status], 'Order completed');
+    }
+
+    // POST /api/order/assign/1
+    // Body: { bay_id?: number, bay_name?: string, technician?: string, status?: string }
+    // - bay is stored in repair_orders.location (bay name)
+    // - technician stored in repair_orders.technician
+    // - status defaults to "In Progress" when bay is set, otherwise "Pending"
+    public function assign($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $bayId = isset($data['bay_id']) ? (int)$data['bay_id'] : (isset($data['bayId']) ? (int)$data['bayId'] : 0);
+        $bayName = isset($data['bay_name']) ? trim((string)$data['bay_name']) : (isset($data['bay']) ? trim((string)$data['bay']) : '');
+        $technician = isset($data['technician']) ? trim((string)$data['technician']) : '';
+        $release = $data['release_time'] ?? $data['releaseTime'] ?? null;
+        $release = $release === '' ? null : $release;
+        $status = isset($data['status']) ? trim((string)$data['status']) : '';
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $oldBay = trim((string)($order->location ?? ''));
+
+        // Resolve bay name from bay_id if provided.
+        if ($bayId > 0) {
+            $db = new Database();
+            $db->query("SELECT name FROM service_bays WHERE id = :id AND location_id = :loc LIMIT 1");
+            $db->bind(':id', $bayId);
+            $db->bind(':loc', $locId);
+            $b = $db->single();
+            if (!$b) $this->error('Invalid bay', 400);
+            $bayName = trim((string)($b->name ?? ''));
+        }
+
+        // If a bay name is provided, ensure it exists in this location.
+        if ($bayName !== '') {
+            $db = new Database();
+            $db->query("SELECT id FROM service_bays WHERE name = :name AND location_id = :loc LIMIT 1");
+            $db->bind(':name', $bayName);
+            $db->bind(':loc', $locId);
+            $b2 = $db->single();
+            if (!$b2) $this->error('Invalid bay', 400);
+
+            // Prevent assigning to a bay already occupied by another active order.
+            $db->query("
+                SELECT COUNT(*) AS cnt
+                FROM repair_orders
+                WHERE location_id = :loc
+                  AND status IN ('Pending','In Progress')
+                  AND location = :bay
+                  AND id <> :id
+            ");
+            $db->bind(':loc', $locId);
+            $db->bind(':bay', $bayName);
+            $db->bind(':id', (int)$id);
+            $rowBusy = $db->single();
+            if ((int)($rowBusy->cnt ?? 0) > 0) {
+                $this->error('Bay is already occupied', 400);
+            }
+        }
+
+        if ($status === '') {
+            $status = ($bayName !== '') ? 'In Progress' : 'Pending';
+        }
+
+        // Persist assignment and update bay status using the SAME DB connection/transaction.
+        $db = new Database();
+        try {
+            $db->exec("START TRANSACTION");
+
+            // Lock the order row and capture old bay name inside the transaction.
+            $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc FOR UPDATE");
+            $db->bind(':id', (int)$id);
+            $db->bind(':loc', $locId);
+            $rowOrder = $db->single();
+            if (!$rowOrder) {
+                $db->exec("ROLLBACK");
+                $this->error('Order not found', 404);
+            }
+            $oldBay = trim((string)($rowOrder->location ?? ''));
+
+            // Update order assignment.
+            $db->query("
+                UPDATE repair_orders
+                SET location = :bay,
+                    technician = :technician,
+                    release_time = :release_time,
+                    status = :status,
+                    updated_by = :u
+                WHERE id = :id AND location_id = :loc
+            ");
+            $db->bind(':bay', $bayName !== '' ? $bayName : null);
+            $db->bind(':technician', $technician !== '' ? $technician : null);
+            $db->bind(':release_time', $release);
+            $db->bind(':status', (string)$status);
+            $db->bind(':u', (int)$u['sub']);
+            $db->bind(':id', (int)$id);
+            $db->bind(':loc', $locId);
+            $ok = $db->execute();
+            if (!$ok) {
+                $db->exec("ROLLBACK");
+                $this->error('Assign failed', 400);
+            }
+
+            // Mark newly assigned bay as occupied.
+            if ($bayName !== '') {
+                $db->query("UPDATE service_bays SET status = 'Occupied', updated_by = :u WHERE name = :name AND location_id = :loc");
+                $db->bind(':u', (int)$u['sub']);
+                $db->bind(':name', $bayName);
+                $db->bind(':loc', $locId);
+                $db->execute();
+            }
+
+            // If order moved from a different bay, release old bay if no active orders remain.
+            if ($oldBay !== '' && $oldBay !== $bayName) {
+                $db->query("
+                    SELECT COUNT(*) AS cnt
+                    FROM repair_orders
+                    WHERE location_id = :loc
+                      AND status IN ('Pending','In Progress')
+                      AND location = :bay
+                ");
+                $db->bind(':loc', $locId);
+                $db->bind(':bay', $oldBay);
+                $row = $db->single();
+                $cnt = (int)($row->cnt ?? 0);
+                if ($cnt <= 0) {
+                    $db->query("UPDATE service_bays SET status = 'Available', updated_by = :u WHERE name = :name AND location_id = :loc");
+                    $db->bind(':u', (int)$u['sub']);
+                    $db->bind(':name', $oldBay);
+                    $db->bind(':loc', $locId);
+                    $db->execute();
+                }
+            }
+
+            $db->exec("COMMIT");
+        } catch (Exception $e) {
+            try { $db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            $this->error('Assign failed', 400);
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'location_id' => $locId,
+            'action' => 'update',
+            'entity' => 'repair_order_assign',
+            'entity_id' => (int)$id,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['bay' => ($bayName !== '' ? $bayName : null), 'technician' => ($technician !== '' ? $technician : null), 'status' => $status]),
+        ]);
+
+        $this->success([
+            'id' => (int)$id,
+            'location' => ($bayName !== '' ? $bayName : null),
+            'technician' => ($technician !== '' ? $technician : null),
+            'release_time' => $release,
+            'status' => $status
+        ], 'Assigned');
     }
 
     // GET /api/order/parts/1

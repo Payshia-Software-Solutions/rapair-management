@@ -13,18 +13,20 @@ class GrnController extends Controller {
 
     // GET /api/grn/list?q=
     public function list() {
-        $this->requirePermission('grn.read');
+        $u = $this->requirePermission('grn.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
-        $rows = $this->grnModel->list($_GET['q'] ?? '');
+        $locId = $this->currentLocationId($u);
+        $rows = $this->grnModel->list($_GET['q'] ?? '', $locId);
         $this->success($rows);
     }
 
     // GET /api/grn/get/1
     public function get($id = null) {
-        $this->requirePermission('grn.read');
+        $u = $this->requirePermission('grn.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('GRN ID required', 400);
-        $row = $this->grnModel->getById($id);
+        $locId = $this->currentLocationId($u);
+        $row = $this->grnModel->getById($id, $locId);
         if (!$row) $this->error('Not found', 404);
         $this->success($row);
     }
@@ -35,6 +37,31 @@ class GrnController extends Controller {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $locId = $this->currentLocationId($u);
+
+        // If linked to a PO, GRN must be recorded under the PO's location (read-only in UI).
+        $poId = isset($data['purchase_order_id']) ? (int)$data['purchase_order_id'] : null;
+        if ($poId) {
+            try {
+                $db = new Database();
+                $db->query("SELECT location_id FROM purchase_orders WHERE id = :id LIMIT 1");
+                $db->bind(':id', (int)$poId);
+                $row = $db->single();
+                $poLocId = (int)($row->location_id ?? 0);
+                if ($poLocId > 0) {
+                    // Non-admin users must be assigned to this location.
+                    if (!$this->isAdmin($u)) {
+                        $allowed = $u['allowed_location_ids'] ?? null;
+                        $allowedIds = is_array($allowed) ? array_map('intval', $allowed) : [];
+                        if (!in_array($poLocId, $allowedIds, true) && (int)($u['location_id'] ?? 0) !== $poLocId) {
+                            $this->error('Forbidden', 403);
+                        }
+                    }
+                    $locId = $poLocId;
+                }
+            } catch (Exception $e) {
+                // ignore; model will still validate PO existence/status.
+            }
+        }
         $grnId = $this->grnModel->create($data, (int)$u['sub'], $locId);
         if ($grnId) {
             $this->auditModel->write([

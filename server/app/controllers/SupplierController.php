@@ -42,16 +42,25 @@ class SupplierController extends Controller {
             'email' => isset($data['email']) ? trim((string)$data['email']) : null,
             'phone' => isset($data['phone']) ? trim((string)$data['phone']) : null,
             'address' => isset($data['address']) ? trim((string)$data['address']) : null,
+            'tax_reg_no' => isset($data['tax_reg_no']) ? trim((string)$data['tax_reg_no']) : null,
             'is_active' => $data['is_active'] ?? 1,
         ];
 
-        if ($this->supplierModel->create($payload, (int)$u['sub'])) {
+        $created = $this->supplierModel->create($payload, (int)$u['sub']);
+        if ($created) {
+            $sid = is_int($created) ? $created : null;
+            if ($sid) {
+                $taxIds = $data['tax_ids'] ?? null;
+                if (is_array($taxIds)) {
+                    $this->supplierModel->setTaxes($sid, $taxIds, (int)$u['sub']);
+                }
+            }
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'location_id' => $this->currentLocationId($u),
                 'action' => 'create',
                 'entity' => 'supplier',
-                'entity_id' => null,
+                'entity_id' => $sid,
                 'method' => $_SERVER['REQUEST_METHOD'] ?? '',
                 'path' => $_SERVER['REQUEST_URI'] ?? '',
                 'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
@@ -77,10 +86,15 @@ class SupplierController extends Controller {
             'email' => isset($data['email']) ? trim((string)$data['email']) : null,
             'phone' => isset($data['phone']) ? trim((string)$data['phone']) : null,
             'address' => isset($data['address']) ? trim((string)$data['address']) : null,
+            'tax_reg_no' => isset($data['tax_reg_no']) ? trim((string)$data['tax_reg_no']) : null,
             'is_active' => $data['is_active'] ?? 1,
         ];
 
         if ($this->supplierModel->update($id, $payload, (int)$u['sub'])) {
+            $taxIds = $data['tax_ids'] ?? null;
+            if (is_array($taxIds)) {
+                $this->supplierModel->setTaxes((int)$id, $taxIds, (int)$u['sub']);
+            }
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'location_id' => $this->currentLocationId($u),
@@ -121,4 +135,3 @@ class SupplierController extends Controller {
         $this->error('Failed to delete supplier', 500);
     }
 }
-

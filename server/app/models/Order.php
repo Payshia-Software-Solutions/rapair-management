@@ -16,9 +16,13 @@ class Order extends Model {
             'mileage' => "INT NULL",
             'priority' => "VARCHAR(20) NULL",
             'expected_time' => "DATETIME NULL",
+            'release_time' => "DATETIME NULL",
             'comments' => "TEXT NULL",
             'categories_json' => "TEXT NULL",
             'checklist_json' => "TEXT NULL",
+            'checklist_done_json' => "TEXT NULL",
+            'completion_comments' => "TEXT NULL",
+            'completed_at' => "DATETIME NULL",
             'attachments_json' => "TEXT NULL",
             'location' => "VARCHAR(50) NULL",
             'technician' => "VARCHAR(255) NULL",
@@ -72,9 +76,9 @@ class Order extends Model {
         $this->ensureRepairOrderColumns();
         $this->db->query("
             INSERT INTO {$this->table}
-            (location_id, customer_name, vehicle_model, problem_description, status, vehicle_id, vehicle_identifier, mileage, priority, expected_time, comments, categories_json, checklist_json, attachments_json, location, technician, created_by, updated_by)
+            (location_id, customer_name, vehicle_model, problem_description, status, vehicle_id, vehicle_identifier, mileage, priority, expected_time, release_time, comments, categories_json, checklist_json, attachments_json, location, technician, created_by, updated_by)
             VALUES
-            (:location_id, :customer_name, :vehicle_model, :problem_description, :status, :vehicle_id, :vehicle_identifier, :mileage, :priority, :expected_time, :comments, :categories_json, :checklist_json, :attachments_json, :location, :technician, :created_by, :updated_by)
+            (:location_id, :customer_name, :vehicle_model, :problem_description, :status, :vehicle_id, :vehicle_identifier, :mileage, :priority, :expected_time, :release_time, :comments, :categories_json, :checklist_json, :attachments_json, :location, :technician, :created_by, :updated_by)
         ");
         
         // Bind values
@@ -88,6 +92,7 @@ class Order extends Model {
         $this->db->bind(':mileage', $data['mileage'] ?? null);
         $this->db->bind(':priority', $data['priority'] ?? null);
         $this->db->bind(':expected_time', $data['expected_time'] ?? null);
+        $this->db->bind(':release_time', $data['release_time'] ?? null);
         $this->db->bind(':comments', $data['comments'] ?? null);
         $this->db->bind(':categories_json', $data['categories_json'] ?? null);
         $this->db->bind(':checklist_json', $data['checklist_json'] ?? null);
@@ -124,6 +129,25 @@ class Order extends Model {
         $this->db->bind(':status', $status);
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', $id);
+        $this->db->bind(':location_id', (int)$locationId);
+        return $this->db->execute();
+    }
+
+    public function assignBayAndTechnician($id, $bayName, $technicianName, $status, $userId = null, $locationId = 1) {
+        $this->ensureRepairOrderColumns();
+        $this->db->query("
+            UPDATE {$this->table}
+            SET location = :bay,
+                technician = :technician,
+                status = :status,
+                updated_by = :updated_by
+            WHERE id = :id AND location_id = :location_id
+        ");
+        $this->db->bind(':bay', $bayName !== null ? (string)$bayName : null);
+        $this->db->bind(':technician', $technicianName !== null ? (string)$technicianName : null);
+        $this->db->bind(':status', (string)$status);
+        $this->db->bind(':updated_by', $userId);
+        $this->db->bind(':id', (int)$id);
         $this->db->bind(':location_id', (int)$locationId);
         return $this->db->execute();
     }

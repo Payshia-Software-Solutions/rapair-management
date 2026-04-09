@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { DashboardLayout } from '@/components/dashboard-layout';
-import { fetchOrders, fetchBays, fetchTechnicians } from '@/lib/api';
+import { assignOrder, fetchOrders, fetchBays, fetchTechnicians, updateOrder } from '@/lib/api';
 // import { INITIAL_REPAIR_ORDERS, BAYS, TECHNICIANS, MOCK_USER } from '@/lib/mock-data';
 
 import { RepairOrder, Priority, RepairStatus, BayLocation, UserRole } from '@/lib/types';
@@ -33,7 +33,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { 
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
   Filter, 
   MoreHorizontal, 
   ArrowUpDown, 
@@ -59,13 +60,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from '@/components/ui/label';
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -95,19 +89,40 @@ export default function OrderQueuePage() {
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>('Admin');
+  const [currentLocationName, setCurrentLocationName] = useState<string>('');
+  const [assignStep, setAssignStep] = useState<'bay' | 'tech'>('bay');
 
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [ordersData, baysData, techsData] = await Promise.all([
-          fetchOrders(),
-          fetchBays(),
-          fetchTechnicians()
-        ]);
+        // Load orders first (core screen), then try bays/techs independently.
+        const ordersData = await fetchOrders();
         setOrders(ordersData);
-        setBaysList(baysData);
-        setTechsList(techsData);
+
+        try {
+          const baysData = await fetchBays();
+          setBaysList(baysData as any);
+        } catch (e) {
+          setBaysList([]);
+          toast({
+            title: "Bays not available",
+            description: (e as Error).message,
+            variant: "destructive"
+          });
+        }
+
+        try {
+          const techsData = await fetchTechnicians();
+          setTechsList(techsData as any);
+        } catch (e) {
+          setTechsList([]);
+          toast({
+            title: "Technicians not available",
+            description: (e as Error).message,
+            variant: "destructive"
+          });
+        }
       } catch (error) {
         toast({
           title: "Error loading data",
@@ -121,46 +136,94 @@ export default function OrderQueuePage() {
 
     loadData();
 
-    const savedRole = localStorage.getItem('userRole') as UserRole;
-    setUserRole(savedRole || 'Admin');
+    // Derive user role and current location from JWT (avoids any old/mock localStorage values).
+    try {
+      const token = window.localStorage.getItem('auth_token');
+      const lsLocName = window.localStorage.getItem('location_name') || '';
+      if (lsLocName) setCurrentLocationName(lsLocName);
+      if (token) {
+        const part = token.split('.')[1];
+        const payload = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+        const role = String(payload?.role || 'Admin') as UserRole;
+        setUserRole(role);
+        const tokenLocName = String(payload?.location_name || '');
+        if (!lsLocName && tokenLocName) setCurrentLocationName(tokenLocName);
+      }
+    } catch {
+      // ignore
+    }
   }, []);
 
   const [assignment, setAssignment] = useState({
     bay: '' as BayLocation,
     technician: '',
-    proposedTime: ''
+    proposedTime: '',
+    releaseTime: ''
   });
+
+  const techOptions = React.useMemo(() => {
+    return (techsList ?? [])
+      .map((t: any) => ({
+        value: String(t?.name ?? ''),
+        label: String(t?.name ?? ''),
+        keywords: String(t?.role ?? ''),
+      }))
+      .filter((o) => o.value && o.label);
+  }, [techsList]);
 
   const handleOpenAssign = (order: RepairOrder) => {
     setSelectedOrder(order);
     setAssignment({
       bay: order.location || '' as BayLocation,
       technician: order.technician || '',
-      proposedTime: order.proposedTime || ''
+      proposedTime: order.proposedTime || '',
+      releaseTime: order.releaseTime || ''
     });
+    setAssignStep('bay');
     setIsAssignDialogOpen(true);
   };
 
-  const handleAssignSubmit = () => {
+  const handleAssignSubmit = async () => {
     if (!selectedOrder) return;
-    
-    setOrders(prev => prev.map(o => 
-      o.id === selectedOrder.id 
-        ? { 
-            ...o, 
-            location: assignment.bay, 
-            technician: assignment.technician, 
-            proposedTime: assignment.proposedTime,
-            status: 'In Progress' as RepairStatus
-          } 
-        : o
-    ));
 
-    toast({
-      title: "Vehicle Assigned",
-      description: `Assigned ${selectedOrder.vehicleId} to ${assignment.bay}.`
-    });
-    setIsAssignDialogOpen(false);
+    try {
+      const res = await assignOrder(String(selectedOrder.id), {
+        bay_name: assignment.bay || undefined,
+        technician: assignment.technician || undefined,
+        release_time: assignment.releaseTime || null,
+      });
+      const d = (res as any)?.data ?? null;
+      const nextLocation = d?.location ?? assignment.bay ?? '';
+      const nextTech = d?.technician ?? assignment.technician ?? '';
+      const nextStatus = d?.status ?? (nextLocation ? 'In Progress' : 'Pending');
+      const nextRelease = d?.release_time ?? assignment.releaseTime ?? '';
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === selectedOrder.id
+            ? {
+                ...o,
+                location: nextLocation,
+                technician: nextTech,
+                releaseTime: nextRelease,
+                status: nextStatus as RepairStatus,
+              }
+            : o
+        )
+      );
+
+      toast({
+        title: "Vehicle Assigned",
+        description: nextLocation ? `Assigned ${selectedOrder.vehicleId} to ${nextLocation}.` : `Assignment updated for ${selectedOrder.vehicleId}.`,
+      });
+      setIsAssignDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Assign failed",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleOpenComplete = (order: RepairOrder) => {
@@ -168,24 +231,35 @@ export default function OrderQueuePage() {
     setIsCompleteDialogOpen(true);
   };
 
-  const handleCompleteSubmit = () => {
+  const handleCompleteSubmit = async () => {
     if (!selectedOrder) return;
 
-    setOrders(prev => prev.map(o => 
-      o.id === selectedOrder.id 
-        ? { 
-            ...o, 
-            status: 'Completed' as RepairStatus,
-            completedAt: new Date().toISOString()
-          } 
-        : o
-    ));
+    try {
+      await updateOrder(String(selectedOrder.id), { status: 'Completed' });
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === selectedOrder.id
+            ? {
+                ...o,
+                status: 'Completed' as RepairStatus,
+                completedAt: new Date().toISOString(),
+              }
+            : o
+        )
+      );
 
-    toast({
-      title: "Repair Completed",
-      description: `Job finished for ${selectedOrder.vehicleId}.`
-    });
-    setIsCompleteDialogOpen(false);
+      toast({
+        title: "Repair Completed",
+        description: `Job finished for ${selectedOrder.vehicleId}.`,
+      });
+      setIsCompleteDialogOpen(false);
+    } catch (error) {
+      toast({
+        title: "Complete failed",
+        description: (error as Error).message,
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteOrder = (orderId: string) => {
@@ -452,7 +526,7 @@ export default function OrderQueuePage() {
 
       {/* Assignment Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent className="sm:max-w-[425px] w-[95vw] rounded-xl">
+        <DialogContent className="sm:max-w-[720px] w-[96vw] max-h-[85vh] rounded-xl overflow-hidden">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
@@ -463,38 +537,122 @@ export default function OrderQueuePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="bay">Location / Bay</Label>
-              <Select 
-                value={assignment.bay} 
-                onValueChange={(val) => setAssignment({...assignment, bay: val as BayLocation})}
-              >
-                <SelectTrigger id="bay">
-                  <SelectValue placeholder="Select bay" />
-                </SelectTrigger>
-                <SelectContent>
-                  {baysList.map(bay => <SelectItem key={bay.id} value={bay.name}>{bay.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+            <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2 text-sm">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="h-4 w-4" />
+                <span>Location</span>
+              </div>
+              <div className="font-semibold text-foreground">{currentLocationName || 'Current location'}</div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="tech">Technician</Label>
-              <Select 
-                value={assignment.technician} 
-                onValueChange={(val) => setAssignment({...assignment, technician: val})}
-              >
-                <SelectTrigger id="tech">
-                  <SelectValue placeholder="Select technician" />
-                </SelectTrigger>
-                <SelectContent>
-                  {techsList.map(t => <SelectItem key={t.id} value={t.name}>{t.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
+
+            {assignStep === 'bay' ? (
+              <div className="space-y-2">
+                <Label>Choose Bay</Label>
+                <ScrollArea className="max-h-[50vh] pr-2">
+                  <div className="grid gap-2">
+                    {baysList.length === 0 ? (
+                      <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                        No bays available for this location.
+                      </div>
+                    ) : (
+                      baysList.map((bay) => {
+                        const active = assignment.bay === bay.name;
+                        const isOccupied = String((bay as any).status || '').toLowerCase() === 'occupied';
+                        const disabled = isOccupied && !active;
+                        return (
+                          <button
+                            key={bay.id}
+                            type="button"
+                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${active ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            onClick={() => {
+                              if (disabled) return;
+                              setAssignment({ ...assignment, bay: bay.name as BayLocation });
+                            }}
+                            disabled={disabled}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold">{bay.name}</span>
+                              <span className="text-xs rounded-full px-2 py-0.5 border bg-white/80">
+                                {String((bay as any).status || "Available")}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <div className="text-muted-foreground">Selected Bay</div>
+                  <div className="font-semibold">{assignment.bay || 'Unassigned'}</div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Release Time</Label>
+                  <Input
+                    type="datetime-local"
+                    value={assignment.releaseTime}
+                    onChange={(e) => setAssignment({ ...assignment, releaseTime: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Planned release time (can differ from expected).
+                  </p>
+                </div>
+                <Label>Choose Technician</Label>
+                {techOptions.length > 0 ? (
+                  <ScrollArea className="max-h-[50vh] pr-2">
+                    <div className="grid gap-2">
+                      {techOptions.map((t) => {
+                        const active = assignment.technician === t.value;
+                        return (
+                          <button
+                            key={t.value}
+                            type="button"
+                            className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition-colors ${active ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'}`}
+                            onClick={() => setAssignment({ ...assignment, technician: t.value })}
+                          >
+                            <div className="font-semibold">{t.label}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <div className="space-y-1">
+                    <Input
+                      id="tech"
+                      placeholder="Type technician name"
+                      value={assignment.technician || ''}
+                      onChange={(e) => setAssignment({ ...assignment, technician: e.target.value })}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      No technicians available. Add technicians in Master Data or type a name here.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter className="flex-row gap-2">
             <Button variant="outline" className="flex-1" onClick={() => setIsAssignDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAssignSubmit} className="flex-1 bg-primary">Confirm</Button>
+            {assignStep === 'bay' ? (
+              <Button
+                onClick={() => setAssignStep('tech')}
+                className="flex-1 bg-primary"
+                disabled={!assignment.bay}
+              >
+                Next
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" className="flex-1" onClick={() => setAssignStep('bay')}>Back</Button>
+                <Button onClick={handleAssignSubmit} className="flex-1 bg-primary" disabled={!assignment.bay}>
+                  Confirm
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

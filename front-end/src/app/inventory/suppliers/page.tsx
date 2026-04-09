@@ -12,9 +12,12 @@ import { useToast } from "@/hooks/use-toast";
 import {
   createSupplier,
   deleteSupplier,
+  fetchSupplier,
   fetchSuppliers,
+  fetchTaxes,
   updateSupplier,
   type SupplierRow,
+  type TaxRow,
 } from "@/lib/api";
 import { Plus, Search, Trash2, Pencil, Loader2, AlertCircle, Truck } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -33,6 +36,8 @@ export default function SuppliersPage() {
   const [items, setItems] = useState<SupplierRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [taxes, setTaxes] = useState<TaxRow[]>([]);
+  const [loadingTaxes, setLoadingTaxes] = useState(false);
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -42,7 +47,9 @@ export default function SuppliersPage() {
     email: "",
     phone: "",
     address: "",
+    tax_reg_no: "",
     is_active: true,
+    tax_ids: [] as number[],
   });
 
   const load = async () => {
@@ -71,22 +78,59 @@ export default function SuppliersPage() {
     );
   }, [items, query]);
 
+  const loadTaxes = async () => {
+    setLoadingTaxes(true);
+    try {
+      const data = await fetchTaxes("", { all: true });
+      const rows = Array.isArray(data) ? (data as TaxRow[]) : [];
+      setTaxes(rows.filter((t) => (t as any).is_active !== 0));
+    } catch (e: any) {
+      setTaxes([]);
+      toast({ title: "Error", description: e?.message || "Failed to load taxes", variant: "destructive" });
+    } finally {
+      setLoadingTaxes(false);
+    }
+  };
+
+  const loadSupplierDetails = async (id: number) => {
+    try {
+      const row = await fetchSupplier(String(id));
+      setForm({
+        name: row.name ?? "",
+        email: row.email ?? "",
+        phone: row.phone ?? "",
+        address: row.address ?? "",
+        tax_reg_no: (row as any).tax_reg_no ?? "",
+        is_active: Boolean(row.is_active),
+        tax_ids: Array.isArray((row as any).tax_ids) ? ((row as any).tax_ids as number[]) : [],
+      });
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Failed to load supplier details", variant: "destructive" });
+      const s = items.find((x) => x.id === id);
+      setForm({
+        name: s?.name ?? "",
+        email: s?.email ?? "",
+        phone: s?.phone ?? "",
+        address: s?.address ?? "",
+        tax_reg_no: (s as any)?.tax_reg_no ?? "",
+        is_active: Boolean(s?.is_active),
+        tax_ids: [],
+      });
+    }
+  };
+
   const openAdd = () => {
     setEditId(null);
-    setForm({ name: "", email: "", phone: "", address: "", is_active: true });
+    setForm({ name: "", email: "", phone: "", address: "", tax_reg_no: "", is_active: true, tax_ids: [] });
     setIsDialogOpen(true);
+    void loadTaxes();
   };
 
   const openEdit = (s: SupplierRow) => {
     setEditId(s.id);
-    setForm({
-      name: s.name ?? "",
-      email: s.email ?? "",
-      phone: s.phone ?? "",
-      address: s.address ?? "",
-      is_active: Boolean(s.is_active),
-    });
     setIsDialogOpen(true);
+    void loadTaxes();
+    void loadSupplierDetails(s.id);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -100,7 +144,9 @@ export default function SuppliersPage() {
         email: form.email.trim() ? form.email.trim() : null,
         phone: form.phone.trim() ? form.phone.trim() : null,
         address: form.address.trim() ? form.address.trim() : null,
+        tax_reg_no: form.tax_reg_no.trim() ? form.tax_reg_no.trim() : null,
         is_active: form.is_active ? 1 : 0,
+        tax_ids: form.tax_ids,
       };
       if (editId) {
         await updateSupplier(String(editId), payload);
@@ -171,10 +217,69 @@ export default function SuppliersPage() {
                     <Input id="address" className="col-span-3" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="tax_reg_no" className="text-right">Tax Reg No</Label>
+                    <Input
+                      id="tax_reg_no"
+                      className="col-span-3"
+                      value={form.tax_reg_no}
+                      onChange={(e) => setForm((p) => ({ ...p, tax_reg_no: e.target.value }))}
+                      placeholder="Optional (VAT/SSCL registration)"
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
                     <Label className="text-right">Active</Label>
                     <div className="col-span-3 flex items-center gap-2">
                       <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
                       <span className="text-sm text-muted-foreground">{form.is_active ? "Enabled" : "Disabled"}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right pt-2">Taxes</Label>
+                    <div className="col-span-3">
+                      <div className="text-xs text-muted-foreground mb-2">
+                        Select taxes that apply to this supplier. Compound taxes are supported by Tax sort order.
+                      </div>
+                      {loadingTaxes ? (
+                        <div className="text-sm text-muted-foreground flex items-center gap-2">
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Loading taxes...
+                        </div>
+                      ) : taxes.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No taxes found. Create taxes in Master Data → Taxes.</div>
+                      ) : (
+                        <div className="rounded-md border p-3 space-y-2 max-h-[220px] overflow-auto">
+                          {taxes.map((t) => {
+                            const checked = form.tax_ids.includes(t.id);
+                            return (
+                              <label key={t.id} className="flex items-start gap-3 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  className="mt-1"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    const on = e.target.checked;
+                                    setForm((p) => {
+                                      const cur = new Set<number>(p.tax_ids);
+                                      if (on) cur.add(t.id);
+                                      else cur.delete(t.id);
+                                      return { ...p, tax_ids: Array.from(cur) };
+                                    });
+                                  }}
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold">
+                                    {t.code} <span className="text-muted-foreground font-normal">({Number(t.rate_percent ?? 0)}%)</span>
+                                  </div>
+                                  <div className="text-xs text-muted-foreground truncate">
+                                    {t.name} • {t.apply_on === "base_plus_previous" ? "Base + previous taxes" : "Base"}
+                                  </div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -274,4 +379,3 @@ export default function SuppliersPage() {
     </DashboardLayout>
   );
 }
-

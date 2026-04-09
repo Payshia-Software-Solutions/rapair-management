@@ -14,7 +14,10 @@ class CheckController extends Controller {
         'parts',
         'order_parts',
         'units',
+        'brands',
+        'taxes',
         'suppliers',
+        'part_suppliers',
         'purchase_orders',
         'purchase_order_items',
         'goods_receive_notes',
@@ -22,6 +25,10 @@ class CheckController extends Controller {
         'stock_movements',
         'stock_adjustments',
         'stock_adjustment_items',
+        'stock_transfer_requests',
+        'stock_transfer_items',
+        'stock_transfer_requisitions',
+        'stock_transfer_requisition_items',
         'vehicles',
         'vehicle_makes',
         'vehicle_models',
@@ -43,6 +50,8 @@ class CheckController extends Controller {
         // This controller queries table existence directly, so it needs its own DB handle.
         try { InventorySchema::ensure(); } catch (Exception $e) {}
         try { UnitSchema::ensure(); } catch (Exception $e) {}
+        try { BrandSchema::ensure(); } catch (Exception $e) {}
+        try { TaxSchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 

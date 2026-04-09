@@ -10,9 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { createPart, fetchParts, fetchUnits, uploadPartImage, type UnitRow } from "@/lib/api";
-import { ArrowLeft, Loader2, Plus, Sparkles, Upload } from "lucide-react";
+import { createPart, fetchBrands, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type SupplierRow, type UnitRow } from "@/lib/api";
+import { ArrowLeft, ChevronDown, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 
 function asNumOrNull(v: string) {
   const t = v.trim();
@@ -44,6 +47,8 @@ export default function NewItemPage() {
   const { toast } = useToast();
 
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const [brands, setBrands] = useState<BrandRow[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -53,11 +58,15 @@ export default function NewItemPage() {
     barcode_number: "",
     part_name: "",
     unit: "",
+    brand_id: "",
     cost_price: "",
     price: "",
     reorder_level: "",
     is_active: true,
   });
+
+  const [supplierIds, setSupplierIds] = useState<number[]>([]);
+  const [supplierQuery, setSupplierQuery] = useState("");
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [skuTaken, setSkuTaken] = useState(false);
@@ -67,10 +76,12 @@ export default function NewItemPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const u = await fetchUnits("");
+        const [u, b, s] = await Promise.all([fetchUnits(""), fetchBrands(""), fetchSuppliers("")]);
         setUnits(Array.isArray(u) ? u : []);
+        setBrands(Array.isArray(b) ? b : []);
+        setSuppliers(Array.isArray(s) ? s : []);
       } catch (e: any) {
-        toast({ title: "Error", description: e?.message || "Failed to load units", variant: "destructive" });
+        toast({ title: "Error", description: e?.message || "Failed to load master data", variant: "destructive" });
       } finally {
         setLoading(false);
       }
@@ -120,6 +131,8 @@ export default function NewItemPage() {
         barcode_number: form.barcode_number.trim() ? form.barcode_number.trim() : null,
         part_name: form.part_name.trim(),
         unit: form.unit.trim() ? form.unit.trim() : null,
+        brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
+        supplier_ids: supplierIds,
         stock_quantity: 0,
         cost_price: asNumOrNull(form.cost_price),
         price: asNumOrNull(form.price) ?? 0,
@@ -197,14 +210,32 @@ export default function NewItemPage() {
                     <Input value={form.barcode_number} onChange={(e) => setForm((p) => ({ ...p, barcode_number: e.target.value }))} />
                     <div className="text-[11px] text-muted-foreground">Optional</div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Name</Label>
-                    <Input value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Unit</Label>
-                    <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
-                      <SelectTrigger>
+	                  <div className="space-y-2">
+	                    <Label>Name</Label>
+	                    <Input value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
+	                  </div>
+	                  <div className="space-y-2">
+	                    <Label>Brand</Label>
+	                    <Select value={form.brand_id} onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}>
+	                      <SelectTrigger>
+	                        <SelectValue placeholder="Select brand..." />
+	                      </SelectTrigger>
+	                      <SelectContent className="max-h-[280px]">
+	                        {brands.map((b) => (
+	                          <SelectItem key={b.id} value={String(b.id)}>
+	                            {b.name}
+	                          </SelectItem>
+	                        ))}
+	                      </SelectContent>
+	                    </Select>
+	                    <div className="text-[11px] text-muted-foreground">
+	                      Manage brands in <Link className="underline" href="/master-data/brands">Master Data → Brands</Link>
+	                    </div>
+	                  </div>
+	                  <div className="space-y-2">
+	                    <Label>Unit</Label>
+	                    <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
+	                      <SelectTrigger>
                         <SelectValue placeholder="Select unit..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -218,6 +249,54 @@ export default function NewItemPage() {
                     <div className="text-[11px] text-muted-foreground">
                       Manage units in <Link className="underline" href="/master-data/units">Master Data → Units</Link>
                     </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Suppliers</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button type="button" variant="outline" className="w-full justify-between">
+                          <span className="truncate">
+                            {supplierIds.length === 0 ? "Select suppliers..." : `${supplierIds.length} selected`}
+                          </span>
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[360px] p-3" align="start">
+                        <div className="space-y-2">
+                          <Input placeholder="Search suppliers..." value={supplierQuery} onChange={(e) => setSupplierQuery(e.target.value)} />
+                          <ScrollArea className="h-[240px] pr-2">
+                            <div className="space-y-2">
+                              {suppliers
+                                .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+                                .map((s) => {
+                                  const sid = Number(s.id);
+                                  const checked = supplierIds.includes(sid);
+                                  return (
+                                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={(v) => {
+                                          setSupplierIds((prev) => {
+                                            const next = new Set(prev);
+                                            if (v) next.add(sid);
+                                            else next.delete(sid);
+                                            return Array.from(next).sort((a, b) => a - b);
+                                          });
+                                        }}
+                                      />
+                                      <span className="truncate">{s.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              {suppliers.length === 0 ? (
+                                <div className="text-xs text-muted-foreground py-4 text-center">No suppliers</div>
+                              ) : null}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    <div className="text-[11px] text-muted-foreground">Optional. You can assign multiple suppliers.</div>
                   </div>
                   <div className="space-y-2">
                     <Label>Active</Label>

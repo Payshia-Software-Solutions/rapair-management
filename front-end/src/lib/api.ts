@@ -89,6 +89,7 @@ export const fetchOrders = async () => {
         mileage: typeof r.mileage === 'number' ? r.mileage : (r.mileage ? Number(r.mileage) : 0),
         priority: r.priority ?? 'Low',
         expectedTime,
+        releaseTime: r.release_time ?? r.releaseTime ?? '',
         problemDescription: r.problem_description ?? '',
         checklist: parseJsonArray(r.checklist_json),
         categories: parseJsonArray(r.categories_json),
@@ -96,6 +97,8 @@ export const fetchOrders = async () => {
         comments: r.comments ?? '',
         status,
         createdAt,
+        location: r.location ?? '',
+        technician: r.technician ?? '',
       };
     });
   }
@@ -120,6 +123,129 @@ export const createOrder = async (order: any) => {
 export const updateOrder = async (id: string, data: any) => {
   const res = await api(`/api/order/update_status/${id}`, { method: 'POST', body: JSON.stringify(data) });
   if (!res.ok) throw new Error('Failed to update order');
+  return res.json();
+};
+
+export const completeOrder = async (id: string, payload: any) => {
+  const res = await api(`/api/order/complete/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to complete order');
+  }
+  return res.json();
+};
+
+export const updateOrderRelease = async (id: string, releaseTime: string | null) => {
+  const res = await api(`/api/order/update_release/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ release_time: releaseTime }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to update release time');
+  }
+  return res.json();
+};
+
+export type StockTransferRow = {
+  id: number;
+  transfer_number: string;
+  from_location_id: number;
+  to_location_id: number;
+  from_location_name?: string;
+  to_location_name?: string;
+  status: string;
+  requested_at?: string | null;
+  notes?: string | null;
+  line_count?: number;
+  total_qty?: number;
+};
+
+export const fetchTransfers = async () => {
+  const res = await api('/api/stocktransfer/list');
+  if (!res.ok) throw new Error('Failed to load transfers');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as StockTransferRow[]) : data;
+};
+
+export const createTransfer = async (payload: any) => {
+  const res = await api('/api/stocktransfer/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create transfer');
+  }
+  return res.json();
+};
+
+export const receiveTransfer = async (id: string) => {
+  const res = await api(`/api/stocktransfer/receive/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to receive transfer');
+  }
+  return res.json();
+};
+
+export const fetchTransfer = async (id: string) => {
+  const res = await api(`/api/stocktransfer/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load transfer');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export type StockRequisitionRow = {
+  id: number;
+  requisition_number: string;
+  from_location_id?: number | null;
+  from_location_name?: string | null;
+  to_location_id: number;
+  to_location_name?: string;
+  status: string;
+  requested_at?: string | null;
+  notes?: string | null;
+  line_count?: number;
+  total_qty_requested?: number;
+  total_qty_fulfilled?: number;
+};
+
+export const fetchRequisitions = async () => {
+  const res = await api('/api/stockrequisition/list');
+  if (!res.ok) throw new Error('Failed to load requisitions');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as StockRequisitionRow[]) : data;
+};
+
+export const fetchRequisition = async (id: string) => {
+  const res = await api(`/api/stockrequisition/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load requisition');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createRequisition = async (payload: any) => {
+  const res = await api('/api/stockrequisition/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create requisition');
+  }
+  return res.json();
+};
+
+export const approveRequisition = async (id: string) => {
+  const res = await api(`/api/stockrequisition/approve/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to approve requisition');
+  }
+  return res.json();
+};
+
+export const assignOrder = async (id: string, payload: { bay_name?: string; bay_id?: number; technician?: string; status?: string; release_time?: string | null }) => {
+  const res = await api(`/api/order/assign/${encodeURIComponent(String(id))}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to assign order');
+  }
   return res.json();
 };
 
@@ -178,6 +304,96 @@ export const fetchReportOverview = async () => {
   if (!res.ok) throw new Error('Failed to load reports');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export const fetchReportStockBalance = async (opts: { locationId?: number | "all"; group?: "item" | "location"; q?: string; asOf?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.locationId !== undefined) qs.set("location_id", String(opts.locationId));
+  if (opts.group) qs.set("group", opts.group);
+  if (opts.q) qs.set("q", opts.q);
+  if (opts.asOf) qs.set("as_of", opts.asOf);
+  const res = await api(`/api/report/stock_balance?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load stock balance report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportLowStock = async (opts: { locationId?: number | "all"; q?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.locationId !== undefined) qs.set("location_id", String(opts.locationId));
+  if (opts.q) qs.set("q", opts.q);
+  const res = await api(`/api/report/low_stock?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load low stock report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportItemMovements = async (opts: {
+  partId: number;
+  locationId?: number | "all";
+  from?: string;
+  to?: string;
+  movementType?: string;
+  limit?: number;
+  offset?: number;
+}) => {
+  const qs = new URLSearchParams();
+  qs.set("part_id", String(opts.partId));
+  if (opts.locationId !== undefined) qs.set("location_id", String(opts.locationId));
+  if (opts.from) qs.set("from", opts.from);
+  if (opts.to) qs.set("to", opts.to);
+  if (opts.movementType) qs.set("movement_type", opts.movementType);
+  if (opts.limit !== undefined) qs.set("limit", String(opts.limit));
+  if (opts.offset !== undefined) qs.set("offset", String(opts.offset));
+  const res = await api(`/api/report/item_movements?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load item movement report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportStockTransfers = async (opts: { locationId?: number | "all"; from?: string; to?: string; status?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.locationId !== undefined) qs.set("location_id", String(opts.locationId));
+  if (opts.from) qs.set("from", opts.from);
+  if (opts.to) qs.set("to", opts.to);
+  if (opts.status) qs.set("status", opts.status);
+  const res = await api(`/api/report/stock_transfers?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load stock transfer report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportVehicles = async (opts: { q?: string; departmentId?: number } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.q) qs.set("q", opts.q);
+  if (opts.departmentId) qs.set("department_id", String(opts.departmentId));
+  const res = await api(`/api/report/vehicles?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load vehicle report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportVehicleHistory = async (opts: { vehicleId: number; from?: string; to?: string }) => {
+  const qs = new URLSearchParams();
+  qs.set("vehicle_id", String(opts.vehicleId));
+  if (opts.from) qs.set("from", opts.from);
+  if (opts.to) qs.set("to", opts.to);
+  const res = await api(`/api/report/vehicle_history?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load vehicle history report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
+};
+
+export const fetchReportItems = async (opts: { q?: string; brandId?: number; supplierId?: number; active?: 0 | 1 | -1 } = {}) => {
+  const qs = new URLSearchParams();
+  if (opts.q) qs.set("q", opts.q);
+  if (opts.brandId) qs.set("brand_id", String(opts.brandId));
+  if (opts.supplierId) qs.set("supplier_id", String(opts.supplierId));
+  if (opts.active === 0 || opts.active === 1) qs.set("active", String(opts.active));
+  const res = await api(`/api/report/items?${qs.toString()}`);
+  if (!res.ok) throw new Error("Failed to load item report");
+  const data = await res.json();
+  return data.status === "success" ? (data.data as any[]) : data;
 };
 
 export type DashboardOverview = {
@@ -356,6 +572,7 @@ export const adminSetUserActive = async (userId: string, isActive: boolean) => {
 export type ServiceLocationRow = {
   id: number;
   name: string;
+  location_type?: 'service' | 'warehouse';
   address?: string | null;
   phone?: string | null;
   created_at?: string;
@@ -369,13 +586,13 @@ export const fetchLocations = async () => {
   return data.status === 'success' ? (data.data as ServiceLocationRow[]) : data;
 };
 
-export const createLocation = async (payload: { name: string; address?: string; phone?: string }) => {
+export const createLocation = async (payload: { name: string; location_type?: string; address?: string; phone?: string }) => {
   const res = await api('/api/location/create', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to create location');
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const updateLocation = async (id: string, payload: { name: string; address?: string; phone?: string }) => {
+export const updateLocation = async (id: string, payload: { name: string; location_type?: string; address?: string; phone?: string }) => {
   const res = await api(`/api/location/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to update location');
   return res.json() as Promise<ApiSuccess<null>>;
@@ -440,6 +657,25 @@ export const fetchVehicles = async () => {
   if (!res.ok) throw new Error('Failed to load vehicles');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export type VehicleRow = {
+  id: number;
+  department_id: number | null;
+  department_name?: string | null;
+  make: string;
+  model: string;
+  year: number;
+  vin: string;
+  image_filename?: string | null;
+  created_at?: string;
+};
+
+export const fetchVehicle = async (id: string) => {
+  const res = await api(`/api/vehicle/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load vehicle');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as VehicleRow) : data;
 };
 
 export const fetchMakes = async () => {
@@ -519,11 +755,16 @@ export type PartRow = {
   barcode_number?: string | null;
   part_name: string;
   unit: string | null;
+  brand_id?: number | null;
+  brand_name?: string | null;
+  supplier_ids?: number[];
+  suppliers?: Array<{ id: number; name: string }>;
   stock_quantity: number;
   cost_price: number | null;
   price: number;
   reorder_level: number | null;
   is_active: number;
+  image_filename?: string | null;
 };
 
 export const fetchParts = async (q: string = '') => {
@@ -534,13 +775,21 @@ export const fetchParts = async (q: string = '') => {
   return data.status === 'success' ? (data.data as PartRow[]) : data;
 };
 
-export const createPart = async (payload: Partial<PartRow>) => {
-  const res = await api('/api/part/create', { method: 'POST', body: JSON.stringify(payload) });
-  if (!res.ok) throw new Error('Failed to create part');
-  return res.json() as Promise<ApiSuccess<null>>;
+export const fetchPartsForSupplier = async (supplierId: number, q: string = '') => {
+  const qs = `?supplier_id=${encodeURIComponent(String(supplierId))}${q ? `&q=${encodeURIComponent(q)}` : ''}`;
+  const res = await api(`/api/part/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load parts');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as PartRow[]) : data;
 };
 
-export const updatePart = async (id: string, payload: Partial<PartRow>) => {
+export const createPart = async (payload: Partial<PartRow> & { supplier_ids?: number[] }) => {
+  const res = await api('/api/part/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create part');
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const updatePart = async (id: string, payload: Partial<PartRow> & { supplier_ids?: number[] }) => {
   const res = await api(`/api/part/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to update part');
   return res.json() as Promise<ApiSuccess<null>>;
@@ -561,11 +810,40 @@ export const adjustPartStock = async (payload: { part_id: number; qty_change: nu
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const fetchPartMovements = async (id: string, limit: number = 200) => {
-  const res = await api(`/api/part/movements/${id}?limit=${encodeURIComponent(String(limit))}`);
+export const fetchPartMovements = async (
+  id: string,
+  limit: number = 200,
+  locationId?: number | string,
+  fromDate?: string,
+  toDate?: string
+) => {
+  const qs = new URLSearchParams();
+  qs.set('limit', String(limit));
+  if (locationId !== undefined && locationId !== null && String(locationId) !== '') qs.set('location_id', String(locationId));
+  if (fromDate) qs.set('from', fromDate);
+  if (toDate) qs.set('to', toDate);
+  const res = await api(`/api/part/movements/${id}?${qs.toString()}`);
   if (!res.ok) throw new Error('Failed to load stock movements');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export type LocationStockBalanceRow = PartRow & {
+  system_stock_quantity?: number;
+  location_stock_quantity?: number;
+};
+
+export const fetchLocationStockBalances = async (locationId: number, q: string = '') => {
+  const qs = new URLSearchParams();
+  qs.set('location_id', String(locationId));
+  if (q) qs.set('q', q);
+  const res = await api(`/api/part/location_balances?${qs.toString()}`);
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to load location stock');
+  }
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as LocationStockBalanceRow[]) : data;
 };
 
 export type StockAdjustmentRow = {
@@ -696,7 +974,10 @@ export type SupplierRow = {
   email: string | null;
   phone: string | null;
   address: string | null;
+  tax_reg_no?: string | null;
   is_active: number;
+  tax_ids?: number[];
+  taxes?: TaxRow[];
 };
 
 export const fetchSuppliers = async (q: string = '') => {
@@ -705,6 +986,13 @@ export const fetchSuppliers = async (q: string = '') => {
   if (!res.ok) throw new Error('Failed to load suppliers');
   const data = await res.json();
   return data.status === 'success' ? (data.data as SupplierRow[]) : data;
+};
+
+export const fetchSupplier = async (id: string) => {
+  const res = await api(`/api/supplier/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load supplier');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as SupplierRow) : data;
 };
 
 export const createSupplier = async (payload: Partial<SupplierRow>) => {
@@ -728,6 +1016,8 @@ export const deleteSupplier = async (id: string) => {
 // Inventory - Purchase Orders
 export type PurchaseOrderRow = {
   id: number;
+  location_id: number;
+  location_name?: string | null;
   supplier_id: number;
   supplier_name?: string;
   po_number: string;
@@ -735,6 +1025,7 @@ export type PurchaseOrderRow = {
   notes: string | null;
   ordered_at: string | null;
   expected_at: string | null;
+  last_grn_number?: string | null;
   created_at: string;
 };
 export type PurchaseOrderItemRow = {
@@ -793,6 +1084,8 @@ export type GrnRow = {
   id: number;
   grn_number: string;
   purchase_order_id: number | null;
+  location_id?: number;
+  location_name?: string | null;
   supplier_id: number;
   supplier_name?: string;
   po_number?: string | null;
@@ -826,8 +1119,20 @@ export const fetchGrn = async (id: string) => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const createGrn = async (payload: { supplier_id: number; purchase_order_id?: number | null; received_at: string; notes?: string; items: GrnItemRow[] }) => {
-  const res = await api('/api/grn/create', { method: 'POST', body: JSON.stringify(payload) });
+export const createGrn = async (
+  payload: { supplier_id: number; purchase_order_id?: number | null; received_at: string; notes?: string; items: GrnItemRow[] },
+  locationIdOverride?: number | null
+) => {
+  const headers: Record<string, string> = {};
+  if (locationIdOverride && Number.isFinite(locationIdOverride)) {
+    headers["X-Location-Id"] = String(locationIdOverride);
+  }
+
+  const res = await api('/api/grn/create', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    ...(Object.keys(headers).length ? { headers } : {}),
+  });
   if (!res.ok) {
     const j = await res.json().catch(() => null);
     throw new Error(j?.message || 'Failed to create GRN');
@@ -875,6 +1180,94 @@ export const updateUnit = async (id: string, payload: { name: string }) => {
 export const deleteUnit = async (id: string) => {
   const res = await api(`/api/unit/delete/${id}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete unit');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Brands
+export type BrandRow = { id: number; name: string; created_at?: string; updated_at?: string };
+
+export const fetchBrands = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/brand/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load brands');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as BrandRow[]) : data;
+};
+
+export const createBrand = async (payload: { name: string }) => {
+  const res = await api('/api/brand/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create brand');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateBrand = async (id: string, payload: { name: string }) => {
+  const res = await api(`/api/brand/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update brand');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteBrand = async (id: string) => {
+  const res = await api(`/api/brand/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete brand');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Taxes
+export type TaxRow = {
+  id: number;
+  code: string;
+  name: string;
+  rate_percent: number;
+  apply_on: 'base' | 'base_plus_previous';
+  sort_order: number;
+  is_active: 0 | 1;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export const fetchTaxes = async (q: string = '', opts?: { all?: boolean }) => {
+  const params: string[] = [];
+  if (q) params.push(`q=${encodeURIComponent(q)}`);
+  if (opts?.all) params.push(`all=1`);
+  const qs = params.length ? `?${params.join('&')}` : '';
+  const res = await api(`/api/tax/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load taxes');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as TaxRow[]) : data;
+};
+
+export const createTax = async (payload: {
+  code: string;
+  name: string;
+  rate_percent: number;
+  apply_on: 'base' | 'base_plus_previous';
+  sort_order: number;
+  is_active: 0 | 1;
+}) => {
+  const res = await api('/api/tax/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create tax');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateTax = async (
+  id: string,
+  payload: {
+    code: string;
+    name: string;
+    rate_percent: number;
+    apply_on: 'base' | 'base_plus_previous';
+    sort_order: number;
+    is_active: 0 | 1;
+  }
+) => {
+  const res = await api(`/api/tax/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update tax');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteTax = async (id: string) => {
+  const res = await api(`/api/tax/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete tax');
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
@@ -990,6 +1383,26 @@ export const fetchPart = async (id: string) => {
   if (!res.ok) throw new Error('Failed to load part');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export type LocationStock = {
+  part_id: number;
+  location_id: number;
+  on_hand: number;
+  reserved: number;
+  available: number;
+};
+
+export const fetchPartLocationStock = async (partId: string | number, locationId: string | number) => {
+  const pid = encodeURIComponent(String(partId));
+  const lid = encodeURIComponent(String(locationId));
+  const res = await api(`/api/part/location_stock/${pid}?location_id=${lid}`);
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to load location stock');
+  }
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as LocationStock) : (data as LocationStock);
 };
 
 export const setPartImage = async (id: string, filename: string) => {

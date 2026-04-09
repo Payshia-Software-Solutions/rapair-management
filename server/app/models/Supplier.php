@@ -30,23 +30,75 @@ class Supplier extends Model {
         $this->ensureSchema();
         $this->db->query("SELECT * FROM {$this->table} WHERE id = :id LIMIT 1");
         $this->db->bind(':id', (int)$id);
-        return $this->db->single();
+        $row = $this->db->single();
+        if (!$row) return null;
+
+        // Attach configured taxes for this supplier
+        try {
+            $this->db->query("
+                SELECT t.*
+                FROM supplier_taxes st
+                INNER JOIN taxes t ON t.id = st.tax_id
+                WHERE st.supplier_id = :sid
+                ORDER BY t.sort_order ASC, t.code ASC
+            ");
+            $this->db->bind(':sid', (int)$id);
+            $taxes = $this->db->resultSet();
+        } catch (Exception $e) {
+            $taxes = [];
+        }
+        $taxIds = array_map(function($t) { return (int)$t->id; }, $taxes ?: []);
+
+        $row->tax_ids = $taxIds;
+        $row->taxes = $taxes ?: [];
+        return $row;
+    }
+
+    public function setTaxes($supplierId, $taxIds = [], $userId = null) {
+        $this->ensureSchema();
+        $sid = (int)$supplierId;
+        if ($sid <= 0) return false;
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array)$taxIds), function($x) { return $x > 0; })));
+
+        try {
+            $this->db->exec("START TRANSACTION");
+            $this->db->query("DELETE FROM supplier_taxes WHERE supplier_id = :sid");
+            $this->db->bind(':sid', $sid);
+            $this->db->execute();
+
+            foreach ($ids as $tid) {
+                $this->db->query("INSERT IGNORE INTO supplier_taxes (supplier_id, tax_id, created_by) VALUES (:sid, :tid, :u)");
+                $this->db->bind(':sid', $sid);
+                $this->db->bind(':tid', (int)$tid);
+                $this->db->bind(':u', $userId);
+                $this->db->execute();
+            }
+            $this->db->exec("COMMIT");
+            return true;
+        } catch (Exception $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            return false;
+        }
     }
 
     public function create($data, $userId = null) {
         $this->ensureSchema();
         $this->db->query("
-            INSERT INTO {$this->table} (name, email, phone, address, is_active, created_by, updated_by)
-            VALUES (:name, :email, :phone, :address, :is_active, :created_by, :updated_by)
+            INSERT INTO {$this->table} (name, email, phone, address, tax_reg_no, is_active, created_by, updated_by)
+            VALUES (:name, :email, :phone, :address, :tax_reg_no, :is_active, :created_by, :updated_by)
         ");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':email', $data['email'] ?? null);
         $this->db->bind(':phone', $data['phone'] ?? null);
         $this->db->bind(':address', $data['address'] ?? null);
+        $this->db->bind(':tax_reg_no', $data['tax_reg_no'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
-        return $this->db->execute();
+        $ok = $this->db->execute();
+        if (!$ok) return false;
+        $id = (int)$this->db->lastInsertId();
+        return $id > 0 ? $id : true;
     }
 
     public function update($id, $data, $userId = null) {
@@ -57,6 +109,7 @@ class Supplier extends Model {
                 email = :email,
                 phone = :phone,
                 address = :address,
+                tax_reg_no = :tax_reg_no,
                 is_active = :is_active,
                 updated_by = :updated_by
             WHERE id = :id
@@ -65,6 +118,7 @@ class Supplier extends Model {
         $this->db->bind(':email', $data['email'] ?? null);
         $this->db->bind(':phone', $data['phone'] ?? null);
         $this->db->bind(':address', $data['address'] ?? null);
+        $this->db->bind(':tax_reg_no', $data['tax_reg_no'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
@@ -78,4 +132,3 @@ class Supplier extends Model {
         return $this->db->execute();
     }
 }
-

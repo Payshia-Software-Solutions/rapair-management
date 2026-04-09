@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { createPurchaseOrder, fetchParts, fetchSuppliers, type PartRow, type PurchaseOrderItemRow, type SupplierRow } from "@/lib/api";
+import { createPurchaseOrder, fetchPartsForSupplier, fetchSupplier, fetchSuppliers, type PartRow, type PurchaseOrderItemRow, type SupplierRow, type TaxRow } from "@/lib/api";
+import { calculateTaxes } from "@/lib/tax-calc";
 import { ArrowLeft, FileText, Loader2, Plus, Trash2 } from "lucide-react";
 
 function todayLocalDate() {
@@ -35,6 +36,7 @@ export default function NewPurchaseOrderPage() {
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [parts, setParts] = useState<PartRow[]>([]);
+  const [supplierTaxes, setSupplierTaxes] = useState<TaxRow[]>([]);
 
   const [form, setForm] = useState({
     supplier_id: "",
@@ -48,9 +50,9 @@ export default function NewPurchaseOrderPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const [supRows, partRows] = await Promise.all([fetchSuppliers(), fetchParts("")]);
+        const [supRows] = await Promise.all([fetchSuppliers()]);
         setSuppliers(Array.isArray(supRows) ? supRows : []);
-        setParts(Array.isArray(partRows) ? partRows : []);
+        setParts([]);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load suppliers/items", variant: "destructive" });
       } finally {
@@ -59,6 +61,27 @@ export default function NewPurchaseOrderPage() {
     };
     void run();
   }, []);
+
+  useEffect(() => {
+    const sid = Number(form.supplier_id);
+    if (!Number.isFinite(sid) || sid <= 0) {
+      setParts([]);
+      setSupplierTaxes([]);
+      return;
+    }
+    void (async () => {
+      try {
+        const [partRows, sup] = await Promise.all([fetchPartsForSupplier(sid, ""), fetchSupplier(String(sid))]);
+        setParts(Array.isArray(partRows) ? partRows : []);
+        setSupplierTaxes(Array.isArray((sup as any)?.taxes) ? ((sup as any).taxes as TaxRow[]) : []);
+      } catch (e: any) {
+        setParts([]);
+        setSupplierTaxes([]);
+        toast({ title: "Error", description: e?.message || "Failed to load supplier items", variant: "destructive" });
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.supplier_id]);
 
   const partById = useMemo(() => {
     const m = new Map<number, PartRow>();
@@ -84,6 +107,8 @@ export default function NewPurchaseOrderPage() {
     return Math.round(sum * 100) / 100;
   }, [form.items]);
 
+  const taxCalc = useMemo(() => calculateTaxes(totalAmount, supplierTaxes), [totalAmount, supplierTaxes]);
+
   const addLine = () =>
     setForm((p) => ({
       ...p,
@@ -102,6 +127,15 @@ export default function NewPurchaseOrderPage() {
     const validLines = form.items.some((it) => Number(it.part_id) > 0 && Number(it.qty_ordered) > 0);
     return validLines;
   }, [form]);
+
+  const selectedPartIds = useMemo(() => {
+    const s = new Set<number>();
+    for (const it of form.items) {
+      const id = Number(it.part_id);
+      if (Number.isFinite(id) && id > 0) s.add(id);
+    }
+    return s;
+  }, [form.items]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,8 +173,32 @@ export default function NewPurchaseOrderPage() {
         })),
       };
 
-      await createPurchaseOrder(payload as any);
+      let printTab: Window | null = null;
+      try {
+        printTab = window.open("about:blank", "_blank", "noopener,noreferrer");
+        if (printTab && printTab.document) {
+          printTab.document.title = "Preparing PO...";
+          printTab.document.body.innerHTML =
+            "<div style='font-family:system-ui,Segoe UI,Arial;padding:16px'>Preparing print…</div>";
+        }
+      } catch {
+        printTab = null;
+      }
+
+      const res = await createPurchaseOrder(payload as any);
+      const createdId = (res as any)?.data?.id;
+
       toast({ title: "Created", description: "Purchase order created" });
+
+      if (createdId) {
+        const url = `/inventory/purchase-orders/print/${encodeURIComponent(String(createdId))}?autoprint=1`;
+        if (printTab && !printTab.closed) {
+          printTab.location.href = url;
+        } else {
+          window.open(url, "_blank", "noopener,noreferrer");
+        }
+      }
+
       router.push("/inventory/purchase-orders");
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Create failed", variant: "destructive" });
@@ -264,6 +322,14 @@ export default function NewPurchaseOrderPage() {
                                 value={String(it.part_id || "")}
                                 onValueChange={(v) => {
                                   const partId = Number(v);
+                                  // Prevent duplicate selection
+                                  if (partId > 0) {
+                                    const usedElsewhere = form.items.some((x, i) => i !== idx && Number(x.part_id) === partId);
+                                    if (usedElsewhere) {
+                                      toast({ title: "Duplicate item", description: "This item is already added to the PO.", variant: "destructive" });
+                                      return;
+                                    }
+                                  }
                                   const p = partById.get(partId);
                                   const defaultCost = p?.cost_price ?? 0;
                                   setForm((prev) => ({
@@ -285,7 +351,11 @@ export default function NewPurchaseOrderPage() {
                                 </SelectTrigger>
                                 <SelectContent className="max-h-[280px]">
                                   {parts.map((p) => (
-                                    <SelectItem key={p.id} value={String(p.id)}>
+                                    <SelectItem
+                                      key={p.id}
+                                      value={String(p.id)}
+                                      disabled={selectedPartIds.has(Number(p.id)) && Number(p.id) !== Number(it.part_id)}
+                                    >
                                       {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
                                     </SelectItem>
                                   ))}
@@ -354,9 +424,29 @@ export default function NewPurchaseOrderPage() {
               <div className="flex items-center justify-end mt-4">
                 <div className="rounded-lg border bg-muted/20 px-4 py-3 min-w-[260px]">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="text-sm text-muted-foreground">Total</div>
+                    <div className="text-sm text-muted-foreground">Sub Total</div>
                     <div className="text-lg font-bold tabular-nums">{money(totalAmount)}</div>
                   </div>
+                  {taxCalc.lines.length > 0 ? (
+                    <div className="mt-2 pt-2 border-t space-y-1">
+                      {taxCalc.lines.map((t) => (
+                        <div key={t.tax_id} className="flex items-center justify-between gap-4 text-sm">
+                          <div className="text-muted-foreground">
+                            {t.code} ({Number(t.rate_percent).toLocaleString()}%)
+                          </div>
+                          <div className="font-semibold tabular-nums">{money(t.amount)}</div>
+                        </div>
+                      ))}
+                      <div className="flex items-center justify-between gap-4 text-sm pt-1">
+                        <div className="text-muted-foreground">Total Tax</div>
+                        <div className="font-semibold tabular-nums">{money(taxCalc.totalTax)}</div>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 pt-2 border-t">
+                        <div className="text-sm text-muted-foreground">Grand Total</div>
+                        <div className="text-xl font-bold tabular-nums">{money(taxCalc.grandTotal)}</div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 

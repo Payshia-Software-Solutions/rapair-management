@@ -22,6 +22,9 @@ import {
   fetchOrder,
   fetchOrderParts,
   fetchParts,
+  completeOrder,
+  updateOrder,
+  updateOrderRelease,
   updateOrderPart,
   type OrderPartRow,
   type PartRow,
@@ -37,11 +40,14 @@ import {
   Gauge,
   Hash,
   Loader2,
+  CheckCircle2,
   Plus,
   Printer,
   Tag,
   Trash2,
   Boxes,
+  MapPin,
+  User,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -56,6 +62,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 function parseMysqlDatetime(value: any): Date | null {
@@ -63,6 +70,15 @@ function parseMysqlDatetime(value: any): Date | null {
   const iso = value.includes("T") ? value : value.replace(" ", "T");
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toInputDateTime(value: any): string {
+  if (!value || typeof value !== "string") return "";
+  const iso = value.includes("T") ? value : value.replace(" ", "T");
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function safeJsonArray(value: any): string[] {
@@ -93,6 +109,31 @@ const priorityStyles: Record<string, string> = {
   Urgent: "bg-red-100 text-red-800",
 };
 
+type ChecklistDoneItem = { item: string; checked: boolean; comment?: string };
+
+function safeChecklistDone(value: any): ChecklistDoneItem[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => ({
+        item: String((v as any)?.item ?? ""),
+        checked: Boolean((v as any)?.checked ?? false),
+        comment: (v as any)?.comment ? String((v as any).comment) : "",
+      }))
+      .filter((v) => v.item);
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return safeChecklistDone(parsed);
+      return [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 function timeRemaining(expectedAt: Date | null) {
   if (!expectedAt) return null;
   const ms = expectedAt.getTime() - Date.now();
@@ -122,6 +163,13 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [addPartId, setAddPartId] = useState<string>("");
   const [addQty, setAddQty] = useState<string>("1");
   const [savingPart, setSavingPart] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [checklistState, setChecklistState] = useState<ChecklistDoneItem[]>([]);
+  const [completionNotes, setCompletionNotes] = useState("");
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [completing, setCompleting] = useState(false);
+  const [releaseTime, setReleaseTime] = useState("");
+  const [savingRelease, setSavingRelease] = useState(false);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editQty, setEditQty] = useState<string>("");
 
@@ -175,15 +223,43 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
       mileage: o.mileage ?? null,
       problem: String(o.problem_description || ""),
       comments: String(o.comments || ""),
+      bay: String(o.location || ""),
+      technician: String(o.technician || ""),
       createdAt,
       expectedAt,
+      releaseAt: parseMysqlDatetime(o.release_time),
+      releaseRaw: String(o.release_time || ""),
       categories: safeJsonArray(o.categories_json),
       checklist: safeJsonArray(o.checklist_json),
+      checklistDone: safeChecklistDone(o.checklist_done_json),
+      completionComments: String(o.completion_comments || ""),
       attachments: safeJsonArray(o.attachments_json),
     };
   }, [order, id]);
 
   const remaining = useMemo(() => timeRemaining(data.expectedAt), [data.expectedAt]);
+
+  useEffect(() => {
+    if (!order) return;
+    const base = data.checklist.map((item) => ({
+      item,
+      checked: false,
+      comment: "",
+    }));
+    if (data.checklistDone.length === 0) {
+      setChecklistState(base);
+    } else {
+      const map = new Map(data.checklistDone.map((d) => [d.item, d]));
+      const merged = base.map((b) => {
+        const match = map.get(b.item);
+        return match ? { ...b, checked: !!match.checked, comment: match.comment ?? "" } : b;
+      });
+      const extras = data.checklistDone.filter((d) => !data.checklist.includes(d.item));
+      setChecklistState([...merged, ...extras]);
+    }
+    setCompletionNotes(data.completionComments || "");
+    setReleaseTime(toInputDateTime(data.releaseRaw));
+  }, [order, data.checklist, data.checklistDone, data.completionComments, data.releaseRaw]);
 
   const onPrint = () => {
     const url = `/orders/print/${encodeURIComponent(String(data.id))}?autoprint=1`;
@@ -191,9 +267,67 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
     if (!w) router.push(url);
   };
 
+  const handleStatusUpdate = async (nextStatus: string) => {
+    if (!id) return;
+    setSavingStatus(true);
+    try {
+      await updateOrder(String(id), { status: nextStatus });
+      setOrder((prev: any) => ({ ...(prev || {}), status: nextStatus }));
+      toast({ title: "Status updated", description: `Order marked ${nextStatus}.` });
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e?.message || "Failed to update status", variant: "destructive" });
+    } finally {
+      setSavingStatus(false);
+    }
+  };
+
+  const handleComplete = async () => {
+    if (!id) return;
+    setCompleting(true);
+    try {
+      await completeOrder(String(id), {
+        status: "Completed",
+        checklist_done: checklistState,
+        completion_comments: completionNotes,
+      });
+      setOrder((prev: any) => ({
+        ...(prev || {}),
+        status: "Completed",
+        checklist_done_json: JSON.stringify(checklistState),
+        completion_comments: completionNotes,
+      }));
+      setCompleteOpen(false);
+      toast({ title: "Completed", description: "Order marked Completed." });
+      const url = `/orders/completion-print/${encodeURIComponent(String(id))}?autoprint=1`;
+      const w = window.open(url, "_blank", "noopener,noreferrer");
+      if (!w) router.push(url);
+    } catch (e: any) {
+      toast({ title: "Complete failed", description: e?.message || "Failed to complete order", variant: "destructive" });
+    } finally {
+      setCompleting(false);
+    }
+  };
+
+  const handleReleaseSave = async () => {
+    if (!id) return;
+    setSavingRelease(true);
+    try {
+      const payload = releaseTime ? releaseTime : null;
+      await updateOrderRelease(String(id), payload);
+      setOrder((prev: any) => ({ ...(prev || {}), release_time: payload }));
+      toast({ title: "Release time updated" });
+    } catch (e: any) {
+      toast({ title: "Update failed", description: e?.message || "Failed to update release time", variant: "destructive" });
+    } finally {
+      setSavingRelease(false);
+    }
+  };
+
   const totalParts = useMemo(() => {
     return partsUsed.reduce((sum, l) => sum + (l.line_total ? Number(l.line_total) : 0), 0);
   }, [partsUsed]);
+
+  const checklistChecked = useMemo(() => checklistState.filter((c) => c.checked).length, [checklistState]);
 
   const openAddPart = () => {
     setAddPartId("");
@@ -298,6 +432,12 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             Back
           </Button>
           <div className="flex items-center gap-2">
+            {data.status !== "Completed" && data.status !== "Cancelled" ? (
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setCompleteOpen(true)}>
+                <CheckCircle2 className="w-4 h-4" />
+                Complete Job
+              </Button>
+            ) : null}
             <Button variant="outline" size="sm" className="gap-2" onClick={onPrint}>
               <Printer className="w-4 h-4" />
               Print
@@ -343,10 +483,24 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                         >
                           {data.status}
                         </Badge>
+                        <Select
+                          value={data.status}
+                          onValueChange={handleStatusUpdate}
+                          disabled={savingStatus}
+                        >
+                          <SelectTrigger className="h-8 w-[160px] text-xs">
+                            <SelectValue placeholder="Update status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {["Pending", "In Progress", "Completed", "Cancelled"].map((s) => (
+                              <SelectItem key={s} value={s}>{s}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+                    <div className="grid grid-cols-2 md:grid-cols-6 gap-4 pt-2">
                       <div className="rounded-xl bg-white/70 border p-4">
                         <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
                           <Gauge className="w-3.5 h-3.5" />
@@ -380,6 +534,26 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                             {remaining}
                           </div>
                         ) : null}
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <MapPin className="w-3.5 h-3.5" />
+                          Bay
+                        </div>
+                        <div className="mt-1 text-sm font-bold">
+                          {data.bay ? data.bay : "Unassigned"}
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl bg-white/70 border p-4">
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold text-muted-foreground tracking-widest">
+                          <User className="w-3.5 h-3.5" />
+                          Technician
+                        </div>
+                        <div className="mt-1 text-sm font-bold">
+                          {data.technician ? data.technician : "Unassigned"}
+                        </div>
                       </div>
 
                       <div className="rounded-xl bg-white/70 border p-4">
@@ -454,14 +628,32 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                       <CardDescription>Items to verify for this repair</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {data.checklist.length ? (
-                        <ScrollArea className="h-[200px] pr-3">
+                      {checklistState.length ? (
+                        <ScrollArea className="h-[240px] pr-3">
                           <div className="space-y-2">
-                            {data.checklist.map((c) => (
-                              <label key={c} className="flex items-start gap-3 rounded-lg border bg-muted/5 p-3">
-                                <Checkbox checked={false} disabled />
-                                <div className="text-sm leading-tight">{c}</div>
-                              </label>
+                            {checklistState.map((c, idx) => (
+                              <div key={`${c.item}-${idx}`} className="rounded-lg border bg-muted/5 p-3 space-y-2">
+                                <label className="flex items-start gap-3">
+                                  <Checkbox
+                                    checked={c.checked}
+                                    onCheckedChange={(v) => {
+                                      const next = [...checklistState];
+                                      next[idx] = { ...next[idx], checked: Boolean(v) };
+                                      setChecklistState(next);
+                                    }}
+                                  />
+                                  <div className="text-sm leading-tight font-medium">{c.item}</div>
+                                </label>
+                                <Input
+                                  placeholder="Optional comment"
+                                  value={c.comment ?? ""}
+                                  onChange={(e) => {
+                                    const next = [...checklistState];
+                                    next[idx] = { ...next[idx], comment: e.target.value };
+                                    setChecklistState(next);
+                                  }}
+                                />
+                              </div>
                             ))}
                           </div>
                         </ScrollArea>
@@ -592,6 +784,23 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
           </div>
 
           <div className="lg:col-span-4 space-y-6">
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-lg">Release Time</CardTitle>
+                <CardDescription>Set the planned release time (can differ from expected time)</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Input
+                  type="datetime-local"
+                  value={releaseTime}
+                  onChange={(e) => setReleaseTime(e.target.value)}
+                />
+                <Button className="w-full" onClick={handleReleaseSave} disabled={savingRelease}>
+                  {savingRelease ? "Saving..." : "Save Release Time"}
+                </Button>
+              </CardContent>
+            </Card>
+
             <Card className="border-none shadow-sm bg-primary text-white overflow-hidden">
               <CardHeader>
                 <CardTitle className="text-lg text-white">Expected Completion</CardTitle>
@@ -611,6 +820,11 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
                     </p>
                     {remaining ? (
                       <p className="text-xs mt-2 text-white/80">{remaining}</p>
+                    ) : null}
+                    {data.releaseAt ? (
+                      <p className="text-xs mt-2 text-white/80">
+                        Release: {format(data.releaseAt, "MMM d, HH:mm")}
+                      </p>
                     ) : null}
                   </div>
                 </div>
@@ -691,6 +905,36 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={completeOpen} onOpenChange={setCompleteOpen}>
+        <DialogContent className="sm:max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle>Complete Job</DialogTitle>
+            <DialogDescription>Confirm completion details and generate the A4 completion document.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-3 text-sm flex items-center justify-between">
+              <span>Checklist checked</span>
+              <span className="font-semibold">{checklistChecked} / {checklistState.length}</span>
+            </div>
+            <div className="space-y-2">
+              <Label>Completion Notes</Label>
+              <Textarea
+                placeholder="Optional completion notes for the report..."
+                value={completionNotes}
+                onChange={(e) => setCompletionNotes(e.target.value)}
+                rows={4}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex-row gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => setCompleteOpen(false)}>Cancel</Button>
+            <Button className="flex-1" onClick={handleComplete} disabled={completing}>
+              {completing ? "Completing..." : "Complete & Print"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </DashboardLayout>

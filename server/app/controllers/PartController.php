@@ -16,7 +16,8 @@ class PartController extends Controller {
         $this->requirePermission('parts.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $q = $_GET['q'] ?? '';
-        $rows = $this->partModel->list($q);
+        $sid = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+        $rows = $this->partModel->list($q, $sid > 0 ? $sid : null);
         $this->success($rows);
     }
 
@@ -40,20 +41,28 @@ class PartController extends Controller {
         $price = $data['price'] ?? null;
         if ($name === '' || $price === null) $this->error('Missing required fields', 400);
 
+        $supplierIds = isset($data['supplier_ids']) && is_array($data['supplier_ids']) ? $data['supplier_ids'] : [];
+
         $payload = [
             'sku' => isset($data['sku']) && trim((string)$data['sku']) !== '' ? trim((string)$data['sku']) : null,
             'part_number' => isset($data['part_number']) && trim((string)$data['part_number']) !== '' ? trim((string)$data['part_number']) : null,
             'barcode_number' => isset($data['barcode_number']) && trim((string)$data['barcode_number']) !== '' ? trim((string)$data['barcode_number']) : null,
             'part_name' => $name,
             'unit' => isset($data['unit']) ? trim((string)$data['unit']) : null,
+            'brand_id' => $data['brand_id'] ?? null,
             'stock_quantity' => $data['stock_quantity'] ?? 0,
             'cost_price' => $data['cost_price'] ?? null,
             'price' => $price,
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
+            'image_filename' => $data['image_filename'] ?? null,
         ];
 
-        if ($this->partModel->create($payload, (int)$u['sub'])) {
+        $newId = $this->partModel->create($payload, (int)$u['sub']);
+        if ($newId) {
+            // Save supplier mapping (optional)
+            $this->partModel->setSuppliers((int)$newId, $supplierIds, (int)$u['sub']);
+
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'location_id' => $this->currentLocationId($u),
@@ -66,7 +75,7 @@ class PartController extends Controller {
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'details' => json_encode(['part_name' => $name]),
             ]);
-            $this->success(null, 'Part created');
+            $this->success(['id' => (int)$newId], 'Part created');
         }
         $this->error('Failed to create part', 500);
     }
@@ -82,19 +91,26 @@ class PartController extends Controller {
         $price = $data['price'] ?? null;
         if ($name === '' || $price === null) $this->error('Missing required fields', 400);
 
+        $supplierIds = isset($data['supplier_ids']) && is_array($data['supplier_ids']) ? $data['supplier_ids'] : [];
+
         $payload = [
             'sku' => isset($data['sku']) && trim((string)$data['sku']) !== '' ? trim((string)$data['sku']) : null,
             'part_number' => isset($data['part_number']) && trim((string)$data['part_number']) !== '' ? trim((string)$data['part_number']) : null,
             'barcode_number' => isset($data['barcode_number']) && trim((string)$data['barcode_number']) !== '' ? trim((string)$data['barcode_number']) : null,
             'part_name' => $name,
             'unit' => isset($data['unit']) ? trim((string)$data['unit']) : null,
+            'brand_id' => $data['brand_id'] ?? null,
             'cost_price' => $data['cost_price'] ?? null,
             'price' => $price,
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
+            'image_filename' => $data['image_filename'] ?? null,
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {
+            // Save supplier mapping (optional)
+            $this->partModel->setSuppliers((int)$id, $supplierIds, (int)$u['sub']);
+
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'location_id' => $this->currentLocationId($u),
@@ -169,8 +185,43 @@ class PartController extends Controller {
         $this->requirePermission('stock.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Part ID required', 400);
-        $rows = $this->partModel->listMovements($id, $_GET['limit'] ?? 200);
+        $locId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
+
+        // Optional date range (YYYY-MM-DD). Defaults handled by UI.
+        $from = isset($_GET['from']) ? trim((string)$_GET['from']) : '';
+        $to = isset($_GET['to']) ? trim((string)$_GET['to']) : '';
+        $fromDt = null;
+        $toDt = null;
+        if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $fromDt = $from . ' 00:00:00';
+        if ($to !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $toDt = $to . ' 23:59:59';
+
+        $rows = $this->partModel->listMovements($id, $_GET['limit'] ?? 200, $locId, $fromDt, $toDt);
         $this->success($rows);
+    }
+
+    // GET /api/part/location_balances?location_id=1&q=
+    public function location_balances() {
+        $this->requirePermission('stock.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        $locId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
+        if ($locId <= 0) $this->error('location_id is required', 400);
+        $q = $_GET['q'] ?? '';
+        $rows = $this->partModel->listLocationBalances($locId, $q);
+        $this->success($rows);
+    }
+
+    // GET /api/part/location_stock/1?location_id=2
+    // Used by Stock Transfers UI to show stock available at the selected source location.
+    public function location_stock($id = null) {
+        // Stock visibility is part of reporting; transfers also use this endpoint.
+        $this->requirePermission('stock.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        if (!$id) $this->error('Part ID required', 400);
+        $locId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
+        if ($locId <= 0) $this->error('location_id is required', 400);
+        $row = $this->partModel->getLocationStock((int)$id, $locId);
+        if (!$row) $this->error('Not found', 404);
+        $this->success($row);
     }
 
     // GET /api/part/adjustments?part_id=1&limit=200

@@ -19,6 +19,14 @@ class BayController extends Controller {
         $u = $this->requirePermission('bays.read');
         if ($_SERVER['REQUEST_METHOD'] == 'GET') {
             $locId = $this->currentLocationId($u);
+            // Warehouses should not expose bays.
+            $this->db->query("SELECT location_type FROM service_locations WHERE id = :id LIMIT 1");
+            $this->db->bind(':id', $locId);
+            $locRow = $this->db->single();
+            if ($locRow && isset($locRow->location_type) && $locRow->location_type === 'warehouse') {
+                $this->success([]);
+                return;
+            }
             $bays = $this->bayModel->getAllByLocation($locId);
             $this->success($bays);
         } else {
@@ -39,6 +47,19 @@ class BayController extends Controller {
         }
 
         $locId = $this->currentLocationId($u);
+        // Warehouses are excluded from bay board.
+        $this->db->query("SELECT location_type FROM service_locations WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', $locId);
+        $locRow = $this->db->single();
+        if ($locRow && isset($locRow->location_type) && $locRow->location_type === 'warehouse') {
+            $this->success([
+                'location_id' => $locId,
+                'bays' => [],
+                'unassigned_active_orders' => [],
+                'unknown_assigned_orders' => [],
+            ]);
+            return;
+        }
 
         // Bays in this location
         $this->db->query("SELECT id, name, status FROM service_bays WHERE location_id = :location_id ORDER BY name ASC");
@@ -56,6 +77,7 @@ class BayController extends Controller {
                 priority,
                 status,
                 expected_time,
+                release_time,
                 technician,
                 location,
                 created_at,
@@ -101,6 +123,7 @@ class BayController extends Controller {
                     'priority' => $active->priority ? (string)$active->priority : null,
                     'status' => (string)$active->status,
                     'expected_time' => $active->expected_time ? (string)$active->expected_time : null,
+                    'release_time' => $active->release_time ? (string)$active->release_time : null,
                     'technician' => $active->technician ? (string)$active->technician : null,
                     'created_at' => (string)$active->created_at,
                     'updated_at' => (string)$active->updated_at,
@@ -121,6 +144,7 @@ class BayController extends Controller {
                         'status' => (string)$o->status,
                         'priority' => $o->priority ? (string)$o->priority : null,
                         'expected_time' => $o->expected_time ? (string)$o->expected_time : null,
+                        'release_time' => $o->release_time ? (string)$o->release_time : null,
                         'technician' => $o->technician ? (string)$o->technician : null,
                         'location' => (string)$o->location,
                         'created_at' => (string)$o->created_at,
@@ -139,6 +163,7 @@ class BayController extends Controller {
                 'priority' => $o->priority ? (string)$o->priority : null,
                 'status' => (string)$o->status,
                 'expected_time' => $o->expected_time ? (string)$o->expected_time : null,
+                'release_time' => $o->release_time ? (string)$o->release_time : null,
                 'technician' => $o->technician ? (string)$o->technician : null,
                 'created_at' => (string)$o->created_at,
             ];
@@ -167,7 +192,7 @@ class BayController extends Controller {
 
         $allowedIds = [];
         if ($this->isAdmin($u)) {
-            $this->db->query("SELECT id FROM service_locations ORDER BY id ASC");
+            $this->db->query("SELECT id FROM service_locations WHERE location_type <> 'warehouse' ORDER BY id ASC");
             $rows = $this->db->resultSet() ?: [];
             foreach ($rows as $r) $allowedIds[] = (int)$r->id;
         } else {
@@ -181,6 +206,22 @@ class BayController extends Controller {
             if (count($allowedIds) === 0) {
                 $allowedIds = [isset($u['location_id']) ? (int)$u['location_id'] : 1];
             }
+        }
+        // Filter out warehouse locations from the board.
+        if (count($allowedIds) > 0) {
+            $inCheck = implode(',', array_fill(0, count($allowedIds), '?'));
+            $pdoCheck = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+            $pdoCheck->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            $stmtCheck = $pdoCheck->prepare("SELECT id FROM service_locations WHERE id IN ($inCheck) AND location_type <> 'warehouse'");
+            $stmtCheck->execute($allowedIds);
+            $allowedIds = array_map('intval', $stmtCheck->fetchAll(PDO::FETCH_COLUMN, 0) ?: []);
+        }
+        if (count($allowedIds) === 0) {
+            $this->success([
+                'location_ids' => [],
+                'locations' => [],
+            ]);
+            return;
         }
         $allowedIds = array_values(array_unique(array_filter($allowedIds, function($x) { return (int)$x > 0; })));
         if (count($allowedIds) === 0) $allowedIds = [1];
@@ -212,6 +253,7 @@ class BayController extends Controller {
                 priority,
                 status,
                 expected_time,
+                release_time,
                 technician,
                 location,
                 created_at,
@@ -278,6 +320,7 @@ class BayController extends Controller {
                         'priority' => $active['priority'] ? (string)$active['priority'] : null,
                         'status' => (string)$active['status'],
                         'expected_time' => $active['expected_time'] ? (string)$active['expected_time'] : null,
+                        'release_time' => $active['release_time'] ? (string)$active['release_time'] : null,
                         'technician' => $active['technician'] ? (string)$active['technician'] : null,
                         'created_at' => (string)$active['created_at'],
                         'updated_at' => (string)$active['updated_at'],
@@ -299,6 +342,7 @@ class BayController extends Controller {
                             'status' => (string)$o['status'],
                             'priority' => $o['priority'] ? (string)$o['priority'] : null,
                             'expected_time' => $o['expected_time'] ? (string)$o['expected_time'] : null,
+                            'release_time' => $o['release_time'] ? (string)$o['release_time'] : null,
                             'technician' => $o['technician'] ? (string)$o['technician'] : null,
                             'location' => (string)$o['location'],
                             'created_at' => (string)$o['created_at'],
@@ -317,6 +361,7 @@ class BayController extends Controller {
                     'priority' => $o['priority'] ? (string)$o['priority'] : null,
                     'status' => (string)$o['status'],
                     'expected_time' => $o['expected_time'] ? (string)$o['expected_time'] : null,
+                    'release_time' => $o['release_time'] ? (string)$o['release_time'] : null,
                     'technician' => $o['technician'] ? (string)$o['technician'] : null,
                     'created_at' => (string)$o['created_at'],
                 ];
@@ -352,6 +397,13 @@ class BayController extends Controller {
         }
 
         $locId = $this->currentLocationId($u);
+        $this->db->query("SELECT location_type FROM service_locations WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', $locId);
+        $locRow = $this->db->single();
+        if ($locRow && isset($locRow->location_type) && $locRow->location_type === 'warehouse') {
+            $this->error('Cannot create bays for warehouse locations', 400);
+            return;
+        }
         $ok = $this->bayModel->create(trim($data['name']), (int)$u['sub'], $locId);
         if ($ok) {
             $this->success(null, 'Bay created');

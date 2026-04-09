@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { fetchGrns, type GrnRow } from "@/lib/api";
-import { AlertCircle, Loader2, PackageCheck, Plus, Search } from "lucide-react";
+import { AlertCircle, Loader2, PackageCheck, Plus, Search, Printer } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function GrnPage() {
@@ -42,9 +42,15 @@ export default function GrnPage() {
       const grn = String(r.grn_number ?? "").toLowerCase();
       const supplier = String(r.supplier_name ?? "").toLowerCase();
       const po = String(r.po_number ?? "").toLowerCase();
-      return grn.includes(q) || supplier.includes(q) || po.includes(q);
+      const loc = String((r as any).location_name ?? "").toLowerCase();
+      return grn.includes(q) || supplier.includes(q) || po.includes(q) || loc.includes(q);
     });
   }, [rows, query]);
+
+  const onPrint = (id: number) => {
+    const url = `/inventory/grn/print/${encodeURIComponent(String(id))}?autoprint=1`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <DashboardLayout>
@@ -92,9 +98,11 @@ export default function GrnPage() {
                 <TableHeader className="bg-muted/30">
                   <TableRow>
                     <TableHead>GRN</TableHead>
+                    <TableHead className="hidden lg:table-cell">Location</TableHead>
                     <TableHead>Supplier</TableHead>
                     <TableHead className="hidden md:table-cell">PO</TableHead>
                     <TableHead className="hidden md:table-cell">Received</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -111,6 +119,15 @@ export default function GrnPage() {
                           </div>
                         </div>
                       </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {g.location_name ? (
+                          <Badge variant="outline" className="text-[10px] font-semibold">
+                            {g.location_name}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
                       <TableCell className="font-medium">{g.supplier_name ?? g.supplier_id}</TableCell>
                       <TableCell className="hidden md:table-cell">
                         {g.po_number ? (
@@ -123,6 +140,11 @@ export default function GrnPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                         {g.received_at ? new Date(String(g.received_at).replace(" ", "T")).toLocaleString() : "-"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => onPrint(g.id)} title="Print">
+                          <Printer className="w-4 h-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
