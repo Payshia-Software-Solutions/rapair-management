@@ -1,4 +1,4 @@
-import type {Metadata} from 'next';
+import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   title: 'ServiceBay | Vehicle Repair Management',
   description: 'Streamlined vehicle repair management for workshops.',
   manifest: '/manifest.webmanifest',
-  themeColor: '#0b1220',
   icons: {
     icon: [
       { url: '/favicon.ico', type: 'image/x-icon' },
@@ -16,6 +15,10 @@ export const metadata: Metadata = {
     shortcut: ['/favicon.ico'],
     apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0b1220',
 };
 
 export default function RootLayout({
@@ -55,37 +58,39 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              try {
-                if ('serviceWorker' in navigator) {
-                  var host = (location && location.hostname) ? location.hostname : '';
-                  var isLocal = host === 'localhost' || host === '127.0.0.1';
+              (function() {
+                try {
+                  if ('serviceWorker' in navigator) {
+                    var host = (location && location.hostname) ? location.hostname : '';
+                    var isLocal = host === 'localhost' || host === '127.0.0.1';
 
-                  // Dev UX: avoid SW caching on localhost (it can cause old bundles to "swap" in after a few seconds).
-                  if (isLocal) {
-                    try {
-                      navigator.serviceWorker.getRegistrations().then(function (regs) {
-                        regs.forEach(function (r) { try { r.unregister(); } catch (_) {} });
-                      }).catch(function () {});
-                    } catch (_) {}
-                    try {
-                      if (window.caches && window.caches.keys) {
-                        window.caches.keys().then(function (keys) {
-                          keys.forEach(function (k) { try { window.caches.delete(k); } catch (_) {} });
+                    // Dev UX: avoid SW caching on localhost (it can cause old bundles to "swap" in after a few seconds).
+                    if (isLocal) {
+                      try {
+                        navigator.serviceWorker.getRegistrations().then(function (regs) {
+                          regs.forEach(function (r) { try { r.unregister(); } catch (_) {} });
                         }).catch(function () {});
-                      }
-                    } catch (_) {}
-                    // Don't register in local dev.
-                    return;
+                      } catch (_) {}
+                      try {
+                        if (window.caches && window.caches.keys) {
+                          window.caches.keys().then(function (keys) {
+                            keys.forEach(function (k) { try { window.caches.delete(k); } catch (_) {} });
+                          }).catch(function () {});
+                        }
+                      } catch (_) {}
+                      // Don't register in local dev.
+                      return;
+                    }
+
+                    // Production: register only over HTTPS (required for installability).
+                    if (location && location.protocol !== 'https:') return;
+
+                    window.addEventListener('load', function () {
+                      navigator.serviceWorker.register('/sw.js').catch(function () {});
+                    });
                   }
-
-                  // Production: register only over HTTPS (required for installability).
-                  if (location && location.protocol !== 'https:') return;
-
-                  window.addEventListener('load', function () {
-                    navigator.serviceWorker.register('/sw.js').catch(function () {});
-                  });
-                }
-              } catch (_) {}
+                } catch (_) {}
+              })();
             `,
           }}
         />
@@ -216,7 +221,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="font-body antialiased bg-background min-h-screen">
+      <body className="font-body antialiased bg-background min-h-screen" suppressHydrationWarning>
         {children}
         <Toaster />
       </body>

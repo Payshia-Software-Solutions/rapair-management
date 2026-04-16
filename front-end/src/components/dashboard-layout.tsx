@@ -76,40 +76,8 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 	  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
-	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(() => {
-      // Initialize immediately to avoid a re-mount "flash" when location loads after first paint.
-      try {
-        if (typeof window === 'undefined') return null;
-        const lsId = window.localStorage.getItem('location_id');
-        if (lsId) {
-          const n = Number(lsId);
-          return Number.isFinite(n) ? n : null;
-        }
-        const token = window.localStorage.getItem('auth_token');
-        if (!token) return 1;
-        const part = token.split('.')[1];
-        const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
-        const tokenLocId = json.location_id ? Number(json.location_id) : 1;
-        return Number.isFinite(tokenLocId) ? tokenLocId : 1;
-      } catch {
-        return 1;
-      }
-    });
-	  const [currentLocationName, setCurrentLocationName] = useState<string>(() => {
-      try {
-        if (typeof window === 'undefined') return '';
-        const lsId = window.localStorage.getItem('location_id');
-        const lsName = window.localStorage.getItem('location_name');
-        if (lsId && lsName) return String(lsName);
-        const token = window.localStorage.getItem('auth_token');
-        if (!token) return 'Main';
-        const part = token.split('.')[1];
-        const json = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
-        return String(json.location_name || 'Main');
-      } catch {
-        return 'Main';
-      }
-    });
+	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
+	  const [currentLocationName, setCurrentLocationName] = useState<string>('');
 	  const [docTitle, setDocTitle] = useState<string>('');
 	  // Location switching uses the /select-location page (card UI) for a consistent UX.
 
@@ -313,7 +281,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full bg-background relative">
+      <div className="flex min-h-screen w-full bg-background relative" suppressHydrationWarning>
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
             <div className="flex items-center gap-2 overflow-hidden">
@@ -641,7 +609,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               </Link>
             </div>
           </header>
-          <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8">
+          <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
             <div
               className={cn(
                 fullWidth ? "w-full" : "max-w-7xl mx-auto",
