@@ -30,9 +30,14 @@ class InventorySchema {
         return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public static function ensure() {
-        if (self::$done) return;
+    public static function ensure($force = false) {
+        if (self::$done && !$force) return;
         self::$done = true;
+
+        // Persistent cache flag to avoid running expensive SHOW TABLES/ALTER TABLE on every request.
+        // The flag file is deleted during setup or manual sync to trigger a re-run.
+        $flagFile = __DIR__ . '/../../.schema_synced';
+        if (file_exists($flagFile) && !$force) return;
 
         try {
             $pdo = self::pdo();
@@ -622,5 +627,7 @@ class InventorySchema {
         } catch (Exception $e) {
             // ignore
         }
+
+        @touch($flagFile);
     }
 }

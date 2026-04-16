@@ -14,9 +14,12 @@ class TaxSchema {
         return $pdo;
     }
 
-    public static function ensure() {
-        if (self::$done) return;
+    public static function ensure($force = false) {
+        if (self::$done && !$force) return;
         self::$done = true;
+
+        $flagFile = __DIR__ . '/../../.schema_synced';
+        if (file_exists($flagFile) && !$force) return;
 
         try {
             $pdo = self::pdo();

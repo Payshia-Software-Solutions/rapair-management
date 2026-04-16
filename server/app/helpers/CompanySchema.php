@@ -4,9 +4,25 @@
  * Manages the company settings table.
  */
 class CompanySchema {
-    public static function ensure() {
+    private static $done = false;
+
+    private static function pdo() {
         $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
-        $pdo = new PDO($dsn, DB_USER, DB_PASS);
+        return new PDO($dsn, DB_USER, DB_PASS);
+    }
+
+    public static function ensure($force = false) {
+        if (self::$done && !$force) return;
+        self::$done = true;
+
+        $flagFile = __DIR__ . '/../../.schema_synced';
+        if (file_exists($flagFile) && !$force) return;
+
+        try {
+            $pdo = self::pdo();
+        } catch (Exception $e) {
+            return;
+        }
         $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         // 1. Create Table

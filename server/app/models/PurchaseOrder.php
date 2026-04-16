@@ -53,19 +53,12 @@ class PurchaseOrder extends Model {
         $q = is_string($q) ? trim($q) : '';
         if ($q !== '') {
             $this->db->query("
-                SELECT po.*, s.name AS supplier_name, u.name AS created_by_name,
-                       g.grn_number AS last_grn_number, sl.name AS location_name
+                SELECT po.*, s.name AS supplier_name, u.name AS created_by_name, sl.name AS location_name,
+                       (SELECT grn_number FROM goods_receive_notes WHERE purchase_order_id = po.id ORDER BY id DESC LIMIT 1) as last_grn_number
                 FROM {$this->table} po
                 INNER JOIN suppliers s ON s.id = po.supplier_id
                 LEFT JOIN users u ON u.id = po.created_by
                 LEFT JOIN service_locations sl ON sl.id = po.location_id
-                LEFT JOIN (
-                    SELECT purchase_order_id, MAX(id) AS last_grn_id
-                    FROM goods_receive_notes
-                    WHERE purchase_order_id IS NOT NULL
-                    GROUP BY purchase_order_id
-                ) lg ON lg.purchase_order_id = po.id
-                LEFT JOIN goods_receive_notes g ON g.id = lg.last_grn_id
                 WHERE po.location_id = :loc AND (po.po_number LIKE :q OR s.name LIKE :q)
                 ORDER BY po.id DESC
             ");
@@ -75,19 +68,12 @@ class PurchaseOrder extends Model {
         }
 
         $this->db->query("
-            SELECT po.*, s.name AS supplier_name, u.name AS created_by_name,
-                   g.grn_number AS last_grn_number, sl.name AS location_name
+            SELECT po.*, s.name AS supplier_name, u.name AS created_by_name, sl.name AS location_name,
+                   (SELECT grn_number FROM goods_receive_notes WHERE purchase_order_id = po.id ORDER BY id DESC LIMIT 1) as last_grn_number
             FROM {$this->table} po
             INNER JOIN suppliers s ON s.id = po.supplier_id
             LEFT JOIN users u ON u.id = po.created_by
             LEFT JOIN service_locations sl ON sl.id = po.location_id
-            LEFT JOIN (
-                SELECT purchase_order_id, MAX(id) AS last_grn_id
-                FROM goods_receive_notes
-                WHERE purchase_order_id IS NOT NULL
-                GROUP BY purchase_order_id
-            ) lg ON lg.purchase_order_id = po.id
-            LEFT JOIN goods_receive_notes g ON g.id = lg.last_grn_id
             WHERE po.location_id = :loc
             ORDER BY po.id DESC
         ");

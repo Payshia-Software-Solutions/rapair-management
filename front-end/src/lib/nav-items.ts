@@ -85,5 +85,6 @@ export const adminNavItems: NavItem[] = [
   { icon: Shield, label: "RBAC", href: "/admin/rbac" },
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: Database, label: "Locations", href: "/admin/locations" },
+  { icon: Layers, label: "Database Schema", href: "/admin/schema" },
   { icon: Settings, label: "Company", href: "/admin/company" },
 ];

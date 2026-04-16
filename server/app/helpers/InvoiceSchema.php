@@ -4,7 +4,15 @@
  * Automates table creation for invoicing.
  */
 class InvoiceSchema {
-    public static function ensure() {
+    private static $done = false;
+
+    public static function ensure($force = false) {
+        if (self::$done && !$force) return;
+        self::$done = true;
+
+        $flagFile = __DIR__ . '/../../.schema_synced';
+        if (file_exists($flagFile) && !$force) return;
+
         $db = new Database();
         $pdo = $db->getDb();
 

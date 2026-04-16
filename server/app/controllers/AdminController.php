@@ -367,4 +367,50 @@ class AdminController extends Controller {
 
         $this->success(null, $isActive === 1 ? 'User activated' : 'User deactivated');
     }
+
+    // GET /api/admin/schema
+    public function schema() {
+        $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        try {
+            $this->db->query("
+                SELECT 
+                    TABLE_NAME as table_name, 
+                    COLUMN_NAME as column_name, 
+                    DATA_TYPE as data_type, 
+                    IS_NULLABLE as is_nullable, 
+                    COLUMN_DEFAULT as column_default, 
+                    EXTRA as extra 
+                FROM INFORMATION_SCHEMA.COLUMNS 
+                WHERE TABLE_SCHEMA = :dbname 
+                ORDER BY TABLE_NAME, ORDINAL_POSITION
+            ");
+            $this->db->bind(':dbname', DB_NAME);
+            $rows = $this->db->resultSet();
+
+            // Group by table
+            $tables = [];
+            foreach ($rows as $row) {
+                $tableName = $row->table_name;
+                if (!isset($tables[$tableName])) {
+                    $tables[$tableName] = [];
+                }
+                $tables[$tableName][] = [
+                    'column' => $row->column_name,
+                    'type' => $row->data_type,
+                    'nullable' => $row->is_nullable,
+                    'default' => $row->column_default,
+                    'extra' => $row->extra
+                ];
+            }
+
+            $this->success($tables);
+        } catch (Exception $e) {
+            $this->error('Failed to fetch schema: ' . $e->getMessage());
+        }
+    }
 }
