@@ -1125,7 +1125,7 @@ export const updatePurchaseOrder = async (id: string, payload: { supplier_id: nu
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const setPurchaseOrderStatus = async (id: string, status: string) => {
+export const updatePurchaseOrderStatus = async (id: string, status: string) => {
   const res = await api(`/api/purchase/set_status/${id}`, { method: 'POST', body: JSON.stringify({ status }) });
   if (!res.ok) throw new Error('Failed to update PO status');
   return res.json() as Promise<ApiSuccess<null>>;

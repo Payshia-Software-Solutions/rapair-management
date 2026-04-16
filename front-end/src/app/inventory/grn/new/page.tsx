@@ -172,10 +172,13 @@ export default function NewGrnPage() {
         const [supRows, partRows, poRows] = await Promise.all([fetchSuppliers(), fetchParts(""), fetchPurchaseOrders("")]);
         setSuppliers(Array.isArray(supRows) ? supRows : []);
         setParts(Array.isArray(partRows) ? partRows : []);
-        const openOnly = Array.isArray(poRows)
-          ? (poRows as PurchaseOrderRow[]).filter((po) => String((po as any)?.status ?? "") !== "Received" && String((po as any)?.status ?? "") !== "Cancelled")
+        const openAndApprovedOnly = Array.isArray(poRows)
+          ? (poRows as PurchaseOrderRow[]).filter((po) => {
+              const s = String((po as any)?.status ?? "").toLowerCase();
+              return s === "approved" || s === "partially received" || s === "sent";
+            })
           : [];
-        setPurchaseOrders(openOnly);
+        setPurchaseOrders(openAndApprovedOnly);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load master data", variant: "destructive" });
       } finally {
@@ -247,10 +250,13 @@ export default function NewGrnPage() {
     // Reload POs for the new location context.
     try {
       const poRows = await fetchPurchaseOrders("");
-      const openOnly = Array.isArray(poRows)
-        ? (poRows as PurchaseOrderRow[]).filter((po) => String((po as any)?.status ?? "") !== "Received" && String((po as any)?.status ?? "") !== "Cancelled")
+      const openAndApprovedOnly = Array.isArray(poRows)
+        ? (poRows as PurchaseOrderRow[]).filter((po) => {
+            const s = String((po as any)?.status ?? "").toLowerCase();
+            return s === "approved" || s === "partially received" || s === "sent";
+          })
         : [];
-      setPurchaseOrders(openOnly);
+      setPurchaseOrders(openAndApprovedOnly);
     } catch {
       setPurchaseOrders([]);
     }

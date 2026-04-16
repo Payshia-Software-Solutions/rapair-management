@@ -17,55 +17,27 @@ import {
   fetchPurchaseOrders,
   fetchPartsForSupplier,
   fetchSuppliers,
-  setPurchaseOrderStatus,
   updatePurchaseOrder,
+  updatePurchaseOrderStatus,
   type PartRow,
   type PurchaseOrderItemRow,
   type PurchaseOrderRow,
   type SupplierRow,
 } from "@/lib/api";
-import { Plus, Search, Loader2, AlertCircle, FileText, Pencil, Send, Printer, PackageCheck } from "lucide-react";
+import { Search, Loader2, AlertCircle, FileText, Pencil, Printer, PackageCheck, Plus, CheckCircle2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-function toLocalDatetimeValue(v: string | null) {
-  if (!v) return "";
-  const iso = v.includes("T") ? v : v.replace(" ", "T");
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+
 
 export default function PurchaseOrdersPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [rows, setRows] = useState<PurchaseOrderRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
-  const [parts, setParts] = useState<PartRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [editId, setEditId] = useState<number | null>(null);
-  const [form, setForm] = useState({
-    supplier_id: "",
-    notes: "",
-    ordered_at: "",
-    expected_at: "",
-    items: [] as PurchaseOrderItemRow[],
-  });
 
   const onPrint = (id: number) => {
     const url = `/inventory/purchase-orders/print/${encodeURIComponent(String(id))}?autoprint=1`;
@@ -82,7 +54,6 @@ export default function PurchaseOrdersPage() {
       const [poRows, supRows] = await Promise.all([fetchPurchaseOrders(), fetchSuppliers()]);
       setRows(Array.isArray(poRows) ? poRows : []);
       setSuppliers(Array.isArray(supRows) ? supRows : []);
-      setParts([]);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load purchase orders", variant: "destructive" });
     } finally {
@@ -106,120 +77,23 @@ export default function PurchaseOrdersPage() {
     }
   }, []);
 
+  const onApprove = async (id: number) => {
+    try {
+      await updatePurchaseOrderStatus(String(id), "Approved");
+      toast({ title: "Approved", description: "Purchase order has been approved." });
+      await load();
+    } catch (e: any) {
+      toast({ title: "Error", description: e?.message || "Approval failed", variant: "destructive" });
+    }
+  };
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => (r.po_number ?? "").toLowerCase().includes(q) || (r.supplier_name ?? "").toLowerCase().includes(q));
   }, [rows, query]);
 
-  const openAdd = () => {
-    // New PO is now a dedicated page.
-    // (Kept for backward compatibility; not used by the UI button anymore.)
-    setEditId(null);
-    setForm({ supplier_id: "", notes: "", ordered_at: "", expected_at: "", items: [{ part_id: 0, qty_ordered: 1, unit_cost: 0 }] });
-    setDialogOpen(true);
-  };
 
-  const openEdit = async (id: number) => {
-    if (!isAdmin) {
-      toast({ title: "Forbidden", description: "Only Admin can edit purchase orders.", variant: "destructive" });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const data: any = await fetchPurchaseOrder(String(id));
-      const po: any = data?.purchase_order;
-      const items: any[] = Array.isArray(data?.items) ? data.items : [];
-      setEditId(id);
-      setForm({
-        supplier_id: String(po?.supplier_id ?? ""),
-        notes: String(po?.notes ?? ""),
-        ordered_at: toLocalDatetimeValue(po?.ordered_at ?? null),
-        expected_at: toLocalDatetimeValue(po?.expected_at ?? null),
-        items: items.map((it) => ({
-          id: Number(it.id),
-          part_id: Number(it.part_id),
-          qty_ordered: Number(it.qty_ordered ?? 0),
-          unit_cost: Number(it.unit_cost ?? 0),
-          received_qty: Number(it.received_qty ?? 0),
-        })),
-      });
-
-      const sid = Number(po?.supplier_id ?? 0);
-      if (sid > 0) {
-        const partRows = await fetchPartsForSupplier(sid, "");
-        setParts(Array.isArray(partRows) ? partRows : []);
-      } else {
-        setParts([]);
-      }
-      setDialogOpen(true);
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to load PO", variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  useEffect(() => {
-    const sid = Number(form.supplier_id);
-    if (!dialogOpen) return;
-    if (!Number.isFinite(sid) || sid <= 0) {
-      setParts([]);
-      return;
-    }
-    void (async () => {
-      try {
-        const partRows = await fetchPartsForSupplier(sid, "");
-        setParts(Array.isArray(partRows) ? partRows : []);
-      } catch {
-        setParts([]);
-      }
-    })();
-  }, [form.supplier_id, dialogOpen]);
-
-  const addLine = () => setForm((p) => ({ ...p, items: [...p.items, { part_id: 0, qty_ordered: 1, unit_cost: 0 }] }));
-  const removeLine = (idx: number) => setForm((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }));
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editId && !isAdmin) {
-      toast({ title: "Forbidden", description: "Only Admin can edit purchase orders.", variant: "destructive" });
-      return;
-    }
-    const supplierId = Number(form.supplier_id);
-    const items = form.items
-      .map((it) => ({
-        part_id: Number(it.part_id),
-        qty_ordered: Math.trunc(Number(it.qty_ordered)),
-        unit_cost: Number(it.unit_cost),
-      }))
-      .filter((it) => it.part_id > 0 && it.qty_ordered > 0 && Number.isFinite(it.unit_cost));
-    if (!supplierId || items.length === 0) return;
-
-    setSubmitting(true);
-    try {
-      const payload = {
-        supplier_id: supplierId,
-        notes: form.notes.trim() || undefined,
-        ordered_at: form.ordered_at ? form.ordered_at : null,
-        expected_at: form.expected_at ? form.expected_at : null,
-        items,
-      };
-      if (editId) {
-        await updatePurchaseOrder(String(editId), payload);
-        toast({ title: "Updated", description: "Purchase order updated" });
-      } else {
-        await createPurchaseOrder(payload);
-        toast({ title: "Created", description: "Purchase order created" });
-      }
-      setDialogOpen(false);
-      await load();
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Save failed", variant: "destructive" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   const quickStatus = async (id: number, status: string) => {
     if (!isAdmin) {
@@ -235,20 +109,7 @@ export default function PurchaseOrdersPage() {
     }
   };
 
-  const partLabel = (id: number) => {
-    const p = parts.find((x) => x.id === id);
-    if (!p) return "Select item...";
-    return p.sku ? `${p.part_name} (${p.sku})` : p.part_name;
-  };
 
-  const selectedPartIds = useMemo(() => {
-    const s = new Set<number>();
-    for (const it of form.items) {
-      const id = Number(it.part_id);
-      if (Number.isFinite(id) && id > 0) s.add(id);
-    }
-    return s;
-  }, [form.items]);
 
   return (
     <DashboardLayout>
@@ -258,152 +119,20 @@ export default function PurchaseOrdersPage() {
           <p className="text-muted-foreground mt-1">Create POs and receive items with GRN</p>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="hidden sm:flex px-3 py-1 bg-primary/10 text-primary border-primary/20">
-            {rows.length} POs
-          </Badge>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <Button asChild className="gap-2 bg-primary">
-              <Link href="/inventory/purchase-orders/new">
-                <Plus className="w-4 h-4" />
-                New PO
+          {isAdmin && (
+            <Button asChild variant="outline" className="gap-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+              <Link href="/inventory/purchase-orders/approvals">
+                <CheckCircle2 className="w-4 h-4" />
+                Approvals
               </Link>
             </Button>
-            <DialogContent className="sm:max-w-[920px]">
-              <form onSubmit={submit}>
-                <DialogHeader>
-                  <DialogTitle>{editId ? `Edit Purchase Order #${editId}` : "New Purchase Order"}</DialogTitle>
-                  <DialogDescription>Choose supplier and add line items.</DialogDescription>
-                </DialogHeader>
-
-                <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Supplier</Label>
-                      <Select value={form.supplier_id} onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v }))}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select supplier..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {suppliers.map((s) => (
-                            <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Ordered At</Label>
-                      <Input type="datetime-local" value={form.ordered_at} onChange={(e) => setForm((p) => ({ ...p, ordered_at: e.target.value }))} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Expected At</Label>
-                      <Input type="datetime-local" value={form.expected_at} onChange={(e) => setForm((p) => ({ ...p, expected_at: e.target.value }))} />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Notes</Label>
-                      <Input value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} placeholder="Optional" />
-                    </div>
-                  </div>
-
-                  <div className="rounded-md border overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 bg-muted/30">
-                      <div className="font-semibold">Line Items</div>
-                      <Button type="button" variant="outline" onClick={addLine}>Add Line</Button>
-                    </div>
-                    <div className="p-4 space-y-3">
-                      {form.items.map((it, idx) => (
-                        <div key={idx} className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
-                          <div className="lg:col-span-6 space-y-2">
-                            <Label>Item</Label>
-                            <Select
-                              value={String(it.part_id || "")}
-                              onValueChange={(v) => {
-                                const partId = Number(v);
-                                // Prevent duplicate selection
-                                if (partId > 0) {
-                                  const usedElsewhere = form.items.some((x, i) => i !== idx && Number(x.part_id) === partId);
-                                  if (usedElsewhere) {
-                                    toast({ title: "Duplicate item", description: "This item is already added to the PO.", variant: "destructive" });
-                                    return;
-                                  }
-                                }
-                                const p = parts.find((x) => x.id === partId);
-                                const defaultCost = p?.cost_price ?? 0;
-                                setForm((p) => ({
-                                  ...p,
-                                  items: p.items.map((x, i) =>
-                                    i === idx
-                                      ? { ...x, part_id: partId, unit_cost: Number.isFinite(Number(defaultCost)) ? Number(defaultCost) : 0 }
-                                      : x
-                                  ),
-                                }));
-                              }}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select item..." />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-[280px]">
-                                {parts.map((p) => (
-                                  <SelectItem
-                                    key={p.id}
-                                    value={String(p.id)}
-                                    disabled={selectedPartIds.has(Number(p.id)) && Number(p.id) !== Number(it.part_id)}
-                                  >
-                                    {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <div className="text-[11px] text-muted-foreground">
-                              {it.part_id ? partLabel(it.part_id) : "Pick an item"}
-                            </div>
-                          </div>
-                          <div className="lg:col-span-2 space-y-2">
-                            <Label>Qty</Label>
-                            <Input
-                              inputMode="numeric"
-                              value={String(it.qty_ordered ?? "")}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setForm((p) => ({
-                                  ...p,
-                                  items: p.items.map((x, i) => (i === idx ? { ...x, qty_ordered: Number(v) } : x)),
-                                }));
-                              }}
-                            />
-                          </div>
-                          <div className="lg:col-span-2 space-y-2">
-                            <Label>Unit Cost</Label>
-                            <Input
-                              inputMode="decimal"
-                              value={String(it.unit_cost ?? "")}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setForm((p) => ({
-                                  ...p,
-                                  items: p.items.map((x, i) => (i === idx ? { ...x, unit_cost: Number(v) } : x)),
-                                }));
-                              }}
-                            />
-                          </div>
-                          <div className="lg:col-span-2 flex justify-end gap-2">
-                            <Button type="button" variant="outline" onClick={() => removeLine(idx)} disabled={form.items.length <= 1}>Remove</Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={submitting}>
-                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          )}
+          <Button asChild className="gap-2 bg-primary">
+            <Link href="/inventory/purchase-orders/new">
+              <Plus className="w-4 h-4" />
+              New PO
+            </Link>
+          </Button>
         </div>
       </div>
 
@@ -458,7 +187,18 @@ export default function PurchaseOrdersPage() {
                       </TableCell>
                       <TableCell className="font-medium">{po.supplier_name ?? po.supplier_id}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary" className="text-[10px]">{po.status}</Badge>
+                        <Badge 
+                          variant={po.status === 'Draft' ? 'secondary' : 'outline'}
+                          className={`text-[10px] uppercase font-bold px-2 py-0.5 ${
+                            po.status === 'Approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            po.status === 'Received' ? 'bg-blue-100 text-blue-700 border-blue-200' :
+                            po.status === 'Draft' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                            po.status === 'Sent' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                            ''
+                          }`}
+                        >
+                          {po.status}
+                        </Badge>
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-sm">
                         {po.last_grn_number ? (
@@ -472,42 +212,54 @@ export default function PurchaseOrdersPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="inline-flex items-center gap-1">
-                          {isAdmin ? (
+                           {isAdmin && String(po.status).toLowerCase() === "draft" ? (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-muted-foreground hover:text-primary"
-                              onClick={() => void openEdit(po.id)}
-                              title="Edit"
+                              asChild
+                              title="Edit Draft PO"
                             >
-                              <Pencil className="w-4 h-4" />
+                              <Link href={`/inventory/purchase-orders/${po.id}`}>
+                                <Pencil className="w-4 h-4" />
+                              </Link>
                             </Button>
                           ) : null}
                           <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => onPrint(po.id)} title="Print">
                             <Printer className="w-4 h-4" />
                           </Button>
-                          {isAdmin && String(po.status) !== "Received" ? (
+                           {isAdmin && po.status === 'Approved' ? (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                               onClick={() => onReceive(po.id)}
-                              title="Mark as received (create GRN)"
+                              title="Receive Inventory (GRN)"
+                            >
+                              <PackageCheck className="w-4 h-4" />
+                            </Button>
+                          ) : isAdmin && po.status === 'Draft' ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                              onClick={() => onApprove(po.id)}
+                              title="Quick Approve"
+                            >
+                              <CheckCircle2 className="w-4 h-4" />
+                            </Button>
+                          ) : isAdmin && po.status === 'Partially Received' ? (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => onReceive(po.id)}
+                              title="Continue Receiving"
                             >
                               <PackageCheck className="w-4 h-4" />
                             </Button>
                           ) : null}
-                          {isAdmin ? (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-primary"
-                              onClick={() => void quickStatus(po.id, "Sent")}
-                              title="Mark Sent"
-                            >
-                              <Send className="w-4 h-4" />
-                            </Button>
-                          ) : null}
+
                         </div>
                       </TableCell>
                     </TableRow>

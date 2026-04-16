@@ -62,7 +62,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+import { StandaloneDatePicker } from '@/components/ui/standalone-date-picker';
+import { AnalogTimePicker } from '@/components/ui/analog-time-picker';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const priorityColors: Record<Priority, string> = {
   'Emergency': 'bg-red-500',
@@ -591,15 +594,44 @@ export default function OrderQueuePage() {
                   <div className="text-muted-foreground">Selected Bay</div>
                   <div className="font-semibold">{assignment.bay || 'Unassigned'}</div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Release Time</Label>
-                  <Input
-                    type="datetime-local"
-                    value={assignment.releaseTime}
-                    onChange={(e) => setAssignment({ ...assignment, releaseTime: e.target.value })}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Planned release time (can differ from expected).
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-muted-foreground">Release Date</Label>
+                      <StandaloneDatePicker
+                        value={assignment.releaseTime ? assignment.releaseTime.split('T')[0] : ''}
+                        onChange={(d) => {
+                          const existingTime = assignment.releaseTime?.includes('T') ? assignment.releaseTime.split('T')[1] : '12:00';
+                          setAssignment({ ...assignment, releaseTime: `${format(d, 'yyyy-MM-dd')}T${existingTime}` });
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-xs font-bold uppercase text-muted-foreground">Release Time</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className="w-full justify-start text-left font-normal h-10 px-3 truncate">
+                            {assignment.releaseTime?.includes('T') ? (
+                              format(new Date(assignment.releaseTime), "p")
+                            ) : (
+                              <span className="text-muted-foreground">Set Time</span>
+                            )}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 border-none shadow-2xl" align="end">
+                          <AnalogTimePicker 
+                            value={assignment.releaseTime?.includes('T') ? assignment.releaseTime.split('T')[1].substring(0, 5) : '12:00'}
+                            onChange={(t) => {
+                              const existingDate = assignment.releaseTime?.includes('T') ? assignment.releaseTime.split('T')[0] : format(new Date(), 'yyyy-MM-dd');
+                              setAssignment({ ...assignment, releaseTime: `${existingDate}T${t}` });
+                            }}
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground italic">
+                    Planned release time (Analog Clock).
                   </p>
                 </div>
                 <Label>Choose Technician</Label>
