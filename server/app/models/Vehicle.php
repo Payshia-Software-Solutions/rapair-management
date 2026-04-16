@@ -5,27 +5,25 @@
 class Vehicle extends Model {
     private $table = 'vehicles';
 
-    private function ensureDepartmentColumn() {
-        try {
-            $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE 'department_id'");
-            $hasDept = (bool)$this->db->single();
-            if (!$hasDept) {
-                $this->db->exec("ALTER TABLE {$this->table} ADD COLUMN department_id INT NULL");
-            }
-        } catch (Exception $e) {
-            // ignore
-        }
-    }
+    public function ensureSchema($force = false) {
+        $cols = [
+            'department_id' => "INT NULL",
+            'customer_id' => "INT NULL",
+            'image_filename' => "VARCHAR(255) NULL",
+            'updated_by' => "INT NULL",
+            'created_by' => "INT NULL",
+        ];
 
-    private function ensureImageColumn() {
-        try {
-            $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE 'image_filename'");
-            $exists = (bool)$this->db->single();
-            if (!$exists) {
-                $this->db->exec("ALTER TABLE {$this->table} ADD COLUMN image_filename VARCHAR(255) NULL");
+        foreach ($cols as $col => $def) {
+            try {
+                $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE '{$col}'");
+                $exists = (bool)$this->db->single();
+                if (!$exists) {
+                    $this->db->exec("ALTER TABLE {$this->table} ADD COLUMN {$col} {$def}");
+                }
+            } catch (Exception $e) {
+                // ignore
             }
-        } catch (Exception $e) {
-            // ignore
         }
     }
 
@@ -60,8 +58,7 @@ class Vehicle extends Model {
     }
 
     public function create($data, $userId = null) {
-        $this->ensureImageColumn();
-        $this->ensureDepartmentColumn();
+        $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table} (customer_id, department_id, make, model, year, vin, image_filename, created_by, updated_by)
             VALUES (:customer_id, :department_id, :make, :model, :year, :vin, :image_filename, :created_by, :updated_by)
@@ -79,8 +76,7 @@ class Vehicle extends Model {
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureImageColumn();
-        $this->ensureDepartmentColumn();
+        $this->ensureSchema();
         $this->db->query("
             UPDATE {$this->table}
             SET customer_id = :customer_id,

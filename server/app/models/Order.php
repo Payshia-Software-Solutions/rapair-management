@@ -61,6 +61,13 @@ class Order extends Model {
 
     public function getOrdersByLocation($locationId) {
         $this->ensureRepairOrderColumns();
+        // Ensure the vehicles table has the expected schema for the JOIN below.
+        try {
+            require_once __DIR__ . '/Vehicle.php';
+            $vModel = new Vehicle();
+            $vModel->ensureSchema();
+        } catch (Exception $e) {}
+
         $this->db->query("
             SELECT ro.*, 
                    v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,

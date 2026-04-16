@@ -38,6 +38,7 @@ export default function AdminSchemaPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
 
   const fetchSchema = async () => {
     setLoading(true);
@@ -54,6 +55,28 @@ export default function AdminSchemaPage() {
       setError(err.message || "An unexpected error occurred");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSync = async () => {
+    if (!confirm("Are you sure you want to synchronize the production database? This will repair missing tables and columns.")) return;
+    
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await api("/api/admin/sync", { method: "POST" });
+      const json = await res.json();
+      if (json.status === "success") {
+        alert("Database synchronized successfully!");
+        void fetchSchema();
+      } else {
+        throw new Error(json.message || "Sync failed");
+      }
+    } catch (err: any) {
+      setError(err.message || "Sync failed");
+      alert("Error: " + (err.message || "Sync failed"));
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -90,9 +113,19 @@ export default function AdminSchemaPage() {
               Verify real-time table structures and column definitions.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => void fetchSchema()} disabled={loading} className="gap-2">
-              <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              variant="default" 
+              size="sm" 
+              onClick={() => void handleSync()} 
+              disabled={syncing || loading} 
+              className="gap-2 bg-primary hover:bg-primary/90 shadow-sm"
+            >
+              <RefreshCcw className={cn("w-4 h-4", syncing && "animate-spin")} />
+              Sync Production Database
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => void fetchSchema()} disabled={loading || syncing} className="gap-2">
+              <RefreshCcw className={cn("w-4 h-4", loading && !syncing && "animate-spin")} />
               Refresh
             </Button>
             <Badge variant="secondary" className="px-3 py-1 bg-green-500/10 text-green-500 border-green-500/20 gap-1.5">

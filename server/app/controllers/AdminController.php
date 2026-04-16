@@ -413,4 +413,18 @@ class AdminController extends Controller {
             $this->error('Failed to fetch schema: ' . $e->getMessage());
         }
     }
+
+    // POST /api/admin/sync
+    public function sync() {
+        $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        require_once __DIR__ . '/../helpers/SyncHelper.php';
+        $results = SyncHelper::runAll();
+        
+        $this->success($results, 'Database synchronization completed');
+    }
 }
