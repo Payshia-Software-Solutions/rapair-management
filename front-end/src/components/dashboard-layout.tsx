@@ -63,7 +63,7 @@ import {
   SidebarGroupContent
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
-import { mainNavItems, masterDataItems, inventoryItems, adminNavItems } from "@/lib/nav-items";
+import { mainNavItems, masterDataItems, inventoryItems, cmsItems, adminNavItems } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
   const pathname = usePathname();
@@ -72,6 +72,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
+  const [isCmsOpen, setIsCmsOpen] = useState(false);
 	  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -296,6 +297,9 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const visibleInventoryItems = inventoryItems.filter((it) => hasPerm((it as any).perm));
   const canSeeInventory = visibleInventoryItems.length > 0;
 
+  const visibleCmsItems = cmsItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeCms = visibleCmsItems.length > 0;
+
   const adminItems = userRole === 'Admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
@@ -304,6 +308,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   // If a child route is active, force its dropdown open (users can still close when not on that section).
   const inventoryOpen = isInventoryOpen || pathname.startsWith('/inventory');
   const masterDataOpen = isMasterDataOpen || pathname.startsWith('/master-data');
+  const cmsOpen = isCmsOpen || pathname.startsWith('/cms');
   const adminOpen = isAdminOpen || pathname.startsWith('/admin');
 
   return (
@@ -433,6 +438,51 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                                 isActive={isActiveRoute(item.href)}
                               >
                                 <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeCms ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsCmsOpen((v) => !v)}
+                        isActive={pathname.startsWith('/cms')}
+                        tooltip="CMS"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/cms') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <User className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">CMS</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            cmsOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {cmsOpen ? (
+                        <SidebarMenuSub>
+                          {visibleCmsItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href} target={item.newTab ? "_blank" : undefined}>
                                   <item.icon className="w-4 h-4" />
                                   <span>{item.label}</span>
                                 </Link>

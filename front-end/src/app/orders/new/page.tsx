@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -113,6 +113,14 @@ export default function NewOrderPage() {
     return `${v.make ?? ""} ${v.model ?? ""}${year}${vin}`.trim();
   }, [selectedVehicle]);
 
+  const ownerLabel = useMemo(() => {
+    if (!selectedVehicle) return "";
+    const v: any = selectedVehicle as any;
+    if (v.customer_name) return v.customer_name;
+    if (v.department_name) return v.department_name;
+    return "Internal";
+  }, [selectedVehicle]);
+
   const filteredVehicles = useMemo(() => {
     const q = vehicleSearch.trim().toLowerCase();
     if (!q) return vehicles;
@@ -123,6 +131,8 @@ export default function NewOrderPage() {
         v.model,
         v.year,
         v.vin,
+        v.customer_name,
+        v.department_name,
       ]
         .filter(Boolean)
         .map((x: any) => String(x).toLowerCase())
@@ -468,14 +478,25 @@ export default function NewOrderPage() {
                                         : "hover:bg-muted/40 border-transparent"
                                     )}
                                   >
-                                    <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start justify-between gap-3 font-medium">
                                       <div className="min-w-0">
                                         <div className="font-semibold truncate">{label || `Vehicle #${vv.id}`}</div>
                                         {sub ? (
                                           <div className="text-xs text-muted-foreground mt-0.5 truncate">{sub}</div>
                                         ) : null}
-                                        <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                                          ID: {vv.id}
+                                        <div className="flex items-center gap-2 mt-2">
+                                          <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
+                                            ID: {vv.id}
+                                          </div>
+                                          {vv.customer_name ? (
+                                            <Badge variant="outline" className="text-[10px] py-0 h-4 bg-blue-50 text-blue-700 border-blue-200">
+                                              {vv.customer_name}
+                                            </Badge>
+                                          ) : vv.department_name ? (
+                                            <Badge variant="outline" className="text-[10px] py-0 h-4 bg-amber-50 text-amber-700 border-amber-200">
+                                              {vv.department_name}
+                                            </Badge>
+                                          ) : null}
                                         </div>
                                       </div>
                                       {selected ? (
@@ -498,7 +519,14 @@ export default function NewOrderPage() {
                             <Car className="w-5 h-5 text-primary" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <div className="font-bold truncate">{vehicleLabel}</div>
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="font-bold truncate">{vehicleLabel}</div>
+                              {selectedVehicle && (
+                                <Badge variant="secondary" className="text-[10px] py-0 h-4 px-1.5 whitespace-nowrap">
+                                  {ownerLabel}
+                                </Badge>
+                              )}
+                            </div>
                             <div className="text-xs text-muted-foreground mt-1">
                               You can change the selected vehicle anytime.
                             </div>
@@ -848,6 +876,14 @@ export default function NewOrderPage() {
                     {vehicleLabel || "Not Selected"}
                   </span>
                 </div>
+                {selectedVehicle && (
+                  <div className="flex justify-between text-sm gap-3">
+                    <span className="text-white/70">Owner</span>
+                    <span className="font-bold text-right max-w-[220px] truncate">
+                      {ownerLabel}
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-white/70">Priority</span>
                   <Badge className="bg-accent text-primary border-none">{formData.priority}</Badge>

@@ -56,6 +56,7 @@ class PartController extends Controller {
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
             'image_filename' => $data['image_filename'] ?? null,
+            'item_type' => $data['item_type'] ?? 'Part',
         ];
 
         $newId = $this->partModel->create($payload, (int)$u['sub']);
@@ -105,6 +106,7 @@ class PartController extends Controller {
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
             'image_filename' => $data['image_filename'] ?? null,
+            'item_type' => $data['item_type'] ?? 'Part',
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {

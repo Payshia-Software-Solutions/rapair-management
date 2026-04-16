@@ -196,9 +196,10 @@ export default function InventoryItemsListPage() {
                       <TableHeader className="bg-muted/30">
                         <TableRow>
                           <TableHead>Item</TableHead>
-                          <TableHead className="w-[130px]">Stock</TableHead>
-                          <TableHead className="hidden md:table-cell w-[140px]">Cost</TableHead>
-                          <TableHead className="hidden md:table-cell w-[140px]">Selling</TableHead>
+                          <TableHead className="w-[110px]">Type</TableHead>
+                          <TableHead className="w-[100px]">Stock</TableHead>
+                          <TableHead className="hidden md:table-cell w-[120px]">Cost</TableHead>
+                          <TableHead className="hidden md:table-cell w-[120px]">Selling</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -225,9 +226,14 @@ export default function InventoryItemsListPage() {
                                 </Link>
                               </TableCell>
                               <TableCell>
+                                <Badge variant="outline" className={p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}>
+                                  {p.item_type || 'Part'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
                                 <div className="font-bold">
-                                  {Number(p.stock_quantity ?? 0).toLocaleString()}{" "}
-                                  {p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
+                                  {p.item_type === 'Service' ? '—' : Number(p.stock_quantity ?? 0).toLocaleString()}{" "}
+                                  {p.item_type !== 'Service' && p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
                                 </div>
                               </TableCell>
                               <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
@@ -262,11 +268,16 @@ export default function InventoryItemsListPage() {
                                   </div>
                                   <div className="min-w-0">
                                     <div className="font-bold truncate">{p.part_name}</div>
-                                    <div className="text-xs text-muted-foreground truncate">{p.sku ? p.sku : `#${p.id}`}</div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="text-xs text-muted-foreground truncate">{p.sku ? p.sku : `#${p.id}`}</div>
+                                      <Badge variant="outline" className={`text-[9px] py-0 h-4 ${p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
+                                        {p.item_type || 'Part'}
+                                      </Badge>
+                                    </div>
                                   </div>
                                 </div>
-                                <Badge variant="outline" className="bg-muted/40">
-                                  {Number(p.stock_quantity ?? 0).toLocaleString()} {p.unit ?? ""}
+                                <Badge variant="outline" className="bg-muted/40 font-bold whitespace-nowrap">
+                                  {p.item_type === 'Service' ? 'Service' : `${Number(p.stock_quantity ?? 0).toLocaleString()} ${p.unit ?? ""}`}
                                 </Badge>
                               </div>
                               <div className="flex items-center justify-between text-sm">

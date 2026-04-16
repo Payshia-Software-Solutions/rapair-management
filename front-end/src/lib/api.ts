@@ -1,4 +1,4 @@
-export const api = (path: string, options: RequestInit = {}) => {
+export const api = async (path: string, options: RequestInit = {}): Promise<Response> => {
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
   const token =
     typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
@@ -22,7 +22,14 @@ export const api = (path: string, options: RequestInit = {}) => {
       ...((options.headers as Record<string, string>) ?? {}),
     },
   };
-  return fetch(`${baseUrl}${path}`, merged);
+  const response = await fetch(`${baseUrl}${path}`, merged);
+  // Global 401 interceptor - token expired or invalid, force logout immediately.
+  if (response.status === 401 && typeof window !== 'undefined') {
+    window.localStorage.removeItem('auth_token');
+    window.localStorage.removeItem('location_id');
+    window.location.href = '/login';
+  }
+  return response;
 };
 
 export interface SystemCheckItem {
@@ -83,11 +90,13 @@ export const fetchOrders = async () => {
         }
         return [];
       };
+
       return {
+        ...r, // Pass through all backend fields (customer_name, vehicle_model, vehicle_identifier, etc.)
         id: String(r.id),
-        vehicleId: r.vehicle_model ?? '',
+        vehicleId: r.vehicle_model ?? '', // Legacy support
         mileage: typeof r.mileage === 'number' ? r.mileage : (r.mileage ? Number(r.mileage) : 0),
-        priority: r.priority ?? 'Low',
+        priority: r.priority || r.priority_level || 'Low',
         expectedTime,
         releaseTime: r.release_time ?? r.releaseTime ?? '',
         problemDescription: r.problem_description ?? '',
@@ -590,15 +599,17 @@ export const adminSetUserActive = async (userId: string, isActive: boolean) => {
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export type ServiceLocationRow = {
+export interface ServiceLocation {
   id: number;
   name: string;
-  location_type?: 'service' | 'warehouse';
+  location_type: 'service' | 'warehouse';
   address?: string | null;
   phone?: string | null;
+  tax_no?: string | null;
+  tax_label?: string | null;
   created_at?: string;
   updated_at?: string;
-};
+}
 
 export const fetchLocations = async () => {
   const res = await api('/api/location/list');
@@ -652,7 +663,18 @@ export const deleteDepartment = async (id: string) => {
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export type CompanyRow = { id: number; name: string; address?: string | null; phone?: string | null; email?: string | null; logo_filename?: string | null };
+export type CompanyRow = { 
+  id: number; 
+  name: string; 
+  address?: string | null; 
+  phone?: string | null; 
+  email?: string | null; 
+  tax_no?: string | null;
+  tax_label?: string | null;
+  tax_ids_json?: string | null;
+  logo_filename?: string | null;
+  tax_ids?: number[]; 
+};
 
 export const fetchCompany = async () => {
   const res = await api('/api/company/get');
@@ -667,17 +689,25 @@ export const updateCompany = async (payload: Partial<CompanyRow>) => {
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
+export const fetchCompanyTaxes = async () => {
+  const res = await api('/api/company/getTaxes');
+  if (!res.ok) throw new Error('Failed to load company taxes');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as any[]) : [];
+};
+
 export const fetchChecklist = async (orderId: string) => {
   const res = await api(`/api/checklist/list/${orderId}`);
   if (!res.ok) throw new Error('Failed to load checklist');
   return res.json();
 };
 
-export const fetchVehicles = async () => {
-  const res = await api('/api/vehicle/list');
-  if (!res.ok) throw new Error('Failed to load vehicles');
+export const fetchVehicles = async (filter: string = 'all') => {
+  const qs = filter !== 'all' ? `?filter=${filter}` : '';
+  const res = await api(`/api/vehicle/list${qs}`);
+  if (!res.ok) return [];
   const data = await res.json();
-  return data.status === 'success' ? data.data : data;
+  return data.status === 'success' ? data.data : [];
 };
 
 export type VehicleRow = {
@@ -786,6 +816,7 @@ export type PartRow = {
   reorder_level: number | null;
   is_active: number;
   image_filename?: string | null;
+  item_type: "Part" | "Service";
 };
 
 export const fetchParts = async (q: string = '') => {
@@ -1430,4 +1461,131 @@ export const setPartImage = async (id: string, filename: string) => {
   const res = await api(`/api/part/set_image/${id}`, { method: 'POST', body: JSON.stringify({ image_filename: filename }) });
   if (!res.ok) throw new Error('Failed to set image');
   return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Customers
+export const fetchCustomers = async (q: string = '') => {
+  try {
+    const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+    const res = await api(`/api/customer/list${qs}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.status === 'success' ? data.data : [];
+  } catch (error) {
+    console.error('fetchCustomers failed:', error);
+    return [];
+  }
+};
+
+export const fetchCustomer = async (id: string) => {
+  const res = await api(`/api/customer/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load customer');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createCustomer = async (payload: any) => {
+  const res = await api('/api/customer/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create customer');
+  return res.json();
+};
+
+export const updateCustomer = async (id: string, payload: any) => {
+  const res = await api(`/api/customer/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update customer');
+  return res.json();
+};
+
+export const deleteCustomer = async (id: string) => {
+  const res = await api(`/api/customer/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete customer');
+  return res.json();
+};
+
+export const fetchCustomerVehicles = async (customerId: string) => {
+  const res = await api(`/api/vehicle/listByCustomer/${customerId}`);
+  if (!res.ok) throw new Error('Failed to load customer vehicles');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+// Invoices
+export const fetchInvoices = async (filters: { status?: string; customer_id?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.customer_id) params.append('customer_id', filters.customer_id);
+  const res = await api(`/api/invoice/list${params.toString() ? '?' + params.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load invoices');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchInvoiceDetails = async (id: string) => {
+  const res = await api(`/api/invoice/details/${id}`);
+  if (!res.ok) throw new Error('Failed to load invoice details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const createInvoice = async (payload: any) => {
+  const res = await api('/api/invoice/create', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to create invoice');
+  return res.json();
+};
+
+export const addInvoicePayment = async (id: string, payload: any) => {
+  const res = await api(`/api/invoice/addPayment/${id}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to add payment');
+  return res.json();
+};
+
+// Payment Receipt & Cheque Management
+export const createPaymentReceipt = async (payload: any) => {
+  const res = await api('/api/paymentreceipt/create', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) throw new Error('Failed to create payment receipt');
+  return res.json();
+};
+
+export const fetchPaymentReceipts = async (filters: any = {}) => {
+  const params = new URLSearchParams();
+  Object.keys(filters).forEach(key => {
+    if (filters[key]) params.append(key, filters[key]);
+  });
+  const res = await api(`/api/paymentreceipt/list${params.toString() ? '?' + params.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load payment receipts');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchPaymentReceiptDetails = async (id: string) => {
+  const res = await api(`/api/paymentreceipt/details/${id}`);
+  if (!res.ok) throw new Error('Failed to load receipt details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchChequeInventory = async (status?: string) => {
+  const params = status ? `?status=${status}` : '';
+  const res = await api(`/api/paymentreceipt/cheques${params}`);
+  if (!res.ok) throw new Error('Failed to load cheque inventory');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const updateChequeStatus = async (chequeId: string | number, status: string, clearedDate?: string) => {
+  const res = await api(`/api/paymentreceipt/chequestatus/${chequeId}`, {
+    method: 'POST',
+    body: JSON.stringify({ status, cleared_date: clearedDate })
+  });
+  if (!res.ok) throw new Error('Failed to update cheque status');
+  return res.json();
 };

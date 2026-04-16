@@ -42,7 +42,11 @@ class CheckController extends Controller {
         'company',
         'service_locations',
         'departments',
-        'user_locations'
+        'user_locations',
+        'customers',
+        'invoices',
+        'invoice_items',
+        'invoice_payments'
     ];
 
     public function __construct() {
@@ -52,6 +56,9 @@ class CheckController extends Controller {
         try { UnitSchema::ensure(); } catch (Exception $e) {}
         try { BrandSchema::ensure(); } catch (Exception $e) {}
         try { TaxSchema::ensure(); } catch (Exception $e) {}
+        try { CustomerSchema::ensure(); } catch (Exception $e) {}
+        try { InvoiceSchema::ensure(); } catch (Exception $e) {}
+        try { CompanySchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 

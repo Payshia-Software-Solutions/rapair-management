@@ -102,7 +102,7 @@ export default function VehiclesPage() {
   const loadVehicles = async () => {
     setLoading(true);
     try {
-      const data = await fetchVehicles();
+      const data = await fetchVehicles('internal');
       setVehicles(data);
     } catch (error) {
       toast({
@@ -119,7 +119,7 @@ export default function VehiclesPage() {
     const loadAll = async () => {
       setLoading(true);
       try {
-        const [vehicleData, makeData, deptData] = await Promise.all([fetchVehicles(), fetchMakes(), fetchDepartments()]);
+        const [vehicleData, makeData, deptData] = await Promise.all([fetchVehicles('internal'), fetchMakes(), fetchDepartments()]);
         setVehicles(vehicleData);
         setMakes(makeData);
         setDepartments(Array.isArray(deptData) ? deptData.map((d: any) => ({ id: Number(d.id), name: String(d.name) })) : []);
@@ -157,6 +157,7 @@ export default function VehiclesPage() {
       }
       const payload = {
         ...formData,
+        customer_id: null,
         year: parseInt(formData.year),
         image_filename: imageFilename || undefined,
       };

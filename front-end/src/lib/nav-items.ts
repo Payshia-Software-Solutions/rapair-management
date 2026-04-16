@@ -25,6 +25,8 @@ import {
   Database,
   Settings,
   Percent,
+  Receipt,
+  Landmark,
 } from "lucide-react";
 
 export type NavItem = {
@@ -32,6 +34,7 @@ export type NavItem = {
   label: string;
   href: string;
   perm?: string;
+  newTab?: boolean;
 };
 
 export const mainNavItems: NavItem[] = [
@@ -67,6 +70,15 @@ export const inventoryItems: NavItem[] = [
   { icon: ArrowLeftRight, label: "Stock Transfers", href: "/inventory/transfers", perm: "transfer.read" },
   { icon: History, label: "Stock", href: "/inventory/stock", perm: "stock.read" },
   { icon: ArrowLeftRight, label: "Stock Adjustments", href: "/inventory/stock/adjustments", perm: "stock.read" },
+];
+
+export const cmsItems: NavItem[] = [
+  { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
+  { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
+  { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
+  { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write", newTab: true },
+  { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "invoices.read" },
+  { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "invoices.read" },
 ];
 
 export const adminNavItems: NavItem[] = [

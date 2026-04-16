@@ -19,13 +19,13 @@ class ServiceLocation extends Model {
 
     public function getAll() {
         $this->ensureSchema();
-        $this->db->query("SELECT id, name, location_type, address, phone, created_at, updated_at FROM {$this->table} ORDER BY name ASC");
+        $this->db->query("SELECT id, name, location_type, address, phone, tax_no, tax_label, created_at, updated_at FROM {$this->table} ORDER BY name ASC");
         return $this->db->resultSet();
     }
 
     public function getById($id) {
         $this->ensureSchema();
-        $this->db->query("SELECT id, name, location_type, address, phone, created_at, updated_at FROM {$this->table} WHERE id = :id LIMIT 1");
+        $this->db->query("SELECT id, name, location_type, address, phone, tax_no, tax_label, created_at, updated_at FROM {$this->table} WHERE id = :id LIMIT 1");
         $this->db->bind(':id', (int)$id);
         return $this->db->single();
     }
@@ -33,13 +33,15 @@ class ServiceLocation extends Model {
     public function create($data, $userId = null) {
         $this->ensureSchema();
         $this->db->query("
-            INSERT INTO {$this->table} (name, location_type, address, phone, created_by, updated_by)
-            VALUES (:name, :location_type, :address, :phone, :created_by, :updated_by)
+            INSERT INTO {$this->table} (name, location_type, address, phone, tax_no, tax_label, created_by, updated_by)
+            VALUES (:name, :location_type, :address, :phone, :tax_no, :tax_label, :created_by, :updated_by)
         ");
         $this->db->bind(':name', trim((string)($data['name'] ?? '')));
         $this->db->bind(':location_type', $data['location_type'] ?? 'service');
         $this->db->bind(':address', $data['address'] ?? null);
         $this->db->bind(':phone', $data['phone'] ?? null);
+        $this->db->bind(':tax_no', $data['tax_no'] ?? null);
+        $this->db->bind(':tax_label', $data['tax_label'] ?? null);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         return $this->db->execute();
@@ -49,7 +51,8 @@ class ServiceLocation extends Model {
         $this->ensureSchema();
         $this->db->query("
             UPDATE {$this->table}
-            SET name = :name, location_type = :location_type, address = :address, phone = :phone, updated_by = :updated_by
+            SET name = :name, location_type = :location_type, address = :address, phone = :phone, 
+                tax_no = :tax_no, tax_label = :tax_label, updated_by = :updated_by
             WHERE id = :id
         ");
         $this->db->bind(':id', (int)$id);
@@ -57,6 +60,8 @@ class ServiceLocation extends Model {
         $this->db->bind(':location_type', $data['location_type'] ?? 'service');
         $this->db->bind(':address', $data['address'] ?? null);
         $this->db->bind(':phone', $data['phone'] ?? null);
+        $this->db->bind(':tax_no', $data['tax_no'] ?? null);
+        $this->db->bind(':tax_label', $data['tax_label'] ?? null);
         $this->db->bind(':updated_by', $userId);
         return $this->db->execute();
     }

@@ -45,27 +45,69 @@ class Order extends Model {
 
     // Get all orders
     public function getOrders() {
-        $this->db->query("SELECT * FROM " . $this->table . " ORDER BY created_at DESC");
+        $this->db->query("
+            SELECT ro.*, 
+                   v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
+                   c.name as customer_real_name, c.phone as customer_real_phone,
+                   d.name as department_name
+            FROM " . $this->table . " ro
+            LEFT JOIN vehicles v ON ro.vehicle_id = v.id
+            LEFT JOIN customers c ON v.customer_id = c.id
+            LEFT JOIN departments d ON v.department_id = d.id
+            ORDER BY ro.created_at DESC
+        ");
         return $this->db->resultSet();
     }
 
     public function getOrdersByLocation($locationId) {
         $this->ensureRepairOrderColumns();
-        $this->db->query("SELECT * FROM {$this->table} WHERE location_id = :location_id ORDER BY created_at DESC");
+        $this->db->query("
+            SELECT ro.*, 
+                   v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
+                   c.name as customer_real_name, c.phone as customer_real_phone,
+                   d.name as department_name
+            FROM " . $this->table . " ro
+            LEFT JOIN vehicles v ON ro.vehicle_id = v.id
+            LEFT JOIN customers c ON v.customer_id = c.id
+            LEFT JOIN departments d ON v.department_id = d.id
+            WHERE ro.location_id = :location_id 
+            ORDER BY ro.created_at DESC
+        ");
         $this->db->bind(':location_id', (int)$locationId);
         return $this->db->resultSet();
     }
 
     // Get order by ID
     public function getOrderById($id) {
-        $this->db->query("SELECT * FROM " . $this->table . " WHERE id = :id");
+        $this->db->query("
+            SELECT ro.*, 
+                   v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
+                   c.name as customer_real_name, c.phone as customer_real_phone,
+                   d.name as department_name
+            FROM " . $this->table . " ro
+            LEFT JOIN vehicles v ON ro.vehicle_id = v.id
+            LEFT JOIN customers c ON v.customer_id = c.id
+            LEFT JOIN departments d ON v.department_id = d.id
+            WHERE ro.id = :id
+        ");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
 
     public function getOrderByIdInLocation($id, $locationId) {
         $this->ensureRepairOrderColumns();
-        $this->db->query("SELECT * FROM {$this->table} WHERE id = :id AND location_id = :location_id LIMIT 1");
+        $this->db->query("
+            SELECT ro.*, 
+                   v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
+                   c.name as customer_real_name, c.phone as customer_real_phone,
+                   d.name as department_name
+            FROM " . $this->table . " ro
+            LEFT JOIN vehicles v ON ro.vehicle_id = v.id
+            LEFT JOIN customers c ON v.customer_id = c.id
+            LEFT JOIN departments d ON v.department_id = d.id
+            WHERE ro.id = :id AND ro.location_id = :location_id 
+            LIMIT 1
+        ");
         $this->db->bind(':id', (int)$id);
         $this->db->bind(':location_id', (int)$locationId);
         return $this->db->single();

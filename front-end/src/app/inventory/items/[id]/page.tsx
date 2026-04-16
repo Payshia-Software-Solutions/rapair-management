@@ -79,6 +79,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     price: "",
     reorder_level: "",
     is_active: true,
+    item_type: "Part" as "Part" | "Service",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
@@ -106,6 +107,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         price: p?.price !== null && p?.price !== undefined ? String(p.price) : "",
         reorder_level: p?.reorder_level !== null && p?.reorder_level !== undefined ? String(p.reorder_level) : "",
         is_active: Boolean(p?.is_active),
+        item_type: (p?.item_type === "Service" ? "Service" : "Part") as "Part" | "Service",
       });
       const ids = Array.isArray(p?.supplier_ids) ? (p.supplier_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
       setSupplierIds(Array.from(new Set(ids)).sort((a, b) => a - b));
@@ -155,6 +157,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
         image_filename: part?.image_filename ?? null,
+        item_type: form.item_type,
       });
       toast({ title: "Saved", description: "Product updated" });
       await load();
@@ -269,7 +272,19 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                   </div>
 
                   <div className="lg:col-span-8 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>Item Type</Label>
+                        <Select value={form.item_type} onValueChange={(v: any) => setForm((p) => ({ ...p, item_type: v }))}>
+                          <SelectTrigger className="font-bold border-amber-200 bg-amber-50/30">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Part" className="font-bold">Part (Physical Goods)</SelectItem>
+                            <SelectItem value="Service" className="font-bold">Service (Labor/Fee)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div className="space-y-2">
                         <Label>SKU</Label>
                         <div className="flex gap-2">

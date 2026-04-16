@@ -227,9 +227,9 @@ class Part extends Model {
         $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table}
-            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, reorder_level, is_active, image_filename, created_by, updated_by)
+            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, reorder_level, is_active, image_filename, item_type, created_by, updated_by)
             VALUES
-            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :reorder_level, :is_active, :image_filename, :created_by, :updated_by)
+            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :reorder_level, :is_active, :image_filename, :item_type, :created_by, :updated_by)
         ");
         $this->db->bind(':sku', $data['sku'] ?? null);
         $this->db->bind(':part_number', $data['part_number'] ?? null);
@@ -243,6 +243,7 @@ class Part extends Model {
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
+        $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         $ok = $this->db->execute();
@@ -265,6 +266,7 @@ class Part extends Model {
                 reorder_level = :reorder_level,
                 is_active = :is_active,
                 image_filename = :image_filename,
+                item_type = :item_type,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -279,6 +281,7 @@ class Part extends Model {
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
+        $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();

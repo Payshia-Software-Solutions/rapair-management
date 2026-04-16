@@ -63,6 +63,7 @@ export default function NewItemPage() {
     price: "",
     reorder_level: "",
     is_active: true,
+    item_type: "Part" as "Part" | "Service",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
@@ -139,6 +140,7 @@ export default function NewItemPage() {
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
         image_filename,
+        item_type: form.item_type,
       });
 
       toast({ title: "Created", description: "Product created" });
@@ -182,7 +184,19 @@ export default function NewItemPage() {
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Item Type</Label>
+                    <Select value={form.item_type} onValueChange={(v: any) => setForm((p) => ({ ...p, item_type: v }))}>
+                      <SelectTrigger className="font-bold border-amber-200 bg-amber-50/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Part" className="font-bold">Part (Physical Goods)</SelectItem>
+                        <SelectItem value="Service" className="font-bold">Service (Labor/Fee)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div className="space-y-2">
                     <Label>SKU</Label>
                     <div className="flex gap-2">

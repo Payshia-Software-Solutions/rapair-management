@@ -435,4 +435,21 @@ CREATE TABLE IF NOT EXISTS vehicle_models (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uq_vehicle_models_make_name (make_id, name),
     FOREIGN KEY (make_id) REFERENCES vehicle_makes(id) ON DELETE CASCADE
+
+-- Customers Table
+CREATE TABLE IF NOT EXISTS customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    phone VARCHAR(50) NULL,
+    email VARCHAR(255) NULL,
+    address TEXT NULL,
+    nic VARCHAR(50) NULL,
+    tax_number VARCHAR(100) NULL,
+    order_type ENUM('Internal', 'External') DEFAULT 'External',
+    is_active TINYINT(1) DEFAULT 1,
+    created_by INT NULL,
+    updated_by INT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_customers_name_phone (name, phone)
 );

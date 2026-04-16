@@ -87,4 +87,9 @@ class Database {
     public function lastInsertId() {
         return $this->dbh->lastInsertId();
     }
+
+    // Get the underlying PDO connection
+    public function getDb() {
+        return $this->dbh;
+    }
 }

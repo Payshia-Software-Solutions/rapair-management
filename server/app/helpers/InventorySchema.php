@@ -63,7 +63,8 @@ class InventorySchema {
                 ('PO', 'PO-', 1, 6),
                 ('GRN', 'GRN-', 1, 6),
                 ('TR', 'TR-', 1, 6),
-                ('REQ', 'REQ-', 1, 6)
+                ('REQ', 'REQ-', 1, 6),
+                ('INV', 'INV/', 1, 6)
             ");
 
             // If this is an existing install, bump next_number to (MAX(id)+1) as a sensible default.
@@ -176,6 +177,7 @@ class InventorySchema {
                     'reorder_level' => "INT NULL",
                     'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
                     'image_filename' => "VARCHAR(255) NULL",
+                    'item_type' => "ENUM('Part', 'Service') NOT NULL DEFAULT 'Part'",
                 ];
                 foreach ($cols as $col => $def) {
                     if (!self::hasColumn($pdo, 'parts', $col)) {

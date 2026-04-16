@@ -33,6 +33,8 @@ type LocationRow = {
   location_type?: "service" | "warehouse";
   address?: string | null;
   phone?: string | null;
+  tax_no?: string | null;
+  tax_label?: string | null;
 };
 
 export default function AdminLocationsPage() {
@@ -48,6 +50,8 @@ export default function AdminLocationsPage() {
   const [locationType, setLocationType] = useState<"service" | "warehouse">("service");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
+  const [taxNo, setTaxNo] = useState("");
+  const [taxLabel, setTaxLabel] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -83,6 +87,8 @@ export default function AdminLocationsPage() {
     setLocationType("service");
     setAddress("");
     setPhone("");
+    setTaxNo("");
+    setTaxLabel("");
     setIsDialogOpen(true);
   };
 
@@ -92,6 +98,8 @@ export default function AdminLocationsPage() {
     setLocationType(row.location_type ?? "service");
     setAddress(row.address ?? "");
     setPhone(row.phone ?? "");
+    setTaxNo(row.tax_no ?? "");
+    setTaxLabel(row.tax_label ?? "");
     setIsDialogOpen(true);
   };
 
@@ -102,7 +110,14 @@ export default function AdminLocationsPage() {
 
     setIsSubmitting(true);
     try {
-    const payload = { name: n, location_type: locationType, address: address.trim() || undefined, phone: phone.trim() || undefined };
+    const payload = { 
+      name: n, 
+      location_type: locationType, 
+      address: address.trim() || undefined, 
+      phone: phone.trim() || undefined,
+      tax_no: taxNo.trim() || undefined,
+      tax_label: taxLabel.trim() || undefined
+    };
       if (editingId) {
         await updateLocation(String(editingId), payload);
         toast({ title: "Updated", description: "Location updated" });
@@ -278,6 +293,26 @@ export default function AdminLocationsPage() {
                   className="col-span-3"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4 pt-2 border-t border-border/50">
+                <Label htmlFor="loc-tax-no" className="text-right">Tax ID</Label>
+                <Input
+                  id="loc-tax-no"
+                  className="col-span-3"
+                  placeholder="e.g. VAT12345678"
+                  value={taxNo}
+                  onChange={(e) => setTaxNo(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="loc-tax-label" className="text-right whitespace-nowrap">Tax Label</Label>
+                <Input
+                  id="loc-tax-label"
+                  className="col-span-3"
+                  placeholder="e.g. VAT NO"
+                  value={taxLabel}
+                  onChange={(e) => setTaxLabel(e.target.value)}
                 />
               </div>
             </div>

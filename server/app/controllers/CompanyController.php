@@ -33,10 +33,12 @@ class CompanyController extends Controller {
         }
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $name = trim((string)($data['name'] ?? ''));
-        if ($name === '') {
-            $this->error('Name is required', 400);
-            return;
+        
+        // Transform tax_ids array to JSON if present
+        if (isset($data['tax_ids']) && is_array($data['tax_ids'])) {
+            $data['tax_ids_json'] = json_encode($data['tax_ids']);
         }
+
         $ok = $this->companyModel->update($data, (int)$u['sub']);
         if (!$ok) {
             $this->error('Failed to update company');
@@ -52,9 +54,19 @@ class CompanyController extends Controller {
             'path' => $_SERVER['REQUEST_URI'] ?? '',
             'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-            'details' => json_encode(['name' => $name]),
+            'details' => json_encode(['name' => $name, 'tax_ids' => $data['tax_ids'] ?? null]),
         ]);
         $this->success(null, 'Company updated');
+    }
+
+    public function getTaxes() {
+        $this->requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+        $taxes = $this->companyModel->getTaxes(1);
+        $this->success($taxes);
     }
 }
 

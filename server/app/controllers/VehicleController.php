@@ -18,7 +18,9 @@ class VehicleController extends Controller {
             $this->error('Method Not Allowed', 405);
             return;
         }
-        $vehicles = $this->vehicleModel->getAll();
+        
+        $filter = $_GET['filter'] ?? 'all';
+        $vehicles = $this->vehicleModel->getAll($filter);
         $this->success($vehicles);
     }
 
@@ -135,5 +137,20 @@ class VehicleController extends Controller {
         } else {
             $this->error('Failed to delete vehicle');
         }
+    }
+
+    // GET /api/vehicle/listByCustomer/{customerId}
+    public function listByCustomer($customerId = null) {
+        $this->requirePermission('vehicles.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+        if (!$customerId) {
+            $this->error('Customer ID required', 400);
+            return;
+        }
+        $vehicles = $this->vehicleModel->getByCustomer($customerId);
+        $this->success($vehicles);
     }
 }
