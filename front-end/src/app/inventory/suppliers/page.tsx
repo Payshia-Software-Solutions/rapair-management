@@ -102,7 +102,7 @@ export default function SuppliersPage() {
         address: row.address ?? "",
         tax_reg_no: (row as any).tax_reg_no ?? "",
         is_active: Boolean(row.is_active),
-        tax_ids: Array.isArray((row as any).tax_ids) ? ((row as any).tax_ids as number[]) : [],
+        tax_ids: Array.isArray((row as any).tax_ids) ? (row as any).tax_ids.map(Number) : [],
       });
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load supplier details", variant: "destructive" });
@@ -250,7 +250,7 @@ export default function SuppliersPage() {
                       ) : (
                         <div className="rounded-md border p-3 space-y-2 max-h-[220px] overflow-auto">
                           {taxes.map((t) => {
-                            const checked = form.tax_ids.includes(t.id);
+                            const checked = form.tax_ids.includes(Number(t.id));
                             return (
                               <label key={t.id} className="flex items-start gap-3 cursor-pointer select-none">
                                 <input
@@ -261,8 +261,8 @@ export default function SuppliersPage() {
                                     const on = e.target.checked;
                                     setForm((p) => {
                                       const cur = new Set<number>(p.tax_ids);
-                                      if (on) cur.add(t.id);
-                                      else cur.delete(t.id);
+                                      if (on) cur.add(Number(t.id));
+                                      else cur.delete(Number(t.id));
                                       return { ...p, tax_ids: Array.from(cur) };
                                     });
                                   }}
