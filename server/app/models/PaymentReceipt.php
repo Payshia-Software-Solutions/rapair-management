@@ -23,6 +23,9 @@ class PaymentReceipt {
                 reference_no    VARCHAR(100) NULL,
                 payment_date    DATE NOT NULL,
                 notes           TEXT NULL,
+                card_type       VARCHAR(20) NULL,
+                card_last4      VARCHAR(4) NULL,
+                card_auth_code  VARCHAR(50) NULL,
                 created_by      INT NULL,
                 created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 INDEX idx_pr_invoice   (invoice_id),
@@ -31,6 +34,26 @@ class PaymentReceipt {
             )
         ");
         $this->db->execute();
+
+        // Migration Check: Add Card columns if they don't exist
+        try {
+            $this->db->query("SELECT card_type FROM payment_receipts LIMIT 1");
+            $this->db->execute();
+        } catch (Exception $e) {
+            $this->db->query("ALTER TABLE payment_receipts ADD COLUMN card_type VARCHAR(20) NULL AFTER notes, ADD COLUMN card_last4 VARCHAR(4) NULL AFTER card_type, ADD COLUMN card_auth_code VARCHAR(50) NULL AFTER card_last4");
+            $this->db->execute();
+        }
+
+        // Migration Check: Add location_id if it doesn't exist
+        try {
+            $this->db->query("SELECT location_id FROM payment_receipts LIMIT 1");
+            $this->db->execute();
+        } catch (Exception $e) {
+            $this->db->query("ALTER TABLE payment_receipts ADD COLUMN location_id INT NOT NULL DEFAULT 1 AFTER customer_name");
+            $this->db->execute();
+            $this->db->query("CREATE INDEX idx_pr_location ON payment_receipts(location_id)");
+            $this->db->execute();
+        }
 
         // cheque_inventory
         $this->db->query("
@@ -90,10 +113,10 @@ class PaymentReceipt {
         $this->db->query("
             INSERT INTO payment_receipts
                 (receipt_no, invoice_id, invoice_no, customer_id, customer_name, location_id,
-                 amount, payment_method, reference_no, payment_date, notes, created_by)
+                 amount, payment_method, reference_no, payment_date, notes, card_type, card_last4, card_auth_code, created_by)
             VALUES
                 (:receipt_no, :invoice_id, :invoice_no, :customer_id, :customer_name, :location_id,
-                 :amount, :payment_method, :reference_no, :payment_date, :notes, :created_by)
+                 :amount, :payment_method, :reference_no, :payment_date, :notes, :card_type, :card_last4, :card_auth_code, :created_by)
         ");
         $this->db->bind(':receipt_no',      $receiptNo);
         $this->db->bind(':invoice_id',      $data['invoice_id']);
@@ -106,6 +129,9 @@ class PaymentReceipt {
         $this->db->bind(':reference_no',    $data['reference_no'] ?? null);
         $this->db->bind(':payment_date',    $data['payment_date']);
         $this->db->bind(':notes',           $data['notes'] ?? null);
+        $this->db->bind(':card_type',       $data['card_type'] ?? null);
+        $this->db->bind(':card_last4',      $data['card_last4'] ?? null);
+        $this->db->bind(':card_auth_code',  $data['card_auth_code'] ?? null);
         $this->db->bind(':created_by',      $data['created_by'] ?? null);
 
         if (!$this->db->execute()) return false;

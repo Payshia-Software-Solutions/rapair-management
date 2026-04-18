@@ -27,6 +27,10 @@ import {
   Percent,
   Receipt,
   Landmark,
+  LayoutGrid,
+  CreditCard,
+  TrendingUp,
+  Factory
 } from "lucide-react";
 
 export type NavItem = {
@@ -39,52 +43,80 @@ export type NavItem = {
 
 export const mainNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: ClipboardList, label: "Order Queue", href: "/orders", perm: "orders.read" },
-  { icon: PlayCircle, label: "Active Jobs", href: "/orders/active", perm: "orders.read" },
-  { icon: CheckCircle2, label: "Completed Orders", href: "/orders/completed", perm: "orders.read" },
-  { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.write" },
-  { icon: Grid, label: "Bays Board", href: "/dashboard/bays", perm: "bays.read" },
+  { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write" },
   { icon: BarChart3, label: "Reports", href: "/reports", perm: "reports.read" },
 ];
 
-export const masterDataItems: NavItem[] = [
-  { icon: Car, label: "Vehicles", href: "/master-data/vehicles", perm: "vehicles.read" },
+export const serviceCenterItems: NavItem[] = [
+  { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.write" },
+  { icon: ClipboardList, label: "Order Queue", href: "/orders", perm: "orders.read" },
+  { icon: PlayCircle, label: "Active Jobs", href: "/orders/active", perm: "orders.read" },
+  { icon: CheckCircle2, label: "Completed Orders", href: "/orders/completed", perm: "orders.read" },
+  { icon: Grid, label: "Bays Board", href: "/dashboard/bays", perm: "bays.read" },
+  { icon: Car, label: "Vehicles List", href: "/master-data/vehicles", perm: "vehicles.read" },
   { icon: Tag, label: "Brands", href: "/master-data/brands", perm: "brands.read" },
-  { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Tag, label: "Vehicle Makes", href: "/master-data/makes", perm: "makes.read" },
   { icon: Layers, label: "Vehicle Models", href: "/master-data/models", perm: "models.read" },
   { icon: Users, label: "Technicians", href: "/master-data/technicians", perm: "technicians.read" },
   { icon: Grid, label: "Service Bays", href: "/master-data/bays", perm: "bays.read" },
-  { icon: Grid, label: "Departments", href: "/master-data/departments", perm: "departments.read" },
-  { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Tags, label: "Repair Categories", href: "/master-data/categories", perm: "categories.read" },
   { icon: CheckSquare, label: "Checklist Items", href: "/master-data/checklists", perm: "checklists.read" },
 ];
 
+export const vendorItems: NavItem[] = [
+  { icon: Truck, label: "Suppliers", href: "/inventory/suppliers", perm: "suppliers.read" },
+  { icon: Receipt, label: "Vendor Payments", href: "/vendors/payments", perm: "suppliers.read" },
+  { icon: ArrowLeftRight, label: "Supplier Returns", href: "/vendors/returns", perm: "suppliers.read" },
+];
+
 export const inventoryItems: NavItem[] = [
   { icon: Boxes, label: "Items", href: "/inventory/items", perm: "parts.read" },
-  { icon: Truck, label: "Suppliers", href: "/inventory/suppliers", perm: "suppliers.read" },
+  { icon: History, label: "Stock Balance", href: "/inventory/stock", perm: "stock.read" },
+  { icon: ArrowLeftRight, label: "Stock Adjustments", href: "/inventory/stock/adjustments", perm: "stock.read" },
+  { icon: ArrowLeftRight, label: "Stock Transfers", href: "/inventory/transfers", perm: "transfer.read" },
   { icon: FileText, label: "Purchase Orders", href: "/inventory/purchase-orders", perm: "purchase.read" },
   { icon: PackageCheck, label: "GRN", href: "/inventory/grn", perm: "grn.read" },
   { icon: ClipboardListIcon, label: "Stock Requests", href: "/inventory/stock-requests", perm: "transfer.read" },
-  { icon: ArrowLeftRight, label: "Stock Transfers", href: "/inventory/transfers", perm: "transfer.read" },
-  { icon: History, label: "Stock", href: "/inventory/stock", perm: "stock.read" },
-  { icon: ArrowLeftRight, label: "Stock Adjustments", href: "/inventory/stock/adjustments", perm: "stock.read" },
 ];
 
 export const cmsItems: NavItem[] = [
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
-  { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write", newTab: true },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "invoices.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "invoices.read" },
 ];
 
+export const masterDataItems: NavItem[] = [
+  { icon: LayoutGrid, label: "Product Collections", href: "/master-data/collections", perm: "parts.read" },
+  { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
+  { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
+  { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
+  { icon: Grid, label: "Departments", href: "/master-data/departments", perm: "departments.read" },
+  { icon: Grid, label: "Restaurant Tables", href: "/master-data/tables", perm: "tables.read" },
+];
+
+export const accountingItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Financial Overview", href: "/accounting" },
+  { icon: History, label: "Journal Entries", href: "/accounting/journal" },
+  { icon: LayoutGrid, label: "Chart of Accounts", href: "/accounting/accounts" },
+  { icon: CheckCircle2, label: "Bank Reconciliation", href: "/accounting/reconciliation", perm: "accounting.reconcile" },
+  { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
+  { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
+  { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet" },
+  { icon: Settings, label: "Accounting Settings", href: "/accounting/settings" },
+];
+
+export const productionItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Overview", href: "/production", perm: "production.read" },
+  { icon: ClipboardList, label: "Production Orders", href: "/production/orders", perm: "production.read" },
+  { icon: Factory, label: "Bill of Materials", href: "/production/bom", perm: "production.read" },
+];
+
 export const adminNavItems: NavItem[] = [
-  { icon: Shield, label: "RBAC", href: "/admin/rbac" },
   { icon: Users, label: "Users", href: "/admin/users" },
+  { icon: Shield, label: "RBAC Roles", href: "/admin/rbac" },
   { icon: Database, label: "Locations", href: "/admin/locations" },
-  { icon: Layers, label: "Database Schema", href: "/admin/schema" },
   { icon: Settings, label: "Company", href: "/admin/company" },
+  { icon: Layers, label: "Database Schema", href: "/admin/schema" },
 ];

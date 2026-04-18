@@ -140,7 +140,8 @@ class ReportController extends Controller {
                 SELECT
                   l.id AS location_id,
                   l.name AS location_name,
-                  p.id AS part_id,
+                  p.id AS id,
+              p.id AS part_id,
                   p.part_name,
                   p.sku,
                   p.unit,
@@ -170,6 +171,7 @@ class ReportController extends Controller {
 
         $sql = "
             SELECT
+              p.id AS id,
               p.id AS part_id,
               p.part_name,
               p.sku,
@@ -177,14 +179,15 @@ class ReportController extends Controller {
               b.name AS brand_name,
               p.reorder_level,
               p.cost_price,
-              COALESCE(SUM(sm.qty_change), 0) AS qty
+              COALESCE(SUM(sm.qty_change), 0) AS location_stock_quantity,
+              (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id " . ($asOfEnd ? "AND created_at <= :asOfEnd" : "") . ") AS system_stock_quantity
             FROM parts p
             LEFT JOIN brands b ON b.id = p.brand_id
             LEFT JOIN stock_movements sm
               ON sm.part_id = p.id
              AND sm.location_id IN ($inLoc)
               " . ($asOfEnd ? "AND sm.created_at <= :asOfEnd" : "") . "
-            WHERE 1=1
+            WHERE p.item_type != 'Service'
             $wherePartsSql
             GROUP BY p.id
             ORDER BY p.part_name ASC
@@ -194,6 +197,56 @@ class ReportController extends Controller {
         if ($q !== '') $this->db->bind(':q', '%' . $q . '%');
         if ($asOfEnd) $this->db->bind(':asOfEnd', $asOfEnd);
         $rows = $this->db->resultSet();
+
+        if ($group === 'item' && ($rows && count($rows) > 0) && (isset($_GET['batches']) && $_GET['batches'] == '1')) {
+            $partIds = array_map(function($r) { return (int)$r->part_id; }, $rows);
+            if (count($partIds) > 0) {
+                $inParts = $this->inList('part', $partIds);
+                
+                // Calculate batch balances directly from the ledger (stock_movements)
+                $batchSql = "
+                    SELECT 
+                        sm.part_id,
+                        sm.batch_id,
+                        ib.batch_number,
+                        ib.mfg_date,
+                        ib.expiry_date,
+                        COALESCE(SUM(sm.qty_change), 0) AS quantity_on_hand
+                    FROM stock_movements sm
+                    LEFT JOIN inventory_batches ib ON ib.id = sm.batch_id
+                    WHERE sm.part_id IN ($inParts)
+                      AND sm.location_id IN ($inLoc)
+                      " . ($asOfEnd ? "AND sm.created_at <= :asOfEnd" : "") . "
+                    GROUP BY sm.part_id, sm.batch_id
+                    HAVING quantity_on_hand > 0.0001
+                    ORDER BY sm.part_id ASC, ib.mfg_date ASC, sm.batch_id ASC
+                ";
+                $this->db->query($batchSql);
+                $this->bindInList('part', $partIds);
+                $this->bindInList('loc', $locIds);
+                if ($asOfEnd) $this->db->bind(':asOfEnd', $asOfEnd);
+                $ledgerBatches = $this->db->resultSet();
+                
+                // Map to items
+                $batchMap = [];
+                foreach ($ledgerBatches as $lb) {
+                    $item = [
+                        'id' => $lb->batch_id,
+                        'batch_number' => $lb->batch_number ?? 'UNCLASSIFIED',
+                        'mfg_date' => $lb->mfg_date ?? null,
+                        'expiry_date' => $lb->expiry_date ?? null,
+                        'quantity_on_hand' => (float)$lb->quantity_on_hand,
+                        'is_unclassified' => ($lb->batch_id === null)
+                    ];
+                    $batchMap[$lb->part_id][] = $item;
+                }
+                
+                foreach ($rows as $r) {
+                    $r->batches = $batchMap[$r->part_id] ?? [];
+                }
+            }
+        }
+
         $this->success($rows);
     }
 
@@ -207,6 +260,7 @@ class ReportController extends Controller {
 
         $sql = "
             SELECT
+              p.id AS id,
               p.id AS part_id,
               p.part_name,
               p.sku,

@@ -10,4 +10,8 @@ class Model {
     public function __construct() {
         $this->db = new Database();
     }
+
+    public function getDb() {
+        return $this->db;
+    }
 }

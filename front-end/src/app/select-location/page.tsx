@@ -36,7 +36,7 @@ export default function SelectLocationPage() {
     }
 
     const payload = decodeJwtPayload(token);
-    const role = String(payload?.role ?? "");
+    const role = String(payload?.role ?? "").toLowerCase();
     const allowed: AllowedLocation[] = Array.isArray(payload?.allowed_locations)
       ? payload.allowed_locations
           .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
@@ -44,9 +44,14 @@ export default function SelectLocationPage() {
       : [];
 
     const fallbackId = payload?.location_id ? Number(payload.location_id) : 1;
-    const fallbackName = payload?.location_name ? String(payload.location_name) : "Main";
+    const fallbackName = payload?.location_name ? String(payload.location_name) : "-";
 
     const setFromList = (list: AllowedLocation[]) => {
+      if (list.length === 0 && !fallbackId) {
+          setLocations([]);
+          setLoading(false);
+          return;
+      }
       const finalAllowed = list.length > 0 ? list : [{ id: fallbackId, name: fallbackName }];
       setLocations(finalAllowed);
       const pre = finalAllowed.find((l) => l.id === fallbackId)?.id ?? finalAllowed[0].id;
@@ -54,7 +59,7 @@ export default function SelectLocationPage() {
       setLoading(false);
     };
 
-    if (role === "Admin") {
+    if (role === "admin") {
       // Admin can switch to any location (service + warehouse).
       void (async () => {
         try {

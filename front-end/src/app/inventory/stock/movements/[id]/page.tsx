@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { fetchLocations, fetchPart, fetchPartLocationStock, fetchPartMovements, type LocationStock, type PartRow, type ServiceLocationRow } from "@/lib/api";
+import { fetchLocations, fetchPart, fetchPartLocationStock, fetchPartMovements, type LocationStock, type PartRow, type ServiceLocation } from "@/lib/api";
 import { ArrowLeft, ExternalLink, Loader2 } from "lucide-react";
 
 function qtyFmt(n: number) {
@@ -100,22 +100,26 @@ export default function StockMovementsPage() {
         setToDate(defaultTo);
 
         const tokenJson: any = decodeToken();
-        const role = String(tokenJson?.role ?? "");
+        const role = String(tokenJson?.role ?? "").toLowerCase();
         const allowed = Array.isArray(tokenJson?.allowed_locations) ? tokenJson.allowed_locations : [];
         const allowedLocs = allowed
           .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
           .filter((x: any) => x.id > 0 && x.name);
 
         let locs: Array<{ id: number; name: string }> = [];
-        if (role === "Admin") {
+        if (role === "admin") {
           const rows = await fetchLocations();
           locs = Array.isArray(rows)
-            ? (rows as ServiceLocationRow[]).map((l) => ({ id: Number(l.id), name: String(l.name ?? "") })).filter((l) => l.id > 0 && l.name)
+            ? (rows as ServiceLocation[]).map((l) => ({ id: Number(l.id), name: String(l.name ?? "") })).filter((l) => l.id > 0 && l.name)
             : [];
         } else {
           locs = allowedLocs;
         }
-        if (locs.length === 0) locs = [{ id: 1, name: "Main" }];
+        if (locs.length === 0) {
+          setLocations([]);
+          setLoading(false);
+          return;
+        }
         setLocations(locs);
 
         const fromQuery = Number(searchParams?.get("location_id") || 0);
@@ -131,6 +135,7 @@ export default function StockMovementsPage() {
         await loadLocationStock(String(id), initLoc);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load part/movements", variant: "destructive" });
+        setLocations([]);
       } finally {
         setLoading(false);
       }

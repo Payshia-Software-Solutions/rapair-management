@@ -131,4 +131,47 @@ class Supplier extends Model {
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
+
+    public function getPayableSummary($id) {
+        $this->ensureSchema();
+        $sid = (int)$id;
+        
+        // 1. Get Total Balance from Ledger
+        require_once '../app/models/AccountMapping.php';
+        $mappingModel = new AccountMapping();
+        $apMapping = $mappingModel->getMapping('grn_ap');
+        $apId = $apMapping ? (int)$apMapping->account_id : null;
+        
+        $totalBalance = 0;
+        if ($apId) {
+            $this->db->query("
+                SELECT SUM(credit - debit) as balance 
+                FROM acc_journal_items 
+                WHERE account_id = :aid AND partner_type = 'Supplier' AND partner_id = :sid
+            ");
+            $this->db->bind(':aid', $apId);
+            $this->db->bind(':sid', $sid);
+            $res = $this->db->single();
+            $totalBalance = (float)($res->balance ?? 0);
+        }
+
+        // 2. Get Outstanding GRNs
+        // We calculate balance as: total_amount - (sum of allocated payments from multiple payment entries) - (sum of allocated returns)
+        $this->db->query("
+            SELECT g.id, g.grn_number, g.received_at, g.total_amount,
+                   COALESCE((SELECT SUM(amount) FROM acc_supplier_payment_allocations WHERE grn_id = g.id), 0) as paid_amount,
+                   COALESCE((SELECT SUM(total_amount) FROM acc_purchase_returns WHERE grn_id = g.id), 0) as returned_amount
+            FROM goods_receive_notes g
+            WHERE g.supplier_id = :sid
+            HAVING (total_amount - paid_amount - returned_amount) > 0.01
+            ORDER BY g.received_at ASC
+        ");
+        $this->db->bind(':sid', $sid);
+        $grns = $this->db->resultSet();
+
+        return (object)[
+            'total_payable' => $totalBalance,
+            'outstanding_grns' => $grns
+        ];
+    }
 }

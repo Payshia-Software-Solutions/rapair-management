@@ -103,7 +103,8 @@ class GoodsReceiveNote extends Model {
         if (!$grn) return null;
 
         $this->db->query("
-            SELECT i.*, p.part_name, p.sku, b.name AS brand_name
+            SELECT i.*, p.part_name, p.sku, b.name AS brand_name,
+                   p.is_fifo, p.is_expiry
             FROM grn_items i
             INNER JOIN parts p ON p.id = i.part_id
             LEFT JOIN brands b ON b.id = p.brand_id
@@ -136,14 +137,29 @@ class GoodsReceiveNote extends Model {
             $partId = (int)($it['part_id'] ?? $it['partId'] ?? 0);
             $qty = round((float)($it['qty_received'] ?? $it['qty'] ?? 0), 3);
             $unitCost = (float)($it['unit_cost'] ?? $it['unitCost'] ?? 0);
+            $batchNum = trim((string)($it['batch_number'] ?? $it['batchNumber'] ?? ''));
+            $mfgDate = $it['mfg_date'] ?? $it['mfgDate'] ?? null;
+            $expDate = $it['expiry_date'] ?? $it['expiryDate'] ?? null;
+
             if ($partId <= 0 || $qty <= 0) continue;
-            if (!isset($mergedItems[$partId])) {
-                $mergedItems[$partId] = ['part_id' => $partId, 'qty' => 0.0, 'unit_cost' => $unitCost];
+            
+            // Unique key for merging: part + batch
+            $key = $partId . '_' . $batchNum;
+
+            if (!isset($mergedItems[$key])) {
+                $mergedItems[$key] = [
+                    'part_id' => $partId, 
+                    'qty' => 0.0, 
+                    'unit_cost' => $unitCost,
+                    'batch_number' => $batchNum,
+                    'mfg_date' => $mfgDate,
+                    'expiry_date' => $expDate
+                ];
             } else {
-                $prevCost = (float)$mergedItems[$partId]['unit_cost'];
+                $prevCost = (float)$mergedItems[$key]['unit_cost'];
                 if (abs($prevCost - $unitCost) > 0.0001) return false;
             }
-            $mergedItems[$partId]['qty'] = round(((float)$mergedItems[$partId]['qty']) + $qty, 3);
+            $mergedItems[$key]['qty'] = round(((float)$mergedItems[$key]['qty']) + $qty, 3);
         }
         if (count($mergedItems) === 0) return false;
 
@@ -183,14 +199,27 @@ class GoodsReceiveNote extends Model {
 
             $this->db->query("
                 INSERT INTO {$this->table}
-                (grn_number, purchase_order_id, location_id, supplier_id, received_at, notes, created_by, updated_by)
+                (grn_number, purchase_order_id, location_id, supplier_id, subtotal, tax_total, total_amount, received_at, notes, created_by, updated_by)
                 VALUES
-                (:grn_number, :po_id, :location_id, :supplier_id, :received_at, :notes, :created_by, :updated_by)
+                (:grn_number, :po_id, :location_id, :supplier_id, :subtotal, :tax_total, :total_amount, :received_at, :notes, :created_by, :updated_by)
             ");
+            $subtotal = (float)($data['subtotal'] ?? 0);
+            $taxTotal = (float)($data['tax_total'] ?? 0);
+
+            // Safety: If subtotal is zero, recalculate from items
+            if ($subtotal <= 0 && !empty($mergedItems)) {
+                foreach ($mergedItems as $it) {
+                    $subtotal += (float)($it['qty_received'] ?? 0) * (float)($it['unit_cost'] ?? 0);
+                }
+            }
+            
             $this->db->bind(':grn_number', $grnNumber);
             $this->db->bind(':po_id', $poId);
             $this->db->bind(':location_id', $locId);
             $this->db->bind(':supplier_id', $supplierId);
+            $this->db->bind(':subtotal', $subtotal);
+            $this->db->bind(':tax_total', $taxTotal);
+            $this->db->bind(':total_amount', $subtotal + $taxTotal);
             $this->db->bind(':received_at', $receivedAt);
             $this->db->bind(':notes', $data['notes'] ?? null);
             $this->db->bind(':created_by', $userId);
@@ -211,14 +240,17 @@ class GoodsReceiveNote extends Model {
 
                 // Insert GRN item
                 $this->db->query("
-                    INSERT INTO grn_items (grn_id, part_id, qty_received, unit_cost, line_total)
-                    VALUES (:grn_id, :part_id, :qty, :unit_cost, :line_total)
+                    INSERT INTO grn_items (grn_id, part_id, qty_received, unit_cost, line_total, batch_number, mfg_date, expiry_date)
+                    VALUES (:grn_id, :part_id, :qty, :unit_cost, :line_total, :batch_number, :mfg_date, :expiry_date)
                 ");
                 $this->db->bind(':grn_id', $grnId);
                 $this->db->bind(':part_id', $partId);
                 $this->db->bind(':qty', $qty);
                 $this->db->bind(':unit_cost', $unitCost);
                 $this->db->bind(':line_total', $lineTotal);
+                $this->db->bind(':batch_number', $row['batch_number']);
+                $this->db->bind(':mfg_date', $row['mfg_date']);
+                $this->db->bind(':expiry_date', $row['expiry_date']);
                 $this->db->execute();
 
                 // Increase stock and update avg cost price:
@@ -250,13 +282,64 @@ class GoodsReceiveNote extends Model {
                 $this->db->bind(':id', $partId);
                 $this->db->execute();
 
+                // Create/Update Inventory Batch if product is FIFO or Expiry tracked
+                $batchId = null;
+                if ((int)($p->is_fifo ?? 0) === 1 || (int)($p->is_expiry ?? 0) === 1) {
+                    // Try to find existing batch at this location (for additive receipts)
+                    $this->db->query("
+                        SELECT id FROM inventory_batches 
+                        WHERE part_id = :pid AND location_id = :loc AND batch_number = :bn
+                        LIMIT 1
+                    ");
+                    $this->db->bind(':pid', $partId);
+                    $this->db->bind(':loc', $locId);
+                    $this->db->bind(':bn', $row['batch_number']);
+                    $existingBatch = $this->db->single();
+
+                    if ($existingBatch) {
+                        $batchId = (int)$existingBatch->id;
+                        $this->db->query("
+                            UPDATE inventory_batches 
+                            SET quantity_received = quantity_received + :qty,
+                                quantity_on_hand = quantity_on_hand + :qty,
+                                mfg_date = :mfg,
+                                expiry_date = :exp,
+                                is_exhausted = 0
+                            WHERE id = :id
+                        ");
+                        $this->db->bind(':qty', $qty);
+                        $this->db->bind(':mfg', $row['mfg_date']);
+                        $this->db->bind(':exp', $row['expiry_date']);
+                        $this->db->bind(':id', $batchId);
+                        $this->db->execute();
+                    } else {
+                        $this->db->query("
+                            INSERT INTO inventory_batches 
+                            (part_id, location_id, batch_number, mfg_date, expiry_date, quantity_received, quantity_on_hand, unit_cost, grn_id)
+                            VALUES 
+                            (:pid, :loc, :bn, :mfg, :exp, :qty, :qty, :cost, :grn_id)
+                        ");
+                        $this->db->bind(':pid', $partId);
+                        $this->db->bind(':loc', $locId);
+                        $this->db->bind(':bn', $row['batch_number']);
+                        $this->db->bind(':mfg', $row['mfg_date']);
+                        $this->db->bind(':exp', $row['expiry_date']);
+                        $this->db->bind(':qty', $qty);
+                        $this->db->bind(':cost', $unitCost);
+                        $this->db->bind(':grn_id', $grnId);
+                        $this->db->execute();
+                        $batchId = (int)$this->db->lastInsertId();
+                    }
+                }
+
                 // Stock movement ledger
                 $this->db->query("
-                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
-                    VALUES (:loc, :part_id, :qty_change, 'GRN', 'goods_receive_notes', :ref_id, :unit_cost, :notes, :created_by)
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                    VALUES (:loc, :part_id, :batch_id, :qty_change, 'GRN', 'goods_receive_notes', :ref_id, :unit_cost, :notes, :created_by)
                 ");
                 $this->db->bind(':loc', $locId);
                 $this->db->bind(':part_id', $partId);
+                $this->db->bind(':batch_id', $batchId);
                 $this->db->bind(':qty_change', $qty);
                 $this->db->bind(':ref_id', $grnId);
                 $this->db->bind(':unit_cost', $unitCost);
@@ -303,6 +386,14 @@ class GoodsReceiveNote extends Model {
             }
 
             $this->db->exec("COMMIT");
+            
+            // Automated Accounting
+            try {
+                AccountingHelper::postGRN($grnId);
+            } catch (Exception $e) {
+                error_log("Accounting post failed for GRN: " . $e->getMessage());
+            }
+
             return $grnId;
         } catch (Exception $e) {
             try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}

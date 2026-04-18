@@ -14,9 +14,9 @@ class AuditLog extends Model {
         $this->db->bind(':entity_id', $data['entity_id']);
         $this->db->bind(':method', $data['method']);
         $this->db->bind(':path', $data['path']);
-        $this->db->bind(':ip', $data['ip']);
-        $this->db->bind(':user_agent', $data['user_agent']);
-        $this->db->bind(':details', $data['details']);
+        $this->db->bind(':ip', $data['ip'] ?? $_SERVER['REMOTE_ADDR'] ?? null);
+        $this->db->bind(':user_agent', $data['user_agent'] ?? $_SERVER['HTTP_USER_AGENT'] ?? null);
+        $this->db->bind(':details', $data['details'] ?? null);
         return $this->db->execute();
     }
 }

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -147,9 +147,9 @@ function timeRemaining(expectedAt: Date | null) {
   return sign < 0 ? `Overdue by ${label}` : `${label} remaining`;
 }
 
-export default function OrderDetailPage({ params }: { params: { id: string } }) {
+export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const id = params?.id;
+  const { id } = React.use(params);
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -171,6 +171,9 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   const [savingRelease, setSavingRelease] = useState(false);
   const [editingLineId, setEditingLineId] = useState<number | null>(null);
   const [editQty, setEditQty] = useState<string>("");
+  const [selectedPart, setSelectedPart] = useState<PartRow | null>(null);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(false);
 
   useEffect(() => {
     const run = async () => {
@@ -207,6 +210,34 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
   useEffect(() => {
     void loadParts();
   }, [id]);
+
+  useEffect(() => {
+    if (!addPartId) {
+      setSelectedPart(null);
+      setBatches([]);
+      return;
+    }
+    const p = partsMaster.find((x) => String(x.id) === addPartId);
+    setSelectedPart(p || null);
+
+    if (p && (p.is_fifo || p.is_expiry)) {
+      const run = async () => {
+        setBatchesLoading(true);
+        try {
+          const res = await fetchPartBatches(p.id, order?.location_id || 1);
+          setBatches(Array.isArray(res) ? res : []);
+        } catch (e) {
+          console.error("Failed to load batches", e);
+          setBatches([]);
+        } finally {
+          setBatchesLoading(false);
+        }
+      };
+      void run();
+    } else {
+      setBatches([]);
+    }
+  }, [addPartId, partsMaster, order?.location_id]);
 
   const data = useMemo(() => {
     const o: any = order || {};
@@ -889,21 +920,77 @@ export default function OrderDetailPage({ params }: { params: { id: string } }) 
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">Item</Label>
-                <div className="col-span-3">
+                <div className="col-span-3 space-y-2">
                   <Select value={addPartId} onValueChange={setAddPartId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select item..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-[280px]">
-                      {partsMaster.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
-                        </SelectItem>
-                      ))}
+                      {partsMaster.map((p) => {
+                         const stock = (p as any).location_stock_quantity ?? 0;
+                         return (
+                          <SelectItem key={p.id} value={String(p.id)}>
+                            <div className="flex flex-col">
+                              <span>{p.sku ? `${p.part_name} (${p.sku})` : p.part_name}</span>
+                              {p.item_type !== 'Service' && (
+                                <span className={cn("text-[10px] uppercase font-bold tracking-tighter", stock > 0 ? "text-green-600" : "text-red-500")}>
+                                  Available: {Number(stock).toLocaleString()} {p.unit}
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                         );
+                      })}
                     </SelectContent>
                   </Select>
+                  
+                  {selectedPart && (
+                    <div className="text-xs text-muted-foreground flex items-center justify-between px-1">
+                      <span>Price: {Number(selectedPart.price).toFixed(2)}</span>
+                      {selectedPart.unit && <span>Unit: {selectedPart.unit}</span>}
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {batches.length > 0 && (
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label className="text-right pt-2">Batches</Label>
+                  <div className="col-span-3 border rounded-lg overflow-hidden bg-muted/5">
+                    <Table>
+                      <TableHeader className="bg-muted/30">
+                        <TableRow className="hover:bg-transparent h-8">
+                          <TableHead className="text-[10px] h-8">Lot #</TableHead>
+                          <TableHead className="text-[10px] h-8">Expiry</TableHead>
+                          <TableHead className="text-[10px] h-8 text-right">Qty</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {batches.map((b, idx) => (
+                          <TableRow key={b.id || idx} className="h-8">
+                            <TableCell className="text-[10px] py-1">{b.batch_number || "N/A"}</TableCell>
+                            <TableCell className="text-[10px] py-1">{b.expiry_date || "N/A"}</TableCell>
+                            <TableCell className="text-[10px] py-1 text-right font-bold">
+                              {Number(b.quantity_on_hand).toLocaleString()}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </div>
+              )}
+
+              {batchesLoading && (
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <div />
+                  <div className="col-span-3 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Checking batch availability...
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="qty" className="text-right">Qty</Label>
                 <Input

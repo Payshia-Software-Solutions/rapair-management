@@ -422,6 +422,28 @@ function InvoiceContent() {
                             {item.item_type}
                           </span>
                         </div>
+                        {/* Sold Batch Details */}
+                        {invoice.batch_movements?.filter((bm: any) => Number(bm.part_id) === Number(item.item_id))?.length > 0 && (
+                          <div className="mt-3 space-y-1.5 border-l-2 border-primary/20 pl-3">
+                            {invoice.batch_movements
+                              .filter((bm: any) => Number(bm.part_id) === Number(item.item_id))
+                              .map((bm: any, bIdx: number) => (
+                                <div key={bIdx} className="text-[11px] flex items-center gap-2">
+                                  <span className="font-black text-primary/70 uppercase tracking-widest text-[9px]">Batch</span>
+                                  <span className="font-bold text-foreground/80">{bm.batch_number || 'UNBATCHED'}</span>
+                                  {bm.expiry_date && (
+                                    <>
+                                      <span className="text-muted-foreground/40 text-[8px]">/</span>
+                                      <span className="text-muted-foreground uppercase text-[9px]">Exp: {bm.expiry_date}</span>
+                                    </>
+                                  )}
+                                  <span className="ml-auto tabular-nums font-bold text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">
+                                    Qty: {Math.abs(Number(bm.qty_change))}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </td>
                       <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{item.quantity}</td>
                       <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{formatCurrency(item.unit_price)}</td>

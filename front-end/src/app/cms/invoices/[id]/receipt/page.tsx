@@ -153,8 +153,16 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
 
       {/* Invoice Meta */}
       <div className="row"><span>Invoice#</span><span className="bold">{invoice.invoice_no}</span></div>
-      <div className="row"><span>Date</span><span>{new Date(invoice.issue_date).toLocaleDateString('en-GB')}</span></div>
+      <div className="row"><span>Date</span><span>{new Date(invoice.created_at).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span></div>
       {invoice.customer_name && <div className="row"><span>Customer</span><span>{invoice.customer_name}</span></div>}
+      
+      {/* Dine-In Extra Meta */}
+      {invoice.order_type === 'dine_in' && (
+        <div style={{ marginTop: '2px', padding: '2px 0' }}>
+          {invoice.table_name && <div className="row"><span>Table</span><span className="bold">{invoice.table_name}</span></div>}
+          {invoice.steward_name && <div className="row"><span>Steward</span><span>{invoice.steward_name}</span></div>}
+        </div>
+      )}
 
       <hr className="hr" />
 
@@ -185,7 +193,7 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       )}
       {(invoice.applied_taxes || []).map((tax: any, idx: number) => (
         <div className="row" key={idx}>
-          <span>{tax.tax_code}{tax.rate_percent > 0 ? ` (${tax.rate_percent}%)` : ''}</span>
+          <span>{tax.tax_code || tax.tax_name}{Number(tax.rate_percent) > 0 ? ` (${tax.rate_percent}%)` : ''}</span>
           <span>LKR {fmt(tax.amount)}</span>
         </div>
       ))}

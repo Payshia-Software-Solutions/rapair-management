@@ -34,6 +34,37 @@ class InventorySchema {
         if (self::$done && !$force) return;
         self::$done = true;
 
+        try {
+            $pdo = self::pdo();
+            if (!self::hasTable($pdo, 'collections')) {
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS collections (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        show_in_public TINYINT(1) NOT NULL DEFAULT 1,
+                        created_by INT NULL,
+                        updated_by INT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_collections_name (name)
+                    )
+                ");
+                $pdo->exec("
+                    CREATE TABLE IF NOT EXISTS parts_collections (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        part_id INT NOT NULL,
+                        collection_id INT NOT NULL,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_part_collection (part_id, collection_id),
+                        INDEX idx_pc_part (part_id),
+                        INDEX idx_pc_collection (collection_id),
+                        FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+                        FOREIGN KEY (collection_id) REFERENCES collections(id) ON DELETE CASCADE
+                    )
+                ");
+            }
+        } catch (Exception $e) {}
+
         // Persistent cache flag to avoid running expensive SHOW TABLES/ALTER TABLE on every request.
         // The flag file is deleted during setup or manual sync to trigger a re-run.
         $flagFile = __DIR__ . '/../../.schema_synced';
@@ -130,7 +161,9 @@ class InventorySchema {
                     ('transfer.read', 'View stock transfer requests'),
                     ('transfer.write', 'Create/update stock transfer requests'),
                     ('taxes.read', 'View taxes master'),
-                    ('taxes.write', 'Create/update/delete taxes master')
+                    ('taxes.write', 'Create/update/delete taxes master'),
+                    ('production.read', 'View BOMs and Production Orders'),
+                    ('production.write', 'Create/update BOMs and Production Orders')
                 ");
 
                 // Best-effort grants to default roles (non-admin). Admin is implicit superuser.
@@ -183,6 +216,9 @@ class InventorySchema {
                     'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
                     'image_filename' => "VARCHAR(255) NULL",
                     'item_type' => "ENUM('Part', 'Service') NOT NULL DEFAULT 'Part'",
+                    'is_fifo' => "TINYINT(1) NOT NULL DEFAULT 0",
+                    'is_expiry' => "TINYINT(1) NOT NULL DEFAULT 0",
+                    'recipe_type' => "ENUM('Standard', 'A La Carte', 'Recipe') NOT NULL DEFAULT 'Standard'",
                 ];
                 foreach ($cols as $col => $def) {
                     if (!self::hasColumn($pdo, 'parts', $col)) {
@@ -438,6 +474,8 @@ class InventorySchema {
                     purchase_order_id INT NULL,
                     location_id INT NOT NULL DEFAULT 1,
                     supplier_id INT NOT NULL,
+                    subtotal DECIMAL(15,2) NOT NULL DEFAULT 0.00,
+                    tax_total DECIMAL(15,2) NOT NULL DEFAULT 0.00,
                     received_at DATETIME NOT NULL,
                     notes TEXT NULL,
                     created_by INT NULL,
@@ -454,9 +492,17 @@ class InventorySchema {
             try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_po FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id)"); } catch (Exception $e2) {}
             // Older installs: add location_id if missing (best-effort).
             try {
-                if (self::hasTable($pdo, 'goods_receive_notes') && !self::hasColumn($pdo, 'goods_receive_notes', 'location_id')) {
-                    $pdo->exec("ALTER TABLE goods_receive_notes ADD COLUMN location_id INT NOT NULL DEFAULT 1");
-                    try { $pdo->exec("ALTER TABLE goods_receive_notes ADD INDEX idx_grn_location (location_id)"); } catch (Exception $e3) {}
+                if (self::hasTable($pdo, 'goods_receive_notes')) {
+                    if (!self::hasColumn($pdo, 'goods_receive_notes', 'location_id')) {
+                        $pdo->exec("ALTER TABLE goods_receive_notes ADD COLUMN location_id INT NOT NULL DEFAULT 1");
+                        try { $pdo->exec("ALTER TABLE goods_receive_notes ADD INDEX idx_grn_location (location_id)"); } catch (Exception $e3) {}
+                    }
+                    if (!self::hasColumn($pdo, 'goods_receive_notes', 'subtotal')) {
+                        $pdo->exec("ALTER TABLE goods_receive_notes ADD COLUMN subtotal DECIMAL(15,2) NOT NULL DEFAULT 0.00");
+                    }
+                    if (!self::hasColumn($pdo, 'goods_receive_notes', 'tax_total')) {
+                        $pdo->exec("ALTER TABLE goods_receive_notes ADD COLUMN tax_total DECIMAL(15,2) NOT NULL DEFAULT 0.00");
+                    }
                 }
             } catch (Exception $e2) {}
             try { $pdo->exec("ALTER TABLE goods_receive_notes ADD CONSTRAINT fk_grn_location FOREIGN KEY (location_id) REFERENCES service_locations(id)"); } catch (Exception $e2) {}
@@ -506,7 +552,7 @@ class InventorySchema {
                     location_id INT NOT NULL DEFAULT 1,
                     part_id INT NOT NULL,
                     qty_change DECIMAL(12,3) NOT NULL,
-                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT') NOT NULL,
+                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT') NOT NULL,
                     ref_table VARCHAR(64) NULL,
                     ref_id INT NULL,
                     unit_cost DECIMAL(10,2) NULL,
@@ -538,7 +584,7 @@ class InventorySchema {
                     $pdo->exec("
                         ALTER TABLE stock_movements
                         MODIFY COLUMN movement_type
-                        ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT')
+                        ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT')
                         NOT NULL
                     ");
                 } catch (Exception $e2) {}
@@ -627,6 +673,60 @@ class InventorySchema {
         } catch (Exception $e) {
             // ignore
         }
+
+        // Inventory Batches for FIFO & Expiry Tracking
+        try {
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS inventory_batches (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    part_id INT NOT NULL,
+                    location_id INT NOT NULL DEFAULT 1,
+                    batch_number VARCHAR(100) NULL,
+                    mfg_date DATE NULL,
+                    expiry_date DATE NULL,
+                    quantity_received DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    quantity_on_hand DECIMAL(12,3) NOT NULL DEFAULT 0.000,
+                    unit_cost DECIMAL(15,4) NULL,
+                    grn_id INT NULL,
+                    is_exhausted TINYINT(1) NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_ib_part (part_id),
+                    INDEX idx_ib_location (location_id),
+                    INDEX idx_ib_mfg (mfg_date),
+                    INDEX idx_ib_expiry (expiry_date),
+                    INDEX idx_ib_exhausted (is_exhausted),
+                    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+                    FOREIGN KEY (location_id) REFERENCES service_locations(id)
+                ) ENGINE=InnoDB
+            ");
+            
+            // grn_items upgrades for batch collection
+            if (self::hasTable($pdo, 'grn_items')) {
+                $cols = [
+                    'batch_number' => "VARCHAR(100) NULL",
+                    'mfg_date' => "DATE NULL",
+                    'expiry_date' => "DATE NULL",
+                ];
+                foreach ($cols as $col => $def) {
+                    if (!self::hasColumn($pdo, 'grn_items', $col)) {
+                        $pdo->exec("ALTER TABLE grn_items ADD COLUMN {$col} {$def}");
+                    }
+                }
+            }
+
+            // stock_movements upgrade: add batch_id to link movements to specific batches
+            if (self::hasTable($pdo, 'stock_movements')) {
+                if (!self::hasColumn($pdo, 'stock_movements', 'batch_id')) {
+                    $pdo->exec("ALTER TABLE stock_movements ADD COLUMN batch_id INT NULL AFTER part_id");
+                    $pdo->exec("ALTER TABLE stock_movements ADD INDEX idx_sm_batch (batch_id)");
+                }
+                // Repair order parts also need batch tracking if they are issued from a specific batch
+                if (self::hasTable($pdo, 'order_parts') && !self::hasColumn($pdo, 'order_parts', 'batch_id')) {
+                    $pdo->exec("ALTER TABLE order_parts ADD COLUMN batch_id INT NULL AFTER part_id");
+                }
+            }
+        } catch (Exception $e) {}
 
         @touch($flagFile);
     }

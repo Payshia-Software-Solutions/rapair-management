@@ -68,6 +68,23 @@ class SyncHelper {
             $results[] = ['module' => 'Profiles', 'status' => 'error', 'message' => $e->getMessage()];
         }
 
+        // 6. Banks & Branches
+        try {
+            require_once __DIR__ . '/BankSchema.php';
+            BankSchema::ensure(true);
+            $results[] = ['module' => 'Banks', 'status' => 'success'];
+        } catch (Exception $e) {
+            $results[] = ['module' => 'Banks', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+        // 7. POS Returns & Refunds
+        try {
+            require_once __DIR__ . '/SalesReturnSchema.php';
+            SalesReturnSchema::ensure(true);
+            $results[] = ['module' => 'Returns', 'status' => 'success'];
+        } catch (Exception $e) {
+            $results[] = ['module' => 'Returns', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+
         return $results;
     }
 }

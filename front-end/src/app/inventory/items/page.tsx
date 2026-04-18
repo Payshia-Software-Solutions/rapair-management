@@ -225,10 +225,17 @@ export default function InventoryItemsListPage() {
                                   </div>
                                 </Link>
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="space-y-1">
                                 <Badge variant="outline" className={p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}>
                                   {p.item_type || 'Part'}
                                 </Badge>
+                                {p.recipe_type && p.recipe_type !== 'Standard' && (
+                                  <div className="block">
+                                    <Badge variant="outline" className={p.recipe_type === 'Recipe' ? 'bg-blue-50 text-blue-700 border-blue-200 text-[10px]' : 'bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]'}>
+                                      {p.recipe_type}
+                                    </Badge>
+                                  </div>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <div className="font-bold">
@@ -273,6 +280,11 @@ export default function InventoryItemsListPage() {
                                       <Badge variant="outline" className={`text-[9px] py-0 h-4 ${p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
                                         {p.item_type || 'Part'}
                                       </Badge>
+                                      {p.recipe_type && p.recipe_type !== 'Standard' && (
+                                        <Badge variant="outline" className={`text-[9px] py-0 h-4 ${p.recipe_type === 'Recipe' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
+                                          {p.recipe_type}
+                                        </Badge>
+                                      )}
                                     </div>
                                   </div>
                                 </div>

@@ -7,12 +7,26 @@ class Customer extends Model {
     private $table = 'customers';
 
     public function getAll() {
-        $this->db->query("SELECT * FROM {$this->table} ORDER BY name ASC");
+        $this->db->query("
+            SELECT c.*, 
+                   (SELECT COALESCE(SUM(i.grand_total - i.paid_amount), 0) 
+                    FROM invoices i 
+                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding
+            FROM {$this->table} c 
+            ORDER BY c.name ASC
+        ");
         return $this->db->resultSet();
     }
 
     public function getById($id) {
-        $this->db->query("SELECT * FROM {$this->table} WHERE id = :id");
+        $this->db->query("
+            SELECT c.*, 
+                   (SELECT COALESCE(SUM(i.grand_total - i.paid_amount), 0) 
+                    FROM invoices i 
+                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding
+            FROM {$this->table} c 
+            WHERE c.id = :id
+        ");
         $this->db->bind(':id', $id);
         return $this->db->single();
     }
@@ -20,7 +34,7 @@ class Customer extends Model {
     public function create($data, $userId = null) {
         $this->db->query("
             INSERT INTO {$this->table} 
-            (name, phone, email, address, nic, tax_number, order_type, is_active, created_by, updated_by) 
+            (name, phone, email, address, nic, tax_number, order_type, is_active, credit_limit, credit_days, created_by, updated_by) 
             VALUES 
             (:name, :phone, :email, :address, :nic, :tax_number, :order_type, :is_active, :credit_limit, :credit_days, :created_by, :updated_by)
         ");

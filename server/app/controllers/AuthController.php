@@ -197,8 +197,8 @@ class AuthController extends Controller {
     // GET /api/auth/permissions
     public function permissions() {
         $u = $this->requireAuth();
-        $role = (string)($u['role'] ?? '');
-        if ($role === 'Admin') {
+        $role = strtolower((string)($u['role'] ?? ''));
+        if ($role === 'admin') {
             $this->success(['*']);
         }
 

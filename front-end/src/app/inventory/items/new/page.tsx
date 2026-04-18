@@ -14,8 +14,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { createPart, fetchBrands, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type SupplierRow, type UnitRow } from "@/lib/api";
-import { ArrowLeft, ChevronDown, Loader2, Plus, Sparkles, Upload } from "lucide-react";
+import { createPart, fetchBrands, fetchCollections, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type SupplierRow, type UnitRow } from "@/lib/api";
+import { ArrowLeft, ChevronDown, LayoutGrid, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 
 function asNumOrNull(v: string) {
   const t = v.trim();
@@ -49,6 +49,7 @@ export default function NewItemPage() {
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -63,11 +64,16 @@ export default function NewItemPage() {
     price: "",
     reorder_level: "",
     is_active: true,
+    is_fifo: false,
+    is_expiry: false,
     item_type: "Part" as "Part" | "Service",
+    recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
+  const [collectionIds, setCollectionIds] = useState<number[]>([]);
   const [supplierQuery, setSupplierQuery] = useState("");
+  const [collectionQuery, setCollectionQuery] = useState("");
 
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [skuTaken, setSkuTaken] = useState(false);
@@ -77,10 +83,16 @@ export default function NewItemPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const [u, b, s] = await Promise.all([fetchUnits(""), fetchBrands(""), fetchSuppliers("")]);
+        const [u, b, s, c] = await Promise.all([
+          fetchUnits(""), 
+          fetchBrands(""), 
+          fetchSuppliers(""),
+          fetchCollections()
+        ]);
         setUnits(Array.isArray(u) ? u : []);
         setBrands(Array.isArray(b) ? b : []);
         setSuppliers(Array.isArray(s) ? s : []);
+        setCollections(Array.isArray(c) ? c : []);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load master data", variant: "destructive" });
       } finally {
@@ -134,13 +146,17 @@ export default function NewItemPage() {
         unit: form.unit.trim() ? form.unit.trim() : null,
         brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
         supplier_ids: supplierIds,
+        collection_ids: collectionIds,
         stock_quantity: 0,
         cost_price: asNumOrNull(form.cost_price),
         price: asNumOrNull(form.price) ?? 0,
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
+        is_fifo: form.is_fifo ? 1 : 0,
+        is_expiry: form.is_expiry ? 1 : 0,
         image_filename,
         item_type: form.item_type,
+        recipe_type: form.recipe_type,
       });
 
       toast({ title: "Created", description: "Product created" });
@@ -194,6 +210,19 @@ export default function NewItemPage() {
                       <SelectContent>
                         <SelectItem value="Part" className="font-bold">Part (Physical Goods)</SelectItem>
                         <SelectItem value="Service" className="font-bold">Service (Labor/Fee)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Recipe Type</Label>
+                    <Select value={form.recipe_type} onValueChange={(v: any) => setForm((p) => ({ ...p, recipe_type: v }))}>
+                      <SelectTrigger className="font-bold border-blue-200 bg-blue-50/30">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Standard" className="font-bold">Standard (GRN & Sell)</SelectItem>
+                        <SelectItem value="A La Carte" className="font-bold">A La Carte (Needs BOM)</SelectItem>
+                        <SelectItem value="Recipe" className="font-bold">Recipe (Needs BOM)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -264,53 +293,94 @@ export default function NewItemPage() {
                       Manage units in <Link className="underline" href="/master-data/units">Master Data → Units</Link>
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 col-span-1 md:col-span-2">
                     <Label>Suppliers</Label>
+                    <div className="rounded-md border p-4 bg-muted/5 space-y-3">
+                      <Input 
+                        placeholder="Search suppliers..." 
+                        value={supplierQuery} 
+                        onChange={(e) => setSupplierQuery(e.target.value)} 
+                        className="h-8 text-sm"
+                      />
+                      <ScrollArea className="h-[120px] pr-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {suppliers
+                            .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+                            .map((s) => {
+                              const sid = Number(s.id);
+                              const checked = supplierIds.includes(sid);
+                              return (
+                                <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-sm transition-colors border border-transparent hover:border-muted-foreground/20">
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(v) => {
+                                      setSupplierIds((prev) => {
+                                        const next = new Set(prev);
+                                        if (v) next.add(sid);
+                                        else next.delete(sid);
+                                        return Array.from(next).sort((a, b) => a - b);
+                                      });
+                                    }}
+                                  />
+                                  <span className="truncate flex-1">{s.name}</span>
+                                </label>
+                              );
+                            })}
+                          {suppliers.length === 0 ? (
+                            <div className="text-xs text-muted-foreground py-4 text-center col-span-full">No suppliers found</div>
+                          ) : null}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">Select multiple suppliers for this product.</div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Collections</Label>
                     <Popover>
                       <PopoverTrigger asChild>
                         <Button type="button" variant="outline" className="w-full justify-between">
                           <span className="truncate">
-                            {supplierIds.length === 0 ? "Select suppliers..." : `${supplierIds.length} selected`}
+                            {collectionIds.length === 0 ? "Select collections..." : `${collectionIds.length} selected`}
                           </span>
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                          <LayoutGrid className="w-4 h-4 text-muted-foreground" />
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-[360px] p-3" align="start">
                         <div className="space-y-2">
-                          <Input placeholder="Search suppliers..." value={supplierQuery} onChange={(e) => setSupplierQuery(e.target.value)} />
+                          <Input placeholder="Search collections..." value={collectionQuery} onChange={(e) => setCollectionQuery(e.target.value)} />
                           <ScrollArea className="h-[240px] pr-2">
                             <div className="space-y-2">
-                              {suppliers
-                                .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
-                                .map((s) => {
-                                  const sid = Number(s.id);
-                                  const checked = supplierIds.includes(sid);
+                              {collections
+                                .filter((c) => (c.name ?? "").toLowerCase().includes(collectionQuery.trim().toLowerCase()))
+                                .map((c) => {
+                                  const cid = Number(c.id);
+                                  const checked = collectionIds.includes(cid);
                                   return (
-                                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                    <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
                                       <Checkbox
                                         checked={checked}
                                         onCheckedChange={(v) => {
-                                          setSupplierIds((prev) => {
+                                          setCollectionIds((prev) => {
                                             const next = new Set(prev);
-                                            if (v) next.add(sid);
-                                            else next.delete(sid);
+                                            if (v) next.add(cid);
+                                            else next.delete(cid);
                                             return Array.from(next).sort((a, b) => a - b);
                                           });
                                         }}
                                       />
-                                      <span className="truncate">{s.name}</span>
+                                      <span className="truncate">{c.name}</span>
                                     </label>
                                   );
                                 })}
-                              {suppliers.length === 0 ? (
-                                <div className="text-xs text-muted-foreground py-4 text-center">No suppliers</div>
+                              {collections.length === 0 ? (
+                                <div className="text-xs text-muted-foreground py-4 text-center">No collections</div>
                               ) : null}
                             </div>
                           </ScrollArea>
                         </div>
                       </PopoverContent>
                     </Popover>
-                    <div className="text-[11px] text-muted-foreground">Optional. You can assign multiple suppliers.</div>
+                    <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
                   </div>
                   <div className="space-y-2">
                     <Label>Active</Label>
@@ -319,12 +389,39 @@ export default function NewItemPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
+                    <Label>Follow FIFO</Label>
+                    <div className="h-11 flex items-center">
+                      <Switch checked={form.is_fifo} onCheckedChange={(v) => setForm((p) => ({ ...p, is_fifo: v }))} />
+                    </div>
+                    <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Track stock by oldest batch first</div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Track Expiry</Label>
+                    <div className="h-11 flex items-center">
+                      <Switch checked={form.is_expiry} onCheckedChange={(v) => setForm((p) => ({ ...p, is_expiry: v }))} />
+                    </div>
+                    <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Capture Mfg/Expiry dates during GRN</div>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Cost Price</Label>
-                    <Input inputMode="decimal" value={form.cost_price} onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} />
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal" 
+                      value={Number.isFinite(Number(form.cost_price)) ? Number(form.cost_price).toFixed(2) : "0.00"} 
+                      onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Selling Price</Label>
-                    <Input inputMode="decimal" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} required />
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal" 
+                      value={Number.isFinite(Number(form.price)) ? Number(form.price).toFixed(2) : "0.00"} 
+                      onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} 
+                      required 
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label>Reorder Level</Label>

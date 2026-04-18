@@ -10,11 +10,17 @@ class Database {
     private $pass = DB_PASS;
     private $dbname = DB_NAME;
 
+    private static $sharedDbh;
     private $dbh;
     private $stmt;
     private $error;
 
     public function __construct() {
+        if (self::$sharedDbh) {
+            $this->dbh = self::$sharedDbh;
+            return;
+        }
+
         // Set DSN
         $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname;
         $options = [
@@ -25,6 +31,7 @@ class Database {
         // Create PDO instance
         try {
             $this->dbh = new PDO($dsn, $this->user, $this->pass, $options);
+            self::$sharedDbh = $this->dbh;
         } catch (PDOException $e) {
             $this->error = $e->getMessage();
             echo $this->error;
@@ -86,6 +93,37 @@ class Database {
     // Get the last inserted id for the current connection.
     public function lastInsertId() {
         return $this->dbh->lastInsertId();
+    }
+
+    private static $transactionCount = 0;
+
+    // Transaction Methods
+    public function beginTransaction() {
+        if (self::$transactionCount === 0) {
+            $this->dbh->beginTransaction();
+        }
+        self::$transactionCount++;
+        return true;
+    }
+
+    public function commit() {
+        if (self::$transactionCount > 0) {
+            self::$transactionCount--;
+            if (self::$transactionCount === 0) {
+                return $this->dbh->commit();
+            }
+        }
+        return true;
+    }
+
+    public function rollBack() {
+        if (self::$transactionCount > 0) {
+            self::$transactionCount = 0; // Reset on error
+            if ($this->dbh->inTransaction()) {
+                return $this->dbh->rollBack();
+            }
+        }
+        return true;
     }
 
     // Get the underlying PDO connection

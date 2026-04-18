@@ -236,6 +236,10 @@ class StockAdjustment extends Model {
                 }
             }
 
+            // Automated Accounting
+            require_once '../app/helpers/AccountingHelper.php';
+            AccountingHelper::postStockAdjustment($adjId);
+
             $this->db->exec("COMMIT");
             return $adjId;
         } catch (Exception $e) {

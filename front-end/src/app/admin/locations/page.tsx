@@ -1,13 +1,14 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { createLocation, deleteLocation, fetchLocations, updateLocation } from "@/lib/api";
+import { deleteLocation, fetchLocations, ServiceLocation } from "@/lib/api";
 import { Loader2, MapPin, Plus, Trash2, Pencil, Search } from "lucide-react";
 import {
   Table,
@@ -17,49 +18,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-
-type LocationRow = {
-  id: number;
-  name: string;
-  location_type?: "service" | "warehouse";
-  address?: string | null;
-  phone?: string | null;
-  tax_no?: string | null;
-  tax_label?: string | null;
-};
 
 export default function AdminLocationsPage() {
   const { toast } = useToast();
-  const [rows, setRows] = useState<LocationRow[]>([]);
+  const [rows, setRows] = useState<ServiceLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [name, setName] = useState("");
-  const [locationType, setLocationType] = useState<"service" | "warehouse">("service");
-  const [address, setAddress] = useState("");
-  const [phone, setPhone] = useState("");
-  const [taxNo, setTaxNo] = useState("");
-  const [taxLabel, setTaxLabel] = useState("");
 
   const load = async () => {
     setLoading(true);
     try {
       const data = await fetchLocations();
       setRows(Array.isArray(data) ? data : []);
-    } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
       setRows([]);
     } finally {
       setLoading(false);
@@ -81,67 +53,14 @@ export default function AdminLocationsPage() {
     );
   }, [rows, query]);
 
-  const openCreate = () => {
-    setEditingId(null);
-    setName("");
-    setLocationType("service");
-    setAddress("");
-    setPhone("");
-    setTaxNo("");
-    setTaxLabel("");
-    setIsDialogOpen(true);
-  };
-
-  const openEdit = (row: LocationRow) => {
-    setEditingId(row.id);
-    setName(row.name ?? "");
-    setLocationType(row.location_type ?? "service");
-    setAddress(row.address ?? "");
-    setPhone(row.phone ?? "");
-    setTaxNo(row.tax_no ?? "");
-    setTaxLabel(row.tax_label ?? "");
-    setIsDialogOpen(true);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const n = name.trim();
-    if (!n) return;
-
-    setIsSubmitting(true);
-    try {
-    const payload = { 
-      name: n, 
-      location_type: locationType, 
-      address: address.trim() || undefined, 
-      phone: phone.trim() || undefined,
-      tax_no: taxNo.trim() || undefined,
-      tax_label: taxLabel.trim() || undefined
-    };
-      if (editingId) {
-        await updateLocation(String(editingId), payload);
-        toast({ title: "Updated", description: "Location updated" });
-      } else {
-        await createLocation(payload);
-        toast({ title: "Created", description: "Location created" });
-      }
-      setIsDialogOpen(false);
-      await load();
-    } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   const remove = async (id: number) => {
-    if (!confirm("Delete this location?")) return;
+    if (!confirm("Delete this location? This will remove all associated service bay data.")) return;
     try {
       await deleteLocation(String(id));
       toast({ title: "Deleted", description: "Location deleted" });
       await load();
-    } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
   };
 
@@ -153,68 +72,92 @@ export default function AdminLocationsPage() {
             <MapPin className="w-6 h-6 text-primary" />
             Service Locations
           </h1>
-          <p className="text-muted-foreground mt-1">Create and manage service center locations</p>
+          <p className="text-muted-foreground mt-1">Configure your centers, factories, and warehouses.</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="px-3 py-1 bg-primary/5 border-primary/20 text-primary">
-            {rows.length} Locations
+            {rows.length} Total
           </Badge>
-          <Button className="gap-2 bg-primary" onClick={openCreate}>
-            <Plus className="w-4 h-4" />
-            New Location
-          </Button>
+          <Link href="/admin/locations/new">
+            <Button className="gap-2 bg-primary">
+              <Plus className="w-4 h-4" />
+              New Location
+            </Button>
+          </Link>
         </div>
       </div>
 
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-lg">Directory</CardTitle>
-          <CardDescription>Search and maintain locations</CardDescription>
-          <div className="pt-3 relative">
-            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-[22px]" />
-            <Input
-              className="pl-9"
-              placeholder="Search by name, address, phone..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <CardTitle className="text-lg">Location Directory</CardTitle>
+              <CardDescription>Managed sites and their operational capabilities.</CardDescription>
+            </div>
+            <div className="relative w-full md:w-80">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-3" />
+              <Input
+                className="pl-9"
+                placeholder="Search locations..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
-              <p className="text-muted-foreground">Loading locations...</p>
+              <p className="text-muted-foreground">Syncing location data...</p>
             </div>
           ) : (
             <Table>
               <TableHeader className="bg-muted/30">
                 <TableRow>
                   <TableHead className="w-[90px]">ID</TableHead>
-                  <TableHead>Name</TableHead>
+                  <TableHead>Location Details</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Address</TableHead>
-                  <TableHead>Phone</TableHead>
+                  <TableHead>Capabilities</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filtered.map((r) => (
                   <TableRow key={r.id} className="hover:bg-muted/10 transition-colors">
-                    <TableCell className="font-mono text-xs font-bold">#{r.id}</TableCell>
-                    <TableCell className="font-semibold">{r.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.location_type ?? "service"}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.address ?? "-"}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.phone ?? "-"}</TableCell>
+                    <TableCell className="font-mono text-xs font-bold text-muted-foreground">#{r.id}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-slate-900 dark:text-slate-100">{r.name}</span>
+                        <span className="text-xs text-muted-foreground">{r.address || "No address provided"}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                       <Badge variant="secondary" className="capitalize">
+                         {r.location_type || "service"}
+                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                            <Badge variant="outline" className={r.is_pos_active ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-400 border-slate-200"}>
+                                {r.is_pos_active ? "POS" : "NO POS"}
+                            </Badge>
+                            <Badge variant="outline" className={r.allow_production ? "bg-purple-50 text-purple-700 border-purple-200" : "bg-slate-50 text-slate-400 border-slate-200"}>
+                                {r.allow_production ? "PRODUCTION" : "NO PROD"}
+                            </Badge>
+                        </div>
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(r)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
+                        <Link href={`/admin/locations/${r.id}`}>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-primary hover:bg-primary/10 transition-all">
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 text-destructive"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10 transition-all"
                           onClick={() => void remove(r.id)}
                           disabled={r.id === 1}
                           title={r.id === 1 ? "Default location cannot be deleted" : "Delete"}
@@ -227,8 +170,11 @@ export default function AdminLocationsPage() {
                 ))}
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                      No locations found.
+                    <TableCell colSpan={5} className="py-20 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center">
+                         <MapPin className="w-12 h-12 text-muted/30 mb-2" />
+                         <p className="italic">No locations matching your search.</p>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -237,96 +183,6 @@ export default function AdminLocationsPage() {
           )}
         </CardContent>
       </Card>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[520px]">
-          <form onSubmit={submit}>
-            <DialogHeader>
-              <DialogTitle>{editingId ? "Edit Location" : "Create Location"}</DialogTitle>
-              <DialogDescription>
-                Locations are used to scope orders and service bays. Master data remains company-wide.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="loc-name" className="text-right">Name</Label>
-                <Input
-                  id="loc-name"
-                  className="col-span-3"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label className="text-right">Type</Label>
-                <div className="col-span-3 flex gap-2">
-                  <Button
-                    type="button"
-                    variant={locationType === "service" ? "default" : "outline"}
-                    onClick={() => setLocationType("service")}
-                  >
-                    Service Center
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={locationType === "warehouse" ? "default" : "outline"}
-                    onClick={() => setLocationType("warehouse")}
-                  >
-                    Warehouse
-                  </Button>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="loc-address" className="text-right">Address</Label>
-                <Input
-                  id="loc-address"
-                  className="col-span-3"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="loc-phone" className="text-right">Phone</Label>
-                <Input
-                  id="loc-phone"
-                  className="col-span-3"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4 pt-2 border-t border-border/50">
-                <Label htmlFor="loc-tax-no" className="text-right">Tax ID</Label>
-                <Input
-                  id="loc-tax-no"
-                  className="col-span-3"
-                  placeholder="e.g. VAT12345678"
-                  value={taxNo}
-                  onChange={(e) => setTaxNo(e.target.value)}
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="loc-tax-label" className="text-right whitespace-nowrap">Tax Label</Label>
-                <Input
-                  id="loc-tax-label"
-                  className="col-span-3"
-                  placeholder="e.g. VAT NO"
-                  value={taxLabel}
-                  onChange={(e) => setTaxLabel(e.target.value)}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSubmitting}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting || !name.trim()}>
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : (editingId ? "Save" : "Create")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </DashboardLayout>
   );
 }

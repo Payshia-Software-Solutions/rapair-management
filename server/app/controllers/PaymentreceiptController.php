@@ -93,9 +93,4 @@ class PaymentreceiptController extends Controller {
         } catch (Exception $e) { return null; }
     }
 
-    private function json($data, $code = 200) {
-        http_response_code($code);
-        header('Content-Type: application/json');
-        echo json_encode($data);
-    }
 }

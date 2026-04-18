@@ -79,7 +79,7 @@ class Controller {
     }
 
     protected function isAdmin($u) {
-        return (string)($u['role'] ?? '') === 'Admin';
+        return strtolower((string)($u['role'] ?? '')) === 'admin';
     }
 
     // Location scoping:
@@ -93,7 +93,7 @@ class Controller {
         $locFromToken = isset($u['location_id']) ? (int)$u['location_id'] : 1;
         if ($locFromToken <= 0) $locFromToken = 1;
 
-        $hdr = $_SERVER['HTTP_X_LOCATION_ID'] ?? '';
+        $hdr = $_SERVER['HTTP_X_LOCATION_ID'] ?? $_GET['location_id'] ?? '';
         $hdrId = (int)$hdr;
         if ($hdrId > 0) {
             if ($this->isAdmin($u)) {
@@ -112,8 +112,8 @@ class Controller {
 
     protected function requirePermission($permKey) {
         $u = $this->requireAuth();
-        $role = (string)($u['role'] ?? '');
-        if ($role === 'Admin') {
+        $role = strtolower((string)($u['role'] ?? ''));
+        if ($role === 'admin') {
             return $u;
         }
 

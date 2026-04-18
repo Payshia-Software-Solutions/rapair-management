@@ -9,15 +9,24 @@ class PartController extends Controller {
     public function __construct() {
         $this->partModel = $this->model('Part');
         $this->auditModel = $this->model('AuditLog');
+        require_once '../app/helpers/InventorySchema.php';
+        InventorySchema::ensure();
     }
 
     // GET /api/part/list?q=
     public function list() {
-        $this->requirePermission('parts.read');
+        $u = $this->requirePermission('parts.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $q = $_GET['q'] ?? '';
         $sid = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
-        $rows = $this->partModel->list($q, $sid > 0 ? $sid : null);
+        
+        $locId = $this->currentLocationId($u);
+        if ($locId > 0) {
+            $rows = $this->partModel->listLocationBalances($locId, $q);
+        } else {
+            $rows = $this->partModel->list($q, $sid > 0 ? $sid : null);
+        }
+        
         $this->success($rows);
     }
 
@@ -55,8 +64,11 @@ class PartController extends Controller {
             'price' => $price,
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
+            'is_fifo' => $data['is_fifo'] ?? 0,
+            'is_expiry' => $data['is_expiry'] ?? 0,
             'image_filename' => $data['image_filename'] ?? null,
             'item_type' => $data['item_type'] ?? 'Part',
+            'recipe_type' => $data['recipe_type'] ?? 'Standard',
         ];
 
         $newId = $this->partModel->create($payload, (int)$u['sub']);
@@ -105,8 +117,11 @@ class PartController extends Controller {
             'price' => $price,
             'reorder_level' => $data['reorder_level'] ?? null,
             'is_active' => $data['is_active'] ?? 1,
+            'is_fifo' => $data['is_fifo'] ?? 0,
+            'is_expiry' => $data['is_expiry'] ?? 0,
             'image_filename' => $data['image_filename'] ?? null,
             'item_type' => $data['item_type'] ?? 'Part',
+            'recipe_type' => $data['recipe_type'] ?? 'Standard',
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {
@@ -265,6 +280,19 @@ class PartController extends Controller {
             $db->bind(':pid', $partId);
         }
         $rows = $db->resultSet();
+        $this->success($rows);
+    }
+
+    // GET /api/part/batches/1
+    public function batches($id = null) {
+        $this->requirePermission('parts.read');
+        if (!$id) $this->error('Part ID required', 400);
+        
+        require_once '../app/models/InventoryBatch.php';
+        $batchModel = new InventoryBatch();
+        $locationId = (int)($_GET['location_id'] ?? 1);
+        
+        $rows = $batchModel->getAvailableBatches($id, $locationId);
         $this->success($rows);
     }
 }

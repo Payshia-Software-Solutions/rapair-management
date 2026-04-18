@@ -26,7 +26,7 @@ import {
   type SupplierRow,
   type TaxRow,
 } from "@/lib/api";
-import { ArrowLeft, ClipboardCheck, Loader2, PackageCheck, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, Loader2, PackageCheck, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { calculateTaxes } from "@/lib/tax-calc";
 
 function nowLocalDatetime() {
@@ -60,7 +60,7 @@ export default function NewGrnPage() {
     purchase_order_id: "",
     received_at: nowLocalDatetime(),
     notes: "",
-    items: [{ part_id: 0, qty_received: 1, unit_cost: 0 } as GrnItemRow],
+    items: [{ part_id: 0, qty_received: 1, unit_cost: 0, batch_number: "", mfg_date: "", expiry_date: "" } as any as GrnItemRow],
   });
 
   // When a PO is selected (even before details are loaded), lock certain fields on the form.
@@ -301,7 +301,7 @@ export default function NewGrnPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.purchase_order_id, loading, loadingPo]);
 
-  const addLine = () => setForm((p) => ({ ...p, items: [...p.items, { part_id: 0, qty_received: 1, unit_cost: 0 }] }));
+  const addLine = () => setForm((p) => ({ ...p, items: [...p.items, { part_id: 0, qty_received: 1, unit_cost: 0, batch_number: "", mfg_date: "", expiry_date: "" } as any as GrnItemRow] }));
   const removeLine = (idx: number) => setForm((p) => ({ ...p, items: p.items.filter((_, i) => i !== idx) }));
 
   const poSelected = useMemo(() => {
@@ -338,6 +338,9 @@ export default function NewGrnPage() {
             part_id: partId,
             qty_received: remaining > 0 ? remaining : 0,
             unit_cost: Number.isFinite(unitCost) ? unitCost : 0,
+            batch_number: "",
+            mfg_date: "",
+            expiry_date: "",
           };
         })
         .filter((x) => x.part_id > 0);
@@ -374,12 +377,15 @@ export default function NewGrnPage() {
     const supplierId = Number(form.supplier_id);
     const poId = form.purchase_order_id.trim() ? Number(form.purchase_order_id) : null;
 
-	    const items = form.items
-	      .map((it) => ({
-	        part_id: Number(it.part_id),
-	        qty_received: Number(it.qty_received),
-	        unit_cost: Number(it.unit_cost),
-	      }))
+    const items = form.items
+      .map((it) => ({
+        part_id: Number(it.part_id),
+        qty_received: Number(it.qty_received),
+        unit_cost: Number(it.unit_cost),
+        batch_number: (it as any).batch_number || null,
+        mfg_date: (it as any).mfg_date || null,
+        expiry_date: (it as any).expiry_date || null,
+      }))
 	      .map((it) => ({
 	        ...it,
 	        qty_received: Number.isFinite(it.qty_received) ? Math.round(it.qty_received * 1000) / 1000 : 0,
@@ -400,6 +406,8 @@ export default function NewGrnPage() {
           received_at: form.received_at,
           notes: form.notes.trim() || undefined,
           items,
+          subtotal: subTotal,
+          tax_total: taxCalc.totalTax,
         },
         poId ? (poLocationId ?? null) : (selectedLocationId ?? null)
       );
@@ -564,17 +572,19 @@ export default function NewGrnPage() {
                 <Table>
                   <TableHeader className="bg-muted/30">
                     <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead className="w-[140px]">Qty</TableHead>
-                      <TableHead className="w-[180px]">Unit Cost</TableHead>
-                      <TableHead className="w-[70px]" />
+                      <TableHead className="align-middle px-3">Item</TableHead>
+                      <TableHead className="w-[80px] text-right align-middle px-3">Qty</TableHead>
+                      <TableHead className="w-[100px] text-right align-middle px-3">Unit Cost</TableHead>
+                      <TableHead className="w-[240px] align-middle px-3">Batch No</TableHead>
+                      <TableHead className="w-[200px] align-middle px-3">Dates (Mfg/Exp)</TableHead>
+                      <TableHead className="w-[40px] align-middle px-3" />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {form.items.map((it, idx) => (
-                      <TableRow key={idx} className="align-top">
-                        <TableCell>
-                          <div className="space-y-2">
+                      <TableRow key={idx} className="align-middle">
+                        <TableCell className="p-2 align-middle">
+                          <div className="space-y-1">
                             <SearchableSelect
                               value={it.part_id ? String(it.part_id) : ""}
                               onValueChange={(v) => {
@@ -590,7 +600,7 @@ export default function NewGrnPage() {
                                   ...prev,
                                   items: prev.items.map((x, i) =>
                                     i === idx
-                                      ? { ...x, part_id: partId, unit_cost: Number.isFinite(Number(defaultCost)) ? Number(defaultCost) : 0 }
+                                      ? { ...x, part_id: partId, unit_cost: Number.isFinite(Number(defaultCost)) ? Number(Number(defaultCost).toFixed(2)) : 0.00 }
                                       : x
                                   ),
                                 }));
@@ -599,16 +609,19 @@ export default function NewGrnPage() {
                               placeholder="Select item..."
                               searchPlaceholder="Search item..."
                               disabled={isPoMode || saving || loading}
+                              className="h-8 text-xs font-semibold"
                             />
-                            <div className="text-[11px] text-muted-foreground">{it.part_id ? partLabel(it.part_id) : "Pick an item"}</div>
+                            <div className="text-[10px] text-muted-foreground truncate max-w-[200px] leading-none">
+                              {it.part_id ? partLabel(it.part_id) : "Pick an item"}
+                            </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-	                          <Input
-	                            type="number"
-	                            step="0.001"
-	                            inputMode="decimal"
-	                            value={String(it.qty_received ?? "")}
+                        <TableCell className="p-2 align-middle">
+                          <Input
+                            type="number"
+                            step="0.001"
+                            inputMode="decimal"
+                            value={String(it.qty_received ?? "")}
                             onChange={(e) => {
                               const v = e.target.value;
                               setForm((p) => ({
@@ -616,22 +629,114 @@ export default function NewGrnPage() {
                                 items: p.items.map((x, i) => (i === idx ? { ...x, qty_received: Number(v) } : x)),
                               }));
                             }}
+                            className="h-8 text-xs font-bold w-full"
                           />
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="p-2 align-middle">
                           <Input
                             type="number"
                             step="0.01"
                             inputMode="decimal"
-                            value={String(it.unit_cost ?? "")}
+                            value={String(it.unit_cost !== null && it.unit_cost !== undefined ? Number(it.unit_cost).toFixed(2) : "0.00")}
                             onChange={(e) => {
                               const v = e.target.value;
                               setForm((p) => ({
                                 ...p,
                                 items: p.items.map((x, i) => (i === idx ? { ...x, unit_cost: Number(v) } : x)),
+                                tax_calc: calculateTaxes(
+                                  p.items.reduce((acc, curr, j) => acc + (j === idx ? Number(v) : curr.unit_cost) * curr.qty_received, 0),
+                                  supplierTaxes
+                                )
                               }));
                             }}
+                            className="h-8 text-xs w-full"
                           />
+                        </TableCell>
+                        <TableCell className="p-2 align-middle">
+                          {(() => {
+                            const p = partsById.get(it.part_id);
+                            const showBatch = !!(p as any)?.is_fifo || !!(p as any)?.is_expiry;
+                            if (!showBatch) return <div className="text-[9px] text-muted-foreground/50 italic px-2 py-1">N/A</div>;
+                            
+                            const generateBatch = () => {
+                              const now = new Date();
+                              const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+                              const random = Math.floor(Math.random() * 10000).toString().padStart(4, "0");
+                              const bn = `BT-${dateStr}-${random}`;
+                              setForm((p) => ({
+                                ...p,
+                                items: p.items.map((x, i) => (i === idx ? { ...x, batch_number: bn } : x)),
+                              }));
+                            };
+
+                            return (
+                              <div className="flex items-center gap-1 group">
+                                <Input
+                                  placeholder="Batch..."
+                                  value={(it as any).batch_number ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setForm((p) => ({
+                                      ...p,
+                                      items: p.items.map((x, i) => (i === idx ? { ...x, batch_number: v } : x)),
+                                    }));
+                                  }}
+                                  className="h-8 text-xs flex-1 truncate font-mono"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary transition-opacity"
+                                  title="Generate Batch Number"
+                                  onClick={generateBatch}
+                                >
+                                  <Sparkles className="w-3.5 h-3.5" />
+                                </Button>
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
+                        <TableCell className="p-2 align-middle">
+                          {(() => {
+                            const p = partsById.get(it.part_id);
+                            const showExpiry = !!(p as any)?.is_expiry;
+                            if (!showExpiry) return <div className="text-[9px] text-muted-foreground/50 italic px-2 py-1">N/A</div>;
+                            return (
+                              <div className="space-y-1.5 py-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-bold text-muted-foreground w-6 shrink-0 text-right">MFD:</span>
+                                  <Input
+                                    type="date"
+                                    className="h-8 text-[10px] px-2 w-[155px]"
+                                    value={(it as any).mfg_date ?? ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setForm((p) => ({
+                                        ...p,
+                                        items: p.items.map((x, i) => (i === idx ? { ...x, mfg_date: v } : x)),
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[9px] font-bold text-red-500 w-6 shrink-0 text-right">EXP:</span>
+                                  <Input
+                                    type="date"
+                                    className="h-8 text-[10px] px-2 border-red-200/50 focus-visible:ring-red-500 w-[155px]"
+                                    value={(it as any).expiry_date ?? ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setForm((p) => ({
+                                        ...p,
+                                        items: p.items.map((x, i) => (i === idx ? { ...x, expiry_date: v } : x)),
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button

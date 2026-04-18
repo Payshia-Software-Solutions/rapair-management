@@ -25,14 +25,14 @@ class OrderPart extends Model {
         $this->ensureSchema();
         $oid = (int)$orderId;
         $pid = (int)$partId;
-        $qty = (int)$qty;
+        $qty = (float)$qty;
         if ($oid <= 0 || $pid <= 0 || $qty <= 0) return false;
 
         try {
             $this->db->exec("START TRANSACTION");
 
-            // Lock part
-            $this->db->query("SELECT stock_quantity, cost_price, price FROM parts WHERE id = :id FOR UPDATE");
+            // Lock part and get metadata
+            $this->db->query("SELECT item_type, cost_price, price, is_fifo, is_expiry FROM parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $p = $this->db->single();
             if (!$p) {
@@ -40,55 +40,132 @@ class OrderPart extends Model {
                 return false;
             }
 
-            $stock = (int)($p->stock_quantity ?? 0);
-            if ($stock < $qty) {
-                $this->db->exec("ROLLBACK");
-                return ['error' => 'Insufficient stock'];
+            $itemType = (string)($p->item_type ?? 'Part');
+            $isService = ($itemType === 'Service');
+
+            // Find order location
+            $locationId = 1;
+            $this->db->query("SELECT location_id FROM repair_orders WHERE id = :id");
+            $this->db->bind(':id', $oid);
+            $oRow = $this->db->single();
+            if ($oRow) $locationId = (int)$oRow->location_id;
+
+            // Stock Check for physical items
+            if (!$isService) {
+                $this->db->query("
+                    SELECT COALESCE(SUM(qty_change), 0) AS qty
+                    FROM stock_movements
+                    WHERE location_id = :loc AND part_id = :pid
+                ");
+                $this->db->bind(':loc', $locationId);
+                $this->db->bind(':pid', $pid);
+                $ledgerTotal = (float)($this->db->single()->qty ?? 0);
+
+                if ($ledgerTotal < $qty) {
+                    $this->db->exec("ROLLBACK");
+                    return ['error' => "Insufficient stock. (Available: " . number_format($ledgerTotal, 3) . ")"];
+                }
             }
 
             $unitCost = $p->cost_price !== null ? (float)$p->cost_price : null;
             $unitPrice = $p->price !== null ? (float)$p->price : null;
-            $lineTotal = ($unitPrice !== null) ? round($unitPrice * $qty, 2) : null;
 
-            // Deduct stock
-            $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty, updated_by = :u WHERE id = :id");
-            $this->db->bind(':qty', $qty);
-            $this->db->bind(':u', $userId);
-            $this->db->bind(':id', $pid);
-            $this->db->execute();
+            $isFifo = ($itemType !== 'Service' && ((int)($p->is_fifo ?? 0) === 1 || (int)($p->is_expiry ?? 0) === 1));
+            
+            if ($isFifo) {
+                // FIFO Batch Deduction
+                $batchModel = new InventoryBatch();
+                $deductions = $batchModel->deductStockFIFO($pid, $locationId, $qty);
+                if (count($deductions) === 0 && $qty > 0) {
+                    $this->db->exec("ROLLBACK");
+                    return ['error' => 'No available batches found for this product (though ledger shows stock)'];
+                }
 
-            // Create order part line
-            $this->db->query("
-                INSERT INTO order_parts (order_id, part_id, quantity, unit_cost, unit_price, line_total, created_by, updated_by)
-                VALUES (:order_id, :part_id, :qty, :unit_cost, :unit_price, :line_total, :created_by, :updated_by)
-            ");
-            $this->db->bind(':order_id', $oid);
-            $this->db->bind(':part_id', $pid);
-            $this->db->bind(':qty', $qty);
-            $this->db->bind(':unit_cost', $unitCost);
-            $this->db->bind(':unit_price', $unitPrice);
-            $this->db->bind(':line_total', $lineTotal);
-            $this->db->bind(':created_by', $userId);
-            $this->db->bind(':updated_by', $userId);
-            $this->db->execute();
-            $lineId = (int)$this->db->lastInsertId();
+                $totalDeducted = 0;
+                $lastLineId = 0;
 
-            // Stock movement ledger
-            $this->db->query("
-                INSERT INTO stock_movements (part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
-                VALUES (:part_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
-            ");
-            $this->db->bind(':part_id', $pid);
-            $this->db->bind(':qty_change', -1 * $qty);
-            $this->db->bind(':ref_id', $oid);
-            $this->db->bind(':unit_cost', $unitCost);
-            $this->db->bind(':unit_price', $unitPrice);
-            $this->db->bind(':notes', 'Issue to order');
-            $this->db->bind(':created_by', $userId);
-            $this->db->execute();
+                foreach ($deductions as $d) {
+                    $dQty = $d['qty_deducted'];
+                    $bId = $d['batch_id'];
+                    $totalDeducted += $dQty;
+                    $lineTotal = ($unitPrice !== null) ? round($unitPrice * $dQty, 2) : null;
 
-            $this->db->exec("COMMIT");
-            return $lineId;
+                    // Create line
+                    $this->db->query("
+                        INSERT INTO order_parts (order_id, part_id, batch_id, quantity, unit_cost, unit_price, line_total, created_by, updated_by)
+                        VALUES (:order_id, :part_id, :batch_id, :qty, :unit_cost, :unit_price, :line_total, :created_by, :updated_by)
+                    ");
+                    $this->db->bind(':order_id', $oid);
+                    $this->db->bind(':part_id', $pid);
+                    $this->db->bind(':batch_id', $bId);
+                    $this->db->bind(':qty', $dQty);
+                    $this->db->bind(':unit_cost', $unitCost);
+                    $this->db->bind(':unit_price', $unitPrice);
+                    $this->db->bind(':line_total', $lineTotal);
+                    $this->db->bind(':created_by', $userId);
+                    $this->db->bind(':updated_by', $userId);
+                    $this->db->execute();
+                    $lastLineId = (int)$this->db->lastInsertId();
+
+                    // Ledger move
+                    $this->db->query("
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                        VALUES (:loc, :part_id, :batch_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
+                    ");
+                    $this->db->bind(':loc', $locationId);
+                    $this->db->bind(':part_id', $pid);
+                    $this->db->bind(':batch_id', $bId);
+                    $this->db->bind(':qty_change', -1 * $dQty);
+                    $this->db->bind(':ref_id', $oid);
+                    $this->db->bind(':unit_cost', $unitCost);
+                    $this->db->bind(':unit_price', $unitPrice);
+                    $this->db->bind(':notes', 'Issue to order (Batch)');
+                    $this->db->bind(':created_by', $userId);
+                    $this->db->execute();
+                }
+
+                $this->db->exec("COMMIT");
+                return $lastLineId;
+
+            } else {
+                // Non-FIFO or Service
+                $lineTotal = ($unitPrice !== null) ? round($unitPrice * $qty, 2) : null;
+
+                // Ledger move only if not service
+                if (!$isService) {
+                    $this->db->query("
+                        INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                        VALUES (:loc, :part_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
+                    ");
+                    $this->db->bind(':loc', $locationId);
+                    $this->db->bind(':part_id', $pid);
+                    $this->db->bind(':qty_change', -1 * $qty);
+                    $this->db->bind(':ref_id', $oid);
+                    $this->db->bind(':unit_cost', $unitCost);
+                    $this->db->bind(':unit_price', $unitPrice);
+                    $this->db->bind(':notes', 'Issue to order');
+                    $this->db->bind(':created_by', $userId);
+                    $this->db->execute();
+                }
+
+                $this->db->query("
+                    INSERT INTO order_parts (order_id, part_id, quantity, unit_cost, unit_price, line_total, created_by, updated_by)
+                    VALUES (:order_id, :part_id, :qty, :unit_cost, :unit_price, :line_total, :created_by, :updated_by)
+                ");
+                $this->db->bind(':order_id', $oid);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':unit_cost', $unitCost);
+                $this->db->bind(':unit_price', $unitPrice);
+                $this->db->bind(':line_total', $lineTotal);
+                $this->db->bind(':created_by', $userId);
+                $this->db->bind(':updated_by', $userId);
+                $this->db->execute();
+                $lineId = (int)$this->db->lastInsertId();
+
+                $this->db->exec("COMMIT");
+                return $lineId;
+            }
         } catch (Exception $e) {
             try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
             return false;
@@ -98,13 +175,13 @@ class OrderPart extends Model {
     public function updateQty($lineId, $newQty, $userId = null) {
         $this->ensureSchema();
         $lid = (int)$lineId;
-        $newQty = (int)$newQty;
+        $newQty = (float)$newQty;
         if ($lid <= 0 || $newQty <= 0) return false;
 
         try {
             $this->db->exec("START TRANSACTION");
 
-            $this->db->query("SELECT id, order_id, part_id, quantity, unit_cost, unit_price FROM order_parts WHERE id = :id FOR UPDATE");
+            $this->db->query("SELECT * FROM order_parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $lid);
             $line = $this->db->single();
             if (!$line) {
@@ -112,36 +189,61 @@ class OrderPart extends Model {
                 return false;
             }
 
-            $oldQty = (int)($line->quantity ?? 0);
+            $oldQty = (float)$line->quantity;
             $diff = $newQty - $oldQty;
-            if ($diff === 0) {
+            if (abs($diff) < 0.0001) {
                 $this->db->exec("COMMIT");
                 return true;
             }
 
             $pid = (int)$line->part_id;
             $oid = (int)$line->order_id;
+            $batchId = $line->batch_id;
 
-            // Adjust stock based on diff
-            if ($diff > 0) {
-                $this->db->query("SELECT stock_quantity FROM parts WHERE id = :id FOR UPDATE");
-                $this->db->bind(':id', $pid);
-                $p = $this->db->single();
-                $stock = (int)($p->stock_quantity ?? 0);
-                if ($stock < $diff) {
+            $this->db->query("SELECT item_type FROM parts WHERE id = :id");
+            $this->db->bind(':id', $pid);
+            $isService = ((string)($this->db->single()->item_type ?? 'Part') === 'Service');
+
+            // If increasing, check stock
+            if ($diff > 0 && !$isService) {
+                $this->db->query("SELECT location_id FROM repair_orders WHERE id = :id");
+                $this->db->bind(':id', $oid);
+                $loc = (int)($this->db->single()->location_id ?? 1);
+
+                $this->db->query("SELECT COALESCE(SUM(qty_change), 0) as qty FROM stock_movements WHERE location_id = :loc AND part_id = :pid");
+                $this->db->bind(':loc', $loc);
+                $this->db->bind(':pid', $pid);
+                $ledgerTotal = (float)($this->db->single()->qty ?? 0);
+
+                if ($ledgerTotal < $diff) {
                     $this->db->exec("ROLLBACK");
-                    return ['error' => 'Insufficient stock'];
+                    return ['error' => 'Insufficient stock.'];
                 }
-                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty, updated_by = :u WHERE id = :id");
-                $this->db->bind(':qty', $diff);
-                $this->db->bind(':u', $userId);
-                $this->db->bind(':id', $pid);
+            }
+
+            // Batch update if applicable
+            if ($batchId && !$isService) {
+                $this->db->query("UPDATE inventory_batches SET quantity_on_hand = quantity_on_hand - :diff, is_exhausted = IF(quantity_on_hand - :diff <= 0, 1, 0) WHERE id = :bid");
+                $this->db->bind(':diff', $diff);
+                $this->db->bind(':bid', $batchId);
                 $this->db->execute();
-            } else {
-                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty, updated_by = :u WHERE id = :id");
-                $this->db->bind(':qty', -1 * $diff);
-                $this->db->bind(':u', $userId);
-                $this->db->bind(':id', $pid);
+            }
+
+            // Ledger move if not service
+            if (!$isService) {
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                    VALUES ((SELECT location_id FROM repair_orders WHERE id = :oid), :part_id, :batch_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
+                ");
+                $this->db->bind(':oid', $oid);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':batch_id', $batchId);
+                $this->db->bind(':qty_change', -1 * $diff);
+                $this->db->bind(':ref_id', $oid);
+                $this->db->bind(':unit_cost', (float)$line->unit_cost);
+                $this->db->bind(':unit_price', (float)$line->unit_price);
+                $this->db->bind(':notes', 'Update issued qty');
+                $this->db->bind(':created_by', $userId);
                 $this->db->execute();
             }
 
@@ -153,20 +255,6 @@ class OrderPart extends Model {
             $this->db->bind(':t', $lineTotal);
             $this->db->bind(':u', $userId);
             $this->db->bind(':id', $lid);
-            $this->db->execute();
-
-            // Stock movement record for the diff
-            $this->db->query("
-                INSERT INTO stock_movements (part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
-                VALUES (:part_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
-            ");
-            $this->db->bind(':part_id', $pid);
-            $this->db->bind(':qty_change', -1 * $diff); // if diff>0: more issue(-), diff<0: return(+)
-            $this->db->bind(':ref_id', $oid);
-            $this->db->bind(':unit_cost', $line->unit_cost !== null ? (float)$line->unit_cost : null);
-            $this->db->bind(':unit_price', $unitPrice);
-            $this->db->bind(':notes', 'Update issued qty');
-            $this->db->bind(':created_by', $userId);
             $this->db->execute();
 
             $this->db->exec("COMMIT");
@@ -185,7 +273,7 @@ class OrderPart extends Model {
         try {
             $this->db->exec("START TRANSACTION");
 
-            $this->db->query("SELECT id, order_id, part_id, quantity, unit_cost, unit_price FROM order_parts WHERE id = :id FOR UPDATE");
+            $this->db->query("SELECT * FROM order_parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $lid);
             $line = $this->db->single();
             if (!$line) {
@@ -195,30 +283,39 @@ class OrderPart extends Model {
 
             $pid = (int)$line->part_id;
             $oid = (int)$line->order_id;
-            $qty = (int)$line->quantity;
+            $qty = (float)$line->quantity;
+            $batchId = $line->batch_id;
 
-            // return stock
-            $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty, updated_by = :u WHERE id = :id");
-            $this->db->bind(':qty', $qty);
-            $this->db->bind(':u', $userId);
+            $this->db->query("SELECT item_type FROM parts WHERE id = :id");
             $this->db->bind(':id', $pid);
-            $this->db->execute();
+            $isService = ((string)($this->db->single()->item_type ?? 'Part') === 'Service');
+
+            if (!$isService) {
+                // Return to ledger
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                    VALUES ((SELECT location_id FROM repair_orders WHERE id = :oid), :part_id, :batch_id, :qty, 'ORDER_RETURN', 'repair_orders', :ref_id, :unit_cost, :unit_price, 'Item removed', :created_by)
+                ");
+                $this->db->bind(':oid', $oid);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':batch_id', $batchId);
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':ref_id', $oid);
+                $this->db->bind(':unit_cost', (float)$line->unit_cost);
+                $this->db->bind(':unit_price', (float)$line->unit_price);
+                $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+
+                if ($batchId) {
+                    $this->db->query("UPDATE inventory_batches SET quantity_on_hand = quantity_on_hand + :qty, is_exhausted = 0 WHERE id = :bid");
+                    $this->db->bind(':qty', $qty);
+                    $this->db->bind(':bid', $batchId);
+                    $this->db->execute();
+                }
+            }
 
             $this->db->query("DELETE FROM order_parts WHERE id = :id");
             $this->db->bind(':id', $lid);
-            $this->db->execute();
-
-            $this->db->query("
-                INSERT INTO stock_movements (part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
-                VALUES (:part_id, :qty_change, 'ORDER_ISSUE', 'repair_orders', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
-            ");
-            $this->db->bind(':part_id', $pid);
-            $this->db->bind(':qty_change', $qty);
-            $this->db->bind(':ref_id', $oid);
-            $this->db->bind(':unit_cost', $line->unit_cost !== null ? (float)$line->unit_cost : null);
-            $this->db->bind(':unit_price', $line->unit_price !== null ? (float)$line->unit_price : null);
-            $this->db->bind(':notes', 'Return from order');
-            $this->db->bind(':created_by', $userId);
             $this->db->execute();
 
             $this->db->exec("COMMIT");
@@ -230,11 +327,9 @@ class OrderPart extends Model {
     }
 
     public function getLine($lineId) {
-        $this->ensureSchema();
         $lid = (int)$lineId;
         $this->db->query("SELECT * FROM order_parts WHERE id = :id LIMIT 1");
         $this->db->bind(':id', $lid);
         return $this->db->single();
     }
 }
-

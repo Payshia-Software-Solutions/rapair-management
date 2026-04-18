@@ -58,6 +58,7 @@ const basePagePermissionMatrix: Array<{ page: string; read: string; write?: stri
   { page: "Suppliers", read: "suppliers.read", write: "suppliers.write" },
   { page: "Purchase Orders", read: "purchase.read", write: "purchase.write" },
   { page: "Goods Receive Notes (GRN)", read: "grn.read", write: "grn.write" },
+  { page: "Banks & Branches", read: "banks.read", write: "banks.write" },
   { page: "Stock (Balances / Movements)", read: "stock.read", write: "stock.adjust" },
   { page: "Stock Requests / Transfers", read: "transfer.read", write: "transfer.write" },
 

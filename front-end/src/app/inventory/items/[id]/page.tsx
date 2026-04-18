@@ -15,10 +15,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
+  api,
   contentUrl,
   deletePart,
   fetchBrands,
+  fetchCollections,
   fetchPart,
   fetchSuppliers,
   fetchUnits,
@@ -29,7 +32,7 @@ import {
   type SupplierRow,
   type UnitRow,
 } from "@/lib/api";
-import { ArrowLeft, ChevronDown, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, ChevronDown, LayoutGrid, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
 
 function asNumOrNull(v: string) {
   const t = v.trim();
@@ -56,17 +59,19 @@ function generateSku() {
   return `SKU-${ymd}-${rand}`;
 }
 
-export default function ItemDetailPage({ params }: { params: { id: string } }) {
+export default function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
-  const id = params?.id;
+  const { id } = React.use(params);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
   const [part, setPart] = useState<any>(null);
+  const [batches, setBatches] = useState<any[]>([]);
 
   const [form, setForm] = useState({
     sku: "",
@@ -79,11 +84,16 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     price: "",
     reorder_level: "",
     is_active: true,
+    is_fifo: false,
+    is_expiry: false,
     item_type: "Part" as "Part" | "Service",
+    recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
+  const [collectionIds, setCollectionIds] = useState<number[]>([]);
   const [supplierQuery, setSupplierQuery] = useState("");
+  const [collectionQuery, setCollectionQuery] = useState("");
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -91,11 +101,20 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
     if (!id) return;
     setLoading(true);
     try {
-      const [p, u, b, s] = await Promise.all([fetchPart(String(id)), fetchUnits(""), fetchBrands(""), fetchSuppliers("")]);
+      const [p, u, b, s, c, batchesRes] = await Promise.all([
+        fetchPart(String(id)), 
+        fetchUnits(""), 
+        fetchBrands(""), 
+        fetchSuppliers(""),
+        fetchCollections(),
+        api(`/api/part/batches/${id}`).then(res => res.json())
+      ]);
       setPart(p);
+      setBatches(batchesRes?.status === 'success' ? batchesRes.data : (Array.isArray(batchesRes) ? batchesRes : []));
       setUnits(Array.isArray(u) ? u : []);
       setBrands(Array.isArray(b) ? b : []);
       setSuppliers(Array.isArray(s) ? s : []);
+      setCollections(Array.isArray(c) ? c : []);
       setForm({
         sku: p?.sku ?? "",
         part_number: p?.part_number ?? "",
@@ -107,10 +126,15 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         price: p?.price !== null && p?.price !== undefined ? String(p.price) : "",
         reorder_level: p?.reorder_level !== null && p?.reorder_level !== undefined ? String(p.reorder_level) : "",
         is_active: Boolean(p?.is_active),
+        is_fifo: Boolean(p?.is_fifo),
+        is_expiry: Boolean(p?.is_expiry),
         item_type: (p?.item_type === "Service" ? "Service" : "Part") as "Part" | "Service",
+        recipe_type: (p?.recipe_type || "Standard") as "Standard" | "A La Carte" | "Recipe",
       });
       const ids = Array.isArray(p?.supplier_ids) ? (p.supplier_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
       setSupplierIds(Array.from(new Set(ids)).sort((a, b) => a - b));
+      const cids = Array.isArray(p?.collection_ids) ? (p.collection_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
+      setCollectionIds(Array.from(new Set(cids)).sort((a, b) => a - b));
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load product", variant: "destructive" });
       setPart(null);
@@ -152,12 +176,16 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         unit: form.unit.trim() ? form.unit.trim() : null,
         brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
         supplier_ids: supplierIds,
+        collection_ids: collectionIds,
         cost_price: asNumOrNull(form.cost_price),
         price,
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
+        is_fifo: form.is_fifo ? 1 : 0,
+        is_expiry: form.is_expiry ? 1 : 0,
         image_filename: part?.image_filename ?? null,
         item_type: form.item_type,
+        recipe_type: form.recipe_type,
       });
       toast({ title: "Saved", description: "Product updated" });
       await load();
@@ -286,6 +314,19 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                         </Select>
                       </div>
                       <div className="space-y-2">
+                        <Label>Recipe Type</Label>
+                        <Select value={form.recipe_type} onValueChange={(v: any) => setForm((p) => ({ ...p, recipe_type: v }))}>
+                          <SelectTrigger className="font-bold border-blue-200 bg-blue-50/30">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Standard" className="font-bold">Standard (GRN & Sell)</SelectItem>
+                            <SelectItem value="A La Carte" className="font-bold">A La Carte (Needs BOM)</SelectItem>
+                            <SelectItem value="Recipe" className="font-bold">Recipe (Needs BOM)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
                         <Label>SKU</Label>
                         <div className="flex gap-2">
                           <Input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} />
@@ -352,67 +393,135 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                           Manage units in <Link className="underline" href="/master-data/units">Master Data → Units</Link>
                         </div>
                       </div>
-	                      <div className="space-y-2">
-	                        <Label>Suppliers</Label>
-	                        <Popover>
-	                          <PopoverTrigger asChild>
-	                            <Button type="button" variant="outline" className="w-full justify-between" disabled={saving}>
-	                              <span className="truncate">
-	                                {supplierIds.length === 0 ? "Select suppliers..." : `${supplierIds.length} selected`}
-	                              </span>
-	                              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-	                            </Button>
-	                          </PopoverTrigger>
-	                          <PopoverContent className="w-[360px] p-3" align="start">
-	                            <div className="space-y-2">
-	                              <Input placeholder="Search suppliers..." value={supplierQuery} onChange={(e) => setSupplierQuery(e.target.value)} />
-	                              <ScrollArea className="h-[240px] pr-2">
-	                                <div className="space-y-2">
-	                                  {suppliers
-	                                    .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
-	                                    .map((s) => {
-	                                      const sid = Number(s.id);
-	                                      const checked = supplierIds.includes(sid);
-	                                      return (
-	                                        <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-	                                          <Checkbox
-	                                            checked={checked}
-	                                            onCheckedChange={(v) => {
-	                                              setSupplierIds((prev) => {
-	                                                const next = new Set(prev);
-	                                                if (v) next.add(sid);
-	                                                else next.delete(sid);
-	                                                return Array.from(next).sort((a, b) => a - b);
-	                                              });
-	                                            }}
-	                                          />
-	                                          <span className="truncate">{s.name}</span>
-	                                        </label>
-	                                      );
-	                                    })}
-	                                  {suppliers.length === 0 ? (
-	                                    <div className="text-xs text-muted-foreground py-4 text-center">No suppliers</div>
-	                                  ) : null}
-	                                </div>
-	                              </ScrollArea>
-	                            </div>
-	                          </PopoverContent>
-	                        </Popover>
-	                        <div className="text-[11px] text-muted-foreground">Optional. You can assign multiple suppliers.</div>
-	                      </div>
+                      <div className="space-y-2 col-span-1 md:col-span-2">
+                        <Label>Suppliers</Label>
+                        <div className="rounded-md border p-4 bg-muted/5 space-y-3">
+                          <Input 
+                            placeholder="Search suppliers..." 
+                            value={supplierQuery} 
+                            onChange={(e) => setSupplierQuery(e.target.value)} 
+                            className="h-8 text-sm"
+                          />
+                          <ScrollArea className="h-[120px] pr-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                              {suppliers
+                                .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+                                .map((s) => {
+                                  const sid = Number(s.id);
+                                  const checked = supplierIds.includes(sid);
+                                  return (
+                                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-sm transition-colors border border-transparent hover:border-muted-foreground/20">
+                                      <Checkbox
+                                        checked={checked}
+                                        onCheckedChange={(v) => {
+                                          setSupplierIds((prev) => {
+                                            const next = new Set(prev);
+                                            if (v) next.add(sid);
+                                            else next.delete(sid);
+                                            return Array.from(next).sort((a, b) => a - b);
+                                          });
+                                        }}
+                                      />
+                                      <span className="truncate flex-1">{s.name}</span>
+                                    </label>
+                                  );
+                                })}
+                              {suppliers.length === 0 ? (
+                                <div className="text-xs text-muted-foreground py-4 text-center col-span-full">No suppliers found</div>
+                              ) : null}
+                            </div>
+                          </ScrollArea>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground">Select multiple suppliers for this product.</div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Collections</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button type="button" variant="outline" className="w-full justify-between" disabled={saving}>
+                              <span className="truncate">
+                                {collectionIds.length === 0 ? "Select collections..." : `${collectionIds.length} selected`}
+                              </span>
+                              <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[360px] p-3" align="start">
+                            <div className="space-y-2">
+                              <Input placeholder="Search collections..." value={collectionQuery} onChange={(e) => setCollectionQuery(e.target.value)} />
+                              <ScrollArea className="h-[240px] pr-2">
+                                <div className="space-y-2">
+                                  {collections
+                                    .filter((c) => (c.name ?? "").toLowerCase().includes(collectionQuery.trim().toLowerCase()))
+                                    .map((c) => {
+                                      const cid = Number(c.id);
+                                      const checked = collectionIds.includes(cid);
+                                      return (
+                                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                                          <Checkbox
+                                            checked={checked}
+                                            onCheckedChange={(v) => {
+                                              setCollectionIds((prev) => {
+                                                const next = new Set(prev);
+                                                if (v) next.add(cid);
+                                                else next.delete(cid);
+                                                return Array.from(next).sort((a, b) => a - b);
+                                              });
+                                            }}
+                                          />
+                                          <span className="truncate">{c.name}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  {collections.length === 0 ? (
+                                    <div className="text-xs text-muted-foreground py-4 text-center">No collections</div>
+                                  ) : null}
+                                </div>
+                              </ScrollArea>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                        <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
+                      </div>
 	                      <div className="space-y-2">
 	                        <Label>Active</Label>
 	                        <div className="h-11 flex items-center">
 	                          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
 	                        </div>
 	                      </div>
+                          <div className="space-y-2">
+                            <Label>Follow FIFO</Label>
+                            <div className="h-11 flex items-center">
+                              <Switch checked={form.is_fifo} onCheckedChange={(v) => setForm((p) => ({ ...p, is_fifo: v }))} />
+                            </div>
+                            <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Track stock by oldest batch first</div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Track Expiry</Label>
+                            <div className="h-11 flex items-center">
+                              <Switch checked={form.is_expiry} onCheckedChange={(v) => setForm((p) => ({ ...p, is_expiry: v }))} />
+                            </div>
+                            <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Capture Mfg/Expiry dates during GRN</div>
+                          </div>
                       <div className="space-y-2">
                         <Label>Cost Price</Label>
-                        <Input inputMode="decimal" value={form.cost_price} onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} />
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal" 
+                          value={Number.isFinite(Number(form.cost_price)) ? Number(form.cost_price).toFixed(2) : "0.00"} 
+                          onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} 
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Selling Price</Label>
-                        <Input inputMode="decimal" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} required />
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal" 
+                          value={Number.isFinite(Number(form.price)) ? Number(form.price).toFixed(2) : "0.00"} 
+                          onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} 
+                          required 
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>Reorder Level</Label>
@@ -446,6 +555,41 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                 </div>
 
                 {/* Stock adjustments are handled in a separate page for safety/auditability. */}
+
+                {(form.is_fifo || form.is_expiry) && batches.length > 0 && (
+                  <div className="mt-8 border-t pt-8">
+                    <h3 className="text-lg font-semibold mb-4">Stored Batches</h3>
+                    <div className="rounded-lg border overflow-hidden">
+                      <Table>
+                        <TableHeader className="bg-muted/50">
+                          <TableRow>
+                            <TableHead>Batch No</TableHead>
+                            <TableHead>Mfg Date</TableHead>
+                            <TableHead>Expiry Date</TableHead>
+                            <TableHead className="text-right">Quantity</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {batches.map((b) => (
+                            <TableRow key={b.id}>
+                              <TableCell className="font-medium">{b.batch_number || "N/A"}</TableCell>
+                              <TableCell>{b.mfg_date || "N/A"}</TableCell>
+                              <TableCell>
+                                {b.expiry_date || "N/A"}
+                                {b.expiry_date && new Date(b.expiry_date) < new Date() && (
+                                  <Badge variant="destructive" className="ml-2 py-0 h-5">Expired</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right font-bold">
+                                {Number(b.quantity_on_hand).toLocaleString()}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </CardContent>

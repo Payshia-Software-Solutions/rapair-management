@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { fetchLocationStockBalances, fetchLocations, type LocationStockBalanceRow, type PartRow, type ServiceLocationRow } from "@/lib/api";
-import { Search, Loader2, AlertCircle, ListOrdered, History } from "lucide-react";
+import { Search, Loader2, AlertCircle, ListOrdered, History, ChevronDown, ChevronRight, Calendar, Archive, Layers } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { fetchReportStockBalance, fetchLocations, LocationStockBalanceRow, ServiceLocation } from "@/lib/api";
 
 export default function StockPage() {
   const { toast } = useToast();
@@ -21,6 +21,7 @@ export default function StockPage() {
   const [onlyLow, setOnlyLow] = useState(false);
   const [locations, setLocations] = useState<Array<{ id: number; name: string }>>([]);
   const [locationId, setLocationId] = useState<number>(1);
+  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
 
   // Movements are now shown on a separate page.
 
@@ -29,7 +30,7 @@ export default function StockPage() {
     try {
       const lid = Number(opts.locationId ?? locationId ?? 1) || 1;
       const q = String(opts.q ?? query ?? "");
-      const data = await fetchLocationStockBalances(lid, q);
+      const data = await fetchReportStockBalance({ locationId: lid, q, batches: true });
       setItems(Array.isArray(data) ? data : []);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load stock", variant: "destructive" });
@@ -54,22 +55,26 @@ export default function StockPage() {
     const init = async () => {
       try {
         const tokenJson: any = decodeToken();
-        const role = String(tokenJson?.role ?? "");
+        const role = String(tokenJson?.role ?? "").toLowerCase();
         const allowed = Array.isArray(tokenJson?.allowed_locations) ? tokenJson.allowed_locations : [];
         const allowedLocs = allowed
           .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
           .filter((x: any) => x.id > 0 && x.name);
 
         let locs: Array<{ id: number; name: string }> = [];
-        if (role === "Admin") {
+        if (role === "admin") {
           const rows = await fetchLocations();
           locs = Array.isArray(rows)
-            ? (rows as ServiceLocationRow[]).map((l) => ({ id: Number(l.id), name: String(l.name ?? "") })).filter((l) => l.id > 0 && l.name)
+            ? (rows as ServiceLocation[]).map((l) => ({ id: Number(l.id), name: String(l.name ?? "") })).filter((l) => l.id > 0 && l.name)
             : [];
         } else {
           locs = allowedLocs;
         }
-        if (locs.length === 0) locs = [{ id: 1, name: "Main" }];
+        if (locs.length === 0) {
+          // No reachable locations
+          setLocations([]);
+          return;
+        }
         setLocations(locs);
 
         const ls = Number(window.localStorage.getItem("location_id") || 0);
@@ -77,9 +82,8 @@ export default function StockPage() {
         setLocationId(initId);
         await load({ locationId: initId, q: "" });
       } catch (e: any) {
-        setLocations([{ id: 1, name: "Main" }]);
-        setLocationId(1);
-        await load({ locationId: 1, q: "" });
+        toast({ title: "Error", description: "Failed to load locations. Please check your permissions.", variant: "destructive" });
+        setLocations([]);
       }
     };
     void init();
@@ -109,6 +113,15 @@ export default function StockPage() {
 
   const openMovements = (p: PartRow) => {
     router.push(`/inventory/stock/movements/${encodeURIComponent(String(p.id))}?location_id=${encodeURIComponent(String(locationId))}`);
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   return (
@@ -203,36 +216,117 @@ export default function StockPage() {
                     const sys = Number((p as any).system_stock_quantity ?? (p as any).stock_quantity ?? 0);
                     const value = cost * qty;
                     const low = p.reorder_level !== null && p.reorder_level !== undefined ? qty <= Number(p.reorder_level) : false;
+                    const isExpanded = expandedItems.has(p.id);
+                    const hasBatches = (Array.isArray(p.batches) && p.batches.length > 0) || qty > 0.0001;
+
                     return (
-                      <TableRow key={p.id} className="hover:bg-muted/10 transition-colors">
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary/10 rounded-lg">
-                              <ListOrdered className="w-5 h-5 text-primary" />
+                      <React.Fragment key={p.id}>
+                        <TableRow className={`group hover:bg-muted/10 transition-colors ${isExpanded ? 'bg-muted/5' : ''}`}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {hasBatches ? (
+                                <Button 
+                                  variant="ghost" 
+                                  size="icon" 
+                                  className="h-7 w-7 text-muted-foreground hover:text-primary"
+                                  onClick={() => toggleExpand(p.id)}
+                                >
+                                  {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                </Button>
+                              ) : (
+                                <div className="w-7" />
+                              )}
+                              <div className="p-2 bg-primary/10 rounded-lg shrink-0">
+                                <ListOrdered className="w-5 h-5 text-primary" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold truncate">{p.part_name}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{p.sku ? `SKU: ${p.sku}` : `ITEM ID: #${p.id}`}</p>
+                              </div>
+                              {low ? <Badge variant="destructive" className="text-[10px] ml-2">Low</Badge> : null}
                             </div>
-                            <div className="min-w-0">
-                              <p className="font-bold truncate">{p.part_name}</p>
-                              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">{p.sku ? `SKU: ${p.sku}` : `ITEM ID: #${p.id}`}</p>
+                          </TableCell>
+                          <TableCell className="font-bold">
+                            <div>
+                              {qty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}{" "}
+                              {p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
                             </div>
-                            {low ? <Badge variant="destructive" className="text-[10px]">Low</Badge> : null}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-bold">
-                          <div>
-                            {qty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}{" "}
-                            {p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
-                          </div>
-                          <div className="text-[11px] text-muted-foreground font-normal">System: {sys.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{cost ? cost.toFixed(2) : "-"}</TableCell>
-                        <TableCell className="hidden lg:table-cell text-sm">{value ? value.toFixed(2) : "-"}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="outline" size="sm" className="gap-2" onClick={() => void openMovements(p)}>
-                            <History className="w-4 h-4" />
-                            Movements
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                            <div className="text-[11px] text-muted-foreground font-normal">System: {sys.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</div>
+                          </TableCell>
+                          <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{cost ? cost.toFixed(2) : "-"}</TableCell>
+                          <TableCell className="hidden lg:table-cell text-sm">{value ? value.toFixed(2) : "-"}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" className="gap-2" onClick={() => void openMovements(p)}>
+                              <History className="w-4 h-4" />
+                              Movements
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+
+                        {isExpanded && hasBatches && p.batches && (
+                          <TableRow className="bg-slate-50/50 dark:bg-slate-900/20">
+                            <TableCell colSpan={5} className="p-4 pl-14">
+                              <div className="rounded-xl border border-border bg-background shadow-sm overflow-hidden">
+                                <Table>
+                                  <TableHeader className="bg-muted/30">
+                                    <TableRow className="hover:bg-transparent border-none">
+                                      <TableHead className="h-9 text-[10px] uppercase tracking-widest font-black">Batch No</TableHead>
+                                      <TableHead className="h-9 text-[10px] uppercase tracking-widest font-black">Dates</TableHead>
+                                      <TableHead className="h-9 text-[10px] uppercase tracking-widest font-black text-right">Quantity</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {p.batches.map((b: any, bidx: number) => {
+                                      const isUnclassified = b.is_unclassified === true || b.batch_number === 'UNCLASSIFIED';
+                                      return (
+                                        <TableRow key={b.id || bidx} className={`hover:bg-muted/10 border-border/50 ${isUnclassified ? 'bg-orange-50/20 dark:bg-orange-950/20' : ''}`}>
+                                          <TableCell className="py-2">
+                                            <div className="flex items-center gap-2">
+                                              {isUnclassified ? (
+                                                <AlertCircle className="w-3.5 h-3.5 text-orange-500" />
+                                              ) : (
+                                                <Archive className="w-3.5 h-3.5 text-muted-foreground" />
+                                              )}
+                                              <span className={`text-xs font-mono font-bold tracking-tight ${isUnclassified ? 'text-orange-600 dark:text-orange-400 italic' : ''}`}>
+                                                {isUnclassified ? 'UNCLASSIFIED' : b.batch_number}
+                                              </span>
+                                            </div>
+                                          </TableCell>
+                                          <TableCell className="py-2">
+                                            {isUnclassified ? (
+                                              <span className="text-[10px] text-muted-foreground italic font-medium">Stock without assigned lot context</span>
+                                            ) : (
+                                              <div className="flex flex-col gap-1 sm:flex-row sm:gap-4">
+                                                {b.mfg_date && (
+                                                  <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-medium">
+                                                    <Calendar className="w-3 h-3" />
+                                                    <span>MFD: {b.mfg_date}</span>
+                                                  </div>
+                                                )}
+                                                {b.expiry_date && (
+                                                  <div className={`flex items-center gap-1.5 text-[10px] font-bold ${new Date(b.expiry_date) < new Date() ? 'text-rose-500' : 'text-muted-foreground'}`}>
+                                                    <Layers className="w-3 h-3" />
+                                                    <span>EXP: {b.expiry_date}</span>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            )}
+                                          </TableCell>
+                                          <TableCell className="py-2 text-right">
+                                            <div className={`text-xs font-black tabular-nums ${isUnclassified ? 'text-orange-600 dark:text-orange-400' : ''}`}>
+                                              {Number(b.quantity_on_hand).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                                            </div>
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </TableBody>

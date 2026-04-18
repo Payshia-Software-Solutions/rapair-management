@@ -29,10 +29,10 @@ function fmt3(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
 }
 
-export default function StockAdjustmentDetailPage({ params }: { params: { id: string } }) {
+export default function StockAdjustmentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { toast } = useToast();
-  const id = params?.id;
+  const { id } = React.use(params);
 
   const [loading, setLoading] = useState(true);
   const [hdr, setHdr] = useState<any>(null);

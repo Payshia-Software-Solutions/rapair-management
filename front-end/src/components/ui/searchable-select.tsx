@@ -56,7 +56,7 @@ export function SearchableSelect({
 
   return (
     <div className={cn("w-full", className)}>
-      <Popover open={open} onOpenChange={(v) => (disabled ? setOpen(false) : setOpen(v))}>
+      <Popover open={open} onOpenChange={(v) => (disabled ? setOpen(false) : setOpen(v))} modal={false}>
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -73,16 +73,27 @@ export function SearchableSelect({
           </Button>
         </PopoverTrigger>
 
-        <PopoverContent align="start" sideOffset={6} className={cn("p-0 w-[--radix-popover-trigger-width]", contentClassName)}>
-          <div className="p-2 border-b">
+        <PopoverContent 
+          align="start" 
+          sideOffset={6} 
+          className={cn("p-0 w-[--radix-popover-trigger-width]", contentClassName)}
+          style={{ pointerEvents: 'auto' }}
+        >
+          <div 
+            className="p-2 border-b"
+            onKeyDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
                 placeholder={searchPlaceholder}
                 className="pl-8 h-9"
                 autoFocus
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
           </div>
@@ -102,7 +113,9 @@ export function SearchableSelect({
                         "w-full text-left flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted transition-colors",
                         isSelected ? "bg-muted" : ""
                       )}
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         onValueChange(o.value);
                         setOpen(false);
                         setQuery("");

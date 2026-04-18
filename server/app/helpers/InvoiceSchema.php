@@ -7,14 +7,28 @@ class InvoiceSchema {
     private static $done = false;
 
     public static function ensure($force = false) {
+        $db = new Database();
+        $pdo = $db->getDb();
+
+        // [MIGRATIONS] Always check for missing columns even if tables exist
+        try {
+            if (self::hasTable($pdo, 'invoice_items')) {
+                if (!self::hasColumn($pdo, 'invoice_items', 'cost_price')) {
+                    $pdo->exec("ALTER TABLE invoice_items ADD COLUMN cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER unit_price");
+                }
+            }
+            if (self::hasTable($pdo, 'invoices')) {
+                if (!self::hasColumn($pdo, 'invoices', 'discount_total')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN discount_total DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER tax_total");
+                }
+            }
+        } catch (Exception $e) {}
+
         if (self::$done && !$force) return;
         self::$done = true;
 
         $flagFile = __DIR__ . '/../../.schema_synced';
         if (file_exists($flagFile) && !$force) return;
-
-        $db = new Database();
-        $pdo = $db->getDb();
 
         // 1. invoices
         $pdo->exec("
@@ -54,6 +68,7 @@ class InvoiceSchema {
                 item_type ENUM('Part', 'Labor', 'Service', 'Other') DEFAULT 'Part',
                 quantity DECIMAL(10,2) NOT NULL DEFAULT 1.00,
                 unit_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+                cost_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 discount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 line_total DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
@@ -115,6 +130,14 @@ class InvoiceSchema {
         try {
             $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
             $stmt->execute([$name]);
+            return (bool)$stmt->fetch();
+        } catch (Exception $e) { return false; }
+    }
+
+    private static function hasColumn($pdo, $table, $column) {
+        try {
+            $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+            $stmt->execute([$column]);
             return (bool)$stmt->fetch();
         } catch (Exception $e) { return false; }
     }

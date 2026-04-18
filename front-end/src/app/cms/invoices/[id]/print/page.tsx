@@ -164,7 +164,7 @@ function PrintContent() {
             <div className="space-y-1">
               <div className="flex justify-between text-[11px] py-0.5 border-b border-slate-50">
                 <span className="text-slate-400 font-medium">Issue Date</span>
-                <span className="font-bold text-slate-700">{invoice.issue_date}</span>
+                <span className="font-bold text-slate-700">{new Date(invoice.created_at || invoice.issue_date).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
               </div>
               <div className="flex justify-between text-[11px] py-0.5 border-b border-slate-50">
                 <span className="text-slate-400 font-medium">Due Date</span>
@@ -174,6 +174,22 @@ function PrintContent() {
                 <div className="flex justify-between text-[11px] py-0.5">
                   <span className="text-slate-400 font-medium">Order Ref</span>
                   <span className="font-black text-primary italic">#{invoice.order_id}</span>
+                </div>
+              )}
+              {invoice.order_type === 'dine_in' && (
+                <div className="mt-1 pt-1 border-t border-slate-100 space-y-0.5">
+                  {invoice.table_name && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-400 font-medium">Table</span>
+                      <span className="font-bold text-slate-700">{invoice.table_name}</span>
+                    </div>
+                  )}
+                  {invoice.steward_name && (
+                    <div className="flex justify-between text-[11px]">
+                      <span className="text-slate-400 font-medium">Steward</span>
+                      <span className="font-bold text-slate-700">{invoice.steward_name}</span>
+                    </div>
+                  )}
                 </div>
               )}
               <div className="mt-2">
@@ -239,7 +255,7 @@ function PrintContent() {
                   invoice.applied_taxes.map((tax: any) => (
                     <div key={tax.id} className="flex justify-between items-center text-slate-600">
                       <span className="text-[10px] font-bold uppercase tracking-widest">
-                        {tax.tax_code} {Number(tax.rate_percent) > 0 ? `(${Number(tax.rate_percent)}%)` : ''}
+                        {tax.tax_code || tax.tax_name} {Number(tax.rate_percent) > 0 ? `(${Number(tax.rate_percent)}%)` : ''}
                       </span>
                       <span className="font-bold tabular-nums">LKR {Number(tax.amount).toFixed(2)}</span>
                     </div>

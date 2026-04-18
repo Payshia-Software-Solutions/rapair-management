@@ -315,16 +315,17 @@ export const fetchReportOverview = async () => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const fetchReportStockBalance = async (opts: { locationId?: number | "all"; group?: "item" | "location"; q?: string; asOf?: string } = {}) => {
+export const fetchReportStockBalance = async (opts: { locationId?: number | "all"; group?: "item" | "location"; q?: string; asOf?: string; batches?: boolean } = {}) => {
   const qs = new URLSearchParams();
   if (opts.locationId !== undefined) qs.set("location_id", String(opts.locationId));
   if (opts.group) qs.set("group", opts.group);
   if (opts.q) qs.set("q", opts.q);
   if (opts.asOf) qs.set("as_of", opts.asOf);
+  if (opts.batches) qs.set("batches", "1");
   const res = await api(`/api/report/stock_balance?${qs.toString()}`);
   if (!res.ok) throw new Error("Failed to load stock balance report");
   const data = await res.json();
-  return data.status === "success" ? (data.data as any[]) : data;
+  return data.status === "success" ? (data.data as LocationStockBalanceRow[]) : data;
 };
 
 export const fetchReportLowStock = async (opts: { locationId?: number | "all"; q?: string } = {}) => {
@@ -607,6 +608,13 @@ export interface ServiceLocation {
   phone?: string | null;
   tax_no?: string | null;
   tax_label?: string | null;
+  allow_service_charge?: number;
+  service_charge_rate?: number;
+  allow_dine_in?: number;
+  allow_take_away?: number;
+  allow_retail?: number;
+  is_pos_active?: number;
+  allow_production?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -615,16 +623,23 @@ export const fetchLocations = async () => {
   const res = await api('/api/location/list');
   if (!res.ok) throw new Error('Failed to load locations');
   const data = await res.json();
-  return data.status === 'success' ? (data.data as ServiceLocationRow[]) : data;
+  return data.status === 'success' ? (data.data as ServiceLocation[]) : data;
 };
 
-export const createLocation = async (payload: { name: string; location_type?: string; address?: string; phone?: string }) => {
+export const fetchLocation = async (id: string) => {
+  const res = await api(`/api/location/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load location');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as ServiceLocation) : data;
+};
+
+export const createLocation = async (payload: any) => {
   const res = await api('/api/location/create', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to create location');
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const updateLocation = async (id: string, payload: { name: string; location_type?: string; address?: string; phone?: string }) => {
+export const updateLocation = async (id: string, payload: any) => {
   const res = await api(`/api/location/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to update location');
   return res.json() as Promise<ApiSuccess<null>>;
@@ -817,6 +832,7 @@ export type PartRow = {
   is_active: number;
   image_filename?: string | null;
   item_type: "Part" | "Service";
+  recipe_type: "Standard" | "A La Carte" | "Recipe";
 };
 
 export const fetchParts = async (q: string = '') => {
@@ -883,6 +899,7 @@ export const fetchPartMovements = async (
 export type LocationStockBalanceRow = PartRow & {
   system_stock_quantity?: number;
   location_stock_quantity?: number;
+  batches?: any[];
 };
 
 export const fetchLocationStockBalances = async (locationId: number, q: string = '') => {
@@ -1172,7 +1189,7 @@ export const fetchGrn = async (id: string) => {
 };
 
 export const createGrn = async (
-  payload: { supplier_id: number; purchase_order_id?: number | null; received_at: string; notes?: string; items: GrnItemRow[] },
+  payload: { supplier_id: number; purchase_order_id?: number | null; received_at: string; notes?: string; items: GrnItemRow[]; subtotal?: number; tax_total?: number; },
   locationIdOverride?: number | null
 ) => {
   const headers: Record<string, string> = {};
@@ -1234,6 +1251,50 @@ export const deleteUnit = async (id: string) => {
   if (!res.ok) throw new Error('Failed to delete unit');
   return res.json() as Promise<ApiSuccess<null>>;
 };
+
+// Collections
+export const fetchCollections = async (publicOnly = false) => {
+  const res = await api(`/api/collection/list${publicOnly ? '?public=1' : ''}`);
+  if (!res.ok) throw new Error('Failed to load collections');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createCollection = async (payload: { name: string; show_in_public?: number }) => {
+  const res = await api('/api/collection/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create collection');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateCollection = async (id: string, payload: { name: string; show_in_public?: number }) => {
+  const res = await api(`/api/collection/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update collection');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteCollection = async (id: string) => {
+  const res = await api(`/api/collection/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete collection');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const fetchCollectionParts = async (id: string) => {
+  const res = await api(`/api/collection/parts/${id}`);
+  if (!res.ok) throw new Error('Failed to load collection products');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const syncCollectionParts = async (id: string, partIds: number[]) => {
+  const res = await api(`/api/collection/sync_parts/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ part_ids: partIds })
+  });
+  if (!res.ok) throw new Error('Failed to sync products');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+
 
 // Brands
 export type BrandRow = { id: number; name: string; created_at?: string; updated_at?: string };
@@ -1588,4 +1649,445 @@ export const updateChequeStatus = async (chequeId: string | number, status: stri
   });
   if (!res.ok) throw new Error('Failed to update cheque status');
   return res.json();
+};
+
+// Bank & Branch Master Data
+export const fetchBanks = async () => {
+  const res = await api('/api/bank/list');
+  if (!res.ok) throw new Error('Failed to load banks');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchBankBranches = async (bankId: string | number, all = false) => {
+  const params = all ? '?all=1' : '';
+  const res = await api('/api/bankbranch/bank/' + bankId + params);
+  if (!res.ok) throw new Error('Failed to load branches');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const createBank = async (data: any) => {
+  const res = await api('/api/bank/store', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create bank');
+  return res.json();
+};
+
+export const updateBank = async (id: string | number, data: any) => {
+  const res = await api('/api/bank/update/' + id, { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update bank');
+  return res.json();
+};
+
+export const deleteBank = async (id: string | number) => {
+  const res = await api('/api/bank/delete/' + id, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete bank');
+  return res.json();
+};
+
+export const createBankBranch = async (data: any) => {
+  const res = await api('/api/bankbranch/store', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create branch');
+  return res.json();
+};
+
+export const updateBankBranch = async (id: string | number, data: any) => {
+  const res = await api('/api/bankbranch/update/' + id, { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update branch');
+  return res.json();
+};
+
+export const deleteBankBranch = async (id: string | number) => {
+  const res = await api('/api/bankbranch/delete/' + id, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete branch');
+  return res.json();
+};
+
+export const fetchBank = async (id: string | number) => {
+  const res = await api('/api/bank/details/' + id);
+  if (!res.ok) throw new Error('Failed to load bank details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchReturnPrintData = async (id: string | number) => {
+  const res = await api('/api/salesreturn/print_data/' + id);
+  if (!res.ok) throw new Error('Failed to load return print data');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchRefundPrintData = async (id: string | number) => {
+  const res = await api('/api/refund/print_data/' + id);
+  if (!res.ok) throw new Error('Failed to load refund print data');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchPosDayLedger = async (locationId: number | string) => {
+  const res = await api(`/api/pos/day_ledger?location_id=${locationId}`);
+  if (!res.ok) throw new Error('Failed to load day ledger');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+// --- POS Held Orders / KOT ---
+export const holdPOSOrder = async (data: any) => {
+  const res = await api('/api/pos/hold_order', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to hold order');
+  return res.json();
+};
+
+export const fetchHeldOrders = async (locationId: number | string) => {
+  const res = await api(`/api/pos/list_held_orders?location_id=${locationId}`);
+  if (!res.ok) throw new Error('Failed to load held orders');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const loadHeldOrder = async (id: number | string) => {
+  const res = await api(`/api/pos/load_held_order/${id}`);
+  if (!res.ok) throw new Error('Failed to load held order');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchKOTDetails = async (id: number | string, full: boolean = false) => {
+  const url = full ? `/api/pos/kot_details/${id}?full=1` : `/api/pos/kot_details/${id}`;
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to load KOT details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const markKOTPrinted = async (id: number | string) => {
+  const res = await api(`/api/pos/mark_kot_printed/${id}`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to mark KOT as printed');
+  return res.json();
+};
+
+export const fetchInvoiceForReturn = async (invoiceNo: string) => {
+  const res = await api(`/api/salesreturn/invoice_lookup/${encodeURIComponent(invoiceNo)}`);
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || "Invoice not found or invalid for return");
+  }
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchReturnDetails = async (returnNo: string) => {
+  const res = await api(`/api/refund/return_lookup/${encodeURIComponent(returnNo)}`);
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || "Return document not found");
+  }
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchRefunds = async (locationId?: string | number) => {
+  const url = locationId ? `/api/refund?location_id=${locationId}` : '/api/refund';
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to load refunds');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+// --- Restaurant Tables ---
+export const fetchTables = async (locationId?: string | number) => {
+    const url = locationId ? `/api/restauranttable/list?location_id=${locationId}` : '/api/restauranttable/list';
+    const res = await api(url);
+    if (!res.ok) throw new Error('Failed to load tables');
+    const data = await res.json();
+    console.log("fetchTables - Raw Response:", data);
+    return data.status === 'success' ? data.data : data;
+};
+
+export const createTable = async (payload: { name: string; location_id?: number | string; status?: string }) => {
+    const res = await api('/api/restauranttable/create', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Failed to create table');
+    return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateTable = async (id: string, payload: { name: string; location_id?: number | string; status?: string }) => {
+    const res = await api(`/api/restauranttable/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.ok) throw new Error('Failed to update table');
+    return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteTable = async (id: string) => {
+    const res = await api(`/api/restauranttable/delete/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete table');
+    return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const fetchStewards = async (locationId?: string | number) => {
+    const url = locationId ? `/api/admin/users?location_id=${locationId}` : '/api/admin/users';
+    const res = await api(url);
+    if (!res.ok) throw new Error('Failed to load users');
+    const data = await res.json();
+    if (data.status !== 'success') return [];
+
+    const locIdToMatch = locationId || (typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null);
+    
+    console.log("fetchStewards - Raw Data Count:", data.data?.length);
+    console.log("fetchStewards - Current Location Context:", locIdToMatch);
+
+    // User rows from AdminController join with roles table, role name is available in 'role' or 'role_name' or 'Role'.
+    return data.data.filter((u: any) => {
+        const roleName = (u.role || u.role_name || u.Role || '').toLowerCase();
+        const isSteward = roleName === 'steward';
+        
+        // Location check: match if u.location_id is missing, or matches the current context.
+        // We use loose equality (String) to handle string vs number comparison.
+        const userLocId = u.location_id || u.locationId;
+        const matchesLocation = !locIdToMatch || !userLocId || String(userLocId) === String(locIdToMatch);
+        
+        if (isSteward) {
+            console.log(`Steward Found: ${u.name}, UserLoc: ${userLocId}, ContextLoc: ${locIdToMatch}, Matches: ${matchesLocation}`);
+        }
+
+        return isSteward && matchesLocation;
+    });
+};
+
+
+// --- ACCOUNTING ---
+
+export const createAccount = async (payload: any) => {
+  const res = await api('/api/account/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create account');
+  return res.json();
+};
+
+export const fetchJournalEntries = async (filters: { id?: string | number; ref_type?: string; ref_id?: string | number; from?: string; to?: string; limit?: number; offset?: number } = {}) => {
+  const params = new URLSearchParams();
+  if (filters.id) params.append('id', String(filters.id));
+  if (filters.ref_type) params.append('ref_type', filters.ref_type);
+  if (filters.ref_id) params.append('ref_id', String(filters.ref_id));
+  if (filters.from) params.append('from', filters.from);
+  if (filters.to) params.append('to', filters.to);
+  if (filters.limit) params.append('limit', String(filters.limit));
+  if (filters.offset) params.append('offset', String(filters.offset));
+  
+  const res = await api(`/api/journal/list${params.toString() ? '?' + params.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load journal entries');
+  const data = await res.json();
+  return data; // Returns { status, data: entries, total, limit, offset }
+};
+
+export const fetchJournalItems = async (entryId: string | number) => {
+  const res = await api(`/api/journal/items?id=${entryId}`);
+  if (!res.ok) throw new Error('Failed to load journal items');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const postJournalEntry = async (payload: any) => {
+  const res = await api('/api/journal/post', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to post journal entry');
+  return res.json();
+};
+
+export async function fetchAccounts(params?: { type?: string, from?: string, to?: string, asOf?: string }) {
+  let url = '/api/account/list';
+  if (params) {
+    const searchParams = new URLSearchParams();
+    if (params.type) searchParams.append('type', params.type);
+    if (params.from) searchParams.append('from', params.from);
+    if (params.to) searchParams.append('to', params.to);
+    if (params.asOf) searchParams.append('as_of', params.asOf);
+    url += `?${searchParams.toString()}`;
+  }
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to fetch accounts');
+  const data = await res.json();
+  return data.data;
+}
+
+export const fetchAccountingSettings = async () => {
+  const res = await api('/api/settings/accounting');
+  if (!res.ok) throw new Error('Failed to load accounting settings');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : {};
+};
+
+export const updateAccountingSettings = async (payload: any) => {
+  const res = await api('/api/settings/accounting', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update settings');
+  return res.json();
+};
+
+export async function fetchAccountLedger(id: number | string, params?: { from?: string, to?: string, limit?: number, offset?: number }) {
+  let url = `/api/account/ledger/${id}`;
+  if (params) {
+    const searchParams = new URLSearchParams();
+    if (params.from) searchParams.append('from', params.from);
+    if (params.to) searchParams.append('to', params.to);
+    if (params.limit) searchParams.append('limit', String(params.limit));
+    if (params.offset) searchParams.append('offset', String(params.offset));
+    url += `?${searchParams.toString()}`;
+  }
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to fetch account ledger');
+  const data = await res.json();
+  return data; // returns { account, data: ledger_items, total, limit, offset }
+}
+
+export async function fetchAccountMappings() {
+  const res = await api('/api/account/get_mappings');
+  if (!res.ok) throw new Error('Failed to load account mappings');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+}
+
+export async function updateAccountMapping(key: string, accountId: number) {
+  const res = await api('/api/account/update_mapping', { 
+    method: 'POST', 
+    body: JSON.stringify({ key, account_id: accountId }) 
+  });
+  if (!res.ok) throw new Error('Failed to update mapping');
+  return res.json();
+}
+
+export async function postSupplierPayment(payload: any) {
+  const res = await api('/api/account/post_supplier_payment', { 
+    method: 'POST', 
+    body: JSON.stringify(payload) 
+  });
+  if (!res.ok) throw new Error('Failed to post supplier payment');
+  return res.json();
+}
+
+export async function postPurchaseReturn(payload: {
+  supplier_id: number | string;
+  grn_id?: number | string | null;
+  return_date: string;
+  items: any[];
+  total_amount: number;
+  subtotal?: number;
+  tax_total?: number;
+  reason?: string;
+  userId: number | string;
+}) {
+  const res = await api('/api/account/post_purchase_return', { 
+    method: 'POST', 
+    body: JSON.stringify(payload) 
+  });
+  if (!res.ok) throw new Error('Failed to post purchase return');
+  return res.json();
+}
+
+export async function fetchSupplierPayments(filters: any = {}) {
+  const q = new URLSearchParams(filters).toString();
+  const res = await api(`/api/supplier/payments?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier payments');
+  const json = await res.json();
+  return json.data;
+}
+
+export async function fetchSupplierReturns(filters: any = {}) {
+  const q = new URLSearchParams(filters).toString();
+  const res = await api(`/api/supplier/returns?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier returns');
+  const json = await res.json();
+  return json.data;
+}
+
+export async function fetchSupplierSummary(supplierId: number | string) {
+  const res = await api(`/api/supplier/summary/${supplierId}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier summary');
+  const json = await res.json();
+  return json.data;
+}
+
+// --- FISCAL / YEAR-END ---
+export async function fetchFiscalSummary(start: string, end: string, id?: number) {
+  let url = `/api/fiscal/summary?start_date=${start}&end_date=${end}`;
+  if (id) url += `&id=${id}`;
+  const res = await api(url);
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to fetch fiscal summary');
+  }
+  const data = await res.json();
+  return data.data;
+}
+
+export async function postFiscalClose(payload: { id?: number; start_date?: string; end_date?: string; name: string }) {
+  const res = await api('/api/fiscal/close', { 
+    method: 'POST', 
+    body: JSON.stringify(payload) 
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to close financial year');
+  }
+  return res.json();
+}
+
+export async function fetchFiscalPeriods() {
+  const res = await api('/api/fiscal/periods');
+  if (!res.ok) throw new Error('Failed to load fiscal periods');
+  const data = await res.json();
+  return data.data || [];
+}
+
+export async function createFiscalYear(payload: { name: string; start_date: string; end_date: string }) {
+  const res = await api('/api/fiscal/create', { 
+    method: 'POST', 
+    body: JSON.stringify(payload) 
+  });
+  if (!res.ok) throw new Error('Failed to create fiscal year');
+  return res.json();
+}
+
+// --- RECONCILIATION ---
+
+export const fetchUnreconciledTransactions = async (accountId: number | string) => {
+  const res = await api(`/api/reconciliation/transactions?account_id=${accountId}`);
+  if (!res.ok) throw new Error('Failed to fetch unreconciled transactions');
+  const data = await res.json();
+  return data.data || [];
+};
+
+export const fetchReconciliationHistory = async (accountId: number | string) => {
+  const res = await api(`/api/reconciliation/history?account_id=${accountId}`);
+  if (!res.ok) throw new Error('Failed to fetch reconciliation history');
+  const data = await res.json();
+  return data.data || [];
+};
+
+export const finalizeReconciliation = async (payload: {
+  account_id: number | string;
+  statement_date: string;
+  statement_balance: number;
+  cleared_balance: number;
+  difference: number;
+  cleared_item_ids: number[];
+  userId: number | string;
+}) => {
+  const res = await api('/api/reconciliation/finalize', { 
+    method: 'POST', 
+    body: JSON.stringify(payload) 
+  });
+  if (!res.ok) throw new Error('Failed to finalize reconciliation');
+  return res.json();
+};
+
+// --- PRODUCTION ---
+
+export const fetchProductionOrder = async (id: string | number) => {
+  const res = await api(`/api/productionorder/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load production order');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+export const fetchPartBatches = async (partId: number | string, locationId?: number | string) => {
+  const qs = locationId ? `?location_id=${locationId}` : '';
+  const res = await api(`/api/part/batches/${partId}${qs}`);
+  if (!res.ok) throw new Error('Failed to load batches');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as any[]) : [];
 };

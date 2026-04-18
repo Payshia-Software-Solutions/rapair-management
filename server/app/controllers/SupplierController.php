@@ -134,4 +134,32 @@ class SupplierController extends Controller {
         }
         $this->error('Failed to delete supplier', 500);
     }
+
+    // GET /api/supplier/payments
+    public function payments() {
+        $this->requirePermission('suppliers.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        require_once '../app/models/SupplierPayment.php';
+        $paymentModel = new SupplierPayment();
+        $rows = $paymentModel->list($_GET);
+        $this->success($rows);
+    }
+
+    // GET /api/supplier/returns
+    public function returns() {
+        $this->requirePermission('suppliers.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        require_once '../app/models/PurchaseReturn.php';
+        $returnModel = new PurchaseReturn();
+        $rows = $returnModel->list($_GET);
+        $this->success($rows);
+    }
+
+    // GET /api/supplier/summary/:id
+    public function summary($id) {
+        $this->requirePermission('suppliers.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        $summary = $this->supplierModel->getPayableSummary($id);
+        $this->success($summary);
+    }
 }

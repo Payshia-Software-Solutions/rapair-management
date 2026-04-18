@@ -35,7 +35,12 @@ import {
   PackageCheck,
   History,
   ChevronDown,
-  Percent
+  Percent,
+  Landmark,
+  CheckCircle2,
+  Receipt,
+  LayoutGrid,
+  Factory
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -63,16 +68,30 @@ import {
   SidebarGroupContent
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
-import { mainNavItems, masterDataItems, inventoryItems, cmsItems, adminNavItems } from "@/lib/nav-items";
+import { 
+  mainNavItems, 
+  masterDataItems, 
+  inventoryItems, 
+  cmsItems, 
+  accountingItems, 
+  adminNavItems, 
+  serviceCenterItems,
+  vendorItems,
+  productionItems 
+} from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
   const pathname = usePathname();
   const router = useRouter();
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
+  const [isServiceCenterOpen, setIsServiceCenterOpen] = useState(false);
+  const [isVendorsOpen, setIsVendorsOpen] = useState(false);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
   const [isCmsOpen, setIsCmsOpen] = useState(false);
+  const [isAccountingOpen, setIsAccountingOpen] = useState(false);
+  const [isProductionOpen, setIsProductionOpen] = useState(false);
 	  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -97,7 +116,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       const lsId = window.localStorage.getItem('location_id');
       const lsName = window.localStorage.getItem('location_name');
       const tokenLocId = json.location_id ? Number(json.location_id) : 1;
-      const tokenLocName = String(json.location_name || 'Main');
+      const tokenLocName = json.location_name ? String(json.location_name) : '-';
       const initId = lsId ? Number(lsId) : tokenLocId;
       // Only trust the stored name if we also have a stored id (prevents mismatched/stale name after login).
       const initName = lsId ? (lsName || tokenLocName) : tokenLocName;
@@ -109,8 +128,8 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       const allowedClean = allowed
         .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? '') }))
         .filter((x: any) => x.id > 0 && x.name);
-      if (String(json.role || '') !== 'Admin') {
-        setAvailableLocations(allowedClean.length > 0 ? allowedClean : [{ id: tokenLocId, name: tokenLocName }]);
+      if (String(json.role || '').toLowerCase() !== 'admin') {
+        setAvailableLocations(allowedClean.length > 0 ? allowedClean : (tokenLocId ? [{ id: tokenLocId, name: tokenLocName }] : []));
       }
     } catch {
       setUserRole('');
@@ -148,7 +167,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
 	  }, [pathname]);
 
   useEffect(() => {
-    if (userRole !== 'Admin') return;
+    if (userRole.toLowerCase() !== 'admin') return;
 
     // Admin can switch context to any location.
     void (async () => {
@@ -259,8 +278,11 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     return permissionKeys.includes(perm);
   };
 
-  const visibleMasterDataItems = masterDataItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeMasterData = visibleMasterDataItems.length > 0;
+  const visibleServiceCenterItems = serviceCenterItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeServiceCenter = visibleServiceCenterItems.length > 0;
+
+  const visibleVendorItems = vendorItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeVendors = visibleVendorItems.length > 0;
 
   const visibleInventoryItems = inventoryItems.filter((it) => hasPerm((it as any).perm));
   const canSeeInventory = visibleInventoryItems.length > 0;
@@ -268,15 +290,28 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
   const visibleCmsItems = cmsItems.filter((it) => hasPerm((it as any).perm));
   const canSeeCms = visibleCmsItems.length > 0;
 
-  const adminItems = userRole === 'Admin' ? adminNavItems : [];
+  const visibleMasterDataItems = masterDataItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeMasterData = visibleMasterDataItems.length > 0;
+
+  const visibleAccountingItems = accountingItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeAccounting = visibleAccountingItems.length > 0;
+
+  const visibleProductionItems = productionItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeProduction = visibleProductionItems.length > 0;
+
+  const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
   const isActiveRoute = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   // If a child route is active, force its dropdown open (users can still close when not on that section).
+  const serviceCenterOpen = isServiceCenterOpen || visibleServiceCenterItems.some(i => pathname.startsWith(i.href));
+  const vendorsOpen = isVendorsOpen || visibleVendorItems.some(i => pathname.startsWith(i.href)) || pathname.startsWith('/vendors');
   const inventoryOpen = isInventoryOpen || pathname.startsWith('/inventory');
   const masterDataOpen = isMasterDataOpen || pathname.startsWith('/master-data');
   const cmsOpen = isCmsOpen || pathname.startsWith('/cms');
+  const accountingOpen = isAccountingOpen || pathname.startsWith('/accounting');
+  const productionOpen = isProductionOpen || pathname.startsWith('/production');
   const adminOpen = isAdminOpen || pathname.startsWith('/admin');
 
   return (
@@ -330,6 +365,96 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
+                  {!canSeeServiceCenter ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsServiceCenterOpen((v) => !v)}
+                        isActive={serviceCenterOpen}
+                        tooltip="Service Center"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          serviceCenterOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Wrench className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Service Center</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            serviceCenterOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {serviceCenterOpen ? (
+                        <SidebarMenuSub>
+                          {visibleServiceCenterItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeVendors ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsVendorsOpen((v) => !v)}
+                        isActive={vendorsOpen}
+                        tooltip="Vendors"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          vendorsOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Truck className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Vendors</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            vendorsOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {vendorsOpen ? (
+                        <SidebarMenuSub>
+                          {visibleVendorItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
                   {!canSeeInventory ? null : (
                     <SidebarMenuItem>
                       <SidebarMenuButton
@@ -355,6 +480,141 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                       {inventoryOpen ? (
                         <SidebarMenuSub>
                           {visibleInventoryItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeCms ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsCmsOpen((v) => !v)}
+                        isActive={pathname.startsWith('/cms')}
+                        tooltip="CRM & Sales"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/cms') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Users className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">CRM & Sales</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            cmsOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {cmsOpen ? (
+                        <SidebarMenuSub>
+                          {visibleCmsItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href} target={item.newTab ? "_blank" : undefined}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeAccounting ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsAccountingOpen((v) => !v)}
+                        isActive={pathname.startsWith('/accounting')}
+                        tooltip="Accounting"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/accounting') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Landmark className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Accounting</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            accountingOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {accountingOpen ? (
+                        <SidebarMenuSub>
+                          {visibleAccountingItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeProduction ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsProductionOpen((v) => !v)}
+                        isActive={pathname.startsWith('/production')}
+                        tooltip="Production"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/production') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Factory className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Production</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            productionOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {productionOpen ? (
+                        <SidebarMenuSub>
+                          {visibleProductionItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>
@@ -406,51 +666,6 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
                                 isActive={isActiveRoute(item.href)}
                               >
                                 <Link href={item.href}>
-                                  <item.icon className="w-4 h-4" />
-                                  <span>{item.label}</span>
-                                </Link>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          ))}
-                        </SidebarMenuSub>
-                      ) : null}
-                    </SidebarMenuItem>
-                  )}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-
-            <SidebarGroup className="p-0">
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {!canSeeCms ? null : (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton
-                        type="button"
-                        onClick={() => setIsCmsOpen((v) => !v)}
-                        isActive={pathname.startsWith('/cms')}
-                        tooltip="CMS"
-                        className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/cms') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
-                        )}
-                      >
-                        <User className="w-5 h-5" />
-                        <span className="text-base sm:text-sm font-medium">CMS</span>
-                        <ChevronRight
-                          className={cn(
-                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                            cmsOpen ? "rotate-90" : "rotate-0"
-                          )}
-                        />
-                      </SidebarMenuButton>
-
-                      {cmsOpen ? (
-                        <SidebarMenuSub>
-                          {visibleCmsItems.map((item) => (
-                            <SidebarMenuSubItem key={item.href}>
-                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
-                                <Link href={item.href} target={item.newTab ? "_blank" : undefined}>
                                   <item.icon className="w-4 h-4" />
                                   <span>{item.label}</span>
                                 </Link>

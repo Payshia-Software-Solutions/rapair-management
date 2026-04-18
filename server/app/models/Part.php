@@ -15,33 +15,20 @@ class Part extends Model {
         $loc = (int)$locationId;
         if ($pid <= 0 || $loc <= 0) return null;
 
-        // Base on-hand: use stock_movements ledger when present for this part+location.
-        // If no ledger history exists, fall back to parts.stock_quantity (older installs).
-        $onHand = null;
+        // Real-time ledger balance per location
+        $onHand = 0.0;
         try {
             $this->db->query("
-                SELECT COUNT(*) AS c, COALESCE(SUM(qty_change), 0) AS qty
+                SELECT COALESCE(SUM(qty_change), 0) AS qty
                 FROM stock_movements
                 WHERE location_id = :loc AND part_id = :pid
             ");
             $this->db->bind(':loc', $loc);
             $this->db->bind(':pid', $pid);
             $row = $this->db->single();
-            $cnt = (int)($row->c ?? 0);
-            if ($cnt > 0) $onHand = (float)($row->qty ?? 0);
+            $onHand = (float)($row->qty ?? 0);
         } catch (Exception $e) {
-            $onHand = null;
-        }
-
-        if ($onHand === null) {
-            try {
-                $this->db->query("SELECT stock_quantity FROM {$this->table} WHERE id = :id LIMIT 1");
-                $this->db->bind(':id', $pid);
-                $row = $this->db->single();
-                $onHand = (float)($row->stock_quantity ?? 0);
-            } catch (Exception $e) {
-                $onHand = 0.0;
-            }
+            $onHand = 0.0;
         }
 
         // Reserved qty in pending (Requested) transfers from this location.
@@ -78,33 +65,33 @@ class Part extends Model {
         $sid = $supplierId !== null ? (int)$supplierId : 0;
 
         $from = "{$this->table} p";
-        $whereSupplier = "";
         if ($sid > 0) {
-            // Show only items explicitly assigned to the supplier.
             $from .= " INNER JOIN part_suppliers ps ON ps.part_id = p.id AND ps.supplier_id = :sid";
-            $whereSupplier = "1=1";
         }
 
-        if ($q !== '') {
-            $this->db->query("
-                SELECT p.*, b.name AS brand_name
-                FROM {$from}
-                LEFT JOIN brands b ON b.id = p.brand_id
-                WHERE " . ($whereSupplier !== "" ? "{$whereSupplier} AND " : "") . " (p.part_name LIKE :q OR p.sku LIKE :q OR p.part_number LIKE :q OR p.barcode_number LIKE :q)
-                ORDER BY p.part_name ASC
-            ");
-            if ($sid > 0) $this->db->bind(':sid', $sid);
-            $this->db->bind(':q', '%' . $q . '%');
-            return $this->db->resultSet();
-        }
-        $this->db->query("
-            SELECT p.*, b.name AS brand_name
+        $sql = "
+            SELECT p.*, 
+                   b.name AS brand_name,
+                   (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS stock_quantity,
+                   (SELECT GROUP_CONCAT(collection_id) FROM parts_collections WHERE part_id = p.id) as collection_ids_raw
             FROM {$from}
             LEFT JOIN brands b ON b.id = p.brand_id
-            ORDER BY p.part_name ASC
-        ");
+        ";
+
+        if ($q !== '') {
+            $sql .= " WHERE (p.part_name LIKE :q OR p.sku LIKE :q OR p.part_number LIKE :q OR p.barcode_number LIKE :q) ";
+        }
+        $sql .= " ORDER BY p.part_name ASC ";
+
+        $this->db->query($sql);
         if ($sid > 0) $this->db->bind(':sid', $sid);
-        return $this->db->resultSet();
+        if ($q !== '') $this->db->bind(':q', '%' . $q . '%');
+        
+        $rows = $this->db->resultSet();
+        foreach ($rows as $row) {
+            $row->collection_ids = !empty($row->collection_ids_raw) ? array_map('intval', explode(',', $row->collection_ids_raw)) : [];
+        }
+        return $rows;
     }
 
     public function listLocationBalances($locationId, $q = '') {
@@ -113,10 +100,9 @@ class Part extends Model {
         if ($locId <= 0) $locId = 1;
         $q = is_string($q) ? trim($q) : '';
 
-        // Location-wise balance uses stock_movements ledger. We also return system_stock_quantity
-        // so older installs without movements are still understandable in the UI.
         $sqlBase = "
             SELECT p.id,
+                   p.id AS part_id,
                    p.part_name,
                    p.sku,
                    p.unit,
@@ -126,8 +112,14 @@ class Part extends Model {
                    p.price,
                    p.reorder_level,
                    p.is_active,
-                   p.stock_quantity AS system_stock_quantity,
-                   COALESCE(SUM(sm.qty_change), 0) AS location_stock_quantity
+                   p.item_type,
+                   p.is_fifo,
+                   p.is_expiry,
+                   p.recipe_type,
+                   (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS system_stock_quantity,
+                   (SELECT GROUP_CONCAT(collection_id) FROM parts_collections WHERE part_id = p.id) as collection_ids_raw,
+                   COALESCE(SUM(sm.qty_change), 0) AS location_stock_quantity,
+                   COALESCE(SUM(sm.qty_change), 0) AS stock_quantity
             FROM {$this->table} p
             LEFT JOIN brands b ON b.id = p.brand_id
             LEFT JOIN stock_movements sm ON sm.part_id = p.id AND sm.location_id = :loc
@@ -141,15 +133,19 @@ class Part extends Model {
             ");
             $this->db->bind(':loc', $locId);
             $this->db->bind(':q', '%' . $q . '%');
-            return $this->db->resultSet();
+        } else {
+            $this->db->query($sqlBase . "
+                GROUP BY p.id
+                ORDER BY p.part_name ASC
+            ");
+            $this->db->bind(':loc', $locId);
         }
 
-        $this->db->query($sqlBase . "
-            GROUP BY p.id
-            ORDER BY p.part_name ASC
-        ");
-        $this->db->bind(':loc', $locId);
-        return $this->db->resultSet();
+        $rows = $this->db->resultSet();
+        foreach ($rows as $row) {
+            $row->collection_ids = !empty($row->collection_ids_raw) ? array_map('intval', explode(',', $row->collection_ids_raw)) : [];
+        }
+        return $rows;
     }
 
     public function getById($id) {
@@ -181,8 +177,14 @@ class Part extends Model {
                 $supplierIds[] = (int)($s->id ?? 0);
             }
         }
-        $row->supplier_ids = $supplierIds;
         $row->suppliers = $suppliers;
+
+        // Collection mapping
+        $collectionModel = new Collection();
+        $collections = $collectionModel->getPartCollections($id);
+        $row->collection_ids = array_map(function($c) { return (int)$c->id; }, $collections ?: []);
+        $row->collections = $collections;
+
         return $row;
     }
 
@@ -227,9 +229,9 @@ class Part extends Model {
         $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table}
-            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, reorder_level, is_active, image_filename, item_type, created_by, updated_by)
+            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, created_by, updated_by)
             VALUES
-            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :reorder_level, :is_active, :image_filename, :item_type, :created_by, :updated_by)
+            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :created_by, :updated_by)
         ");
         $this->db->bind(':sku', $data['sku'] ?? null);
         $this->db->bind(':part_number', $data['part_number'] ?? null);
@@ -242,13 +244,24 @@ class Part extends Model {
         $this->db->bind(':price', $data['price']);
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
+        $this->db->bind(':is_fifo', isset($data['is_fifo']) ? (int)(bool)$data['is_fifo'] : 0);
+        $this->db->bind(':is_expiry', isset($data['is_expiry']) ? (int)(bool)$data['is_expiry'] : 0);
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
         $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
+        $this->db->bind(':recipe_type', $data['recipe_type'] ?? 'Standard');
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         $ok = $this->db->execute();
         if (!$ok) return false;
-        return (int)$this->db->lastInsertId();
+        $partId = (int)$this->db->lastInsertId();
+
+        // Sync Collections if present
+        if (isset($data['collection_ids']) && is_array($data['collection_ids'])) {
+            $collectionModel = new Collection();
+            $collectionModel->syncProductCollections($partId, $data['collection_ids']);
+        }
+
+        return $partId;
     }
 
     public function update($id, $data, $userId = null) {
@@ -265,8 +278,11 @@ class Part extends Model {
                 price = :price,
                 reorder_level = :reorder_level,
                 is_active = :is_active,
+                is_fifo = :is_fifo,
+                is_expiry = :is_expiry,
                 image_filename = :image_filename,
                 item_type = :item_type,
+                recipe_type = :recipe_type,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -280,11 +296,21 @@ class Part extends Model {
         $this->db->bind(':price', $data['price']);
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
+        $this->db->bind(':is_fifo', isset($data['is_fifo']) ? (int)(bool)$data['is_fifo'] : 0);
+        $this->db->bind(':is_expiry', isset($data['is_expiry']) ? (int)(bool)$data['is_expiry'] : 0);
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
         $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
+        $this->db->bind(':recipe_type', $data['recipe_type'] ?? 'Standard');
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
-        return $this->db->execute();
+        $ok = $this->db->execute();
+
+        if ($ok && isset($data['collection_ids']) && is_array($data['collection_ids'])) {
+            $collectionModel = new Collection();
+            $collectionModel->syncProductCollections($id, $data['collection_ids']);
+        }
+
+        return $ok;
     }
 
     public function setImage($id, $filename, $userId = null) {
@@ -303,11 +329,12 @@ class Part extends Model {
         return $this->db->execute();
     }
 
-    public function adjustStock($partId, $qtyChange, $notes = null, $userId = null) {
+    public function adjustStock($partId, $qtyChange, $notes = null, $userId = null, $locationId = 1, $movementType = 'ADJUSTMENT') {
         $this->ensureSchema();
         $pid = (int)$partId;
-        $delta = (int)$qtyChange;
-        if ($pid <= 0 || $delta === 0) return false;
+        $delta = (float)$qtyChange;
+        $loc = (int)$locationId;
+        if ($pid <= 0 || $delta === 0.0) return false;
 
         try {
             $this->db->exec("START TRANSACTION");
@@ -320,13 +347,9 @@ class Part extends Model {
                 $this->db->exec("ROLLBACK");
                 return false;
             }
-            $current = (int)($row->stock_quantity ?? 0);
+            $current = (float)($row->stock_quantity ?? 0);
             $next = $current + $delta;
-            if ($next < 0) {
-                $this->db->exec("ROLLBACK");
-                return false;
-            }
-
+            
             $this->db->query("UPDATE {$this->table} SET stock_quantity = :q, updated_by = :u WHERE id = :id");
             $this->db->bind(':q', $next);
             $this->db->bind(':u', $userId);
@@ -335,11 +358,14 @@ class Part extends Model {
 
             // movement
             $this->db->query("
-                INSERT INTO stock_movements (part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                VALUES (:part_id, :qty_change, 'ADJUSTMENT', 'parts', :ref_id, :notes, :created_by)
+                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                VALUES (:loc, :part_id, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
             ");
+            $this->db->bind(':loc', $loc);
             $this->db->bind(':part_id', $pid);
             $this->db->bind(':qty_change', $delta);
+            $this->db->bind(':type', $movementType);
+            $this->db->bind(':ref_table', 'parts');
             $this->db->bind(':ref_id', $pid);
             $this->db->bind(':notes', $notes);
             $this->db->bind(':created_by', $userId);
