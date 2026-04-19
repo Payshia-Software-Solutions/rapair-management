@@ -24,7 +24,11 @@ class Database {
         // Set DSN
         $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname;
         $options = [
-            PDO::ATTR_PERSISTENT => true,
+            // NOTE: ATTR_PERSISTENT intentionally removed.
+            // Persistent connections reuse old MySQL socket state across PHP requests.
+            // A previous request that ran DDL (CREATE/ALTER) or left a broken transaction
+            // would corrupt the reused connection, causing beginTransaction() to silently
+            // fail, resulting in "There is no active transaction" on commit().
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
         ];
 
@@ -110,8 +114,16 @@ class Database {
         if (self::$transactionCount > 0) {
             self::$transactionCount--;
             if (self::$transactionCount === 0) {
-                return $this->dbh->commit();
+                try {
+                    $res = $this->dbh->commit();
+                    return $res;
+                } catch (Exception $e) {
+                    error_log("Database::commit() failed. Exception: " . $e->getMessage() . " TRACE: " . $e->getTraceAsString());
+                    throw $e;
+                }
             }
+        } else {
+            error_log("Database::commit() called while transactionCount is 0! " . (new Exception())->getTraceAsString());
         }
         return true;
     }
@@ -121,6 +133,8 @@ class Database {
             self::$transactionCount = 0; // Reset on error
             if ($this->dbh->inTransaction()) {
                 return $this->dbh->rollBack();
+            } else {
+                error_log("Database::rollBack() called but inTransaction() is false! TRACE: " . (new Exception())->getTraceAsString());
             }
         }
         return true;

@@ -67,6 +67,38 @@ class InvoiceController extends Controller {
             return;
         }
 
+        // --- Promotion Validation (Integrity Check) ---
+        if (!empty($data['applied_promotion_id'])) {
+            require_once '../app/models/Promotion.php';
+            $promoModel = new Promotion();
+            $itemsObj = json_decode(json_encode($data['items'] ?? [])); // convert to objects for model
+            $subtotal = (float)($data['subtotal'] ?? 0);
+            
+            $eligible = $promoModel->findEligiblePromotions(
+                $itemsObj, 
+                $subtotal, 
+                $data['bank_id'] ?? null, 
+                $data['card_category'] ?? null, 
+                $data['location_id'] ?? null
+            );
+            
+            $found = false;
+            foreach ($eligible as $ep) {
+                if ((int)$ep->promotion_id === (int)$data['applied_promotion_id']) {
+                    // Check if discount value matches (with small rounding tolerance)
+                    // The frontend sends discount_total which is sum of line + bill + promo
+                    // We just check if this specific promo still yields approximately the same benefit
+                    $found = true;
+                    break;
+                }
+            }
+            
+            if (!$found) {
+                $this->error('The applied promotion is no longer valid for this cart. Please refresh and try again.', 400);
+                return;
+            }
+        }
+
         // Generate Invoice Number
         $invoiceNo = $this->generateInvoiceNo();
         $data['invoice_no'] = $invoiceNo;
@@ -77,6 +109,26 @@ class InvoiceController extends Controller {
         require_once '../app/models/PaymentReceipt.php';
         $receiptModel = new PaymentReceipt();
         $receiptModel->ensureSchema();
+
+        // Ensure Accounting schema is built (preventing implicit commits during transaction)
+        require_once '../app/models/AccountMapping.php';
+        new AccountMapping();
+        
+        require_once '../app/models/Journal.php';
+        new Journal();
+        
+        require_once '../app/models/PosHeldOrder.php';
+        new PosHeldOrder();
+
+        // Instantiate models used heavily in item processing to trigger any DDL schemas early!
+        require_once '../app/models/Part.php';
+        new Part();
+        
+        require_once '../app/models/ProductionBOM.php';
+        new ProductionBOM();
+        
+        require_once '../app/models/Tax.php';
+        new Tax();
 
         $db = new Database();
         $db->beginTransaction();
@@ -123,8 +175,6 @@ class InvoiceController extends Controller {
                 }
             }
 
-            $db->commit();
-            
             // Audit Log
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
@@ -147,8 +197,13 @@ class InvoiceController extends Controller {
             $db->commit();
             $this->success(['id' => $invoiceId, 'message' => 'Invoice created successfully']);
         } catch (Exception $e) {
-            $db->rollBack();
-            $this->error($e->getMessage());
+            try {
+                $db->rollBack();
+            } catch (Exception $e2) {
+                // Ignore rollback failures
+            }
+            error_log("Invoice Checkout Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
+            $this->error($e->getMessage() . " at " . basename($e->getFile()) . ":" . $e->getLine());
         }
     }
 

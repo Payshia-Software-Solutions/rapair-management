@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { createPart, fetchBrands, fetchCollections, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type SupplierRow, type UnitRow } from "@/lib/api";
+import { createPart, fetchBrands, fetchCollections, fetchLocations, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type ServiceLocation, type SupplierRow, type UnitRow } from "@/lib/api";
 import { ArrowLeft, ChevronDown, LayoutGrid, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 
 function asNumOrNull(v: string) {
@@ -50,6 +50,7 @@ export default function NewItemPage() {
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
+  const [locations, setLocations] = useState<ServiceLocation[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -62,16 +63,21 @@ export default function NewItemPage() {
     brand_id: "",
     cost_price: "",
     price: "",
+    wholesale_price: "",
+    min_selling_price: "",
+    price_2: "",
     reorder_level: "",
     is_active: true,
     is_fifo: false,
     is_expiry: false,
     item_type: "Part" as "Part" | "Service",
     recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
+    default_location_id: "",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
   const [collectionIds, setCollectionIds] = useState<number[]>([]);
+  const [allowedLocationIds, setAllowedLocationIds] = useState<number[]>([]);
   const [supplierQuery, setSupplierQuery] = useState("");
   const [collectionQuery, setCollectionQuery] = useState("");
 
@@ -83,16 +89,18 @@ export default function NewItemPage() {
     const run = async () => {
       setLoading(true);
       try {
-        const [u, b, s, c] = await Promise.all([
+        const [u, b, s, c, locationsRes] = await Promise.all([
           fetchUnits(""), 
           fetchBrands(""), 
           fetchSuppliers(""),
-          fetchCollections()
+          fetchCollections(),
+          fetchLocations()
         ]);
         setUnits(Array.isArray(u) ? u : []);
         setBrands(Array.isArray(b) ? b : []);
         setSuppliers(Array.isArray(s) ? s : []);
         setCollections(Array.isArray(c) ? c : []);
+        setLocations(Array.isArray(locationsRes) ? locationsRes : []);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load master data", variant: "destructive" });
       } finally {
@@ -150,6 +158,9 @@ export default function NewItemPage() {
         stock_quantity: 0,
         cost_price: asNumOrNull(form.cost_price),
         price: asNumOrNull(form.price) ?? 0,
+        wholesale_price: asNumOrNull(form.wholesale_price),
+        min_selling_price: asNumOrNull(form.min_selling_price),
+        price_2: asNumOrNull(form.price_2),
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
         is_fifo: form.is_fifo ? 1 : 0,
@@ -157,6 +168,8 @@ export default function NewItemPage() {
         image_filename,
         item_type: form.item_type,
         recipe_type: form.recipe_type,
+        default_location_id: (form.default_location_id && form.default_location_id !== "none") ? Number(form.default_location_id) : null,
+        allowed_locations: JSON.stringify(allowedLocationIds),
       });
 
       toast({ title: "Created", description: "Product created" });
@@ -225,6 +238,23 @@ export default function NewItemPage() {
                         <SelectItem value="Recipe" className="font-bold">Recipe (Needs BOM)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Default Stock Location</Label>
+                    <Select value={form.default_location_id} onValueChange={(v) => setForm((p) => ({ ...p, default_location_id: v }))}>
+                      <SelectTrigger className="font-bold border-green-200 bg-green-50/30">
+                        <SelectValue placeholder="Select location..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none" className="italic">Inherit from Invoice/POS</SelectItem>
+                        {locations.map((loc) => (
+                          <SelectItem key={loc.id} value={String(loc.id)}>
+                            {loc.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-2 italic">A La Carte items will ALWAYS deduct ingredients from this location.</div>
                   </div>
                   <div className="space-y-2">
                     <Label>SKU</Label>
@@ -382,6 +412,40 @@ export default function NewItemPage() {
                     </Popover>
                     <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
                   </div>
+                    <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
+                  </div>
+                  <div className="space-y-2 col-span-1 md:col-span-2">
+                    <Label>Allowed Stock Locations</Label>
+                    <div className="rounded-md border p-4 bg-muted/5 space-y-2">
+                      <ScrollArea className="h-[120px] pr-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                          {locations.map((loc) => {
+                            const checked = allowedLocationIds.includes(loc.id);
+                            return (
+                              <label key={loc.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-md transition-colors border border-transparent hover:border-muted-foreground/10">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) => {
+                                    setAllowedLocationIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (v) next.add(loc.id);
+                                      else next.delete(loc.id);
+                                      return Array.from(next).sort((a, b) => a - b);
+                                    });
+                                  }}
+                                />
+                                <span className="truncate flex-1 font-medium">{loc.name}</span>
+                              </label>
+                            );
+                          })}
+                          {locations.length === 0 ? (
+                            <div className="text-xs text-muted-foreground py-4 text-center col-span-full italic">No locations configured</div>
+                          ) : null}
+                        </div>
+                      </ScrollArea>
+                      <div className="text-[11px] text-muted-foreground border-t pt-2">Limit which locations can sell this item. Leave empty for "All Locations".</div>
+                    </div>
+                  </div>
                   <div className="space-y-2">
                     <Label>Active</Label>
                     <div className="h-11 flex items-center">
@@ -418,9 +482,39 @@ export default function NewItemPage() {
                       type="number"
                       step="0.01"
                       inputMode="decimal" 
-                      value={Number.isFinite(Number(form.price)) ? Number(form.price).toFixed(2) : "0.00"} 
+                      value={form.price} 
                       onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} 
                       required 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Wholesale Price</Label>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal" 
+                      value={form.wholesale_price} 
+                      onChange={(e) => setForm((p) => ({ ...p, wholesale_price: e.target.value }))} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Min. Selling Price</Label>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal" 
+                      value={form.min_selling_price} 
+                      onChange={(e) => setForm((p) => ({ ...p, min_selling_price: e.target.value }))} 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Price 2 Option</Label>
+                    <Input 
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal" 
+                      value={form.price_2} 
+                      onChange={(e) => setForm((p) => ({ ...p, price_2: e.target.value }))} 
                     />
                   </div>
                   <div className="space-y-2">

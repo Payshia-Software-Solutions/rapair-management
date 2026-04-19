@@ -35,6 +35,10 @@ interface POSContextType {
   collections: any[];
   selectedCollectionId: number | null;
   setSelectedCollectionId: (val: number | null) => void;
+  selectedBankId: string | null;
+  setSelectedBankId: (val: string | null) => void;
+  selectedCardCategory: string; // Any, Credit, Debit
+  setSelectedCardCategory: (val: string) => void;
   company: any;
   loading: boolean;
   submitting: boolean;
@@ -146,6 +150,12 @@ interface POSContextType {
     type?: 'default' | 'numeric';
   } | null;
   setVKeyboardActiveInput: (input: any) => void;
+  
+  // Promotion State
+  eligiblePromotions: any[];
+  setEligiblePromotions: (val: any[]) => void;
+  appliedPromotion: any | null;
+  setAppliedPromotion: (val: any | null) => void;
 }
 
 const POSContext = createContext<POSContextType | undefined>(undefined);
@@ -156,6 +166,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [submitting, setSubmitting] = useState(false);
   const [collections, setCollections] = useState<any[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
+  const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
+  const [selectedCardCategory, setSelectedCardCategory] = useState<string>("Credit");
 
   // Data Context
   const [inventory, setInventory] = useState<any[]>([]);
@@ -232,19 +244,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window?.localStorage?.setItem('v_keyboard_enabled', val ? '1' : '0');
   };
 
+  const [eligiblePromotions, setEligiblePromotions] = useState<any[]>([]);
+  const [appliedPromotion, setAppliedPromotion] = useState<any | null>(null);
+
+
     const refreshTablesAndStewards = async (locId?: string | number) => {
         const id = locId || selectedLocation;
         if (!id) return;
         
         setDataRefreshing(true);
-        console.log("POS - Refreshing Tables/Stewards for Location:", id);
         try {
             const [tbls, stds] = await Promise.all([
                 fetchTables(id).catch(e => { console.error("fetchTables error:", e); return []; }),
                 fetchStewards(id).catch(e => { console.error("fetchStewards error:", e); return []; })
             ]);
-            console.log("POS - Refreshed Tables:", tbls);
-            console.log("POS - Refreshed Stewards:", stds);
             setTables(tbls);
             setStewards(stds);
         } catch (err) {
@@ -410,6 +423,74 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Automatically enforce the Order Type Selector if no order type is selected 
+  // and no other management/action modals are currently blocking the view.
+  useEffect(() => {
+    if (
+        !loading && 
+        !orderType && 
+        !orderTypeDialogOpen &&
+        !returnDialogOpen && 
+        !refundDialogOpen && 
+        !ledgerDialogOpen && 
+        !guideModalOpen &&
+        !checkoutOpen
+    ) {
+        setOrderTypeDialogOpen(true);
+    }
+  }, [
+    loading, 
+    orderType, 
+    orderTypeDialogOpen, 
+    returnDialogOpen, 
+    refundDialogOpen, 
+    ledgerDialogOpen, 
+    guideModalOpen,
+    checkoutOpen
+  ]);
+
+  // Automatic Promotion Recognition Engine
+  useEffect(() => {
+    if (cart.length === 0) {
+      setEligiblePromotions([]);
+      setAppliedPromotion(null);
+      return;
+    }
+
+    const subtotal = cart.reduce((acc, i) => acc + (i.quantity * i.unit_price - i.quantity * i.discount), 0);
+    // Reset when cart changes or specific fields change
+    setEligiblePromotions([]);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiHelper('/promotion/validate', {
+          method: 'POST',
+          body: JSON.stringify({
+            items: cart,
+            subtotal,
+            bank_id: selectedBankId,
+            card_category: selectedCardCategory,
+            location_id: selectedLocation
+          })
+        });
+
+        const resData = await res.json();
+        
+        const matches = Array.isArray(resData.data) ? resData.data : [];
+        if (matches.length > 0) {
+          setEligiblePromotions(matches);
+        } else {
+          setEligiblePromotions([]);
+        }
+      } catch (error) {
+        console.error("Promotion validation failed", error);
+        setEligiblePromotions([]);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [cart, appliedPromotion, selectedLocation, selectedBankId, selectedCardCategory]);
+
   const addToCartWithQty = (product: any, qty: number, discountAmt: number = 0, batches?: any[]) => {
     if (!orderType) {
       setOrderTypeDialogOpen(true);
@@ -498,7 +579,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? (subtotal - lineDiscountTotal) * (billDiscountValue / 100)
       : billDiscountValue;
       
-    const taxableAmount = Math.max(0, subtotal - lineDiscountTotal - billDiscountAmt);
+    // Promotions are exclusive (Best Offer Rule)
+    const promoDiscountAmt = appliedPromotion ? Number(appliedPromotion.discount_value) : 0;
+      
+    const taxableAmount = Math.max(0, subtotal - lineDiscountTotal - billDiscountAmt - promoDiscountAmt);
     let currentBase = taxableAmount;
     let taxSum = 0;
     const appliedTaxes: any[] = [];
@@ -533,8 +617,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     const grandTotal = taxableAmount + taxSum;
-    return { subtotal, lineDiscountTotal, taxableAmount, taxSum, appliedTaxes, grandTotal };
-  }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType]);
+    return { subtotal, lineDiscountTotal, billDiscountAmt, promoDiscountAmt, taxableAmount, taxSum, appliedTaxes, grandTotal };
+  }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion]);
 
   const handleCheckoutProcess = async (paymentData: any) => {
     if (!orderType) {
@@ -568,6 +652,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         steward_id: selectedSteward ? Number(selectedSteward) : null,
         applied_taxes: totals.appliedTaxes,
         notes: paymentData.notes || "POS Retail Sale",
+        applied_promotion_id: appliedPromotion ? appliedPromotion.promotion_id : null,
+        applied_promotion_name: appliedPromotion ? appliedPromotion.name : null,
+        bank_id: selectedBankId,
+        card_category: selectedCardCategory,
         items: cart.map(item => ({
           description: item.description,
           item_type: item.item_type,
@@ -720,8 +808,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  return (
-    <POSContext.Provider value={{
+  const value = {
       inventory, systemTaxes, locations, customers, banks, bankBranches, company, loading, submitting, setSubmitting,
       cart, selectedLocation, setSelectedLocation, selectedCustomer, setSelectedCustomer, 
       billDiscountValue, setBillDiscountValue, billDiscountType, setBillDiscountType,
@@ -741,11 +828,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       guideModalOpen, setGuideModalOpen,
       refreshInventory, refreshCustomers,
       vKeyboardEnabled, setVKeyboardEnabled, vKeyboardActiveInput, setVKeyboardActiveInput,
-      collections, selectedCollectionId, setSelectedCollectionId
-    }}>
-      {children}
-    </POSContext.Provider>
-  );
+      collections, selectedCollectionId, setSelectedCollectionId,
+      selectedBankId, setSelectedBankId, selectedCardCategory, setSelectedCardCategory,
+      // Promotion State
+      eligiblePromotions, setEligiblePromotions, appliedPromotion, setAppliedPromotion,
+    };
+  
+    return (
+      <POSContext.Provider value={value}>
+        {children}
+      </POSContext.Provider>
+    );
 };
 
 export const usePOS = () => {

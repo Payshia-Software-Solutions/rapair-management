@@ -23,12 +23,14 @@ import {
   fetchBrands,
   fetchCollections,
   fetchPart,
+  fetchLocations,
   fetchSuppliers,
   fetchUnits,
   setPartImage,
   updatePart,
   uploadPartImage,
   type BrandRow,
+  type ServiceLocation,
   type SupplierRow,
   type UnitRow,
 } from "@/lib/api";
@@ -70,6 +72,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
+  const [locations, setLocations] = useState<ServiceLocation[]>([]);
   const [part, setPart] = useState<any>(null);
   const [batches, setBatches] = useState<any[]>([]);
 
@@ -82,16 +85,21 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
     brand_id: "",
     cost_price: "",
     price: "",
+    wholesale_price: "",
+    min_selling_price: "",
+    price_2: "",
     reorder_level: "",
     is_active: true,
     is_fifo: false,
     is_expiry: false,
     item_type: "Part" as "Part" | "Service",
     recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
+    default_location_id: "" as string,
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
   const [collectionIds, setCollectionIds] = useState<number[]>([]);
+  const [allowedLocationIds, setAllowedLocationIds] = useState<number[]>([]);
   const [supplierQuery, setSupplierQuery] = useState("");
   const [collectionQuery, setCollectionQuery] = useState("");
 
@@ -101,12 +109,13 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
     if (!id) return;
     setLoading(true);
     try {
-      const [p, u, b, s, c, batchesRes] = await Promise.all([
+      const [p, u, b, s, c, locationsRes, batchesRes] = await Promise.all([
         fetchPart(String(id)), 
         fetchUnits(""), 
         fetchBrands(""), 
         fetchSuppliers(""),
         fetchCollections(),
+        fetchLocations(),
         api(`/api/part/batches/${id}`).then(res => res.json())
       ]);
       setPart(p);
@@ -115,6 +124,7 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
       setBrands(Array.isArray(b) ? b : []);
       setSuppliers(Array.isArray(s) ? s : []);
       setCollections(Array.isArray(c) ? c : []);
+      setLocations(Array.isArray(locationsRes) ? locationsRes : []);
       setForm({
         sku: p?.sku ?? "",
         part_number: p?.part_number ?? "",
@@ -124,17 +134,28 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
         brand_id: p?.brand_id ? String(p.brand_id) : "",
         cost_price: p?.cost_price !== null && p?.cost_price !== undefined ? String(p.cost_price) : "",
         price: p?.price !== null && p?.price !== undefined ? String(p.price) : "",
+        wholesale_price: p?.wholesale_price !== null && p?.wholesale_price !== undefined ? String(p.wholesale_price) : "",
+        min_selling_price: p?.min_selling_price !== null && p?.min_selling_price !== undefined ? String(p.min_selling_price) : "",
+        price_2: p?.price_2 !== null && p?.price_2 !== undefined ? String(p.price_2) : "",
         reorder_level: p?.reorder_level !== null && p?.reorder_level !== undefined ? String(p.reorder_level) : "",
         is_active: Boolean(p?.is_active),
         is_fifo: Boolean(p?.is_fifo),
         is_expiry: Boolean(p?.is_expiry),
         item_type: (p?.item_type === "Service" ? "Service" : "Part") as "Part" | "Service",
         recipe_type: (p?.recipe_type || "Standard") as "Standard" | "A La Carte" | "Recipe",
+        default_location_id: p?.default_location_id ? String(p.default_location_id) : "",
       });
       const ids = Array.isArray(p?.supplier_ids) ? (p.supplier_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
       setSupplierIds(Array.from(new Set(ids)).sort((a, b) => a - b));
       const cids = Array.isArray(p?.collection_ids) ? (p.collection_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
       setCollectionIds(Array.from(new Set(cids)).sort((a, b) => a - b));
+
+      const aloc = Array.isArray(p?.allowed_locations) 
+        ? p.allowed_locations.map(Number) 
+        : (typeof p?.allowed_locations === 'string' 
+            ? (JSON.parse(p.allowed_locations) as any[] || []).map(Number) 
+            : []);
+      setAllowedLocationIds(Array.from(new Set(aloc)).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b));
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load product", variant: "destructive" });
       setPart(null);
@@ -179,6 +200,9 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
         collection_ids: collectionIds,
         cost_price: asNumOrNull(form.cost_price),
         price,
+        wholesale_price: asNumOrNull(form.wholesale_price),
+        min_selling_price: asNumOrNull(form.min_selling_price),
+        price_2: asNumOrNull(form.price_2),
         reorder_level: asNumOrNull(form.reorder_level),
         is_active: form.is_active ? 1 : 0,
         is_fifo: form.is_fifo ? 1 : 0,
@@ -186,6 +210,8 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
         image_filename: part?.image_filename ?? null,
         item_type: form.item_type,
         recipe_type: form.recipe_type,
+        default_location_id: (form.default_location_id && form.default_location_id !== "none") ? Number(form.default_location_id) : null,
+        allowed_locations: JSON.stringify(allowedLocationIds),
       });
       toast({ title: "Saved", description: "Product updated" });
       await load();
@@ -325,6 +351,23 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
                             <SelectItem value="Recipe" className="font-bold">Recipe (Needs BOM)</SelectItem>
                           </SelectContent>
                         </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Default Stock Location</Label>
+                        <Select value={form.default_location_id} onValueChange={(v) => setForm((p) => ({ ...p, default_location_id: v }))}>
+                          <SelectTrigger className="font-bold border-green-200 bg-green-50/30">
+                            <SelectValue placeholder="Select location..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none" className="italic">Inherit from Invoice/POS</SelectItem>
+                            {locations.map((loc) => (
+                              <SelectItem key={loc.id} value={String(loc.id)}>
+                                {loc.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-2 italic">A La Carte items will ALWAYS deduct ingredients from this location.</div>
                       </div>
                       <div className="space-y-2">
                         <Label>SKU</Label>
@@ -482,6 +525,38 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
                         </Popover>
                         <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
                       </div>
+                      <div className="space-y-2 col-span-1 md:col-span-2">
+                        <Label>Allowed Stock Locations</Label>
+                        <div className="rounded-md border p-4 bg-muted/5 space-y-2">
+                          <ScrollArea className="h-[120px] pr-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                              {locations.map((loc) => {
+                                const checked = allowedLocationIds.includes(loc.id);
+                                return (
+                                  <label key={loc.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-md transition-colors border border-transparent hover:border-muted-foreground/10">
+                                    <Checkbox
+                                      checked={checked}
+                                      onCheckedChange={(v) => {
+                                        setAllowedLocationIds((prev) => {
+                                          const next = new Set(prev);
+                                          if (v) next.add(loc.id);
+                                          else next.delete(loc.id);
+                                          return Array.from(next).sort((a, b) => a - b);
+                                        });
+                                      }}
+                                    />
+                                    <span className="truncate flex-1 font-medium">{loc.name}</span>
+                                  </label>
+                                );
+                              })}
+                              {locations.length === 0 ? (
+                                <div className="text-xs text-muted-foreground py-4 text-center col-span-full italic">No locations configured</div>
+                              ) : null}
+                            </div>
+                          </ScrollArea>
+                          <div className="text-[11px] text-muted-foreground border-t pt-2">Limit which locations can sell this item. Leave empty for "All Locations".</div>
+                        </div>
+                      </div>
 	                      <div className="space-y-2">
 	                        <Label>Active</Label>
 	                        <div className="h-11 flex items-center">
@@ -518,9 +593,39 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
                           type="number"
                           step="0.01"
                           inputMode="decimal" 
-                          value={Number.isFinite(Number(form.price)) ? Number(form.price).toFixed(2) : "0.00"} 
+                          value={form.price} 
                           onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} 
                           required 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Wholesale Price</Label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal" 
+                          value={form.wholesale_price} 
+                          onChange={(e) => setForm((p) => ({ ...p, wholesale_price: e.target.value }))} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Min. Selling Price</Label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal" 
+                          value={form.min_selling_price} 
+                          onChange={(e) => setForm((p) => ({ ...p, min_selling_price: e.target.value }))} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Price 2 Option</Label>
+                        <Input 
+                          type="number"
+                          step="0.01"
+                          inputMode="decimal" 
+                          value={form.price_2} 
+                          onChange={(e) => setForm((p) => ({ ...p, price_2: e.target.value }))} 
                         />
                       </div>
                       <div className="space-y-2">

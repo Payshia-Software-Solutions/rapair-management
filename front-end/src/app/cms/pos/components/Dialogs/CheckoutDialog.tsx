@@ -42,7 +42,11 @@ export const CheckoutDialog: React.FC = () => {
     bankBranches,
     setBankBranches,
     vKeyboardEnabled,
-    setVKeyboardActiveInput
+    setVKeyboardActiveInput,
+    selectedBankId,
+    setSelectedBankId,
+    selectedCardCategory,
+    setSelectedCardCategory
   } = usePOS();
 
   // --- Single Payment States ---
@@ -513,6 +517,34 @@ export const CheckoutDialog: React.FC = () => {
                           <Button key={type} size="sm" variant={cardType === type ? 'default' : 'outline'} onClick={() => setCardType(type)} className={`text-[10px] h-10 font-black border-2 transition-all ${cardType === type ? 'scale-[1.05] ring-2 ring-primary/20' : ''}`}>{type}</Button>
                         ))}
                       </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Provider / Bank</label>
+                        <SearchableSelect 
+                            options={banks.map(b => ({ value: String(b.id), label: b.name }))}
+                            value={selectedBankId}
+                            onValueChange={(val) => setSelectedBankId(val)}
+                            placeholder="Select Bank..."
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Category</label>
+                        <div className="grid grid-cols-2 gap-2">
+                             {['Credit', 'Debit'].map(cat => (
+                                 <Button 
+                                    key={cat}
+                                    type="button"
+                                    variant={selectedCardCategory === cat ? 'default' : 'outline'}
+                                    onClick={() => setSelectedCardCategory(cat)}
+                                    className={`h-11 rounded-xl font-black text-xs transition-all ${selectedCardCategory === cat ? 'scale-[1.05] ring-2 ring-primary/20 shadow-lg' : ''}`}
+                                 >
+                                    {cat} Card
+                                 </Button>
+                             ))}
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Number (Last 4)</label>
                         <Input 

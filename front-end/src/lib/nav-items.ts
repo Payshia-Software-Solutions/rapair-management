@@ -14,6 +14,7 @@ import {
   Users,
   Tags,
   CheckSquare,
+  Gift,
   Boxes,
   Truck,
   FileText,
@@ -77,6 +78,7 @@ export const inventoryItems: NavItem[] = [
   { icon: FileText, label: "Purchase Orders", href: "/inventory/purchase-orders", perm: "purchase.read" },
   { icon: PackageCheck, label: "GRN", href: "/inventory/grn", perm: "grn.read" },
   { icon: ClipboardListIcon, label: "Stock Requests", href: "/inventory/stock-requests", perm: "transfer.read" },
+  { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
 ];
 
 export const cmsItems: NavItem[] = [

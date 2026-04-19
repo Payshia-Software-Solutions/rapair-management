@@ -134,17 +134,17 @@ export const OrderTypeSelector: React.FC = () => {
                                         <ChevronLeft className="w-5 h-5" />
                                     </button>
                                 )}
-                                <DialogTitle className="text-2xl font-black uppercase tracking-tight leading-none">
+                                <DialogTitle className="text-2xl font-black tracking-tight leading-none">
                                     {step === 'choice' ? "Get Started" : 
                                      step === 'held' ? "Recent Bills" :
                                      step === 'mode' ? "New Order" : 
                                      step === 'table' ? "Select Table" : "Assign Steward"}
                                 </DialogTitle>
                             </div>
-                            <p className="text-slate-400 text-xs font-semibold uppercase tracking-widest pl-1">
+                            <p className="text-slate-400 text-xs font-semibold tracking-widest pl-1">
                                 {step === 'choice' ? "Choose your transaction type" :
                                  step === 'held' ? "Select a bill to resume" :
-                                 step === 'mode' ? "Select Service Mode" : 
+                                 step === 'mode' ? "Select service mode" : 
                                  step === 'table' ? "Choose available table" : `Steward for ${localTable?.name}`}
                             </p>
                         </DialogHeader>
@@ -164,8 +164,8 @@ export const OrderTypeSelector: React.FC = () => {
                                         <FilePlus className="w-10 h-10" />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">New Transaction</h3>
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Start a fresh bill from scratch</p>
+                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tighter">New Transaction</h3>
+                                        <p className="text-slate-400 text-xs font-black tracking-widest mt-1">Start a fresh bill from scratch</p>
                                     </div>
                                     <ArrowRight className="w-6 h-6 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
                                 </div>
@@ -183,14 +183,14 @@ export const OrderTypeSelector: React.FC = () => {
                                         <History className="w-10 h-10" />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter">Resume Bill</h3>
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Continue a previously held order</p>
+                                        <h3 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tighter">Resume Bill</h3>
+                                        <p className="text-slate-400 text-xs font-black tracking-widest mt-1">Continue a previously held order</p>
                                     </div>
                                     <ArrowRight className="w-6 h-6 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
                                 </div>
                                 {heldOrders.length > 0 && (
-                                    <span className="absolute top-6 right-6 px-3 py-1 bg-orange-500 text-white text-[10px] font-black rounded-full animate-pulse">
-                                        {heldOrders.length} ACTIVE
+                                    <span className="absolute top-6 right-6 px-3 py-1 bg-orange-500 text-white text-xs font-black rounded-full animate-pulse">
+                                        {heldOrders.length} Active
                                     </span>
                                 )}
                             </button>
@@ -198,7 +198,7 @@ export const OrderTypeSelector: React.FC = () => {
 
                         {/* Management Hub Section */}
                         <div className="mt-8 pt-8 border-t border-slate-100 dark:border-slate-800">
-                            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-2">Management Hub</h4>
+                            <h4 className="text-xs font-black tracking-[0.2em] text-slate-400 mb-4 px-2">Management Hub</h4>
                             <div className="grid grid-cols-3 gap-3">
                                 <button
                                     onClick={() => {
@@ -210,7 +210,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="p-3 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
                                         <FileText className="w-5 h-5" />
                                     </div>
-                                    <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 dark:text-slate-300">Summary</span>
+                                    <span className="text-xs font-black tracking-tight text-slate-600 dark:text-slate-300">Summary</span>
                                 </button>
 
                                 <button
@@ -223,7 +223,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="p-3 bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
                                         <Undo2 className="w-5 h-5" />
                                     </div>
-                                    <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 dark:text-slate-300">Return</span>
+                                    <span className="text-xs font-black tracking-tight text-slate-600 dark:text-slate-300">Return</span>
                                 </button>
 
                                 <button
@@ -236,7 +236,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="p-3 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 rounded-2xl mb-2 group-hover:scale-110 transition-transform">
                                         <Banknote className="w-5 h-5" />
                                     </div>
-                                    <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 dark:text-slate-300">Refund</span>
+                                    <span className="text-xs font-black tracking-tight text-slate-600 dark:text-slate-300">Refund</span>
                                 </button>
                             </div>
                         </div>
@@ -251,7 +251,7 @@ export const OrderTypeSelector: React.FC = () => {
                                         <Clock className="w-16 h-16" />
                                     </div>
                                     <div className="space-y-1">
-                                        <p className="text-xl font-black uppercase tracking-tight text-slate-400">No held bills</p>
+                                        <p className="text-xl font-black tracking-tight text-slate-400">No held bills</p>
                                         <p className="text-xs font-bold text-slate-500 italic">Start a new transaction instead</p>
                                     </div>
                                     <Button variant="outline" className="rounded-full px-8" onClick={() => setStep('choice')}>
@@ -275,8 +275,8 @@ export const OrderTypeSelector: React.FC = () => {
                                                     #{order.id}
                                                 </div>
                                                 <div className="space-y-0.5 min-w-0">
-                                                    <h4 className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tighter text-sm truncate">{order.customer_name}</h4>
-                                                    <div className="flex flex-wrap items-center gap-2 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                                                    <h4 className="font-black text-slate-800 dark:text-slate-100 tracking-tighter text-sm truncate">{order.customer_name}</h4>
+                                                    <div className="flex flex-wrap items-center gap-2 text-[11px] font-black tracking-widest text-slate-400">
                                                         <span>{order.order_type?.replace('_', ' ')}</span>
                                                         {order.table_name && (
                                                             <>
@@ -291,7 +291,7 @@ export const OrderTypeSelector: React.FC = () => {
                                                             return (
                                                                 <>
                                                                     <div className="w-1 h-1 rounded-full bg-slate-300" />
-                                                                    <span className="text-emerald-500 uppercase">{name}</span>
+                                                                    <span className="text-emerald-500">{name}</span>
                                                                 </>
                                                             );
                                                         })()}
@@ -300,7 +300,7 @@ export const OrderTypeSelector: React.FC = () => {
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <div className="text-sm font-black text-slate-800 dark:text-slate-50 tabular-nums">LKR {Number(order.grand_total).toFixed(2)}</div>
-                                                <div className="text-[9px] font-black text-orange-500 uppercase tracking-wider opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all">
+                                                <div className="text-[11px] font-black text-orange-500 tracking-wider opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all">
                                                     Resume
                                                 </div>
                                             </div>
@@ -323,10 +323,10 @@ export const OrderTypeSelector: React.FC = () => {
                                             {type.icon}
                                         </div>
                                         <div className="flex-1">
-                                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">
+                                            <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 tracking-tight">
                                                 {type.label}
                                             </h3>
-                                            <p className="text-slate-400 text-[9px] font-black uppercase tracking-widest mt-1">
+                                            <p className="text-slate-400 text-[11px] font-black tracking-widest mt-1">
                                                 {type.description}
                                             </p>
                                         </div>
@@ -364,14 +364,14 @@ export const OrderTypeSelector: React.FC = () => {
                                         <div className="p-2 rounded-xl bg-white dark:bg-slate-800 shadow-sm mb-2 group-hover:text-indigo-500 transition-colors">
                                             <LayoutGrid className="w-5 h-5" />
                                         </div>
-                                        <span className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight text-[10px] truncate w-full text-center px-1">{t.name}</span>
+                                        <span className="font-black text-slate-800 dark:text-slate-200 tracking-tight text-xs truncate w-full text-center px-1">{t.name}</span>
                                     </button>
                                 ))}
                             </div>
                             {tables.length === 0 && (
                                 <div className="py-12 text-center">
-                                    <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">No tables available</p>
-                                    <p className="text-slate-500 text-[10px] mt-2 italic">Check location settings</p>
+                                    <p className="text-slate-400 text-sm font-bold tracking-widest">No tables available</p>
+                                    <p className="text-slate-500 text-xs mt-2 italic">Check location settings</p>
                                 </div>
                             )}
                         </div>
@@ -399,10 +399,10 @@ export const OrderTypeSelector: React.FC = () => {
                                     className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border-2 border-transparent hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-800 transition-all text-left flex items-center justify-between group"
                                 >
                                     <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-xs uppercase">
+                                        <div className="p-3 bg-indigo-100 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-xl font-black text-xs">
                                             {s.name.substring(0, 2)}
                                         </div>
-                                        <span className="font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight">{s.name}</span>
+                                        <span className="font-black text-slate-800 dark:text-slate-100 tracking-tight">{s.name}</span>
                                     </div>
                                     <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-500" />
                                 </button>
@@ -410,7 +410,7 @@ export const OrderTypeSelector: React.FC = () => {
 
                             {stewards.length === 0 && (
                                 <div className="py-8 text-center">
-                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest italic">No stewards found</p>
+                                    <p className="text-slate-400 text-xs font-black tracking-widest italic">No stewards found</p>
                                 </div>
                             )}
                         </div>

@@ -2091,3 +2091,63 @@ export const fetchPartBatches = async (partId: number | string, locationId?: num
   const data = await res.json();
   return data.status === 'success' ? (data.data as any[]) : [];
 };
+export const validatePromotion = async (payload: { 
+  items: any[], 
+  subtotal: number, 
+  bank_id?: string | null,
+  card_category?: string | null,
+  location_id?: number | string | null
+}) => {
+  const res = await api('/api/promotion/validate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error('Failed to validate promotions');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchPromotions = async (locationId?: number | string) => {
+  const qs = locationId ? `?location_id=${locationId}` : '';
+  const res = await api(`/api/promotion/active${qs}`);
+  if (!res.ok) throw new Error('Failed to load promotions');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchPromotion = async (id: number) => {
+  const res = await api(`/api/promotion/get?id=${id}`);
+  if (!res.ok) throw new Error('Failed to load promotion');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const savePromotion = async (data: any) => {
+  const res = await api('/api/promotion/save', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'Failed to save promotion');
+  }
+  return await res.json();
+};
+
+export const togglePromotion = async (id: number, status: number) => {
+  const res = await api('/api/promotion/toggle', {
+    method: 'POST',
+    body: JSON.stringify({ id, status }),
+  });
+  if (!res.ok) throw new Error('Failed to toggle promotion');
+  return await res.json();
+};
+
+export const deletePromotion = async (id: number) => {
+  const res = await api('/api/promotion/delete', {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  });
+  if (!res.ok) throw new Error('Failed to delete promotion');
+  return await res.json();
+};

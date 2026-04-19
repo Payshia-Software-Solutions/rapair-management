@@ -5,6 +5,7 @@
 class ProductionBOM extends Model {
     private $table = 'production_boms';
     private $itemsTable = 'production_bom_items';
+    private static $schemaDone = false;
 
     public function __construct() {
         parent::__construct();
@@ -12,9 +13,16 @@ class ProductionBOM extends Model {
     }
 
     private function ensureSchema() {
+        if (self::$schemaDone) return;
+        self::$schemaDone = true;
+
+        // Use an isolated connection so DDL never touches the shared transaction connection
         try {
-            // BOM Header Table
-            $this->db->query("CREATE TABLE IF NOT EXISTS {$this->table} (
+            $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
+            $pdo = new PDO($dsn, DB_USER, DB_PASS);
+            $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+            $pdo->exec("CREATE TABLE IF NOT EXISTS {$this->table} (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 output_part_id INT NOT NULL,
                 name VARCHAR(255) NOT NULL,
@@ -28,10 +36,8 @@ class ProductionBOM extends Model {
                 updated_by INT,
                 FOREIGN KEY (output_part_id) REFERENCES parts(id)
             ) ENGINE=InnoDB");
-            $this->db->execute();
 
-            // BOM Items Table
-            $this->db->query("CREATE TABLE IF NOT EXISTS {$this->itemsTable} (
+            $pdo->exec("CREATE TABLE IF NOT EXISTS {$this->itemsTable} (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 bom_id INT NOT NULL,
                 part_id INT NOT NULL,
@@ -40,9 +46,8 @@ class ProductionBOM extends Model {
                 FOREIGN KEY (bom_id) REFERENCES {$this->table}(id) ON DELETE CASCADE,
                 FOREIGN KEY (part_id) REFERENCES parts(id)
             ) ENGINE=InnoDB");
-            $this->db->execute();
         } catch (Exception $e) {
-            // Table might exist or error occurred
+            // Table might already exist
         }
     }
 
@@ -92,7 +97,7 @@ class ProductionBOM extends Model {
 
     public function create($data, $userId = null) {
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $this->db->query("INSERT INTO {$this->table} (output_part_id, name, version, output_qty, is_active, notes, created_by, updated_by)
                              VALUES (:output_part_id, :name, :version, :output_qty, :is_active, :notes, :created_by, :updated_by)");
@@ -105,7 +110,7 @@ class ProductionBOM extends Model {
             $this->db->bind(':created_by', $userId);
             $this->db->bind(':updated_by', $userId);
             $this->db->execute();
-            
+
             $bomId = $this->db->lastInsertId();
 
             if (!empty($data['items'])) {
@@ -120,17 +125,17 @@ class ProductionBOM extends Model {
                 }
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return $bomId;
         } catch (Exception $e) {
-            $this->db->exec("ROLLBACK");
+            $this->db->rollBack();
             return false;
         }
     }
 
     public function update($id, $data, $userId = null) {
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $this->db->query("UPDATE {$this->table} 
                              SET name = :name, version = :version, output_qty = :output_qty, 
@@ -162,11 +167,24 @@ class ProductionBOM extends Model {
                 }
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            $this->db->exec("ROLLBACK");
+            $this->db->rollBack();
             return false;
         }
+    }
+
+    public function getActiveBOMForPart($partId) {
+        $this->db->query("SELECT id FROM {$this->table} 
+                         WHERE output_part_id = :part_id AND is_active = 1 
+                         LIMIT 1");
+        $this->db->bind(':part_id', (int)$partId);
+        $bom = $this->db->single();
+        
+        if ($bom) {
+            return $this->getById($bom->id);
+        }
+        return null;
     }
 }

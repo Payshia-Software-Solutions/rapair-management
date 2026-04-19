@@ -9,6 +9,7 @@ import { CheckoutDialog } from "./components/Dialogs/CheckoutDialog";
 import { ManagementModals } from "./components/Dialogs/ManagementModals";
 import { BillDiscountDialog } from "./components/Dialogs/BillDiscountDialog";
 import { OrderTypeSelector } from "./components/OrderTypeSelector";
+import { PromotionPromptDialog } from "./components/Dialogs/PromotionPromptDialog";
 import { VirtualKeyboard } from "./components/VirtualKeyboard";
 import { MobilePosNav } from "./components/MobilePosNav";
 import { Loader2 } from "lucide-react";
@@ -107,6 +108,7 @@ function POSContent() {
       <ManagementModals />
       <BillDiscountDialog />
       <OrderTypeSelector />
+      <PromotionPromptDialog />
       <VirtualKeyboard />
     </div>
   );

@@ -6,9 +6,18 @@
 class InvoiceSchema {
     private static $done = false;
 
+    private static function pdo() {
+        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
+        $pdo = new PDO($dsn, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $pdo;
+    }
+
     public static function ensure($force = false) {
-        $db = new Database();
-        $pdo = $db->getDb();
+        if (self::$done && !$force) return;
+        self::$done = true;
+
+        $pdo = self::pdo();
 
         // [MIGRATIONS] Always check for missing columns even if tables exist
         try {
@@ -20,6 +29,12 @@ class InvoiceSchema {
             if (self::hasTable($pdo, 'invoices')) {
                 if (!self::hasColumn($pdo, 'invoices', 'discount_total')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN discount_total DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER tax_total");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'applied_promotion_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN applied_promotion_id INT NULL AFTER notes");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'applied_promotion_name')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN applied_promotion_name VARCHAR(255) NULL AFTER applied_promotion_id");
                 }
             }
         } catch (Exception $e) {}
@@ -49,6 +64,8 @@ class InvoiceSchema {
                 paid_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
                 status ENUM('Unpaid', 'Partial', 'Paid', 'Cancelled') DEFAULT 'Unpaid',
                 notes TEXT NULL,
+                applied_promotion_id INT NULL,
+                applied_promotion_name VARCHAR(255) NULL,
                 created_by INT NULL,
                 updated_by INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

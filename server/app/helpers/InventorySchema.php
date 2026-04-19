@@ -219,6 +219,11 @@ class InventorySchema {
                     'is_fifo' => "TINYINT(1) NOT NULL DEFAULT 0",
                     'is_expiry' => "TINYINT(1) NOT NULL DEFAULT 0",
                     'recipe_type' => "ENUM('Standard', 'A La Carte', 'Recipe') NOT NULL DEFAULT 'Standard'",
+                    'default_location_id' => "INT NULL",
+                    'allowed_locations' => "TEXT NULL",
+                    'wholesale_price' => "DECIMAL(10,2) NULL",
+                    'min_selling_price' => "DECIMAL(10,2) NULL",
+                    'price_2' => "DECIMAL(10,2) NULL",
                 ];
                 foreach ($cols as $col => $def) {
                     if (!self::hasColumn($pdo, 'parts', $col)) {

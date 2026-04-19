@@ -69,6 +69,12 @@ class PartController extends Controller {
             'image_filename' => $data['image_filename'] ?? null,
             'item_type' => $data['item_type'] ?? 'Part',
             'recipe_type' => $data['recipe_type'] ?? 'Standard',
+            'default_location_id' => $data['default_location_id'] ?? null,
+            'allowed_locations' => $data['allowed_locations'] ?? null,
+            'collection_ids' => $data['collection_ids'] ?? [],
+            'wholesale_price' => $data['wholesale_price'] ?? null,
+            'min_selling_price' => $data['min_selling_price'] ?? null,
+            'price_2' => $data['price_2'] ?? null,
         ];
 
         $newId = $this->partModel->create($payload, (int)$u['sub']);
@@ -122,6 +128,12 @@ class PartController extends Controller {
             'image_filename' => $data['image_filename'] ?? null,
             'item_type' => $data['item_type'] ?? 'Part',
             'recipe_type' => $data['recipe_type'] ?? 'Standard',
+            'default_location_id' => $data['default_location_id'] ?? null,
+            'allowed_locations' => $data['allowed_locations'] ?? null,
+            'collection_ids' => $data['collection_ids'] ?? [],
+            'wholesale_price' => $data['wholesale_price'] ?? null,
+            'min_selling_price' => $data['min_selling_price'] ?? null,
+            'price_2' => $data['price_2'] ?? null,
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {

@@ -170,15 +170,19 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Items</div>
       {(invoice.items || []).map((item: any, idx: number) => {
         const lineTotal = Number(item.line_total);
+        const isFree = Number(item.discount) >= Number(item.unit_price) && Number(item.unit_price) > 0;
         const unitAfterDiscount = item.discount > 0
           ? `@ LKR ${(Number(item.unit_price) - Number(item.discount)).toFixed(2)}`
           : `@ LKR ${Number(item.unit_price).toFixed(2)}`;
         return (
           <div className="row-item" key={idx}>
-            <div className="item-name">{item.description || item.item_name}</div>
+            <div className="item-name">
+              {item.description || item.item_name}
+              {isFree && <span style={{ marginLeft: '4px', fontSize: '9px', fontWeight: 'bold', background: '#e5e7eb', padding: '1px 4px', borderRadius: '4px' }}>[FREE]</span>}
+            </div>
             <div className="item-detail">
               <span>{item.quantity} × {unitAfterDiscount}</span>
-              <span className="bold">LKR {fmt(lineTotal)}</span>
+              <span className="bold">{isFree ? 'LKR 0.00' : `LKR ${fmt(lineTotal)}`}</span>
             </div>
           </div>
         );
@@ -189,7 +193,10 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       {/* Totals */}
       <div className="row"><span>Subtotal</span><span>LKR {fmt(invoice.subtotal)}</span></div>
       {Number(invoice.discount_total) > 0 && (
-        <div className="row"><span>Discount</span><span>-LKR {fmt(invoice.discount_total)}</span></div>
+        <div className="row">
+          <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+          <span>-LKR {fmt(invoice.discount_total)}</span>
+        </div>
       )}
       {(invoice.applied_taxes || []).map((tax: any, idx: number) => (
         <div className="row" key={idx}>

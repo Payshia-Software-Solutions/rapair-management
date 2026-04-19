@@ -52,6 +52,7 @@ export const InventoryGrid: React.FC = () => {
   } = usePOS();
 
   const [colSearch, setColSearch] = React.useState("");
+  const [selectedRecipeType, setSelectedRecipeType] = useState<string | null>(null);
 
   const filteredInventory = useMemo(() => {
     let filtered = [...inventory];
@@ -74,8 +75,13 @@ export const InventoryGrid: React.FC = () => {
       });
     }
 
+    // Recipe Type filter
+    if (selectedRecipeType !== null) {
+      filtered = filtered.filter(p => p.recipe_type === selectedRecipeType);
+    }
+
     return filtered;
-  }, [inventory, searchQuery, selectedCollectionId]);
+  }, [inventory, searchQuery, selectedCollectionId, selectedRecipeType]);
 
   const filteredCollections = useMemo(() => {
     if (!colSearch.trim()) return collections;
@@ -197,12 +203,35 @@ export const InventoryGrid: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
           <Button
             variant="ghost"
-            onClick={() => setSelectedCollectionId(null)}
-            className={`w-full justify-start gap-3 h-11 px-3 font-bold rounded-xl transition-all ${selectedCollectionId === null ? 'bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'}`}
+            onClick={() => {
+              setSelectedCollectionId(null);
+              setSelectedRecipeType(null);
+            }}
+            className={`w-full justify-start gap-3 h-11 px-3 font-bold rounded-xl transition-all ${selectedCollectionId === null && selectedRecipeType === null ? 'bg-primary text-white shadow-md shadow-primary/20 hover:bg-primary' : 'hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'}`}
           >
-            <Filter className={`w-4 h-4 ${selectedCollectionId === null ? 'text-white' : 'text-slate-400'}`} />
+            <Filter className={`w-4 h-4 ${selectedCollectionId === null && selectedRecipeType === null ? 'text-white' : 'text-slate-400'}`} />
             All Items
           </Button>
+          
+          <div className="pt-2 pb-1 px-1">
+             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Recipe Types</p>
+          </div>
+          
+          {['Standard', 'A La Carte', 'Recipe'].map(type => (
+            <Button
+              key={type}
+              variant="ghost"
+              onClick={() => setSelectedRecipeType(type === selectedRecipeType ? null : type)}
+              className={`w-full justify-start gap-3 h-11 px-3 font-bold rounded-xl transition-all ${selectedRecipeType === type ? 'bg-amber-500 text-white shadow-md shadow-amber-500/20 hover:bg-amber-500' : 'hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400'}`}
+            >
+              <div className={`w-2 h-2 rounded-full ${selectedRecipeType === type ? 'bg-white' : 'bg-amber-400'}`} />
+              <span className="truncate">{type}</span>
+            </Button>
+          ))}
+
+          <div className="pt-4 pb-1 px-1">
+             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Collections</p>
+          </div>
           
           {filteredCollections.map(col => (
             <Button
@@ -289,7 +318,7 @@ export const InventoryGrid: React.FC = () => {
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
               {filteredInventory.map(product => {
-                const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service';
+                const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
                 return (
                   <div 
                     key={product.id} 
@@ -297,10 +326,17 @@ export const InventoryGrid: React.FC = () => {
                     className={`relative bg-white dark:bg-slate-900 border border-border hover:border-primary hover:shadow-xl transition-all duration-300 rounded-2xl p-4 flex flex-col justify-between cursor-pointer group ${outOfStock ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                   >
                     <div className="flex justify-between items-start mb-4">
-                      <Badge variant={product.item_type === 'Service' ? 'secondary' : 'outline'} className="text-[10px] tracking-widest uppercase px-1.5 py-0">
-                        {product.item_type}
-                      </Badge>
-                      {product.item_type !== 'Service' && (
+                      <div className="flex flex-col gap-1">
+                        <Badge variant={product.item_type === 'Service' ? 'secondary' : 'outline'} className="text-[10px] tracking-widest uppercase px-1.5 py-0 w-fit">
+                          {product.item_type}
+                        </Badge>
+                        {product.recipe_type && product.recipe_type !== 'Standard' && (
+                          <Badge variant="outline" className={`text-[10px] tracking-widest uppercase px-1.5 py-0 w-fit border-none ${product.recipe_type === 'A La Carte' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'}`}>
+                            {product.recipe_type}
+                          </Badge>
+                        )}
+                      </div>
+                      {product.item_type !== 'Service' && product.recipe_type !== 'A La Carte' && (
                         <span className={`text-[10px] font-black uppercase ${product.stock_quantity > 5 ? 'text-emerald-500' : 'text-orange-500'}`}>
                           {product.stock_quantity} Left
                         </span>

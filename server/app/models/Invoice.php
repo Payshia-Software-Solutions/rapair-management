@@ -85,10 +85,12 @@ class Invoice extends Model {
         $this->db->query("
             INSERT INTO invoices (
                 invoice_no, order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
-                subtotal, tax_total, discount_total, grand_total, order_type, table_id, steward_id, notes, created_by, updated_by
+                subtotal, tax_total, discount_total, grand_total, order_type, table_id, steward_id, notes,
+                applied_promotion_id, applied_promotion_name, created_by, updated_by
             ) VALUES (
                 :invoice_no, :order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
-                :subtotal, :tax_total, :discount_total, :grand_total, :order_type, :table_id, :steward_id, :notes, :created_by, :updated_by
+                :subtotal, :tax_total, :discount_total, :grand_total, :order_type, :table_id, :steward_id, :notes,
+                :applied_promo_id, :applied_promo_name, :created_by, :updated_by
             )
         ");
         $this->db->bind(':invoice_no', $data['invoice_no']);
@@ -107,6 +109,8 @@ class Invoice extends Model {
         $this->db->bind(':table_id', $data['table_id'] ?? null);
         $this->db->bind(':steward_id', $data['steward_id'] ?? null);
         $this->db->bind(':notes', $data['notes'] ?? null);
+        $this->db->bind(':applied_promo_id', $data['applied_promotion_id'] ?? null);
+        $this->db->bind(':applied_promo_name', $data['applied_promotion_name'] ?? null);
         $this->db->bind(':created_by', $data['userId']);
         $this->db->bind(':updated_by', $data['userId']);
 
@@ -118,17 +122,16 @@ class Invoice extends Model {
 
     public function addItems($invoiceId, $items) {
         require_once 'Part.php';
+        require_once 'ProductionBOM.php';
         $partModel = new Part();
+        $bomModel = new ProductionBOM();
 
         // Fetch invoice to check if we should deduct stock (Only if order_id is NULL)
         $this->db->query("SELECT id, order_id, location_id FROM invoices WHERE id = :id");
         $this->db->bind(':id', $invoiceId);
         $inv = $this->db->single();
         $shouldDeduct = ($inv && empty($inv->order_id));
-        $locationId = $inv ? $inv->location_id : 1;
-
-        require_once 'InventoryBatch.php';
-        $batchModel = new InventoryBatch();
+        $invoiceLocationId = $inv ? $inv->location_id : 1;
 
         foreach ($items as $item) {
             $costPrice = 0;
@@ -142,60 +145,27 @@ class Invoice extends Model {
                     
                     if ($shouldDeduct) {
                         $qty = (float)$item['quantity'];
-                        $isFifo = (int)($part->is_fifo ?? 0) === 1 || (int)($part->is_expiry ?? 0) === 1;
+                        $recipeType = $part->recipe_type ?? 'Standard';
 
-                        if ($isFifo) {
-                            $providedBatches = !empty($item['selected_batches']) && is_array($item['selected_batches']) ? $item['selected_batches'] : null;
-                            
-                            $deductions = [];
-                            if ($providedBatches) {
-                                foreach ($providedBatches as $pb) {
-                                    $deductions[] = [
-                                        'batch_id' => $pb['batch_id'] > 0 ? $pb['batch_id'] : null,
-                                        'qty_deducted' => (float)$pb['qty']
-                                    ];
+                        if ($recipeType === 'A La Carte') {
+                            // Find active BOM
+                            $bom = $bomModel->getActiveBOMForPart($pid);
+                            if ($bom && !empty($bom->items)) {
+                                // Ingredient reduction location: product's default location OR invoice location
+                                $targetLoc = !empty($part->default_location_id) ? (int)$part->default_location_id : $invoiceLocationId;
+                                
+                                foreach ($bom->items as $bi) {
+                                    $ingredientQty = (float)$bi->qty * $qty;
+                                    $this->deductStock($bi->part_id, $ingredientQty, $targetLoc, $invoiceId, 0, null, 'BOM Consumption (' . $part->part_name . ')', 'SALE');
                                 }
                             } else {
-                                $deductions = $batchModel->deductStockFIFO($pid, $locationId, $qty);
-                            }
-
-                            foreach ($deductions as $d) {
-                                // Record movement per batch
-                                $this->db->query("
-                                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
-                                    VALUES (:loc, :part_id, :batch_id, :qty_change, 'SALE', 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
-                                ");
-                                $this->db->bind(':loc', $locationId);
-                                $this->db->bind(':part_id', $pid);
-                                $this->db->bind(':batch_id', $d['batch_id']);
-                                $this->db->bind(':qty_change', -1 * $d['qty_deducted']);
-                                $this->db->bind(':ref_id', $invoiceId);
-                                $this->db->bind(':unit_cost', $costPrice);
-                                $this->db->bind(':unit_price', (float)$item['unit_price']);
-                                $this->db->bind(':notes', $providedBatches ? 'Retail Sale (Manual Batch)' : 'Retail Sale (Auto Batch)');
-                                $this->db->execute();
+                                // Fallback if no BOM is set for A La Carte
+                                $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null);
                             }
                         } else {
-                            // Standard movement
-                            $this->db->query("
-                                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
-                                VALUES (:loc, :part_id, :qty_change, 'SALE', 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
-                            ");
-                            $this->db->bind(':loc', $locationId);
-                            $this->db->bind(':part_id', $pid);
-                            $this->db->bind(':qty_change', -1 * $qty);
-                            $this->db->bind(':ref_id', $invoiceId);
-                            $this->db->bind(':unit_cost', $costPrice);
-                            $this->db->bind(':unit_price', (float)$item['unit_price']);
-                            $this->db->bind(':notes', 'Retail Sale');
-                            $this->db->execute();
+                            // Standard deduction
+                            $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null);
                         }
-
-                        // Update global stock
-                        $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :pid");
-                        $this->db->bind(':qty', $qty);
-                        $this->db->bind(':pid', $pid);
-                        $this->db->execute();
                     }
                 }
             }
@@ -219,6 +189,73 @@ class Invoice extends Model {
             $this->db->execute();
         }
         return true;
+    }
+
+    /**
+     * Helper to handle inventory deduction (Supports FIFO and Standard)
+     */
+    private function deductStock($partId, $qty, $locationId, $invoiceId, $unitPrice = 0, $selectedBatches = null, $notes = 'Retail Sale', $movementType = 'SALE') {
+        require_once 'Part.php';
+        require_once 'InventoryBatch.php';
+        $partModel = new Part();
+        $batchModel = new InventoryBatch();
+
+        $part = $partModel->getById($partId);
+        if (!$part) return;
+
+        $costPrice = (float)$part->cost_price;
+        $isFifo = (int)($part->is_fifo ?? 0) === 1 || (int)($part->is_expiry ?? 0) === 1;
+
+        if ($isFifo) {
+            $deductions = [];
+            if ($selectedBatches) {
+                foreach ($selectedBatches as $pb) {
+                    $deductions[] = [
+                        'batch_id' => $pb['batch_id'] > 0 ? $pb['batch_id'] : null,
+                        'qty_deducted' => (float)$pb['qty']
+                    ];
+                }
+            } else {
+                $deductions = $batchModel->deductStockFIFO($partId, $locationId, $qty);
+            }
+
+            foreach ($deductions as $d) {
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
+                    VALUES (:loc, :part_id, :batch_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
+                ");
+                $this->db->bind(':loc', $locationId);
+                $this->db->bind(':part_id', $partId);
+                $this->db->bind(':batch_id', $d['batch_id']);
+                $this->db->bind(':qty_change', -1 * $d['qty_deducted']);
+                $this->db->bind(':type', $movementType);
+                $this->db->bind(':ref_id', $invoiceId);
+                $this->db->bind(':unit_cost', $costPrice);
+                $this->db->bind(':unit_price', (float)$unitPrice);
+                $this->db->bind(':notes', $notes . ($selectedBatches ? ' (Manual Batch)' : ' (Auto Batch)'));
+                $this->db->execute();
+            }
+        } else {
+            $this->db->query("
+                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
+                VALUES (:loc, :part_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
+            ");
+            $this->db->bind(':loc', $locationId);
+            $this->db->bind(':part_id', $partId);
+            $this->db->bind(':qty_change', -1 * $qty);
+            $this->db->bind(':type', $movementType);
+            $this->db->bind(':ref_id', $invoiceId);
+            $this->db->bind(':unit_cost', $costPrice);
+            $this->db->bind(':unit_price', (float)$unitPrice);
+            $this->db->bind(':notes', $notes);
+            $this->db->execute();
+        }
+
+        // Update global stock
+        $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :pid");
+        $this->db->bind(':qty', $qty);
+        $this->db->bind(':pid', $partId);
+        $this->db->execute();
     }
 
     public function addAppliedTaxes($invoiceId, $taxes) {

@@ -151,7 +151,8 @@ class Part extends Model {
     public function getById($id) {
         $this->ensureSchema();
         $this->db->query("
-            SELECT p.*, b.name AS brand_name
+            SELECT p.*, b.name AS brand_name,
+                   (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS stock_quantity
             FROM {$this->table} p
             LEFT JOIN brands b ON b.id = p.brand_id
             WHERE p.id = :id
@@ -177,6 +178,7 @@ class Part extends Model {
                 $supplierIds[] = (int)($s->id ?? 0);
             }
         }
+        $row->supplier_ids = $supplierIds;
         $row->suppliers = $suppliers;
 
         // Collection mapping
@@ -229,9 +231,9 @@ class Part extends Model {
         $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table}
-            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, created_by, updated_by)
+            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, wholesale_price, min_selling_price, price_2, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, default_location_id, allowed_locations, created_by, updated_by)
             VALUES
-            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :created_by, :updated_by)
+            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :wholesale_price, :min_selling_price, :price_2, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :default_location_id, :allowed_locations, :created_by, :updated_by)
         ");
         $this->db->bind(':sku', $data['sku'] ?? null);
         $this->db->bind(':part_number', $data['part_number'] ?? null);
@@ -242,6 +244,9 @@ class Part extends Model {
         $this->db->bind(':stock_quantity', isset($data['stock_quantity']) ? round((float)$data['stock_quantity'], 3) : 0.000);
         $this->db->bind(':cost_price', $data['cost_price'] ?? null);
         $this->db->bind(':price', $data['price']);
+        $this->db->bind(':wholesale_price', $data['wholesale_price'] ?? null);
+        $this->db->bind(':min_selling_price', $data['min_selling_price'] ?? null);
+        $this->db->bind(':price_2', $data['price_2'] ?? null);
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':is_fifo', isset($data['is_fifo']) ? (int)(bool)$data['is_fifo'] : 0);
@@ -249,6 +254,8 @@ class Part extends Model {
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
         $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
         $this->db->bind(':recipe_type', $data['recipe_type'] ?? 'Standard');
+        $this->db->bind(':default_location_id', isset($data['default_location_id']) ? (int)$data['default_location_id'] : null);
+        $this->db->bind(':allowed_locations', $data['allowed_locations'] ?? null);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         $ok = $this->db->execute();
@@ -276,6 +283,9 @@ class Part extends Model {
                 brand_id = :brand_id,
                 cost_price = :cost_price,
                 price = :price,
+                wholesale_price = :wholesale_price,
+                min_selling_price = :min_selling_price,
+                price_2 = :price_2,
                 reorder_level = :reorder_level,
                 is_active = :is_active,
                 is_fifo = :is_fifo,
@@ -283,6 +293,8 @@ class Part extends Model {
                 image_filename = :image_filename,
                 item_type = :item_type,
                 recipe_type = :recipe_type,
+                default_location_id = :default_location_id,
+                allowed_locations = :allowed_locations,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -294,6 +306,9 @@ class Part extends Model {
         $this->db->bind(':brand_id', isset($data['brand_id']) && (int)$data['brand_id'] > 0 ? (int)$data['brand_id'] : null);
         $this->db->bind(':cost_price', $data['cost_price'] ?? null);
         $this->db->bind(':price', $data['price']);
+        $this->db->bind(':wholesale_price', $data['wholesale_price'] ?? null);
+        $this->db->bind(':min_selling_price', $data['min_selling_price'] ?? null);
+        $this->db->bind(':price_2', $data['price_2'] ?? null);
         $this->db->bind(':reorder_level', $data['reorder_level'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
         $this->db->bind(':is_fifo', isset($data['is_fifo']) ? (int)(bool)$data['is_fifo'] : 0);
@@ -301,6 +316,8 @@ class Part extends Model {
         $this->db->bind(':image_filename', $data['image_filename'] ?? null);
         $this->db->bind(':item_type', $data['item_type'] ?? 'Part');
         $this->db->bind(':recipe_type', $data['recipe_type'] ?? 'Standard');
+        $this->db->bind(':default_location_id', isset($data['default_location_id']) ? (int)$data['default_location_id'] : null);
+        $this->db->bind(':allowed_locations', $data['allowed_locations'] ?? null);
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
         $ok = $this->db->execute();

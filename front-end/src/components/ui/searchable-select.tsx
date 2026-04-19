@@ -56,7 +56,7 @@ export function SearchableSelect({
 
   return (
     <div className={cn("w-full", className)}>
-      <Popover open={open} onOpenChange={(v) => (disabled ? setOpen(false) : setOpen(v))} modal={false}>
+      <Popover open={open} onOpenChange={(v) => (disabled ? setOpen(false) : setOpen(v))} modal={true}>
         <PopoverTrigger asChild>
           <Button
             type="button"
@@ -75,13 +75,22 @@ export function SearchableSelect({
 
         <PopoverContent 
           align="start" 
-          sideOffset={6} 
-          className={cn("p-0 w-[--radix-popover-trigger-width]", contentClassName)}
+          sideOffset={12} 
+          className={cn("p-0 w-[--radix-popover-trigger-width] z-[100000] shadow-2xl", contentClassName)}
           style={{ pointerEvents: 'auto' }}
+          onWheel={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onInteractOutside={(e) => {
+             // Let search items be clickable even if radix thinks they are "outside"
+             if (e.target instanceof Element && e.target.closest('[data-radix-popover-content]')) {
+                e.preventDefault();
+             }
+          }}
         >
           <div 
             className="p-2 border-b"
             onKeyDown={(e) => e.stopPropagation()}
+            onKeyDownCapture={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="relative">
@@ -90,15 +99,20 @@ export function SearchableSelect({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => e.stopPropagation()}
+                onKeyDownCapture={(e) => e.stopPropagation()}
                 placeholder={searchPlaceholder}
                 className="pl-8 h-9"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
+                onFocus={(e) => e.stopPropagation()}
               />
             </div>
           </div>
 
-          <ScrollArea className="max-h-[280px]">
+          <div 
+            className="max-h-[280px] overflow-y-auto touch-auto scrollbar-thin"
+            onWheel={(e) => e.stopPropagation()}
+          >
             <div className="p-1">
               {filtered.length === 0 ? (
                 <div className="px-3 py-6 text-sm text-muted-foreground text-center">{emptyText}</div>
@@ -113,6 +127,7 @@ export function SearchableSelect({
                         "w-full text-left flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted transition-colors",
                         isSelected ? "bg-muted" : ""
                       )}
+                      onPointerDown={(e) => e.stopPropagation()}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -130,7 +145,7 @@ export function SearchableSelect({
                 })
               )}
             </div>
-          </ScrollArea>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

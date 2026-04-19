@@ -74,7 +74,8 @@ export const SidebarCart: React.FC = () => {
     heldOrders,
     setHeldOrderId,
     loadPOSBill,
-    refreshHeldOrders
+    refreshHeldOrders,
+    appliedPromotion
   } = usePOS();
 
   const [heldOrdersOpen, setHeldOrdersOpen] = React.useState(false);
@@ -306,9 +307,17 @@ export const SidebarCart: React.FC = () => {
       <div className="bg-white dark:bg-card border-t border-border shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-10">
         <div className="p-4 space-y-2 text-sm border-b border-border bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal :</span> 
+            <span>Gross Subtotal :</span> 
             <span className="font-bold text-foreground">LKR {totals.subtotal.toLocaleString()}</span>
           </div>
+
+          {totals.lineDiscountTotal > 0 && (
+            <div className="flex justify-between text-rose-600 dark:text-rose-400 font-medium">
+              <span>Line Discounts :</span> 
+              <span className="font-bold">-LKR {totals.lineDiscountTotal.toLocaleString()}</span>
+            </div>
+          )}
+
           <button 
              onClick={() => setBillDiscountDialogOpen(true)}
              className={`w-full flex justify-between items-center py-3 px-4 rounded-xl border-2 transition-all group ${billDiscountValue > 0 ? 'bg-rose-50 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20' : 'bg-slate-50 border-dashed border-slate-200 dark:bg-slate-950 dark:border-slate-800'}`}
@@ -335,6 +344,24 @@ export const SidebarCart: React.FC = () => {
               <span className="font-bold">+LKR {t.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
             </div>
           ))}
+
+          {appliedPromotion && (
+            <div className="flex justify-between items-center py-2 px-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 animate-in fade-in slide-in-from-top-1 duration-300">
+               <div className="flex flex-col">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">Promotion Applied</span>
+                  <span className="text-xs font-black text-slate-900 dark:text-white">{appliedPromotion.name}</span>
+               </div>
+               <div className="flex items-center gap-3">
+                  <span className="font-black text-amber-600">-LKR {Number(appliedPromotion.discount_value).toLocaleString()}</span>
+                  <button 
+                    onClick={() => setAppliedPromotion(null)}
+                    className="p-1 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-md transition-colors"
+                  >
+                    <Trash2 className="w-3 h-3 text-amber-600" />
+                  </button>
+               </div>
+            </div>
+          )}
         </div>
         
         <div className="p-5 flex flex-col gap-4 pb-24 lg:pb-5">

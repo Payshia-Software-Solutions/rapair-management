@@ -5,9 +5,15 @@
  */
 
 class CustomerSchema {
+    private static function pdo() {
+        $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
+        $pdo = new PDO($dsn, DB_USER, DB_PASS);
+        $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        return $pdo;
+    }
+
     public static function ensure() {
-        $db = new Database();
-        $pdo = $db->getDb();
+        $pdo = self::pdo();
 
         // 1. Create Table (Basic)
         $sql = "
