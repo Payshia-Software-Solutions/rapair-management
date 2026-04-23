@@ -263,14 +263,14 @@ export const InventoryGrid: React.FC = () => {
       {/* Main Grid Area */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {/* Top Bar: Search & Actions */}
-        <div className="p-4 bg-white dark:bg-card border-b border-border shadow-sm flex items-center gap-3 shrink-0">
+        <div className="p-3 lg:p-4 bg-white dark:bg-card border-b border-border shadow-sm flex items-center gap-2 lg:gap-3 shrink-0">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 lg:w-5 lg:h-5 text-muted-foreground" />
             <Input 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Scan barcode or search products..." 
-              className="pl-10 h-14 bg-muted/30 border-0 focus-visible:ring-1 focus-visible:ring-primary shadow-inner rounded-xl text-lg backdrop-blur-xl"
+              placeholder={window.innerWidth < 640 ? "Search..." : "Scan barcode or search products..."} 
+              className="pl-9 lg:pl-10 h-11 lg:h-14 bg-slate-50 dark:bg-slate-900 border-none focus-visible:ring-1 focus-visible:ring-primary shadow-inner rounded-xl text-sm lg:text-lg"
               onFocus={() => {
                 if (vKeyboardEnabled) {
                   setVKeyboardActiveInput({
@@ -292,8 +292,8 @@ export const InventoryGrid: React.FC = () => {
           <div className="flex md:hidden">
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="h-14 w-14 rounded-xl border-2 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500">
-                  <Settings2 className="w-6 h-6" />
+                <Button variant="outline" size="icon" className="h-11 w-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500">
+                  <Settings2 className="w-5 h-5" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-[280px] p-4 rounded-3xl border-none shadow-2xl bg-white dark:bg-slate-950">
@@ -309,48 +309,47 @@ export const InventoryGrid: React.FC = () => {
         </div>
 
         {/* Product Grid */}
-        <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-2 lg:p-4 custom-scrollbar">
           {filteredInventory.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-50">
               <Search className="w-12 h-12 mb-4 opacity-10" />
               <p className="font-bold uppercase tracking-widest text-[10px]">No records found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 lg:gap-4">
               {filteredInventory.map(product => {
                 const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
                 return (
                   <div 
                     key={product.id} 
                     onClick={() => !outOfStock && handleProductClick(product)}
-                    className={`relative bg-white dark:bg-slate-900 border border-border hover:border-primary hover:shadow-xl transition-all duration-300 rounded-2xl p-4 flex flex-col justify-between cursor-pointer group ${outOfStock ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
+                    className={`relative bg-white dark:bg-slate-900 border border-border hover:border-primary hover:shadow-xl transition-all duration-300 rounded-xl lg:rounded-2xl p-3 lg:p-4 flex flex-col justify-between cursor-pointer group ${outOfStock ? 'opacity-50 cursor-not-allowed grayscale' : ''}`}
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex flex-col gap-1">
-                        <Badge variant={product.item_type === 'Service' ? 'secondary' : 'outline'} className="text-[10px] tracking-widest uppercase px-1.5 py-0 w-fit">
+                    <div className="flex justify-between items-start mb-2 lg:mb-4">
+                      <div className="flex flex-col gap-0.5">
+                        <Badge variant={product.item_type === 'Service' ? 'secondary' : 'outline'} className="text-[8px] lg:text-[10px] tracking-widest uppercase px-1 py-0 w-fit">
                           {product.item_type}
                         </Badge>
                         {product.recipe_type && product.recipe_type !== 'Standard' && (
-                          <Badge variant="outline" className={`text-[10px] tracking-widest uppercase px-1.5 py-0 w-fit border-none ${product.recipe_type === 'A La Carte' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'}`}>
+                          <Badge variant="outline" className={`text-[8px] lg:text-[10px] tracking-widest uppercase px-1 py-0 w-fit border-none ${product.recipe_type === 'A La Carte' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'}`}>
                             {product.recipe_type}
                           </Badge>
                         )}
                       </div>
                       {product.item_type !== 'Service' && product.recipe_type !== 'A La Carte' && (
-                        <span className={`text-[10px] font-black uppercase ${product.stock_quantity > 5 ? 'text-emerald-500' : 'text-orange-500'}`}>
-                          {product.stock_quantity} Left
+                        <span className={`text-[8px] lg:text-[10px] font-black uppercase ${product.stock_quantity > 5 ? 'text-emerald-500' : 'text-orange-500'}`}>
+                          {product.stock_quantity} <span className="hidden lg:inline">Left</span>
                         </span>
                       )}
                     </div>
                     <div>
-                      {product.sku && <p className="text-[10px] text-muted-foreground font-mono mb-1">{product.sku}</p>}
-                      <h4 className="font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-primary transition-colors line-clamp-2 text-sm">{product.part_name}</h4>
-                      {product.brand && <p className="text-[11px] text-muted-foreground mt-1 font-medium">{product.brand}</p>}
+                      {product.sku && <p className="text-[8px] lg:text-[10px] text-muted-foreground font-mono mb-1">{product.sku}</p>}
+                      <h4 className="font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-primary transition-colors line-clamp-2 text-xs lg:text-sm">{product.part_name}</h4>
                     </div>
-                    <div className="mt-4 pt-4 border-t border-border flex justify-between items-center">
-                      <span className="font-black text-base text-slate-900 dark:text-white tabular-nums">LKR {(product.price || product.cost_price || 0).toLocaleString()}</span>
-                      <div className="w-8 h-8 rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
-                        <Plus className="w-4 h-4" />
+                    <div className="mt-2 lg:mt-4 pt-2 lg:pt-4 border-t border-border flex justify-between items-center">
+                      <span className="font-black text-sm lg:text-base text-slate-900 dark:text-white tabular-nums">LKR {(product.price || product.cost_price || 0).toLocaleString()}</span>
+                      <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                        <Plus className="w-3 h-3 lg:w-4 lg:h-4" />
                       </div>
                     </div>
                   </div>

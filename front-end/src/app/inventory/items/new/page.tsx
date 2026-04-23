@@ -412,8 +412,6 @@ export default function NewItemPage() {
                     </Popover>
                     <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
                   </div>
-                    <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
-                  </div>
                   <div className="space-y-2 col-span-1 md:col-span-2">
                     <Label>Allowed Stock Locations</Label>
                     <div className="rounded-md border p-4 bg-muted/5 space-y-2">

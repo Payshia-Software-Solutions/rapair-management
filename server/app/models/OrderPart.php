@@ -32,7 +32,7 @@ class OrderPart extends Model {
             $this->db->exec("START TRANSACTION");
 
             // Lock part and get metadata
-            $this->db->query("SELECT item_type, cost_price, price, is_fifo, is_expiry FROM parts WHERE id = :id FOR UPDATE");
+            $this->db->query("SELECT item_type, cost_price, price, is_fifo, is_expiry, recipe_type, part_name, default_location_id FROM parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $p = $this->db->single();
             if (!$p) {
@@ -50,8 +50,10 @@ class OrderPart extends Model {
             $oRow = $this->db->single();
             if ($oRow) $locationId = (int)$oRow->location_id;
 
+            $recipeType = (string)($p->recipe_type ?? 'Standard');
+
             // Stock Check for physical items
-            if (!$isService) {
+            if (!$isService && $recipeType !== 'A La Carte') {
                 $this->db->query("
                     SELECT COALESCE(SUM(qty_change), 0) AS qty
                     FROM stock_movements
@@ -72,7 +74,57 @@ class OrderPart extends Model {
 
             $isFifo = ($itemType !== 'Service' && ((int)($p->is_fifo ?? 0) === 1 || (int)($p->is_expiry ?? 0) === 1));
             
-            if ($isFifo) {
+            // A La Carte handling: Consume ingredients and offset main item stock
+            if ($recipeType === 'A La Carte') {
+                require_once 'ProductionBOM.php';
+                $bomModel = new ProductionBOM();
+                $bom = $bomModel->getActiveBOMForPart($pid);
+                if ($bom && !empty($bom->items)) {
+                    $ingredientLoc = !empty($p->default_location_id) ? (int)$p->default_location_id : $locationId;
+                    foreach ($bom->items as $bi) {
+                        $ingredientQty = (float)$bi->qty * $qty;
+                        
+                        // Deduct ingredient
+                        $this->db->query("
+                            INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                            VALUES (:loc, :part_id, :qty_change, 'PRODUCTION_CONSUMPTION', 'repair_orders', :ref_id, 0, :notes, :created_by)
+                        ");
+                        $this->db->bind(':loc', $ingredientLoc);
+                        $this->db->bind(':part_id', $bi->part_id);
+                        $this->db->bind(':qty_change', -1 * $ingredientQty);
+                        $this->db->bind(':ref_id', $oid);
+                        $this->db->bind(':notes', 'BOM Consumption (' . $p->part_name . ')');
+                        $this->db->bind(':created_by', $userId);
+                        $this->db->execute();
+                        
+                        $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :id");
+                        $this->db->bind(':qty', $ingredientQty);
+                        $this->db->bind(':id', $bi->part_id);
+                        $this->db->execute();
+                    }
+                }
+                
+                // Always add main item (Assembly Offset) for A La Carte items
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                    VALUES (:loc, :part_id, :qty_change, 'PRODUCTION_RECEIPT', 'repair_orders', :ref_id, :unit_cost, :notes, :created_by)
+                ");
+                $this->db->bind(':loc', $locationId);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':qty_change', $qty);
+                $this->db->bind(':ref_id', $oid);
+                $this->db->bind(':unit_cost', $unitCost);
+                $this->db->bind(':notes', 'A La Carte Assembly');
+                $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+                
+                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':id', $pid);
+                $this->db->execute();
+            }
+            
+            if ($isFifo && $qty > 0) {
                 // FIFO Batch Deduction
                 $batchModel = new InventoryBatch();
                 $deductions = $batchModel->deductStockFIFO($pid, $locationId, $qty);
@@ -122,6 +174,12 @@ class OrderPart extends Model {
                     $this->db->bind(':notes', 'Issue to order (Batch)');
                     $this->db->bind(':created_by', $userId);
                     $this->db->execute();
+
+                    // Synchronize parts.stock_quantity column
+                    $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :id");
+                    $this->db->bind(':qty', $dQty);
+                    $this->db->bind(':id', $pid);
+                    $this->db->execute();
                 }
 
                 $this->db->exec("COMMIT");
@@ -145,6 +203,12 @@ class OrderPart extends Model {
                     $this->db->bind(':unit_price', $unitPrice);
                     $this->db->bind(':notes', 'Issue to order');
                     $this->db->bind(':created_by', $userId);
+                    $this->db->execute();
+
+                    // Synchronize parts.stock_quantity column
+                    $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :id");
+                    $this->db->bind(':qty', $qty);
+                    $this->db->bind(':id', $pid);
                     $this->db->execute();
                 }
 
@@ -245,6 +309,12 @@ class OrderPart extends Model {
                 $this->db->bind(':notes', 'Update issued qty');
                 $this->db->bind(':created_by', $userId);
                 $this->db->execute();
+
+                // Synchronize parts.stock_quantity column
+                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :diff WHERE id = :id");
+                $this->db->bind(':diff', $diff);
+                $this->db->bind(':id', $pid);
+                $this->db->execute();
             }
 
             $unitPrice = $line->unit_price !== null ? (float)$line->unit_price : null;
@@ -304,6 +374,12 @@ class OrderPart extends Model {
                 $this->db->bind(':unit_cost', (float)$line->unit_cost);
                 $this->db->bind(':unit_price', (float)$line->unit_price);
                 $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+
+                // Synchronize parts.stock_quantity column
+                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty WHERE id = :id");
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':id', $pid);
                 $this->db->execute();
 
                 if ($batchId) {

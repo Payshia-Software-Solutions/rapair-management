@@ -77,9 +77,9 @@ class InventorySchema {
         }
 
         // Brands are used by parts (brand_id). Ensure the brands table and permissions exist.
-        try { BrandSchema::ensure(); } catch (Exception $e) {}
+        try { if (class_exists('BrandSchema')) BrandSchema::ensure(); } catch (Throwable $e) { error_log("InventorySchema: BrandSchema failed: " . $e->getMessage()); }
         // Taxes are used by purchasing documents; keep it available on older installs.
-        try { TaxSchema::ensure(); } catch (Exception $e) {}
+        try { if (class_exists('TaxSchema')) TaxSchema::ensure(); } catch (Throwable $e) { error_log("InventorySchema: TaxSchema failed: " . $e->getMessage()); }
 
         // Short document numbering sequences (PO/GRN). Best-effort and safe under concurrency.
         try {
@@ -343,14 +343,20 @@ class InventorySchema {
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     transfer_id INT NOT NULL,
                     part_id INT NOT NULL,
+                    batch_id INT NULL,
                     qty DECIMAL(12,3) NOT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_sti_transfer (transfer_id),
                     INDEX idx_sti_part (part_id),
+                    INDEX idx_sti_batch (batch_id),
                     FOREIGN KEY (transfer_id) REFERENCES stock_transfer_requests(id) ON DELETE CASCADE,
                     FOREIGN KEY (part_id) REFERENCES parts(id)
                 )
             ");
+            if (!self::hasColumn($pdo, 'stock_transfer_items', 'batch_id')) {
+                $pdo->exec("ALTER TABLE stock_transfer_items ADD COLUMN batch_id INT NULL AFTER part_id");
+                try { $pdo->exec("ALTER TABLE stock_transfer_items ADD INDEX idx_sti_batch (batch_id)"); } catch (Exception $e2) {}
+            }
         } catch (Exception $e) {}
 
         // Stock transfer requisitions (requested by the destination location)
@@ -557,7 +563,7 @@ class InventorySchema {
                     location_id INT NOT NULL DEFAULT 1,
                     part_id INT NOT NULL,
                     qty_change DECIMAL(12,3) NOT NULL,
-                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT') NOT NULL,
+                    movement_type ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT','SALE') NOT NULL,
                     ref_table VARCHAR(64) NULL,
                     ref_id INT NULL,
                     unit_cost DECIMAL(10,2) NULL,
@@ -589,18 +595,42 @@ class InventorySchema {
                     $pdo->exec("
                         ALTER TABLE stock_movements
                         MODIFY COLUMN movement_type
-                        ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT')
+                        ENUM('GRN','ORDER_ISSUE','ADJUSTMENT','TRANSFER_IN','TRANSFER_OUT','PRODUCTION_CONSUMPTION','PRODUCTION_RECEIPT','SALE','SALES_RETURN','PURCHASE_RETURN')
                         NOT NULL
                     ");
                 } catch (Exception $e2) {}
 
-                // Best-effort fix for existing blank movement_type rows created by stock transfers.
+                // Best-effort fix for existing blank movement_type rows
                 try {
                     $pdo->exec("
                         UPDATE stock_movements
                         SET movement_type = CASE WHEN qty_change >= 0 THEN 'TRANSFER_IN' ELSE 'TRANSFER_OUT' END
                         WHERE (movement_type = '' OR movement_type IS NULL)
                           AND ref_table = 'stock_transfer_requests'
+                    ");
+                    $pdo->exec("
+                        UPDATE stock_movements
+                        SET movement_type = 'SALE'
+                        WHERE (movement_type = '' OR movement_type IS NULL)
+                          AND ref_table = 'invoices'
+                    ");
+                    $pdo->exec("
+                        UPDATE stock_movements
+                        SET movement_type = 'SALES_RETURN'
+                        WHERE (movement_type = '' OR movement_type IS NULL)
+                          AND ref_table = 'sales_returns'
+                    ");
+                    $pdo->exec("
+                        UPDATE stock_movements
+                        SET movement_type = 'PRODUCTION_CONSUMPTION'
+                        WHERE (movement_type = '' OR movement_type IS NULL)
+                          AND notes LIKE 'Production Consumption%'
+                    ");
+                    $pdo->exec("
+                        UPDATE stock_movements
+                        SET movement_type = 'PRODUCTION_RECEIPT'
+                        WHERE (movement_type = '' OR movement_type IS NULL)
+                          AND notes LIKE 'Production Entry%'
                     ");
                 } catch (Exception $e2) {}
             }
@@ -645,13 +675,15 @@ class InventorySchema {
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     stock_adjustment_id INT NOT NULL,
                     part_id INT NOT NULL,
+                    batch_id INT NULL,
                     system_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
                     physical_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000,
                     qty_change DECIMAL(12,3) NOT NULL,
                     notes VARCHAR(255) NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     INDEX idx_sai_adj (stock_adjustment_id),
-                    INDEX idx_sai_part (part_id)
+                    INDEX idx_sai_part (part_id),
+                    INDEX idx_sai_batch (batch_id)
                 )
             ");
             try { $pdo->exec("ALTER TABLE stock_adjustment_items ADD CONSTRAINT fk_sai_adj FOREIGN KEY (stock_adjustment_id) REFERENCES stock_adjustments(id) ON DELETE CASCADE"); } catch (Exception $e2) {}
@@ -674,6 +706,14 @@ class InventorySchema {
                 try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN system_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
                 try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN physical_stock DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
                 try { $pdo->exec("ALTER TABLE stock_adjustment_items MODIFY COLUMN qty_change DECIMAL(12,3) NOT NULL"); } catch (Exception $e2) {}
+
+                // Batch support for existing installs
+                try {
+                    if (!self::hasColumn($pdo, 'stock_adjustment_items', 'batch_id')) {
+                        $pdo->exec("ALTER TABLE stock_adjustment_items ADD COLUMN batch_id INT NULL AFTER part_id");
+                        $pdo->exec("ALTER TABLE stock_adjustment_items ADD INDEX idx_sai_batch (batch_id)");
+                    }
+                } catch (Exception $e2) {}
             }
         } catch (Exception $e) {
             // ignore

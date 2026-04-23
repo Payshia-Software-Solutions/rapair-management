@@ -76,9 +76,11 @@ class StockAdjustment extends Model {
         if (!$hdr) return null;
 
         $this->db->query("
-            SELECT sai.*, p.part_name, p.sku, p.unit
+            SELECT sai.*, p.part_name, p.sku, p.unit, b.batch_number, 
+                   COALESCE(b.unit_cost, p.cost_price, 0) AS unit_cost
             FROM stock_adjustment_items sai
             INNER JOIN parts p ON p.id = sai.part_id
+            LEFT JOIN inventory_batches b ON b.id = sai.batch_id
             WHERE sai.stock_adjustment_id = :id
             ORDER BY sai.id ASC
         ");
@@ -142,6 +144,9 @@ class StockAdjustment extends Model {
         if ($adjNumber === '') $adjNumber = $this->genNumber();
 
         try {
+            require_once __DIR__ . '/InventoryBatch.php';
+            $batchModel = new InventoryBatch();
+
             $this->db->exec("START TRANSACTION");
 
             // Create header
@@ -178,15 +183,38 @@ class StockAdjustment extends Model {
                     return ['error' => "Invalid physical stock for part {$pid}"];
                 }
 
-                // Lock part row and read current system stock
-                $this->db->query("SELECT stock_quantity FROM parts WHERE id = :id FOR UPDATE");
-                $this->db->bind(':id', $pid);
-                $p = $this->db->single();
-                if (!$p) {
-                    $this->db->exec("ROLLBACK");
-                    return ['error' => "Part {$pid} not found"];
+                $system = 0;
+                $bid = (int)($ln['batch_id'] ?? 0);
+
+                if ($bid > 0) {
+                    // Lock and read batch stock (Batches are inherently location-specific)
+                    $this->db->query("SELECT quantity_on_hand FROM inventory_batches WHERE id = :id AND location_id = :loc FOR UPDATE");
+                    $this->db->bind(':id', $bid);
+                    $this->db->bind(':loc', $locId);
+                    $btch = $this->db->single();
+                    if (!$btch) {
+                        $this->db->exec("ROLLBACK");
+                        return ['error' => "Batch {$bid} not found at this location"];
+                    }
+                    $system = round((float)($btch->quantity_on_hand ?? 0), 3);
+                } else {
+                    // 1. Lock part row for global stock consistency
+                    $this->db->query("SELECT id FROM parts WHERE id = :id FOR UPDATE");
+                    $this->db->bind(':id', $pid);
+                    $this->db->execute();
+
+                    // 2. Calculate local system stock from movements ledger
+                    $this->db->query("
+                        SELECT COALESCE(SUM(qty_change), 0) AS local_qty 
+                        FROM stock_movements 
+                        WHERE part_id = :id AND location_id = :loc
+                    ");
+                    $this->db->bind(':id', $pid);
+                    $this->db->bind(':loc', $locId);
+                    $res = $this->db->single();
+                    $system = round((float)($res->local_qty ?? 0), 3);
                 }
-                $system = round((float)($p->stock_quantity ?? 0), 3);
+
                 $qty = round($physical - $system, 3); // variance
                 if (abs($qty) < 0.0005) $qty = 0.000;
 
@@ -196,22 +224,30 @@ class StockAdjustment extends Model {
                 }
 
                 if ($qty != 0.0) {
-                    $next = $physical;
-                    // Update stock to physical count
-                    $this->db->query("UPDATE parts SET stock_quantity = :q, updated_by = :u WHERE id = :id");
-                    $this->db->bind(':q', $next);
+                    // Update global total cached stock by applying the LOCAL variance (incremental update)
+                    $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :q, updated_by = :u WHERE id = :id");
+                    $this->db->bind(':q', $qty);
                     $this->db->bind(':u', $userId);
                     $this->db->bind(':id', $pid);
                     $this->db->execute();
+
+                    // Update batch-specific record to physical count if applying to a batch
+                    if ($bid > 0) {
+                        $this->db->query("UPDATE inventory_batches SET quantity_on_hand = :q WHERE id = :id");
+                        $this->db->bind(':q', $physical);
+                        $this->db->bind(':id', $bid);
+                        $this->db->execute();
+                    }
                 }
 
                 // Insert adjustment item
                 $this->db->query("
-                    INSERT INTO stock_adjustment_items (stock_adjustment_id, part_id, system_stock, physical_stock, qty_change, notes)
-                    VALUES (:aid, :pid, :system_stock, :physical_stock, :qty, :notes)
+                    INSERT INTO stock_adjustment_items (stock_adjustment_id, part_id, batch_id, system_stock, physical_stock, qty_change, notes)
+                    VALUES (:aid, :pid, :bid, :system_stock, :physical_stock, :qty, :notes)
                 ");
                 $this->db->bind(':aid', $adjId);
                 $this->db->bind(':pid', $pid);
+                $this->db->bind(':bid', $bid > 0 ? $bid : null);
                 $this->db->bind(':system_stock', $system);
                 $this->db->bind(':physical_stock', $physical);
                 $this->db->bind(':qty', $qty);
@@ -221,11 +257,12 @@ class StockAdjustment extends Model {
                 // Stock movement ledger (only when stock actually changes)
                 if ($qty != 0.0) {
                     $this->db->query("
-                        INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                        VALUES (:loc, :pid, :qty, 'ADJUSTMENT', 'stock_adjustments', :ref_id, :notes, :u)
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                        VALUES (:loc, :pid, :bid, :qty, 'ADJUSTMENT', 'stock_adjustments', :ref_id, :notes, :u)
                     ");
                     $this->db->bind(':loc', $locId);
                     $this->db->bind(':pid', $pid);
+                    $this->db->bind(':bid', $bid > 0 ? $bid : null);
                     $this->db->bind(':qty', $qty);
                     $this->db->bind(':ref_id', $adjId);
                     $this->db->bind(':notes', $adjNumber);
@@ -242,9 +279,9 @@ class StockAdjustment extends Model {
 
             $this->db->exec("COMMIT");
             return $adjId;
-        } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
-            return false;
+        } catch (Throwable $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Throwable $e2) {}
+            return ['error' => 'Adjustment Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine()];
         }
     }
 }

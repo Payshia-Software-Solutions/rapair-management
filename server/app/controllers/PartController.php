@@ -204,7 +204,8 @@ class PartController extends Controller {
         $notes = isset($data['notes']) ? trim((string)$data['notes']) : null;
         if ($partId <= 0 || $qty === 0) $this->error('Invalid adjustment', 400);
 
-        $ok = $this->partModel->adjustStock($partId, $qty, $notes, (int)$u['sub']);
+        $locId = $this->currentLocationId($u);
+        $ok = $this->partModel->adjustStock($partId, $qty, $notes, (int)$u['sub'], $locId);
         if ($ok) $this->success(null, 'Stock adjusted');
         $this->error('Stock adjustment failed (insufficient stock or invalid part)', 400);
     }

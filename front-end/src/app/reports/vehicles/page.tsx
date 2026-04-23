@@ -61,7 +61,7 @@ export default function VehicleReportPage() {
     try {
       const data = await fetchReportVehicles({
         q: query.trim() || undefined,
-        departmentId: departmentId ? Number(departmentId) : undefined,
+        department_id: departmentId ? Number(departmentId) : undefined,
       });
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {

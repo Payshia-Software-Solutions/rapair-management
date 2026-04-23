@@ -196,21 +196,27 @@ class StockTransfer extends Model {
         $fromId = (int)($data['from_location_id'] ?? $data['fromLocationId'] ?? 0);
         $toId = (int)($data['to_location_id'] ?? $data['toLocationId'] ?? 0);
         $reqId = (int)($data['requisition_id'] ?? $data['requisitionId'] ?? 0);
-        if ($fromId <= 0 || $toId <= 0 || $fromId === $toId) return false;
+        if ($fromId <= 0 || $toId <= 0) return ['error' => 'Invalid source or destination location'];
+        if ($fromId === $toId) return ['error' => 'Source and destination locations must be different'];
 
         $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
-        if (count($items) === 0) return false;
+        if (count($items) === 0) return ['error' => 'No items provided in the transfer request'];
 
-        $merged = [];
+        $processedItems = [];
         foreach ($items as $it) {
             $pid = (int)($it['part_id'] ?? $it['partId'] ?? 0);
+            $bid = (int)($it['batch_id'] ?? $it['batchId'] ?? 0);
             $qty = $it['qty'] ?? $it['quantity'] ?? null;
             $qty = ($qty === '' || $qty === null) ? null : (float)$qty;
             if ($pid <= 0 || $qty === null || $qty <= 0) continue;
-            if (!isset($merged[$pid])) $merged[$pid] = 0;
-            $merged[$pid] += $qty;
+            
+            $processedItems[] = [
+                'part_id' => $pid,
+                'batch_id' => $bid > 0 ? $bid : null,
+                'qty' => $qty
+            ];
         }
-        if (count($merged) === 0) return false;
+        if (count($processedItems) === 0) return ['error' => 'No valid items provided for transfer'];
 
         $num = trim((string)($data['transfer_number'] ?? ''));
         if ($num === '') $num = $this->genNumber();
@@ -218,6 +224,9 @@ class StockTransfer extends Model {
         if (!$requestedAt) $requestedAt = (new DateTime('now'))->format('Y-m-d H:i:s');
 
         try {
+            require_once __DIR__ . '/InventoryBatch.php';
+            $batchModel = new InventoryBatch();
+
             $this->db->exec("START TRANSACTION");
 
             // If created from a requisition, validate it and lock destination.
@@ -227,28 +236,39 @@ class StockTransfer extends Model {
                 $req = $this->db->single();
                 if (!$req) {
                     $this->db->exec("ROLLBACK");
-                    return false;
+                    return ['error' => 'Requisition not found'];
                 }
                 if (!in_array((string)$req->status, ['Requested','Approved'], true)) {
                     $this->db->exec("ROLLBACK");
-                    return false;
+                    return ['error' => 'Requisition is not in a valid state'];
                 }
                 $toId = (int)$req->to_location_id;
                 if ($toId <= 0) {
                     $this->db->exec("ROLLBACK");
-                    return false;
+                    return ['error' => 'Requisition has no valid destination location'];
                 }
             }
 
             // Verify stock availability at source before creating the request.
-            // Uses per-location ledger when available, otherwise falls back to parts.stock_quantity.
-            foreach ($merged as $pid => $qty) {
-                $pid = (int)$pid;
-                $need = (float)$qty;
-                if ($pid <= 0 || $need <= 0) continue;
-                $avail = $this->availableQtyForTransferCreate($fromId, $pid);
+            foreach ($processedItems as $it) {
+                $pid = $it['part_id'];
+                $bid = $it['batch_id'];
+                $need = $it['qty'];
+
+                $avail = 0;
+                if ($bid) {
+                    $batches = $batchModel->getAvailableBatches($pid, $fromId);
+                    foreach ($batches as $b) {
+                        if ((int)$b->id === (int)$bid) {
+                            $avail = (float)$b->quantity_on_hand;
+                            break;
+                        }
+                    }
+                } else {
+                    $avail = $this->availableQtyForTransferCreate($fromId, $pid);
+                }
+
                 if ($avail + 0.000001 < $need) {
-                    // Fetch name for friendlier error (best-effort)
                     $name = null;
                     try {
                         $this->db->query("SELECT part_name FROM parts WHERE id = :id LIMIT 1");
@@ -258,7 +278,7 @@ class StockTransfer extends Model {
                     } catch (Exception $e2) {}
                     $label = $name ? $name : ("Item #" . $pid);
                     $this->db->exec("ROLLBACK");
-                    return ['error' => "Insufficient stock at source for {$label}. Available: " . number_format(max(0, $avail), 3, '.', '') . ", requested: " . number_format($need, 3, '.', '')];
+                    return ['error' => "Insufficient stock at source for {$label}" . ($bid ? " (Batch #{$bid})" : "") . ". Available: " . number_format(max(0, $avail), 3, '.', '') . ", requested: " . number_format($need, 3, '.', '')];
                 }
             }
 
@@ -277,7 +297,7 @@ class StockTransfer extends Model {
             $ok = $this->db->execute();
             if (!$ok) {
                 $this->db->exec("ROLLBACK");
-                return false;
+                return ['error' => 'Failed to insert transfer request into database'];
             }
             $id = (int)$this->db->lastInsertId();
 
@@ -299,26 +319,33 @@ class StockTransfer extends Model {
                 }
             }
 
-            foreach ($merged as $pid => $qty) {
+            foreach ($processedItems as $it) {
+                $pid = $it['part_id'];
+                $bid = $it['batch_id'];
+                $qty = $it['qty'];
+
                 if ($reqId > 0) {
-                    $rem = isset($remaining[(int)$pid]) ? (float)$remaining[(int)$pid] : 0.0;
+                    $rem = isset($remaining[$pid]) ? (float)$remaining[$pid] : 0.0;
                     if ($rem <= 0 || $qty > $rem + 0.000001) {
                         $this->db->exec("ROLLBACK");
-                        return false;
+                        return ['error' => "Quantity for item #{$pid} exceeds the remaining requested amount"];
                     }
+                    // Subtract from the local tracker to support multiple lines of same part against one req
+                    $remaining[$pid] -= $qty;
                 }
-                $this->db->query("INSERT INTO stock_transfer_items (transfer_id, part_id, qty) VALUES (:tid, :pid, :qty)");
+                $this->db->query("INSERT INTO stock_transfer_items (transfer_id, part_id, batch_id, qty) VALUES (:tid, :pid, :bid, :qty)");
                 $this->db->bind(':tid', $id);
-                $this->db->bind(':pid', (int)$pid);
+                $this->db->bind(':pid', $pid);
+                $this->db->bind(':bid', $bid);
                 $this->db->bind(':qty', $qty);
                 $this->db->execute();
             }
 
             $this->db->exec("COMMIT");
             return $id;
-        } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
-            return false;
+        } catch (Throwable $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Throwable $e2) {}
+            return ['error' => 'Stock Transfer Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine()];
         }
     }
 
@@ -350,54 +377,81 @@ class StockTransfer extends Model {
         try {
             $this->db->exec("START TRANSACTION");
 
+            require_once 'Part.php';
+            require_once 'InventoryBatch.php';
+            $partModel = new Part();
+            $batchModel = new InventoryBatch();
+
             foreach ($items as $it) {
                 $pid = (int)$it->part_id;
                 $qty = (float)$it->qty;
                 if ($qty <= 0) continue;
 
-                // Best-effort availability check (global stock)
-                $this->db->query("SELECT stock_quantity FROM parts WHERE id = :id LIMIT 1");
-                $this->db->bind(':id', $pid);
-                $row = $this->db->single();
-                if (!$row) {
+                $part = $partModel->getById($pid);
+                if (!$part) {
                     $this->db->exec("ROLLBACK");
-                    return ['error' => 'Invalid item'];
-                }
-                $available = (float)$row->stock_quantity;
-                if ($available < $qty) {
-                    $this->db->exec("ROLLBACK");
-                    return ['error' => 'Insufficient stock for transfer'];
+                    return ['error' => 'Invalid part ID: ' . $pid];
                 }
 
-                // Stock movement: out
-                $this->db->query("
-                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                    VALUES (:loc, :pid, :qty, 'TRANSFER_OUT', 'stock_transfer_requests', :ref, :notes, :u)
-                ");
-                $this->db->bind(':loc', $fromId);
-                $this->db->bind(':pid', $pid);
-                $this->db->bind(':qty', -abs($qty));
-                $this->db->bind(':ref', $tid);
-                $this->db->bind(':notes', $transferNumber);
-                $this->db->bind(':u', $userId);
-                $this->db->execute();
+                $costPrice = (float)($part->cost_price ?? 0);
+                $isFifo = (int)($part->is_fifo ?? 0) === 1 || (int)($part->is_expiry ?? 0) === 1;
 
-                // Stock movement: in
-                $this->db->query("
-                    INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                    VALUES (:loc, :pid, :qty, 'TRANSFER_IN', 'stock_transfer_requests', :ref, :notes, :u)
-                ");
-                $this->db->bind(':loc', $toId);
-                $this->db->bind(':pid', $pid);
-                $this->db->bind(':qty', abs($qty));
-                $this->db->bind(':ref', $tid);
-                $this->db->bind(':notes', $transferNumber);
-                $this->db->bind(':u', $userId);
-                $this->db->execute();
+                // Priority 1: Manual batch selection preserved from the request
+                // Priority 2: Automatic FIFO deduction
+                // Priority 3: Fallback (Standard/Periodic)
+                
+                $fixedBatchId = (int)($it->batch_id ?? 0);
+
+                if ($fixedBatchId > 0) {
+                    $deductions = [['batch_id' => $fixedBatchId, 'qty_deducted' => $qty]];
+                } else if ($isFifo) {
+                    $deductions = $batchModel->deductStockFIFO($pid, $fromId, $qty);
+                    if (empty($deductions)) {
+                        $deductions = [['batch_id' => null, 'qty_deducted' => $qty]];
+                    }
+                } else {
+                    $deductions = [['batch_id' => null, 'qty_deducted' => $qty]];
+                }
+
+                foreach ($deductions as $d) {
+                    $batchId = $d['batch_id'];
+                    $dquty = (float)$d['qty_deducted'];
+
+                    // Stock movement: out from source
+                    $this->db->query("
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                        VALUES (:loc, :pid, :bid, :qty, 'TRANSFER_OUT', 'stock_transfer_requests', :ref, :cost, :notes, :u)
+                    ");
+                    $this->db->bind(':loc', $fromId);
+                    $this->db->bind(':pid', $pid);
+                    $this->db->bind(':bid', $batchId);
+                    $this->db->bind(':qty', -abs($dquty));
+                    $this->db->bind(':ref', $tid);
+                    $this->db->bind(':cost', $costPrice);
+                    $this->db->bind(':notes', $transferNumber . ($batchId ? ' (Batch Move)' : ''));
+                    $this->db->bind(':u', $userId);
+                    $this->db->execute();
+
+                    // Stock movement: in to destination (preserving batch_id)
+                    $this->db->query("
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                        VALUES (:loc, :pid, :bid, :qty, 'TRANSFER_IN', 'stock_transfer_requests', :ref, :cost, :notes, :u)
+                    ");
+                    $this->db->bind(':loc', $toId);
+                    $this->db->bind(':pid', $pid);
+                    $this->db->bind(':bid', $batchId);
+                    $this->db->bind(':qty', abs($dquty));
+                    $this->db->bind(':ref', $tid);
+                    $this->db->bind(':cost', $costPrice);
+                    $this->db->bind(':notes', $transferNumber . ($batchId ? ' (Batch Move)' : ''));
+                    $this->db->bind(':u', $userId);
+                    $this->db->execute();
+                }
 
                 // If this shipment came from a requisition, settle fulfilled qty on receive.
                 if ($reqId > 0) {
                     try {
+                        require_once 'StockRequisition.php';
                         $rq = new StockRequisition();
                         $rq->addFulfilledQty($reqId, $pid, abs($qty));
                     } catch (Exception $e3) {

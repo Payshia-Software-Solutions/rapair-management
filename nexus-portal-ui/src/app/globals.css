@@ -1,0 +1,148 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --primary: #6366f1;
+  --secondary: #ec4899;
+  --glass-bg: #ffffff;
+  --glass-border: #e2e8f0;
+  --glass-hover: #f1f5f9;
+  --card-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05);
+  --gradient-from: #4f46e5;
+  --gradient-via: #7c3aed;
+  --gradient-to: #db2777;
+  --text-muted: #64748b;
+  --text-strong: #0f172a;
+  --input-bg: #ffffff;
+  --input-border: #e2e8f0;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f8fafc;
+  --glass-bg: rgba(255, 255, 255, 0.04);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-hover: rgba(255, 255, 255, 0.08);
+  --card-shadow: 0 10px 40px -15px rgba(0, 0, 0, 0.4);
+  --gradient-from: #818cf8;
+  --gradient-via: #a78bfa;
+  --gradient-to: #f472b6;
+  --text-muted: #94a3b8;
+  --text-strong: #f8fafc;
+  --input-bg: rgba(15, 23, 42, 0.5);
+  --input-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: 'Inter', sans-serif;
+}
+
+button, 
+[role="button"],
+select {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+@utility glass {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  border-radius: 1rem;
+  box-shadow: var(--card-shadow);
+}
+
+@utility glass-hover {
+  @apply transition-all duration-300;
+  &:hover {
+    background-color: var(--glass-hover);
+  }
+}
+
+@utility btn-premium {
+  @apply px-8 py-3 rounded-lg font-bold transition-all duration-300 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:scale-105 hover:shadow-[0_0_20px_rgba(99,102,241,0.5)];
+}
+
+@utility text-muted {
+  color: var(--text-muted);
+}
+
+@utility text-strong {
+  color: var(--text-strong);
+}
+
+@utility text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-[var(--gradient-from)] via-[var(--gradient-via)] to-[var(--gradient-to)];
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+@utility animate-fade-in {
+  animation: fadeIn 0.8s ease-out forwards;
+}
+
+@utility animate-fade-in-up {
+  animation: fadeInUp 0.8s ease-out forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-500 { animation-delay: 500ms; }
+.delay-700 { animation-delay: 700ms; }
+
+@utility horizon-glow {
+  background: radial-gradient(ellipse at bottom, rgba(99, 102, 241, 0.2) 0%, rgba(15, 23, 42, 0) 70%);
+}
+
+@utility text-hero {
+  @apply text-5xl md:text-7xl lg:text-[100px] font-extrabold tracking-tight leading-[0.9];
+  color: var(--foreground);
+}
+
+@utility btn-pill {
+  @apply px-10 py-5 rounded-full font-bold text-sm uppercase tracking-widest transition-all duration-300;
+  background-color: var(--foreground);
+  color: var(--background);
+  
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 50px color-mix(in srgb, var(--foreground) 20%, transparent);
+  }
+}

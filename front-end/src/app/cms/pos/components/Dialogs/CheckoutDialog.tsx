@@ -594,114 +594,271 @@ export const CheckoutDialog: React.FC = () => {
 
       {/* Split Payment Detail Sub-Modals (Card/Cheque) */}
       <Dialog open={editingPaymentIndex !== null} onOpenChange={(o) => !o && setEditingPaymentIndex(null)}>
-        <DialogContent className="sm:max-w-md bg-background rounded-3xl p-6">
-           <DialogHeader>
-             <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
-               {editingPaymentIndex !== null && splitPayments[editingPaymentIndex]?.method === 'Card' ? <><CreditCard/> Card Setup</> : <><Receipt/> Cheque Setup</>}
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md bg-white dark:bg-slate-950 rounded-[2rem] p-6 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+           <DialogHeader className="mb-4">
+             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+               {editingPaymentIndex !== null && splitPayments[editingPaymentIndex]?.method === 'Card' ? (
+                 <><CreditCard className="w-5 h-5 text-indigo-500"/> Card Setup</>
+               ) : (
+                 <><Receipt className="w-5 h-5 text-amber-500"/> Cheque Setup</>
+               )}
              </DialogTitle>
            </DialogHeader>
            {editingPaymentIndex !== null && (
-             <div className="space-y-4 py-4">
+             <div className="space-y-6">
                 {splitPayments[editingPaymentIndex].method === 'Card' ? (
-                  <div className="space-y-4">
+                  <div className="space-y-6">
                     <div className="grid grid-cols-2 gap-2">
                       {['Visa', 'Mastercard', 'AMEX', 'Other'].map(type => (
-                        <Button key={type} size="sm" variant={splitPayments[editingPaymentIndex].cardType === type ? 'default' : 'outline'} onClick={() => {
-                          const n = [...splitPayments]; n[editingPaymentIndex].cardType = type; setSplitPayments(n);
-                        }} className="font-bold">{type}</Button>
+                        <Button 
+                          key={type} 
+                          size="sm" 
+                          variant={splitPayments[editingPaymentIndex].cardType === type ? 'default' : 'outline'} 
+                          onClick={() => {
+                            const n = [...splitPayments]; n[editingPaymentIndex].cardType = type; setSplitPayments(n);
+                          }} 
+                          className={`font-black text-[10px] uppercase h-10 transition-all rounded-xl ${splitPayments[editingPaymentIndex].cardType === type ? 'ring-2 ring-primary/20' : ''}`}
+                        >
+                          {type}
+                        </Button>
                       ))}
                     </div>
-                    <Input maxLength={4} placeholder="Last 4 Digits" value={splitPayments[editingPaymentIndex].cardLast4} onChange={e => {
-                      const n = [...splitPayments]; n[editingPaymentIndex].cardLast4 = e.target.value.replace(/\D/g,''); setSplitPayments(n);
-                    }} className="font-mono text-center text-xl font-black h-12" />
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Provider / Bank</label>
+                        <select 
+                          className="w-full h-11 px-4 text-sm font-bold bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                          value={splitPayments[editingPaymentIndex].bankId || ""}
+                          onChange={e => {
+                            const n = [...splitPayments]; n[editingPaymentIndex].bankId = e.target.value; setSplitPayments(n);
+                          }}
+                        >
+                          <option value="">Select Bank</option>
+                          {banks.map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Category</label>
+                        <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-2xl">
+                          {['Credit', 'Debit'].map(cat => (
+                            <Button
+                              key={cat}
+                              size="sm"
+                              variant={splitPayments[editingPaymentIndex].cardCategory === cat ? 'default' : 'ghost'}
+                              onClick={() => {
+                                const n = [...splitPayments]; n[editingPaymentIndex].cardCategory = cat; setSplitPayments(n);
+                              }}
+                              className={`h-9 font-black text-[10px] uppercase rounded-xl transition-all ${splitPayments[editingPaymentIndex].cardCategory === cat ? 'bg-white dark:bg-slate-800 shadow-sm text-primary' : 'text-muted-foreground'}`}
+                            >
+                              {cat} Card
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Number (Last 4)</label>
+                          <Input 
+                            maxLength={4} 
+                            placeholder="0000" 
+                            value={splitPayments[editingPaymentIndex].cardLast4 || ""} 
+                            onChange={e => {
+                              const n = [...splitPayments]; n[editingPaymentIndex].cardLast4 = e.target.value.replace(/\D/g,''); setSplitPayments(n);
+                            }} 
+                            className="font-mono text-center text-2xl h-12 font-black tracking-[0.2em] bg-slate-50 dark:bg-slate-900 border-none rounded-xl" 
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Auth Code</label>
+                          <Input 
+                            placeholder="Verification" 
+                            value={splitPayments[editingPaymentIndex].cardAuthCode || ""} 
+                            onChange={e => {
+                              const n = [...splitPayments]; n[editingPaymentIndex].cardAuthCode = e.target.value; setSplitPayments(n);
+                            }} 
+                            className="text-center font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl placeholder:font-medium" 
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                       <Input placeholder="Cheque #" value={splitPayments[editingPaymentIndex].chequeNo} onChange={e => {
-                         const n = [...splitPayments]; n[editingPaymentIndex].chequeNo = e.target.value; setSplitPayments(n);
-                       }} />
-                       <Input type="date" value={splitPayments[editingPaymentIndex].chequeDate} onChange={e => {
-                         const n = [...splitPayments]; n[editingPaymentIndex].chequeDate = e.target.value; setSplitPayments(n);
-                       }} />
+                  <div className="space-y-5">
+                    <div className="grid grid-cols-2 gap-3">
+                       <div className="space-y-1.5">
+                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Cheque #</label>
+                         <Input 
+                          placeholder="XXXXXX" 
+                          value={splitPayments[editingPaymentIndex].chequeNo} 
+                          onChange={e => {
+                            const n = [...splitPayments]; n[editingPaymentIndex].chequeNo = e.target.value; setSplitPayments(n);
+                          }} 
+                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                         />
+                       </div>
+                       <div className="space-y-1.5">
+                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Date</label>
+                         <Input 
+                          type="date" 
+                          value={splitPayments[editingPaymentIndex].chequeDate} 
+                          onChange={e => {
+                            const n = [...splitPayments]; n[editingPaymentIndex].chequeDate = e.target.value; setSplitPayments(n);
+                          }} 
+                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                         />
+                       </div>
                     </div>
-                    <SearchableSelect
-                        options={banks.map(b => ({ value: String(b.id), label: b.name }))}
-                        value={splitPayments[editingPaymentIndex].chequeBankName ? String(banks.find(b => b.name === splitPayments[editingPaymentIndex].chequeBankName)?.id || "") : ""}
-                        onValueChange={async (val) => {
-                          const b = banks.find(x => String(x.id) === val);
-                          if (b) {
-                             const n = [...splitPayments]; n[editingPaymentIndex].chequeBankName = b.name; n[editingPaymentIndex].chequeBranchName = ""; setSplitPayments(n);
-                             setBankBranches(await fetchBankBranches(val));
-                          }
-                        }}
-                        placeholder="Select Bank"
-                      />
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Issuing Bank</label>
                       <SearchableSelect
-                        options={bankBranches.map(br => ({ value: String(br.id), label: br.branch_name }))}
-                        value={splitPayments[editingPaymentIndex].chequeBranchName ? String(bankBranches.find(br => br.branch_name === splitPayments[editingPaymentIndex].chequeBranchName)?.id || "") : ""}
-                        onValueChange={(val) => {
-                          const br = bankBranches.find(x => String(x.id) === val);
-                          if (br) { const n = [...splitPayments]; n[editingPaymentIndex].chequeBranchName = br.branch_name; setSplitPayments(n); }
-                        }}
-                        placeholder="Select Branch"
-                        disabled={!bankBranches.length}
-                      />
+                          options={banks.map(b => ({ value: String(b.id), label: b.name }))}
+                          value={splitPayments[editingPaymentIndex].chequeBankName ? String(banks.find(b => b.name === splitPayments[editingPaymentIndex].chequeBankName)?.id || "") : ""}
+                          onValueChange={async (val) => {
+                            const b = banks.find(x => String(x.id) === val);
+                            if (b) {
+                               const n = [...splitPayments]; n[editingPaymentIndex].chequeBankName = b.name; n[editingPaymentIndex].chequeBranchName = ""; setSplitPayments(n);
+                               setBankBranches(await fetchBankBranches(val));
+                            }
+                          }}
+                          placeholder="Select Bank"
+                        />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Branch</label>
+                      <SearchableSelect
+                          options={bankBranches.map(br => ({ value: String(br.id), label: br.branch_name }))}
+                          value={splitPayments[editingPaymentIndex].chequeBranchName ? String(bankBranches.find(br => br.branch_name === splitPayments[editingPaymentIndex].chequeBranchName)?.id || "") : ""}
+                          onValueChange={(val) => {
+                            const br = bankBranches.find(x => String(x.id) === val);
+                            if (br) { const n = [...splitPayments]; n[editingPaymentIndex].chequeBranchName = br.branch_name; setSplitPayments(n); }
+                          }}
+                          placeholder="Select Branch"
+                          disabled={!bankBranches.length}
+                        />
+                    </div>
                   </div>
                 )}
-                <Button onClick={() => setEditingPaymentIndex(null)} className="w-full h-12 font-black uppercase">Save Details</Button>
+                <Button onClick={() => setEditingPaymentIndex(null)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20">
+                  Save Changes
+                </Button>
              </div>
            )}
         </DialogContent>
       </Dialog>
+
       {/* Single Payment Detail Sub-Modals (Card) */}
       <Dialog open={cardDetailsOpen} onOpenChange={setCardDetailsOpen}>
-        <DialogContent className="w-full sm:max-w-md h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl p-6 bg-background">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
-              <CreditCard/> Card Details
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md h-auto rounded-[2rem] p-6 bg-white dark:bg-slate-950 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+              <CreditCard className="w-5 h-5 text-indigo-500"/> Card Details
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-6">
-            <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-2">
               {['Visa', 'Mastercard', 'AMEX', 'Other'].map(type => (
-                <Button key={type} size="lg" variant={cardType === type ? 'default' : 'outline'} onClick={() => setCardType(type)} className="font-bold h-12">{type}</Button>
+                <Button 
+                  key={type} 
+                  size="sm" 
+                  variant={cardType === type ? 'default' : 'outline'} 
+                  onClick={() => setCardType(type)} 
+                  className={`font-black text-[10px] uppercase h-10 transition-all rounded-xl ${cardType === type ? 'ring-2 ring-primary/20' : ''}`}
+                >
+                  {type}
+                </Button>
               ))}
             </div>
+
+            <div className="space-y-4">
+               <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Provider / Bank</label>
+                  <SearchableSelect 
+                      options={banks.map(b => ({ value: String(b.id), label: b.name }))}
+                      value={selectedBankId}
+                      onValueChange={(val) => setSelectedBankId(val)}
+                      placeholder="Select Bank..."
+                  />
+               </div>
+
+               <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Category</label>
+                  <div className="grid grid-cols-2 gap-2">
+                       {['Credit', 'Debit'].map(cat => (
+                           <Button 
+                              key={cat}
+                              type="button"
+                              variant={selectedCardCategory === cat ? 'default' : 'outline'}
+                              onClick={() => setSelectedCardCategory(cat)}
+                              className={`h-11 rounded-xl font-black text-[10px] uppercase transition-all ${selectedCardCategory === cat ? 'ring-2 ring-primary/20 shadow-lg' : ''}`}
+                           >
+                              {cat} Card
+                           </Button>
+                       ))}
+                  </div>
+               </div>
+            </div>
+
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Card Number (Last 4)</label>
-              <Input maxLength={4} placeholder="0000" value={cardLast4} onChange={e => setCardLast4(e.target.value.replace(/\D/g,''))} className="font-mono text-center text-2xl h-14 font-black" />
+               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Number (Last 4)</label>
+              <Input 
+                maxLength={4} 
+                placeholder="0000" 
+                value={cardLast4} 
+                onChange={e => setCardLast4(e.target.value.replace(/\D/g,''))} 
+                className="font-mono text-center text-3xl h-16 font-black tracking-[0.4em] bg-slate-50 dark:bg-slate-900 border-none rounded-2xl shadow-inner" 
+              />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Auth Code</label>
-              <Input placeholder="Verification Code" value={cardAuthCode} onChange={e => setCardAuthCode(e.target.value)} className="h-12 font-bold" />
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Auth Code</label>
+              <Input 
+                placeholder="Verification Code" 
+                value={cardAuthCode} 
+                onChange={e => setCardAuthCode(e.target.value)} 
+                className="h-12 border-none bg-slate-50 dark:bg-slate-900 rounded-xl font-bold px-4" 
+              />
             </div>
-            <Button onClick={() => setCardDetailsOpen(false)} className="w-full h-14 font-black uppercase shadow-lg">Save & Continue</Button>
+            <Button onClick={() => setCardDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-indigo-500/20">
+              Save & Continue
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Single Payment Detail Sub-Modals (Cheque) */}
       <Dialog open={chequeDetailsOpen} onOpenChange={setChequeDetailsOpen}>
-        <DialogContent className="w-full sm:max-w-md h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl p-6 bg-background border-none shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-black uppercase flex items-center gap-2">
-              <Receipt/> Cheque Details
+        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md h-auto rounded-[2rem] p-6 bg-white dark:bg-slate-950 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+          <DialogHeader className="mb-2">
+            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-amber-500"/> Cheque Details
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Cheque #</label>
-                <Input placeholder="XXXXXX" value={chequeNo} onChange={e => setChequeNo(e.target.value)} />
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Cheque #</label>
+                <Input 
+                  placeholder="XXXXXX" 
+                  value={chequeNo} 
+                  onChange={e => setChequeNo(e.target.value)} 
+                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                />
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground">Date</label>
-                <Input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} />
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Date</label>
+                <Input 
+                  type="date" 
+                  value={chequeDate} 
+                  onChange={e => setChequeDate(e.target.value)} 
+                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                />
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight">Issuing Bank</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Issuing Bank</label>
               <SearchableSelect
                 options={banks.map(b => ({ value: String(b.id), label: b.name }))}
                 value={chequeBankName ? String(banks.find(b => b.name === chequeBankName)?.id || "") : ""}
@@ -712,8 +869,8 @@ export const CheckoutDialog: React.FC = () => {
                 placeholder="Select Bank"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight">Branch</label>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Branch</label>
               <SearchableSelect
                 options={bankBranches.map(br => ({ value: String(br.id), label: br.branch_name }))}
                 value={chequeBranchName ? String(bankBranches.find(br => br.branch_name === chequeBranchName)?.id || "") : ""}
@@ -722,7 +879,9 @@ export const CheckoutDialog: React.FC = () => {
                 disabled={!bankBranches.length}
               />
             </div>
-            <Button onClick={() => setChequeDetailsOpen(false)} className="w-full h-14 font-black uppercase mt-4 shadow-lg shadow-amber-200 dark:shadow-none">Save & Continue</Button>
+            <Button onClick={() => setChequeDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-amber-500/20 mt-4">
+              Save & Continue
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

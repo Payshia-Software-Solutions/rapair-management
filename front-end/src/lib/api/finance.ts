@@ -1,0 +1,348 @@
+import { api, ApiSuccess } from './client';
+
+export interface TaxRow {
+  id: number;
+  name: string;
+  code?: string;
+  rate?: number;
+  rate_percent: number;
+  apply_on: 'base' | 'base_plus_previous';
+  sort_order: number;
+  is_active: 0 | 1;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
+export const fetchTaxes = async (q: string = '', params: { all?: boolean } = {}) => {
+  const qs = new URLSearchParams();
+  if (q) qs.append('q', q);
+  if (params.all) qs.append('all', '1');
+  const res = await api(`/api/tax/list${qs.toString() ? '?' + qs.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load taxes');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as TaxRow[]) : [];
+};
+
+export const createTax = async (payload: Partial<TaxRow>) => {
+  const res = await api('/api/tax/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create tax');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const updateTax = async (id: string | number, payload: Partial<TaxRow>) => {
+  const res = await api(`/api/tax/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update tax');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const deleteTax = async (id: string | number) => {
+  const res = await api(`/api/tax/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to remove tax');
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Invoices
+export const fetchInvoices = async (filters: { status?: string; customer_id?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.customer_id) params.append('customer_id', filters.customer_id);
+  const res = await api(`/api/invoice/list${params.toString() ? '?' + params.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load invoices');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchInvoiceDetails = async (id: string | number) => {
+  const res = await api(`/api/invoice/details/${id}`);
+  if (!res.ok) throw new Error('Failed to load invoice details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const createInvoice = async (payload: any) => {
+  const res = await api('/api/invoice/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create invoice');
+  return res.json();
+};
+
+export const addInvoicePayment = async (id: string | number, payload: any) => {
+  const res = await api(`/api/invoice/addPayment/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to add payment');
+  return res.json();
+};
+
+// Payment Receipts
+export const createPaymentReceipt = async (payload: any) => {
+  const res = await api('/api/paymentreceipt/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create payment receipt');
+  return res.json();
+};
+
+export const fetchPaymentReceipts = async (filters: any = {}) => {
+  const params = new URLSearchParams(filters);
+  const res = await api(`/api/paymentreceipt/list?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to load payment receipts');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchPaymentReceiptDetails = async (id: string | number) => {
+  const res = await api(`/api/paymentreceipt/details/${id}`);
+  if (!res.ok) throw new Error('Failed to load receipt details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const fetchChequeInventory = async (status?: string) => {
+  const params = status ? `?status=${status}` : '';
+  const res = await api(`/api/paymentreceipt/cheques${params}`);
+  if (!res.ok) throw new Error('Failed to load cheque inventory');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const updateChequeStatus = async (chequeId: string | number, status: string, clearedDate?: string) => {
+  const res = await api(`/api/paymentreceipt/chequestatus/${chequeId}`, {
+    method: 'POST',
+    body: JSON.stringify({ status, cleared_date: clearedDate })
+  });
+  if (!res.ok) throw new Error('Failed to update cheque status');
+  return res.json();
+};
+
+export const bulkUpdateChequeStatus = async (ids: number[], status: string, clearedDate?: string) => {
+  const res = await api(`/api/paymentreceipt/bulkchequestatus`, {
+    method: 'POST',
+    body: JSON.stringify({ ids, status, cleared_date: clearedDate }),
+  });
+  if (!res.ok) throw new Error('Failed to update cheques (bulk)');
+  return res.json();
+};
+
+
+
+// Banks
+export interface Bank {
+  id: number;
+  name: string;
+  code?: string;
+  swift_code?: string;
+  is_active: number;
+}
+
+export const fetchBanks = async () => {
+  const res = await api('/api/bank/list');
+  if (!res.ok) throw new Error('Failed to load banks');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchBank = async (id: string | number) => {
+  const res = await api('/api/bank/details/' + id);
+  if (!res.ok) throw new Error('Failed to load bank details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const createBank = async (data: any) => {
+  const res = await api('/api/bank/store', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create bank');
+  return res.json();
+};
+
+export const updateBank = async (id: string | number, data: any) => {
+  const res = await api('/api/bank/update/' + id, { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update bank');
+  return res.json();
+};
+
+export const deleteBank = async (id: string | number) => {
+  const res = await api('/api/bank/delete/' + id, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete bank');
+  return res.json();
+};
+
+export const fetchBankBranches = async (bankId: string | number, all = false) => {
+  const params = all ? '?all=1' : '';
+  const res = await api('/api/bankbranch/bank/' + bankId + params);
+  if (!res.ok) throw new Error('Failed to load branches');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const createBankBranch = async (data: any) => {
+  const res = await api('/api/bankbranch/store', { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to create branch');
+  return res.json();
+};
+
+export const updateBankBranch = async (id: string | number, data: any) => {
+  const res = await api('/api/bankbranch/update/' + id, { method: 'POST', body: JSON.stringify(data) });
+  if (!res.ok) throw new Error('Failed to update branch');
+  return res.json();
+};
+
+export const deleteBankBranch = async (id: string | number) => {
+  const res = await api('/api/bankbranch/delete/' + id, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete branch');
+  return res.json();
+};
+
+// Accounting & Journals
+export const fetchAccounts = async (params?: any) => {
+  const q = new URLSearchParams(params).toString();
+  const res = await api(`/api/account/list?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch accounts');
+  const data = await res.json();
+  return data.data;
+};
+
+export const createAccount = async (payload: any) => {
+  const res = await api('/api/account/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create account');
+  return res.json();
+};
+
+export const fetchJournalEntries = async (filters: any = {}) => {
+  const params = new URLSearchParams(filters);
+  const res = await api(`/api/journal/list?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to load journal entries');
+  return res.json();
+};
+
+export const fetchJournalItems = async (entryId: string | number) => {
+  const res = await api(`/api/journal/items?id=${entryId}`);
+  if (!res.ok) throw new Error('Failed to load journal items');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const postJournalEntry = async (payload: any) => {
+  const res = await api('/api/journal/post', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to post journal entry');
+  return res.json();
+};
+
+export const fetchAccountLedger = async (id: string | number, params?: any) => {
+  const qs = new URLSearchParams(params).toString();
+  const res = await api(`/api/account/ledger/${id}?${qs}`);
+  if (!res.ok) throw new Error('Failed to load account ledger');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchAccountingSettings = async () => {
+  const res = await api('/api/settings/accounting');
+  if (!res.ok) throw new Error('Failed to load accounting settings');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const updateAccountingSettings = async (payload: any) => {
+  const res = await api('/api/settings/accounting', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update accounting settings');
+  return res.json();
+};
+
+export const fetchAccountMappings = async () => {
+  const res = await api('/api/account/mappings');
+  if (!res.ok) throw new Error('Failed to load account mappings');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const updateAccountMapping = async (payload: any) => {
+  const res = await api('/api/account/mappings', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update account mapping');
+  return res.json();
+};
+
+// Supplier Finance
+export const postSupplierPayment = async (payload: any) => {
+  const res = await api('/api/account/post_supplier_payment', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to post supplier payment');
+  return res.json();
+};
+
+export const postPurchaseReturn = async (payload: any) => {
+  const res = await api('/api/account/post_purchase_return', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to post purchase return');
+  return res.json();
+};
+
+export const fetchSupplierPayments = async (filters: any = {}) => {
+  const q = new URLSearchParams(filters).toString();
+  const res = await api(`/api/supplier/payments?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier payments');
+  const json = await res.json();
+  return json.data;
+};
+
+export const fetchSupplierReturns = async (filters: any = {}) => {
+  const q = new URLSearchParams(filters).toString();
+  const res = await api(`/api/supplier/returns?${q}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier returns');
+  const json = await res.json();
+  return json.data;
+};
+
+export const fetchSupplierSummary = async (supplierId: number | string) => {
+  const res = await api(`/api/supplier/summary/${supplierId}`);
+  if (!res.ok) throw new Error('Failed to fetch supplier summary');
+  const json = await res.json();
+  return json.data;
+};
+
+// Fiscal / Reconciliation
+export const fetchFiscalPeriods = async () => {
+  const res = await api('/api/fiscal/periods');
+  if (!res.ok) throw new Error('Failed to load fiscal periods');
+  const data = await res.json();
+  return data.data || [];
+};
+
+export const createFiscalYear = async (payload: any) => {
+  const res = await api('/api/fiscal/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create fiscal year');
+  return res.json();
+};
+
+export const activateFiscalYear = async (id: number) => {
+  const res = await api(`/api/fiscal/activate/${id}`, { method: "POST" });
+  if (!res.ok) throw new Error('Failed to activate fiscal year');
+  return res.json();
+};
+
+export const finalizeReconciliation = async (payload: any) => {
+  const res = await api('/api/reconciliation/finalize', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to finalize reconciliation');
+  return res.json();
+};
+
+export const fetchFiscalSummary = async (id: number) => {
+  const res = await api(`/api/fiscal/summary/${id}`);
+  if (!res.ok) throw new Error('Failed to load fiscal summary');
+  const data = await res.json();
+  return data.data || null;
+};
+
+export const postFiscalClose = async (payload: any) => {
+  const res = await api('/api/fiscal/close', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to close fiscal year');
+  return res.json();
+};
+
+export const fetchUnreconciledTransactions = async (accountId: number, asOfDate: string) => {
+  const res = await api(`/api/reconciliation/unreconciled?account_id=${accountId}&as_of_date=${asOfDate}`);
+  if (!res.ok) throw new Error('Failed to load unreconciled transactions');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchReconciliationHistory = async (accountId: number) => {
+  const res = await api(`/api/reconciliation/history?account_id=${accountId}`);
+  if (!res.ok) throw new Error('Failed to load reconciliation history');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};

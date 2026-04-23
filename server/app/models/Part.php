@@ -432,11 +432,13 @@ class Part extends Model {
                    tr.to_location_id AS transfer_to_location_id,
                    lf.name AS transfer_from_location_name,
                    lt.name AS transfer_to_location_name,
+                   inv.invoice_no,
                    CASE
                      WHEN sm.ref_table = 'goods_receive_notes' THEN grn.grn_number
                      WHEN sm.ref_table = 'stock_adjustments' THEN sa.adjustment_number
                      WHEN sm.ref_table = 'repair_orders' THEN COALESCE(ro.vehicle_identifier, CONCAT('Order #', sm.ref_id))
                      WHEN sm.ref_table = 'stock_transfer_requests' THEN tr.transfer_number
+                     WHEN sm.ref_table = 'invoices' THEN inv.invoice_no
                      ELSE CONCAT(COALESCE(sm.ref_table,''), '#', COALESCE(sm.ref_id,''))
                    END AS ref_label,
                    CASE
@@ -444,6 +446,7 @@ class Part extends Model {
                      WHEN sm.ref_table = 'stock_adjustments' THEN CONCAT('/inventory/stock/adjustments/print/', sm.ref_id)
                      WHEN sm.ref_table = 'repair_orders' THEN CONCAT('/orders/', sm.ref_id)
                      WHEN sm.ref_table = 'stock_transfer_requests' THEN CONCAT('/inventory/transfers/', sm.ref_id)
+                     WHEN sm.ref_table = 'invoices' THEN CONCAT('/cms/invoices/view/', sm.ref_id)
                      ELSE NULL
                    END AS ref_url,
                    CASE
@@ -451,10 +454,13 @@ class Part extends Model {
                      WHEN sm.ref_table = 'stock_adjustments' THEN 'Stock Adjustment'
                      WHEN sm.ref_table = 'repair_orders' THEN 'Repair Order'
                      WHEN sm.ref_table = 'stock_transfer_requests' THEN 'Stock Transfer'
+                     WHEN sm.ref_table = 'invoices' THEN 'Sale'
                      ELSE NULL
-                   END AS ref_type
+                   END AS ref_type,
+                   u.name AS created_by_name
             FROM stock_movements sm
             INNER JOIN parts p ON p.id = sm.part_id
+            LEFT JOIN users u ON u.id = sm.created_by
             LEFT JOIN service_locations sl ON sl.id = sm.location_id
             LEFT JOIN goods_receive_notes grn ON sm.ref_table = 'goods_receive_notes' AND grn.id = sm.ref_id
             LEFT JOIN suppliers s1 ON s1.id = grn.supplier_id
@@ -464,6 +470,7 @@ class Part extends Model {
             LEFT JOIN stock_transfer_requests tr ON sm.ref_table = 'stock_transfer_requests' AND tr.id = sm.ref_id
             LEFT JOIN service_locations lf ON lf.id = tr.from_location_id
             LEFT JOIN service_locations lt ON lt.id = tr.to_location_id
+            LEFT JOIN invoices inv ON sm.ref_table = 'invoices' AND inv.id = sm.ref_id
             {$where}
             ORDER BY sm.id DESC
             LIMIT {$lim}

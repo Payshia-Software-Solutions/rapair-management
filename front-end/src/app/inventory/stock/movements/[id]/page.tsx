@@ -327,6 +327,10 @@ export default function StockMovementsPage() {
                         {qtyFmt(Number(selected.qty_change))}
                       </div>
                     </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">User</div>
+                      <div className="font-medium text-xs">{selected.created_by_name ? String(selected.created_by_name) : "-"}</div>
+                    </div>
                   </div>
 
                   {selected.movement_type === "GRN" ? (

@@ -27,6 +27,14 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from "@/components/ui/tabs";
+import { LayoutGrid, ShoppingCart as CartIcon } from "lucide-react";
+
 /**
  * Main Content Component
  * Consumes POSContext and renders the modular layout.
@@ -39,8 +47,12 @@ function POSContent() {
     locations,
     vKeyboardActiveInput,
     vKeyboardEnabled,
-    activeMobileTab
+    activeMobileTab,
+    setActiveMobileTab,
+    cart
   } = usePOS();
+
+  const cartItemCount = cart.reduce((acc, it) => acc + Number(it.quantity), 0);
 
   // 1. Full-screen Loading State
   if (loading) {
@@ -91,13 +103,48 @@ function POSContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Main Layout Sections */}
-      <div className={`${activeMobileTab === 'shelf' ? 'flex' : 'hidden lg:flex'} flex-1 h-full overflow-hidden mb-16 lg:mb-0`}>
-        <InventoryGrid />
+      {/* Mobile Tabbed View */}
+      <div className="flex lg:hidden flex-1 flex-col overflow-hidden">
+        <Tabs 
+          value={activeMobileTab} 
+          onValueChange={(val: any) => setActiveMobileTab(val)} 
+          className="flex-1 flex flex-col overflow-hidden"
+        >
+          <div className="bg-white dark:bg-slate-950 border-b border-border p-2">
+            <TabsList className="grid w-full grid-cols-2 h-12 rounded-xl bg-slate-100 dark:bg-slate-900">
+              <TabsTrigger value="shelf" className="rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+                <LayoutGrid className="w-4 h-4" />
+                Menu
+              </TabsTrigger>
+              <TabsTrigger value="bill" className="rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
+                <CartIcon className="w-4 h-4" />
+                Order
+                {cartItemCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 bg-primary text-white text-[8px] rounded-full">
+                    {cartItemCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          <TabsContent value="shelf" className="flex-1 mt-0 overflow-hidden">
+            <InventoryGrid />
+          </TabsContent>
+          <TabsContent value="bill" className="flex-1 mt-0 overflow-hidden">
+            <SidebarCart />
+          </TabsContent>
+        </Tabs>
       </div>
-      
-      <div className={`${activeMobileTab === 'bill' ? 'flex' : 'hidden lg:flex'} w-full lg:w-[450px] h-full overflow-hidden mb-16 lg:mb-0`}>
-        <SidebarCart />
+
+      {/* Desktop Side-by-Side View */}
+      <div className="hidden lg:flex flex-1 overflow-hidden">
+        <div className="flex-1 h-full overflow-hidden">
+          <InventoryGrid />
+        </div>
+        <div className="w-[450px] h-full overflow-hidden border-l border-border">
+          <SidebarCart />
+        </div>
       </div>
 
       <MobilePosNav />

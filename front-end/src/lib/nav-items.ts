@@ -31,7 +31,9 @@ import {
   LayoutGrid,
   CreditCard,
   TrendingUp,
-  Factory
+  Factory,
+  Building2,
+  Banknote
 } from "lucide-react";
 
 export type NavItem = {
@@ -43,7 +45,8 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+  { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard" },
+  { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },
   { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write" },
   { icon: BarChart3, label: "Reports", href: "/reports", perm: "reports.read" },
 ];
@@ -81,9 +84,12 @@ export const inventoryItems: NavItem[] = [
   { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
 ];
 
-export const cmsItems: NavItem[] = [
+export const crmItems: NavItem[] = [
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
+];
+
+export const salesItems: NavItem[] = [
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "invoices.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "invoices.read" },
@@ -115,10 +121,22 @@ export const productionItems: NavItem[] = [
   { icon: Factory, label: "Bill of Materials", href: "/production/bom", perm: "production.read" },
 ];
 
+export const hrmItems: NavItem[] = [
+  { icon: Users, label: "Employees", href: "/hrm/employees", perm: "hrm.read" },
+  { icon: ClipboardList, label: "Attendance", href: "/hrm/attendance", perm: "hrm.read" },
+  { icon: FileText, label: "Leave Management", href: "/hrm/leave", perm: "hrm.read" },
+  { icon: Landmark, label: "Payroll", href: "/hrm/payroll", perm: "hrm.read" },
+  { icon: Building2, label: "Staff Departments", href: "/hrm/settings/departments", perm: "hrm.write" },
+  { icon: Layers, label: "Staff Categories", href: "/hrm/settings/categories", perm: "hrm.write" },
+  { icon: Banknote, label: "Salary Schemes", href: "/hrm/settings/salary-schemes", perm: "hrm.write" },
+];
+
 export const adminNavItems: NavItem[] = [
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: Shield, label: "RBAC Roles", href: "/admin/rbac" },
   { icon: Database, label: "Locations", href: "/admin/locations" },
   { icon: Settings, label: "Company", href: "/admin/company" },
+  { icon: Settings, label: "System Settings", href: "/admin/settings/system" },
   { icon: Layers, label: "Database Schema", href: "/admin/schema" },
+  { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
 ];

@@ -154,9 +154,19 @@ interface POSContextType {
   // Promotion State
   eligiblePromotions: any[];
   setEligiblePromotions: (val: any[]) => void;
+  isPromotionPromptOpen: boolean;
+  setIsPromotionPromptOpen: (val: boolean) => void;
+  promotionsPromptDismissed: boolean;
+  setPromotionsPromptDismissed: (val: boolean) => void;
+  checkoutIntentActive: boolean;
+  setCheckoutIntentActive: (val: boolean) => void;
+  claimPromotionRewards: (promo: any) => void;
   appliedPromotion: any | null;
   setAppliedPromotion: (val: any | null) => void;
+  setTableManagementOpen: (val: boolean) => void;
+  setBankBranches: (val: any[]) => void;
 }
+
 
 const POSContext = createContext<POSContextType | undefined>(undefined);
 
@@ -246,6 +256,18 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [eligiblePromotions, setEligiblePromotions] = useState<any[]>([]);
   const [appliedPromotion, setAppliedPromotion] = useState<any | null>(null);
+  const [isPromotionPromptOpen, setIsPromotionPromptOpen] = useState(false);
+  const [promotionsPromptDismissed, setPromotionsPromptDismissed] = useState(false);
+  const [checkoutIntentActive, setCheckoutIntentActive] = useState(false);
+  const [tableManagementOpen, setTableManagementOpen] = useState(false);
+  const lastFootprint = React.useRef("");
+
+
+  const updateAppliedPromotion = (promo: any | null) => {
+    // Cleanup old reward items if we are clearing or changing promo
+    setCart(prev => prev.filter(i => !i.is_reward));
+    setAppliedPromotion(promo);
+  };
 
 
     const refreshTablesAndStewards = async (locId?: string | number) => {
@@ -255,8 +277,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDataRefreshing(true);
         try {
             const [tbls, stds] = await Promise.all([
-                fetchTables(id).catch(e => { console.error("fetchTables error:", e); return []; }),
-                fetchStewards(id).catch(e => { console.error("fetchStewards error:", e); return []; })
+                fetchTables(id as any).catch(e => { console.error("fetchTables error:", e); return []; }),
+                fetchStewards(id as any).catch(e => { console.error("fetchStewards error:", e); return []; })
             ]);
             setTables(tbls);
             setStewards(stds);
@@ -285,7 +307,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!selectedLocation) return;
     try {
       const res = await fetchHeldOrders(selectedLocation);
-      setHeldOrders(res || []);
+      setHeldOrders(Array.isArray(res) ? res : []);
     } catch (err) {}
   };
 
@@ -383,7 +405,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (lsLocId) {
             await Promise.all([
               refreshTablesAndStewards(lsLocId),
-              fetchHeldOrders(lsLocId).then(res => setHeldOrders(res || [])).catch(() => {})
+              fetchHeldOrders(lsLocId).then(res => setHeldOrders(Array.isArray(res) ? res : [])).catch(() => {})
             ]);
         }
 
@@ -449,43 +471,61 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     checkoutOpen
   ]);
 
+  const validatePromotions = async (force: boolean = false) => {
+    if (cart.length === 0) {
+      setEligiblePromotions([]);
+      setAppliedPromotion(null);
+      return [];
+    }
+
+    const subtotal = cart.reduce((acc, i) => acc + (i.quantity * i.unit_price - i.quantity * i.discount), 0);
+    
+    try {
+      const res = await apiHelper('/api/promotion/validate', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: cart,
+          subtotal,
+          bank_id: selectedBankId,
+          card_category: selectedCardCategory,
+          location_id: selectedLocation
+        })
+      });
+
+      const resData = await res.json();
+      const matches = Array.isArray(resData.data) ? resData.data : [];
+      
+      setEligiblePromotions(matches);
+      return matches;
+    } catch (error) {
+      console.error("Promotion validation failed", error);
+      setEligiblePromotions([]);
+      return [];
+    }
+  };
+
   // Automatic Promotion Recognition Engine
   useEffect(() => {
     if (cart.length === 0) {
       setEligiblePromotions([]);
       setAppliedPromotion(null);
+      setPromotionsPromptDismissed(false);
+      lastFootprint.current = "";
       return;
     }
 
-    const subtotal = cart.reduce((acc, i) => acc + (i.quantity * i.unit_price - i.quantity * i.discount), 0);
-    // Reset when cart changes or specific fields change
+    // Check if the cart "footprint" (items/quantities) has changed - EXCLUDING rewards
+    const currentFootprint = JSON.stringify(cart.filter(i => !i.is_reward).map(i => ({ id: i.id, q: i.quantity })));
+    if (currentFootprint !== lastFootprint.current) {
+        setPromotionsPromptDismissed(false);
+        lastFootprint.current = currentFootprint;
+    }
+
+    // Reset list when cart changes to prevent stale prompts
     setEligiblePromotions([]);
 
-    const timer = setTimeout(async () => {
-      try {
-        const res = await apiHelper('/promotion/validate', {
-          method: 'POST',
-          body: JSON.stringify({
-            items: cart,
-            subtotal,
-            bank_id: selectedBankId,
-            card_category: selectedCardCategory,
-            location_id: selectedLocation
-          })
-        });
-
-        const resData = await res.json();
-        
-        const matches = Array.isArray(resData.data) ? resData.data : [];
-        if (matches.length > 0) {
-          setEligiblePromotions(matches);
-        } else {
-          setEligiblePromotions([]);
-        }
-      } catch (error) {
-        console.error("Promotion validation failed", error);
-        setEligiblePromotions([]);
-      }
+    const timer = setTimeout(() => {
+      validatePromotions();
     }, 600);
 
     return () => clearTimeout(timer);
@@ -560,9 +600,38 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const openCheckoutDialog = () => {
+  const openCheckoutDialog = async () => {
     if (cart.length === 0) return;
     if (!selectedLocation) { toast({ title: "Missing Data", description: "Select a location.", variant: "destructive" }); return; }
+    
+    setCheckoutIntentActive(true);
+
+    // Final Sanity Check for Promotions
+    const matches = await validatePromotions(true);
+    
+    // 1. Check if currently applied promotion is still valid
+    if (appliedPromotion) {
+        const stillValid = matches.find(p => p.promotion_id === appliedPromotion.promotion_id);
+        if (!stillValid) {
+            setAppliedPromotion(null);
+            setCheckoutIntentActive(false);
+            toast({
+                title: "Promotion Invalid",
+                description: "The applied promotion is no longer valid for the current cart and has been removed.",
+                variant: "destructive"
+            });
+            return; // Exit so the user can see updated totals
+        }
+    }
+
+    // 2. Check for offers if NONE applied, or if applied was invalid
+    // If a promotion is ALREADY applied and valid, we RESPECT the user's choice and proceed.
+    if (!appliedPromotion && matches.length > 0) {
+        setPromotionsPromptDismissed(false);
+        return; 
+    }
+
+    setCheckoutIntentActive(false);
     setCheckoutOpen(true);
   };
 
@@ -620,6 +689,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return { subtotal, lineDiscountTotal, billDiscountAmt, promoDiscountAmt, taxableAmount, taxSum, appliedTaxes, grandTotal };
   }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion]);
 
+  const claimPromotionRewards = (promo: any) => {
+    if (!promo || !promo.missing_rewards) return;
+    
+    const reward = promo.missing_rewards;
+    const product = inventory.find(p => String(p.id) === String(reward.item_id));
+    
+    if (product) {
+      const newLine = {
+        id: product.id,
+        description: (product.part_name || product.description) + " (Reward)",
+        item_type: product.item_type === "Service" ? "Service" : "Part",
+        quantity: reward.qty,
+        unit_price: Number(product.price || 0),
+        discount: Number(product.price || 0), // 100% discount
+        is_reward: true,
+        promotion_id: promo.promotion_id
+      };
+      
+      setCart(prev => [...prev.filter(i => !i.is_reward), newLine]);
+    }
+  };
+
   const handleCheckoutProcess = async (paymentData: any) => {
     if (!orderType) {
       setOrderTypeDialogOpen(true);
@@ -645,7 +736,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         due_date: new Date().toISOString().split('T')[0],
         subtotal: totals.subtotal,
         tax_total: totals.taxSum,
-        discount_total: totals.lineDiscountTotal + (billDiscountType === 'percentage' ? (totals.subtotal - totals.lineDiscountTotal) * (billDiscountValue / 100) : billDiscountValue),
+        discount_total: totals.lineDiscountTotal + totals.billDiscountAmt + totals.promoDiscountAmt,
         grand_total: totals.grandTotal,
         order_type: orderType || 'retail',
         table_id: selectedTable ? Number(selectedTable) : null,
@@ -672,6 +763,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cardLast4: p.cardLast4,
           cardType: p.cardType,
           cardAuthCode: p.cardAuthCode,
+          bankId: p.bankId,
+          cardCategory: p.cardCategory,
           chequeNo: p.chequeNo,
           chequeBankName: p.chequeBankName,
           chequeBranchName: p.chequeBranchName,
@@ -683,6 +776,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           cardLast4: paymentData.cardLast4,
           cardType: paymentData.cardType,
           cardAuthCode: paymentData.cardAuthCode,
+          bankId: paymentData.bankId || selectedBankId,
+          cardCategory: paymentData.cardCategory || selectedCardCategory,
           chequeNo: paymentData.chequeNo,
           chequeBankName: paymentData.chequeBankName,
           chequeBranchName: paymentData.chequeBranchName,
@@ -831,7 +926,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       collections, selectedCollectionId, setSelectedCollectionId,
       selectedBankId, setSelectedBankId, selectedCardCategory, setSelectedCardCategory,
       // Promotion State
-      eligiblePromotions, setEligiblePromotions, appliedPromotion, setAppliedPromotion,
+      eligiblePromotions, setEligiblePromotions, appliedPromotion, setAppliedPromotion: updateAppliedPromotion, validatePromotions,
+      isPromotionPromptOpen, setIsPromotionPromptOpen,
+      promotionsPromptDismissed, setPromotionsPromptDismissed,
+      checkoutIntentActive, setCheckoutIntentActive,
+      claimPromotionRewards,
+      setTableManagementOpen,
+      setBankBranches
     };
   
     return (

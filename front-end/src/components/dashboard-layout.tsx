@@ -40,9 +40,12 @@ import {
   CheckCircle2,
   Receipt,
   LayoutGrid,
-  Factory
+  Factory,
+  TrendingUp,
+  Gift
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -68,39 +71,69 @@ import {
   SidebarGroupContent
 } from '@/components/ui/sidebar';
 import { DockMenu } from './dock-menu';
+import { PromotionsDialog } from './promotions-dialog';
+import { SaasInfoDialog } from './saas-info-dialog';
 import { 
   mainNavItems, 
   masterDataItems, 
   inventoryItems, 
-  cmsItems, 
+  crmItems,
+  salesItems,
   accountingItems, 
   adminNavItems, 
   serviceCenterItems,
   vendorItems,
-  productionItems 
+  productionItems,
+  hrmItems
 } from "@/lib/nav-items";
 
-export function DashboardLayout({ children, fullWidth = true }: { children: React.ReactNode; fullWidth?: boolean }) {
+export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
+  const [isCoreFeaturesOpen, setIsCoreFeaturesOpen] = useState(true);
   const [isServiceCenterOpen, setIsServiceCenterOpen] = useState(false);
   const [isVendorsOpen, setIsVendorsOpen] = useState(false);
   const [isMasterDataOpen, setIsMasterDataOpen] = useState(false);
   const [isInventoryOpen, setIsInventoryOpen] = useState(false);
-  const [isCmsOpen, setIsCmsOpen] = useState(false);
+  const [isCrmOpen, setIsCrmOpen] = useState(false);
+  const [isSalesOpen, setIsSalesOpen] = useState(false);
   const [isAccountingOpen, setIsAccountingOpen] = useState(false);
   const [isProductionOpen, setIsProductionOpen] = useState(false);
+  const [isMarketingOpen, setIsMarketingOpen] = useState(false);
+  const [isHrmOpen, setIsHrmOpen] = useState(false);
 	  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
 	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
 	  const [currentLocationName, setCurrentLocationName] = useState<string>('');
 	  const [docTitle, setDocTitle] = useState<string>('');
+	  const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+	  const [saasModules, setSaasModules] = useState<string[] | null>(null);
+	  const [saasPackageName, setSaasPackageName] = useState<string>('');
+	  const [saasLicenseKey, setSaasLicenseKey] = useState<string>('');
+	  const [saasTenantName, setSaasTenantName] = useState<string>('');
+	  const [saasRenewalDate, setSaasRenewalDate] = useState<string>('');
+	  const [saasInvoices, setSaasInvoices] = useState<any[]>([]);
+	  const [isSaasDialogOpen, setIsSaasDialogOpen] = useState(false);
 	  // Location switching uses the /select-location page (card UI) for a consistent UX.
 
-	  useEffect(() => {
+	  const loadPerms = async () => {
+    try {
+      const res = await api('/api/auth/permissions');
+      const data = await res.json();
+      if (data.status === 'success' && Array.isArray(data.data)) {
+        setPermissionKeys(data.data);
+      } else {
+        setPermissionKeys([]);
+      }
+    } catch {
+      setPermissionKeys([]);
+    }
+  };
+
+  useEffect(() => {
     // Basic client-side guard. Server APIs also enforce auth via JWT.
     const token = window.localStorage.getItem('auth_token');
     if (!token) {
@@ -135,21 +168,38 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
       setUserRole('');
     }
 
-    const loadPerms = async () => {
-      try {
-        const res = await api('/api/auth/permissions');
-        const data = await res.json();
-        if (data.status === 'success' && Array.isArray(data.data)) {
-          setPermissionKeys(data.data);
-        } else {
-          setPermissionKeys([]);
-        }
-      } catch {
-        setPermissionKeys([]);
-      }
-    };
     void loadPerms();
+    void loadSaas();
 	  }, []);
+
+  const loadSaas = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/saas/config`);
+      const data = await res.json();
+      if (data.status === 'success' && data.data) {
+        setSaasModules(data.data.modules);
+        setSaasPackageName(data.data.name || data.data.package_name);
+        setSaasLicenseKey(data.data.license_key || '');
+        setSaasTenantName(data.data.tenant_name || '');
+        setSaasRenewalDate(data.data.renewal_date || '');
+        setSaasInvoices(data.data.invoices || []);
+      }
+    } catch (err) {
+      console.error("SaaS Check Failed", err);
+    }
+  };
+
+  const handleSaasSync = async () => {
+    try {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/saas/sync`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        await loadSaas();
+      }
+    } catch (err) {
+      console.error("SaaS Sync Failed", err);
+    }
+  };
 
 	  useEffect(() => {
 	    // Keep a lightweight "document title" label in the header.
@@ -278,41 +328,104 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
     return permissionKeys.includes(perm);
   };
 
+  const isModuleAllowed = (module: string) => {
+    if (!saasModules) return true; // Wait for load
+    if (saasModules.includes('*')) return true;
+    return saasModules.includes(module);
+  };
+
+  const visibleMainNavItems = mainNavItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeCoreFeatures = visibleMainNavItems.length > 0;
+
   const visibleServiceCenterItems = serviceCenterItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeServiceCenter = visibleServiceCenterItems.length > 0;
+  const canSeeServiceCenter = isModuleAllowed('serviceCenter') && visibleServiceCenterItems.length > 0;
 
   const visibleVendorItems = vendorItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeVendors = visibleVendorItems.length > 0;
+  const canSeeVendors = isModuleAllowed('vendors') && visibleVendorItems.length > 0;
 
-  const visibleInventoryItems = inventoryItems.filter((it) => hasPerm((it as any).perm));
+  const visibleInventoryItems = inventoryItems.filter((it) => {
+    const permOk = hasPerm((it as any).perm);
+    if (!permOk) return false;
+    // Promotions are now handled separately in the Marketing section
+    if (it.label === 'Promotions') return false;
+    return isModuleAllowed('inventory');
+  });
   const canSeeInventory = visibleInventoryItems.length > 0;
 
-  const visibleCmsItems = cmsItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeCms = visibleCmsItems.length > 0;
+  const visibleMarketingItems = inventoryItems.filter((it) => it.label === 'Promotions' && hasPerm(it.perm));
+  const canSeeMarketing = isModuleAllowed('promotions') && visibleMarketingItems.length > 0;
+
+  const visibleCrmItems = crmItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeCrm = isModuleAllowed('crm') && visibleCrmItems.length > 0;
+
+  const visibleSalesItems = salesItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeSales = isModuleAllowed('sales') && visibleSalesItems.length > 0;
 
   const visibleMasterDataItems = masterDataItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeMasterData = visibleMasterDataItems.length > 0;
+  const canSeeMasterData = isModuleAllowed('masterData') && visibleMasterDataItems.length > 0;
 
   const visibleAccountingItems = accountingItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeAccounting = visibleAccountingItems.length > 0;
+  const canSeeAccounting = isModuleAllowed('accounting') && visibleAccountingItems.length > 0;
 
   const visibleProductionItems = productionItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeProduction = visibleProductionItems.length > 0;
+  const canSeeProduction = isModuleAllowed('production') && visibleProductionItems.length > 0;
+
+  const visibleHrmItems = hrmItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeHrm = isModuleAllowed('hrm') && visibleHrmItems.length > 0;
 
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
-  const isActiveRoute = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const allHrefs = React.useMemo(() => {
+    return [
+      ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
+      ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
+      ...productionItems, ...hrmItems, ...adminItems
+    ].map(i => i.href);
+  }, [adminItems]);
 
-  // If a child route is active, force its dropdown open (users can still close when not on that section).
-  const serviceCenterOpen = isServiceCenterOpen || visibleServiceCenterItems.some(i => pathname.startsWith(i.href));
-  const vendorsOpen = isVendorsOpen || visibleVendorItems.some(i => pathname.startsWith(i.href)) || pathname.startsWith('/vendors');
-  const inventoryOpen = isInventoryOpen || pathname.startsWith('/inventory');
-  const masterDataOpen = isMasterDataOpen || pathname.startsWith('/master-data');
-  const cmsOpen = isCmsOpen || pathname.startsWith('/cms');
-  const accountingOpen = isAccountingOpen || pathname.startsWith('/accounting');
-  const productionOpen = isProductionOpen || pathname.startsWith('/production');
-  const adminOpen = isAdminOpen || pathname.startsWith('/admin');
+  const isActiveRoute = (href: string) => {
+    if (pathname === href) return true;
+    if (!pathname.startsWith(`${href}/`)) return false;
+    
+    // If it's a sub-path, ensure there isn't a longer, more specific match available.
+    const longerMatch = allHrefs.find(otherHref => 
+       otherHref !== href && 
+       otherHref.length > href.length && 
+       (pathname === otherHref || pathname.startsWith(`${otherHref}/`))
+    );
+    
+    return !longerMatch;
+  };
+
+  // Auto-open active dropdown on navigation, but allow users to close it manually
+  useEffect(() => {
+    if (visibleMainNavItems.some(i => isActiveRoute(i.href))) setIsCoreFeaturesOpen(true);
+    if (visibleServiceCenterItems.some(i => pathname.startsWith(i.href))) setIsServiceCenterOpen(true);
+    if (visibleVendorItems.some(i => pathname.startsWith(i.href)) || pathname.startsWith('/vendors')) setIsVendorsOpen(true);
+    if (pathname.startsWith('/inventory')) setIsInventoryOpen(true);
+    if (pathname.startsWith('/master-data')) setIsMasterDataOpen(true);
+    if (visibleCrmItems.some(i => isActiveRoute(i.href))) setIsCrmOpen(true);
+    if (visibleSalesItems.some(i => isActiveRoute(i.href))) setIsSalesOpen(true);
+    if (visibleMarketingItems.some(i => isActiveRoute(i.href))) setIsMarketingOpen(true);
+    if (pathname.startsWith('/accounting')) setIsAccountingOpen(true);
+    if (pathname.startsWith('/production')) setIsProductionOpen(true);
+    if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
+    if (pathname.startsWith('/admin')) setIsAdminOpen(true);
+  }, [pathname, permissionKeys, userRole]);
+
+  const coreFeaturesOpen = isCoreFeaturesOpen;
+  const serviceCenterOpen = isServiceCenterOpen;
+  const vendorsOpen = isVendorsOpen;
+  const inventoryOpen = isInventoryOpen;
+  const masterDataOpen = isMasterDataOpen;
+  const crmOpen = isCrmOpen;
+  const salesOpen = isSalesOpen;
+  const accountingOpen = isAccountingOpen;
+  const productionOpen = isProductionOpen;
+  const marketingOpen = isMarketingOpen;
+  const hrmOpen = isHrmOpen;
+  const adminOpen = isAdminOpen;
 
   return (
     <SidebarProvider>
@@ -334,30 +447,47 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
             </div>
           </SidebarHeader>
           <SidebarContent className="px-2 py-4 gap-1">
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-white/50 px-4 mb-2 group-data-[collapsible=icon]:hidden">Core Features</SidebarGroupLabel>
+                        <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {mainNavItems.map((item) => (
-                    <SidebarMenuItem key={item.href}>
-                      {!hasPerm((item as any).perm) ? null : (
-                      <SidebarMenuButton 
-                        asChild 
-                        isActive={pathname === item.href}
-                        tooltip={item.label}
+                  {!canSeeCoreFeatures ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsCoreFeaturesOpen((v) => !v)}
+                        isActive={coreFeaturesOpen}
+                        tooltip="Core Features"
                         className={cn(
                           "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname === item.href ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          coreFeaturesOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                         )}
                       >
-                        <Link href={item.href}>
-                          <item.icon className="w-5 h-5" />
-                          <span className="text-base sm:text-sm font-medium">{item.label}</span>
-                        </Link>
+                        <LayoutDashboard className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Core Features</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            coreFeaturesOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
                       </SidebarMenuButton>
-                      )}
+
+                      {coreFeaturesOpen ? (
+                        <SidebarMenuSub>
+                          {visibleMainNavItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
                     </SidebarMenuItem>
-                  ))}
+                  )}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
@@ -500,34 +630,124 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {!canSeeCms ? null : (
+                  {!canSeeCrm ? null : (
                     <SidebarMenuItem>
                       <SidebarMenuButton
                         type="button"
-                        onClick={() => setIsCmsOpen((v) => !v)}
-                        isActive={pathname.startsWith('/cms')}
-                        tooltip="CRM & Sales"
+                        onClick={() => setIsCrmOpen((v) => !v)}
+                        isActive={crmOpen}
+                        tooltip="CRM"
                         className={cn(
                           "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/cms') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          crmOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                         )}
                       >
                         <Users className="w-5 h-5" />
-                        <span className="text-base sm:text-sm font-medium">CRM & Sales</span>
+                        <span className="text-base sm:text-sm font-medium">CRM</span>
                         <ChevronRight
                           className={cn(
                             "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                            cmsOpen ? "rotate-90" : "rotate-0"
+                            crmOpen ? "rotate-90" : "rotate-0"
                           )}
                         />
                       </SidebarMenuButton>
 
-                      {cmsOpen ? (
+                      {crmOpen ? (
                         <SidebarMenuSub>
-                          {visibleCmsItems.map((item) => (
+                          {visibleCrmItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href} target={item.newTab ? "_blank" : undefined}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeSales ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsSalesOpen((v) => !v)}
+                        isActive={salesOpen}
+                        tooltip="Sales"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          salesOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <TrendingUp className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Sales</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            salesOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {salesOpen ? (
+                        <SidebarMenuSub>
+                          {visibleSalesItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href} target={item.newTab ? "_blank" : undefined}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeMarketing ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsMarketingOpen((v) => !v)}
+                        isActive={marketingOpen}
+                        tooltip="Marketing"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          marketingOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Gift className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Marketing</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            marketingOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {marketingOpen ? (
+                        <SidebarMenuSub>
+                          {visibleMarketingItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
                                   <item.icon className="w-4 h-4" />
                                   <span>{item.label}</span>
                                 </Link>
@@ -635,6 +855,51 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
+                  {!canSeeHrm ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsHrmOpen((v) => !v)}
+                        isActive={pathname.startsWith('/hrm')}
+                        tooltip="Human Resources"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/hrm') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Users className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Human Resources</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            hrmOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {hrmOpen ? (
+                        <SidebarMenuSub>
+                          {visibleHrmItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
                   {!canSeeMasterData ? null : (
                     <SidebarMenuItem>
                       <SidebarMenuButton
@@ -680,7 +945,7 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
               </SidebarGroupContent>
             </SidebarGroup>
 
-            <SidebarGroup className="mt-auto">
+            <SidebarGroup className="mt-auto p-0">
               <SidebarMenu>
                 {!canSeeAdmin ? null : (
                   <SidebarMenuItem>
@@ -742,6 +1007,11 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
           <SidebarFooter className="p-4 border-t border-sidebar-border">
             <SidebarMenu>
               <SidebarMenuItem>
+                <div className="px-4 py-2 flex items-center justify-between group-data-[collapsible=icon]:hidden">
+                   {/* Removed SaaS info from sidebar as per user request */}
+                </div>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton
                   tooltip={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
                   className="text-white/70 hover:text-white py-6 sm:py-2"
@@ -768,44 +1038,66 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
         </Sidebar>
 
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-	          <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-	            <div className="flex items-center gap-2 sm:gap-4">
-	              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
-	                <Wrench className="w-4 h-4 text-primary" />
-	              </div>
-	              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
-	              <div className="relative w-48 md:w-96 hidden sm:block">
-	                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-	                <Input 
-	                  placeholder="Search orders..." 
-	                  className="pl-9 bg-muted/30 border-none ring-offset-background"
-	                />
-	              </div>
-	              {availableLocations.length > 0 ? (
-	                <div className="hidden md:flex items-center gap-2">
-	                  <MapPin className="w-4 h-4 text-muted-foreground" />
-	                  <Button
-	                    type="button"
-	                    variant="outline"
-	                    className="h-9 w-[240px] justify-between bg-muted/20 border-none"
-	                    onClick={openLocationSwitcher}
-	                  >
-	                    <span className="truncate">{currentLocationName || "Select location"}</span>
-	                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-	                  </Button>
-	                </div>
-	              ) : null}
-	              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
-	            </div>
-	            <div className="flex items-center gap-2 sm:gap-4">
-	              {docTitle ? (
-	                <div className="hidden md:block max-w-[260px] truncate text-sm font-semibold text-foreground/90">
-	                  {docTitle}
-	                </div>
-	              ) : null}
-	              <Button
-	                variant="ghost"
-	                size="icon"
+          <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10 text-primary font-semibold"
+                onClick={() => setIsPromotionsOpen(true)}
+              >
+                <Percent className="w-4 h-4" />
+                Promotions
+              </Button>
+
+              {saasPackageName && (
+                <button 
+                  onClick={() => setIsSaasDialogOpen(true)}
+                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/20 transition-all group"
+                >
+                  <Shield className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[10px] font-black uppercase tracking-tight text-primary leading-none">{saasPackageName}</span>
+                    <span className="text-[8px] font-bold text-muted-foreground/60 leading-none mt-1 uppercase tracking-widest">Active Plan</span>
+                  </div>
+                </button>
+              )}
+              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
+                <Wrench className="w-4 h-4 text-primary" />
+              </div>
+              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
+              <div className="relative w-48 md:w-96 hidden sm:block">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search orders..." 
+                  className="pl-9 bg-muted/30 border-none ring-offset-background"
+                />
+              </div>
+              {availableLocations.length > 0 ? (
+                <div className="hidden md:flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-[240px] justify-between bg-muted/20 border-none"
+                    onClick={openLocationSwitcher}
+                  >
+                    <span className="truncate">{currentLocationName || "Select location"}</span>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : null}
+              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+              {docTitle ? (
+                <div className="hidden md:block max-w-[260px] truncate text-sm font-semibold text-foreground/90">
+                  {docTitle}
+                </div>
+              ) : null}
+              <Button
+                variant="ghost"
+                size="icon"
                 className="relative h-10 w-10"
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
@@ -851,6 +1143,23 @@ export function DashboardLayout({ children, fullWidth = true }: { children: Reac
         </SidebarInset>
 
         <DockMenu />
+        <PromotionsDialog 
+          open={isPromotionsOpen} 
+          onOpenChange={setIsPromotionsOpen} 
+          locationId={currentLocationId}
+          locationName={currentLocationName}
+        />
+        <SaasInfoDialog 
+          isOpen={isSaasDialogOpen} 
+          onClose={() => setIsSaasDialogOpen(false)} 
+          tenantName={saasTenantName}
+          packageName={saasPackageName}
+          licenseKey={saasLicenseKey}
+          modules={saasModules}
+          renewalDate={saasRenewalDate}
+          invoices={saasInvoices}
+          onSync={handleSaasSync}
+        />
       </div>
     </SidebarProvider>
   );

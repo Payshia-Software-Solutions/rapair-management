@@ -1,0 +1,238 @@
+﻿src/app/accounting/accounts/[id]/ledger/print/page.tsx(100,37): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/accounting/balance-sheet/print/page.tsx(141,37): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/accounting/fiscal-years/page.tsx(112,64): error TS2554: Expected 1 arguments, but got 3.
+src/app/accounting/journal/[id]/print/page.tsx(133,38): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/accounting/journal/print/page.tsx(96,37): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/accounting/reconciliation/page.tsx(117,9): error TS2554: Expected 2 arguments, but got 1.
+src/app/accounting/reconciliation/page.tsx(118,36): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/app/accounting/settings/page.tsx(97,39): error TS2554: Expected 1 arguments, but got 2.
+src/app/accounting/trial-balance/page.tsx(89,37): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/accounting/trial-balance/print/page.tsx(99,37): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/admin/locations/[id]/page.tsx(7,10): error TS2724: '"@/lib/api"' has no exported member named 'fetchLocation'. Did you mean 'fetchLocations'?
+src/app/admin/settings/system/page.tsx(102,13): error TS2554: Expected 2 arguments, but got 1.
+src/app/admin/settings/system/page.tsx(151,39): error TS2345: Argument of type 'boolean' is not assignable to parameter of type 'number'.
+src/app/admin/users/page.tsx(14,10): error TS2724: '"@/lib/api"' has no exported member named 'adminFetchUserLocations'. Did you mean 'adminSetUserLocations'?
+src/app/admin/users/page.tsx(126,48): error TS2345: Argument of type 'boolean' is not assignable to parameter of type 'number'.
+src/app/cms/invoices/[id]/print/page.tsx(108,38): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/cms/invoices/[id]/view/page.tsx(295,42): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/cms/invoices/new/page.tsx(244,30): error TS2304: Cannot find name 'Fingerprint'.
+src/app/cms/payment-receipts/[id]/print/page.tsx(120,38): error TS2345: Argument of type '"company"' is not assignable to parameter of type '"vehicles" | "orders" | "items"'.
+src/app/cms/pos/components/Dialogs/CheckoutDialog.tsx(43,5): error TS2339: Property 'setBankBranches' does not exist on type 'POSContextType'.
+src/app/cms/pos/components/Dialogs/ManagementModals.tsx(320,51): error TS2304: Cannot find name 'Building2'.
+src/app/cms/pos/components/Dialogs/ManagementModals.tsx(676,103): error TS2552: Cannot find name 'Store'. Did you mean 'Storage'?
+src/app/cms/pos/components/Dialogs/ManagementModals.tsx(834,77): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/app/cms/pos/components/Dialogs/ProductSelectionDialog.tsx(105,45): error TS2554: Expected 2-3 arguments, but got 4.
+src/app/cms/pos/components/Dialogs/PromotionPromptDialog.tsx(19,5): error TS2339: Property 'appliedPromotion' does not exist on type 'POSContextType'.
+src/app/cms/pos/components/Dialogs/PromotionPromptDialog.tsx(20,5): error TS2339: Property 'setAppliedPromotion' does not exist on type 'POSContextType'.
+src/app/cms/pos/components/InventoryGrid.tsx(46,5): error TS2339: Property 'setTableManagementOpen' does not exist on type 'POSContextType'.
+src/app/cms/pos/components/InventoryGrid.tsx(160,58): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/app/cms/pos/components/SidebarCart.tsx(81,5): error TS2339: Property 'appliedPromotion' does not exist on type 'POSContextType'.
+src/app/cms/pos/components/SidebarCart.tsx(82,5): error TS2339: Property 'setAppliedPromotion' does not exist on type 'POSContextType'.
+src/app/cms/pos/context/POSContext.tsx(19,3): error TS2724: '"@/lib/api"' has no exported member named 'fetchTables'. Did you mean 'fetchTaxes'?
+src/app/cms/pos/context/POSContext.tsx(23,3): error TS2724: '"@/lib/api"' has no exported member named 'fetchHeldOrders'. Did you mean 'fetchOrders'?
+src/app/cms/pos/context/POSContext.tsx(273,39): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/app/cms/pos/context/POSContext.tsx(274,31): error TS2345: Argument of type 'string | number' is not assignable to parameter of type 'number | undefined'.
+  Type 'string' is not assignable to type 'number'.
+src/app/cms/pos/context/POSContext.tsx(401,45): error TS7006: Parameter 'res' implicitly has an 'any' type.
+src/app/cms/pos/context/POSContext.tsx(607,41): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/cms/pos/day-end/page.tsx(24,29): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/app/cms/pos/kot/[id]/page.tsx(5,10): error TS2724: '"@/lib/api"' has no exported member named 'fetchKOTDetails'. Did you mean 'fetchModels'?
+src/app/cms/pos/kot/[id]/page.tsx(40,32): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/app/dashboard/sales/page.tsx(83,19): error TS2339: Property 'revenueTrend' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(83,43): error TS7006: Parameter 'r' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(90,19): error TS2339: Property 'paymentMethods' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(91,15): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(92,12): error TS7006: Parameter 'p' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(112,35): error TS2339: Property 'kpis' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(113,21): error TS2339: Property 'kpis' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(120,35): error TS2339: Property 'kpis' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(128,35): error TS2339: Property 'kpis' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(136,35): error TS2339: Property 'kpis' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(278,37): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(278,44): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(290,31): error TS7006: Parameter 'entry' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(290,38): error TS7006: Parameter 'index' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(314,25): error TS2339: Property 'topItems' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(317,25): error TS2339: Property 'topItems' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(317,39): error TS7006: Parameter 'item' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(317,45): error TS7006: Parameter 'idx' implicitly has an 'any' type.
+src/app/dashboard/sales/page.tsx(329,64): error TS2339: Property 'topItems' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(352,25): error TS2339: Property 'recentSales' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(355,25): error TS2339: Property 'recentSales' does not exist on type 'SalesDashboardData'.
+src/app/dashboard/sales/page.tsx(355,42): error TS7006: Parameter 'sale' implicitly has an 'any' type.
+src/app/inventory/grn/new/page.tsx(88,44): error TS2339: Property 'location_name' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/grn/new/page.tsx(330,13): error TS2322: Type '{ part_id: number; qty_received: number; unit_cost: number; batch_number: string; mfg_date: string; expiry_date: string; }[]' is not assignable to type 'GrnItemRow[]'.
+  Type '{ part_id: number; qty_received: number; unit_cost: number; batch_number: string; mfg_date: string; expiry_date: string; }' is missing the following properties from type 'GrnItemRow': id, grn_id, line_total
+src/app/inventory/grn/new/page.tsx(348,15): error TS2345: Argument of type '(p: { supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }) => { supplier_id: string; received_at: string; items: GrnItemRow[] | { ...; }[]; purchase_order_id: string; notes: string; }' is not assignable to parameter of type 'SetStateAction<{ supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }>'.
+  Type '(p: { supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }) => { supplier_id: string; received_at: string; items: GrnItemRow[] | { ...; }[]; purchase_order_id: string; notes: string; }' is not assignable to type '(prevState: { supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }) => { supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }'.
+    Call signature return types '{ supplier_id: string; received_at: string; items: GrnItemRow[] | { part_id: number; qty_received: number; unit_cost: number; }[]; purchase_order_id: string; notes: string; }' and '{ supplier_id: string; purchase_order_id: string; received_at: string; notes: string; items: GrnItemRow[]; }' are incompatible.
+      The types of 'items' are incompatible between these types.
+        Type 'GrnItemRow[] | { part_id: number; qty_received: number; unit_cost: number; }[]' is not assignable to type 'GrnItemRow[]'.
+          Type '{ part_id: number; qty_received: number; unit_cost: number; }[]' is not assignable to type 'GrnItemRow[]'.
+            Type '{ part_id: number; qty_received: number; unit_cost: number; }' is missing the following properties from type 'GrnItemRow': id, grn_id, line_total
+src/app/inventory/grn/new/page.tsx(491,37): error TS2339: Property 'location_name' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/grn/new/page.tsx(494,89): error TS2339: Property 'location_name' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/items/[id]/page.tsx(158,29): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'SetStateAction<number[]>'.
+  Type 'unknown[]' is not assignable to type 'number[]'.
+    Type 'unknown' is not assignable to type 'number'.
+src/app/inventory/items/[id]/page.tsx(158,74): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'number'.
+src/app/inventory/items/[id]/page.tsx(158,80): error TS18046: 'n' is of type 'unknown'.
+src/app/inventory/items/[id]/page.tsx(158,102): error TS18046: 'a' is of type 'unknown'.
+src/app/inventory/items/[id]/page.tsx(158,106): error TS18046: 'b' is of type 'unknown'.
+src/app/inventory/items/[id]/page.tsx(200,9): error TS2353: Object literal may only specify known properties, and 'collection_ids' does not exist in type 'Partial<PartRow> & { supplier_ids?: number[] | undefined; }'.
+src/app/inventory/items/new/page.tsx(157,9): error TS2353: Object literal may only specify known properties, and 'collection_ids' does not exist in type 'Partial<PartRow> & { supplier_ids?: number[] | undefined; }'.
+src/app/inventory/purchase-orders/approvals/page.tsx(171,74): error TS2339: Property 'location_name' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/purchase-orders/page.tsx(104,13): error TS2552: Cannot find name 'setPurchaseOrderStatus'. Did you mean 'updatePurchaseOrderStatus'?
+src/app/inventory/purchase-orders/page.tsx(193,29): error TS2367: This comparison appears to be unintentional because the types '"Cancelled" | "Draft" | "Sent" | "Partial" | "Completed"' and '"Approved"' have no overlap.
+src/app/inventory/purchase-orders/page.tsx(194,29): error TS2367: This comparison appears to be unintentional because the types '"Cancelled" | "Draft" | "Sent" | "Partial" | "Completed"' and '"Received"' have no overlap.
+src/app/inventory/purchase-orders/page.tsx(204,29): error TS2339: Property 'last_grn_number' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/purchase-orders/page.tsx(205,80): error TS2339: Property 'last_grn_number' does not exist on type 'PurchaseOrderRow'.
+src/app/inventory/purchase-orders/page.tsx(231,40): error TS2367: This comparison appears to be unintentional because the types '"Cancelled" | "Draft" | "Sent" | "Partial" | "Completed"' and '"Approved"' have no overlap.
+src/app/inventory/purchase-orders/page.tsx(251,42): error TS2367: This comparison appears to be unintentional because the types '"Cancelled" | "Draft" | "Sent" | "Partial" | "Completed"' and '"Partially Received"' have no overlap.
+src/app/inventory/stock-requests/page.tsx(60,28): error TS2339: Property 'total_qty_requested' does not exist on type 'StockRequisitionRow'.
+src/app/inventory/stock-requests/page.tsx(61,28): error TS2339: Property 'total_qty_fulfilled' does not exist on type 'StockRequisitionRow'.
+src/app/inventory/stock-requests/page.tsx(118,61): error TS2551: Property 'requisition_number' does not exist on type '{ _req: number; _ful: number; _pct: number; id: number; requisition_no: string; location_id: number; location_name?: string | undefined; department_id?: number | undefined; department_name?: string | undefined; status: string; notes?: string | undefined; created_at: string; }'. Did you mean 'requisition_no'?
+src/app/inventory/stock-requests/page.tsx(120,59): error TS2551: Property 'to_location_name' does not exist on type '{ _req: number; _ful: number; _pct: number; id: number; requisition_no: string; location_id: number; location_name?: string | undefined; department_id?: number | undefined; department_name?: string | undefined; status: string; notes?: string | undefined; created_at: string; }'. Did you mean 'location_name'?
+src/app/inventory/stock-requests/page.tsx(120,81): error TS2551: Property 'to_location_id' does not exist on type '{ _req: number; _ful: number; _pct: number; id: number; requisition_no: string; location_id: number; location_name?: string | undefined; department_id?: number | undefined; department_name?: string | undefined; status: string; notes?: string | undefined; created_at: string; }'. Did you mean 'location_id'?
+src/app/inventory/stock/adjustments/[id]/page.tsx(13,26): error TS2724: '"@/lib/api"' has no exported member named 'fetchStockAdjustmentBatchForLocation'. Did you mean 'fetchStockAdjustmentBatchesForLocation'?
+src/app/inventory/stock/adjustments/new/page.tsx(16,10): error TS2724: '"@/lib/api"' has no exported member named 'createStockAdjustmentBatchForLocation'. Did you mean 'fetchStockAdjustmentBatchesForLocation'?
+src/app/inventory/stock/adjustments/new/page.tsx(167,15): error TS2741: Property 'batch_id' is missing in type '{ key: any; part_id: number; physical_stock: ""; notes: string; }' but required in type 'Line'.
+src/app/inventory/stock/adjustments/new/page.tsx(365,11): error TS2304: Cannot find name 'printTab'.
+src/app/inventory/stock/adjustments/new/page.tsx(365,24): error TS2304: Cannot find name 'printTab'.
+src/app/inventory/stock/adjustments/new/page.tsx(367,11): error TS2304: Cannot find name 'printTab'.
+src/app/inventory/stock/adjustments/page.tsx(273,34): error TS2339: Property 'adjustment_number' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(280,32): error TS2339: Property 'adjusted_at' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(280,64): error TS2339: Property 'adjusted_at' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(282,104): error TS2339: Property 'reason' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(283,74): error TS2339: Property 'line_count' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(284,71): error TS2339: Property 'total_qty_change' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(284,130): error TS2339: Property 'total_qty_change' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(285,39): error TS2339: Property 'total_qty_change' does not exist on type 'StockAdjustmentBatchRow'.
+src/app/inventory/stock/adjustments/page.tsx(287,104): error TS2551: Property 'created_by_name' does not exist on type 'StockAdjustmentBatchRow'. Did you mean 'created_by'?
+src/app/inventory/stock/adjustments/print/[id]/page.tsx(5,10): error TS2724: '"@/lib/api"' has no exported member named 'fetchStockAdjustmentBatchForLocation'. Did you mean 'fetchStockAdjustmentBatchesForLocation'?
+src/app/inventory/stock/page.tsx(33,52): error TS2561: Object literal may only specify known properties, but 'locationId' does not exist in type '{ location_id?: string | undefined; group?: string | undefined; q?: string | undefined; as_of?: string | undefined; batches?: boolean | undefined; }'. Did you mean to write 'location_id'?
+src/app/inventory/stock/page.tsx(107,22): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(107,47): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(107,83): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(114,29): error TS2304: Cannot find name 'PartRow'.
+src/app/inventory/stock/page.tsx(214,36): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(214,61): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(214,97): error TS2339: Property 'cost_price' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(218,35): error TS2339: Property 'reorder_level' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(218,63): error TS2339: Property 'reorder_level' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(218,109): error TS2339: Property 'reorder_level' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(220,57): error TS2339: Property 'batches' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(220,71): error TS2339: Property 'batches' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(252,34): error TS2339: Property 'unit' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(252,104): error TS2339: Property 'unit' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(266,56): error TS2339: Property 'batches' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/stock/page.tsx(279,40): error TS2339: Property 'batches' does not exist on type 'LocationStockBalanceRow'.
+src/app/inventory/transfers/new/page.tsx(82,21): error TS2551: Property 'requisition_number' does not exist on type 'StockRequisitionRow'. Did you mean 'requisition_no'?
+src/app/inventory/transfers/new/page.tsx(82,47): error TS2551: Property 'to_location_name' does not exist on type 'StockRequisitionRow'. Did you mean 'location_name'?
+src/app/inventory/transfers/new/page.tsx(82,76): error TS2551: Property 'to_location_id' does not exist on type 'StockRequisitionRow'. Did you mean 'location_id'?
+src/app/inventory/transfers/new/page.tsx(83,24): error TS2551: Property 'requisition_number' does not exist on type 'StockRequisitionRow'. Did you mean 'requisition_no'?
+src/app/inventory/transfers/new/page.tsx(83,48): error TS2551: Property 'to_location_name' does not exist on type 'StockRequisitionRow'. Did you mean 'location_name'?
+src/app/inventory/transfers/page.tsx(119,61): error TS2551: Property 'transfer_number' does not exist on type 'StockTransferRow'. Did you mean 'transfer_no'?
+src/app/inventory/transfers/page.tsx(125,35): error TS2339: Property 'line_count' does not exist on type 'StockTransferRow'.
+src/app/master-data/checklists/page.tsx(13,3): error TS2724: '"@/lib/api"' has no exported member named 'deleteChecklistTemplate'. Did you mean 'createChecklistTemplate'?
+src/app/master-data/checklists/page.tsx(15,3): error TS2724: '"@/lib/api"' has no exported member named 'updateChecklistTemplate'. Did you mean 'createChecklistTemplate'?
+src/app/master-data/departments/page.tsx(10,64): error TS2724: '"@/lib/api"' has no exported member named 'updateDepartment'. Did you mean 'createDepartment'?
+src/app/master-data/tables/page.tsx(10,10): error TS2724: '"@/lib/api"' has no exported member named 'fetchTables'. Did you mean 'fetchTaxes'?
+src/app/master-data/tables/page.tsx(10,23): error TS2724: '"@/lib/api"' has no exported member named 'createTable'. Did you mean 'createTax'?
+src/app/master-data/tables/page.tsx(10,36): error TS2724: '"@/lib/api"' has no exported member named 'updateTable'. Did you mean 'updateTax'?
+src/app/master-data/tables/page.tsx(10,49): error TS2724: '"@/lib/api"' has no exported member named 'deleteTable'. Did you mean 'deleteTax'?
+src/app/master-data/technicians/page.tsx(44,16): error TS2345: Argument of type 'TechnicianRow[]' is not assignable to parameter of type 'SetStateAction<TechnicianRow[]>'.
+  Type 'import("C:/xampp/htdocs/rapair-management/front-end/src/lib/api/master-data").TechnicianRow[]' is not assignable to type 'TechnicianRow[]'.
+    Property 'created_at' is missing in type 'import("C:/xampp/htdocs/rapair-management/front-end/src/lib/api/master-data").TechnicianRow' but required in type 'TechnicianRow'.
+src/app/orders/[id]/page.tsx(223,17): error TS2339: Property 'is_fifo' does not exist on type 'PartRow'.
+src/app/orders/[id]/page.tsx(223,30): error TS2339: Property 'is_expiry' does not exist on type 'PartRow'.
+src/app/orders/[id]/page.tsx(227,29): error TS2304: Cannot find name 'fetchPartBatches'.
+src/app/orders/[id]/page.tsx(357,50): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/[id]/page.tsx(357,72): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/[id]/page.tsx(759,87): error TS2339: Property 'unit' does not exist on type 'OrderPartRow'.
+src/app/orders/[id]/page.tsx(759,157): error TS2339: Property 'unit' does not exist on type 'OrderPartRow'.
+src/app/orders/[id]/page.tsx(764,88): error TS2339: Property 'unit_price' does not exist on type 'OrderPartRow'.
+src/app/orders/[id]/page.tsx(764,119): error TS2339: Property 'unit_price' does not exist on type 'OrderPartRow'.
+src/app/orders/[id]/page.tsx(767,40): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/[id]/page.tsx(767,71): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/completion-print/[id]/page.tsx(84,46): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/completion-print/[id]/page.tsx(84,68): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/orders/completion-print/[id]/page.tsx(230,68): error TS2339: Property 'unit_price' does not exist on type 'OrderPartRow'.
+src/app/orders/completion-print/[id]/page.tsx(231,68): error TS2551: Property 'line_total' does not exist on type 'OrderPartRow'. Did you mean 'net_total'?
+src/app/production/orders/page.tsx(157,130): error TS2304: Cannot find name 'router'.
+src/app/reports/grn/page.tsx(17,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/item-movements/page.tsx(28,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/item-movements/page.tsx(123,9): error TS2561: Object literal may only specify known properties, but 'partId' does not exist in type '{ part_id: number; location_id?: string | undefined; from?: string | undefined; to?: string | undefined; movement_type?: string | undefined; limit?: number | undefined; offset?: number | undefined; }'. Did you mean to write 'part_id'?
+src/app/reports/items/page.tsx(22,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/items/page.tsx(78,9): error TS2561: Object literal may only specify known properties, but 'brandId' does not exist in type '{ q?: string | undefined; brand_id?: number | undefined; supplier_id?: number | undefined; active?: number | undefined; }'. Did you mean to write 'brand_id'?
+src/app/reports/low-stock/page.tsx(22,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/low-stock/page.tsx(84,9): error TS2561: Object literal may only specify known properties, but 'locationId' does not exist in type '{ location_id?: string | undefined; q?: string | undefined; }'. Did you mean to write 'location_id'?
+src/app/reports/purchase-orders/page.tsx(21,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/stock-balance/page.tsx(32,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/stock-balance/page.tsx(100,9): error TS2561: Object literal may only specify known properties, but 'locationId' does not exist in type '{ location_id?: string | undefined; group?: string | undefined; q?: string | undefined; as_of?: string | undefined; batches?: boolean | undefined; }'. Did you mean to write 'location_id'?
+src/app/reports/stock-balance/page.tsx(130,9): error TS2561: Object literal may only specify known properties, but 'locationId' does not exist in type '{ location_id?: string | undefined; group?: string | undefined; q?: string | undefined; as_of?: string | undefined; batches?: boolean | undefined; }'. Did you mean to write 'location_id'?
+src/app/reports/stock-transfers/page.tsx(32,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/stock-transfers/page.tsx(96,9): error TS2561: Object literal may only specify known properties, but 'locationId' does not exist in type '{ location_id?: string | undefined; from?: string | undefined; to?: string | undefined; status?: string | undefined; }'. Did you mean to write 'location_id'?
+src/app/reports/vehicles/[id]/history/page.tsx(12,56): error TS2305: Module '"@/lib/api"' has no exported member 'VehicleRow'.
+src/app/reports/vehicles/[id]/history/page.tsx(21,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/app/reports/vehicles/[id]/history/page.tsx(60,37): error TS2561: Object literal may only specify known properties, but 'vehicleId' does not exist in type '{ vehicle_id: number; from?: string | undefined; to?: string | undefined; }'. Did you mean to write 'vehicle_id'?
+src/app/reports/vehicles/page.tsx(18,5): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(iterable: Iterable<any> | ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'Iterable<any> | ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+  Overload 2 of 4, '(arrayLike: ArrayLike<any>): any[]', gave the following error.
+    Argument of type 'Record<string, any>' is not assignable to parameter of type 'ArrayLike<any>'.
+      Property 'length' is missing in type 'Record<string, any>' but required in type 'ArrayLike<any>'.
+src/components/ui/calendar.tsx(57,9): error TS2353: Object literal may only specify known properties, and 'IconLeft' does not exist in type 'Partial<CustomComponents>'.
+src/components/ui/calendar.tsx(57,22): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/components/ui/calendar.tsx(60,23): error TS7031: Binding element 'className' implicitly has an 'any' type.
+src/lib/api/inventory.ts(137,14): error TS2451: Cannot redeclare block-scoped variable 'fetchPartBatches'.
+src/lib/api/inventory.ts(341,14): error TS2451: Cannot redeclare block-scoped variable 'fetchPartBatches'.

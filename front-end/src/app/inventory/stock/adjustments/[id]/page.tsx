@@ -229,6 +229,7 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
                   <TableHeader className="bg-muted/30">
                     <TableRow>
                       <TableHead>Item</TableHead>
+                      <TableHead>Batch</TableHead>
                       <TableHead className="w-[140px]">System</TableHead>
                       <TableHead className="w-[140px]">Physical</TableHead>
                       <TableHead className="w-[140px]">Variance</TableHead>
@@ -246,6 +247,12 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
                             {it.sku ? `SKU: ${it.sku}` : `ITEM ID: #${it.part_id}`} {it.unit ? `| ${it.unit}` : ""}
                           </div>
                         </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-mono text-[11px] font-bold">{it.batch_number ?? "Total/Unbatched"}</span>
+                            {it.batch_number && <span className="text-[9px] text-muted-foreground uppercase tracking-tight font-black">Manual Batch Adjustment</span>}
+                          </div>
+                        </TableCell>
                         <TableCell className="font-semibold">{fmt3(Number(it.system_stock ?? 0))}</TableCell>
                         <TableCell className="font-semibold">{fmt3(Number(it.physical_stock ?? (Number(it.system_stock ?? 0) + Number(it.qty_change ?? 0))))}</TableCell>
                         <TableCell className={`font-bold ${Number(it.qty_change) < 0 ? "text-destructive" : Number(it.qty_change) > 0 ? "text-green-700" : "text-muted-foreground"}`}>
@@ -255,8 +262,8 @@ export default function StockAdjustmentDetailPage({ params }: { params: Promise<
                         <TableCell className="text-sm text-muted-foreground">{it.notes ?? "-"}</TableCell>
                       </TableRow>
                     ))}
-                    <TableRow>
-                      <TableCell className="text-right font-semibold">Total</TableCell>
+                    <TableRow className="bg-muted/5 font-bold">
+                      <TableCell className="text-right">Total Adjustment</TableCell>
                       <TableCell />
                       <TableCell />
                       <TableCell className={`font-bold ${totalQty < 0 ? "text-destructive" : totalQty > 0 ? "text-green-700" : "text-muted-foreground"}`}>

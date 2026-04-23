@@ -178,7 +178,7 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
           <div className="row-item" key={idx}>
             <div className="item-name">
               {item.description || item.item_name}
-              {isFree && <span style={{ marginLeft: '4px', fontSize: '9px', fontWeight: 'bold', background: '#e5e7eb', padding: '1px 4px', borderRadius: '4px' }}>[FREE]</span>}
+              {isFree && <span style={{ marginLeft: '4px', fontSize: '8px', fontWeight: '900', background: '#000', color: '#fff', padding: '1px 3px', borderRadius: '2px', textTransform: 'uppercase' }}>Gift</span>}
             </div>
             <div className="item-detail">
               <span>{item.quantity} × {unitAfterDiscount}</span>
@@ -192,12 +192,21 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
 
       {/* Totals */}
       <div className="row"><span>Subtotal</span><span>LKR {fmt(invoice.subtotal)}</span></div>
-      {Number(invoice.discount_total) > 0 && (
-        <div className="row">
-          <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
-          <span>-LKR {fmt(invoice.discount_total)}</span>
-        </div>
-      )}
+      {(() => {
+        const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+        const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+        const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+        
+        if (actualDiscount > 0 || invoice.applied_promotion_name) {
+          return (
+            <div className="row">
+              <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+              <span>-LKR {fmt(actualDiscount)}</span>
+            </div>
+          );
+        }
+        return null;
+      })()}
       {(invoice.applied_taxes || []).map((tax: any, idx: number) => (
         <div className="row" key={idx}>
           <span>{tax.tax_code || tax.tax_name}{Number(tax.rate_percent) > 0 ? ` (${tax.rate_percent}%)` : ''}</span>

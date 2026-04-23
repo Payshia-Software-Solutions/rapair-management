@@ -8,11 +8,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { createTransfer, fetchLocations, fetchParts, fetchPartLocationStock, fetchRequisition, fetchRequisitions, type LocationStock, type ServiceLocationRow, type PartRow, type StockRequisitionRow } from "@/lib/api";
-import { Plus, Trash2 } from "lucide-react";
+import { createTransfer, fetchLocations, fetchParts, fetchPartLocationStock, fetchRequisition, fetchRequisitions, fetchInventoryBatches, type LocationStock, type ServiceLocationRow, type PartRow, type StockRequisitionRow } from "@/lib/api";
+import { Plus, Trash2, Layers } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
-type Line = { part_id: string; qty: string; requested?: number; fulfilled?: number };
+type Line = { 
+  part_id: string; 
+  qty: string; 
+  batch_id?: string; 
+  batches?: any[]; 
+  requested?: number; 
+  fulfilled?: number 
+};
 
 export default function NewTransferPage() {
   const { toast } = useToast();
@@ -85,15 +92,6 @@ export default function NewTransferPage() {
     }));
   }, [parts]);
 
-  const selectedPartIds = useMemo(() => {
-    const s = new Set<string>();
-    for (const l of lines) {
-      const v = String(l.part_id || "").trim();
-      if (v) s.add(v);
-    }
-    return s;
-  }, [lines]);
-
   const fromLocName = useMemo(() => {
     const row = locations.find((l) => String(l.id) === String(fromLoc));
     return row?.name ? String(row.name) : "";
@@ -115,28 +113,37 @@ export default function NewTransferPage() {
       toast({ title: "Items cleared", description: "Transfer lines were cleared because the From Location changed." });
     }
     setFromLoc(v);
-    // Any cached stock values are tied to the source location.
     setStockByPartId({});
     setLoadingStockIds({});
   };
 
-  const loadStock = async (partId: string) => {
+  const loadStockAndBatches = async (partId: string, lineIdx: number) => {
     if (!fromLoc || !partId) return;
-    if (stockByPartId[partId]) return;
-    if (loadingStockIds[partId]) return;
-    setLoadingStockIds((p) => ({ ...p, [partId]: true }));
+    
+    // Load general stock data
+    if (!stockByPartId[partId] && !loadingStockIds[partId]) {
+      setLoadingStockIds((p) => ({ ...p, [partId]: true }));
+      try {
+        const s = await fetchPartLocationStock(partId, fromLoc);
+        setStockByPartId((prev) => ({ ...prev, [partId]: s }));
+      } catch {} finally {
+        setLoadingStockIds((p) => {
+          const next = { ...p };
+          delete next[partId];
+          return next;
+        });
+      }
+    }
+
+    // Load available batches for this specific line
     try {
-      const s = await fetchPartLocationStock(partId, fromLoc);
-      setStockByPartId((prev) => ({ ...prev, [partId]: s }));
-    } catch {
-      // ignore best-effort
-    } finally {
-      setLoadingStockIds((p) => {
-        const next = { ...p };
-        delete next[partId];
+      const b = await fetchInventoryBatches(partId, fromLoc);
+      setLines(prev => {
+        const next = [...prev];
+        if (next[lineIdx]) next[lineIdx].batches = b;
         return next;
       });
-    }
+    } catch {}
   };
 
   const canSave = useMemo(() => {
@@ -169,7 +176,11 @@ export default function NewTransferPage() {
         notes: notes.trim() || undefined,
         items: lines
           .filter((l) => l.part_id && Number(l.qty) > 0)
-          .map((l) => ({ part_id: Number(l.part_id), qty: Number(l.qty) })),
+          .map((l) => ({ 
+            part_id: Number(l.part_id), 
+            qty: Number(l.qty),
+            batch_id: l.batch_id ? Number(l.batch_id) : undefined 
+          })),
       };
       const res = await createTransfer(payload);
       toast({ title: "Created", description: "Transfer request created." });
@@ -194,8 +205,6 @@ export default function NewTransferPage() {
 
       const fromId = String(hdr.from_location_id ?? "");
       if (fromId && fromId !== "0") {
-        // Set source location from the request (preferred source).
-        // Don't prompt/clear here because we're actively loading the request.
         setFromLoc(fromId);
         setStockByPartId({});
         setLoadingStockIds({});
@@ -204,7 +213,6 @@ export default function NewTransferPage() {
       const toId = String(hdr.to_location_id ?? "");
       setToLoc(toId);
 
-      // Prefill lines from remaining qty
       const nextLines: Line[] = its.map((it: any) => {
         const req = Number(it.qty_requested ?? 0);
         const ful = Number(it.qty_fulfilled ?? 0);
@@ -217,7 +225,7 @@ export default function NewTransferPage() {
         };
       });
       setLines(nextLines.length ? nextLines : [{ part_id: "", qty: "" }]);
-      // Best-effort fetch stock for the loaded items from the selected source location.
+      
       try {
         const sourceLoc = (fromId && fromId !== "0") ? fromId : fromLoc;
         if (sourceLoc) {
@@ -230,9 +238,7 @@ export default function NewTransferPage() {
           }
           setStockByPartId(next);
         }
-      } catch {
-        // ignore
-      }
+      } catch {}
       toast({ title: "Loaded", description: "Request loaded into transfer." });
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load request", variant: "destructive" });
@@ -242,7 +248,6 @@ export default function NewTransferPage() {
   };
 
   useEffect(() => {
-    // Allow linking directly from a Stock Request page: /inventory/transfers/new?req=123
     const pre = searchParams?.get("req");
     if (!pre) return;
     if (reqId) return;
@@ -260,7 +265,6 @@ export default function NewTransferPage() {
   }, [searchParams, reqId]);
 
   useEffect(() => {
-    // When From Location changes, refresh the per-location stock for already selected items.
     if (!fromLoc) return;
     const ids = Array.from(new Set(lines.map((l) => String(l.part_id || "").trim()).filter(Boolean)));
     if (ids.length === 0) return;
@@ -273,9 +277,7 @@ export default function NewTransferPage() {
           next[p.pid] = p.s;
         }
         setStockByPartId(next);
-      } catch {
-        // ignore
-      }
+      } catch {}
     })();
   }, [fromLoc]);
 
@@ -329,7 +331,6 @@ export default function NewTransferPage() {
               <SearchableSelect
                 value={toLoc}
                 onValueChange={(v) => {
-                  // If loaded from a request, lock To location from manual edits.
                   if (reqId) return;
                   setToLoc(v);
                 }}
@@ -363,123 +364,130 @@ export default function NewTransferPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="p-6 space-y-3">
+        <CardContent className="p-6 space-y-4">
           {lines.map((line, idx) => (
-            <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-              <div className="md:col-span-8 space-y-2">
-                <Label>Item</Label>
-                <SearchableSelect
-                  value={line.part_id}
-                  onValueChange={(val) => {
-                    // Prevent duplicate selection
-                    if (val && val !== line.part_id && selectedPartIds.has(val)) {
-                      toast({ title: "Duplicate item", description: "This item is already added to the transfer.", variant: "destructive" });
-                      return;
-                    }
-                    const next = [...lines];
-                    next[idx] = { ...next[idx], part_id: val };
-                    setLines(next);
-                    if (val && fromLoc) void loadStock(val);
-                  }}
-                  options={partOptions.filter((o) => !selectedPartIds.has(o.value) || o.value === line.part_id)}
-                  placeholder="Select item..."
-                  searchPlaceholder="Search items..."
-                />
-                {line.part_id ? (
-                  (() => {
+            <div key={idx} className="p-4 rounded-lg bg-muted/30 border border-border/50 relative group">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
+                <div className="md:col-span-11 grid grid-cols-1 md:grid-cols-12 gap-4">
+                  <div className="md:col-span-5 space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Item</Label>
+                    <SearchableSelect
+                      value={line.part_id}
+                      onValueChange={(val) => {
+                        const next = [...lines];
+                        next[idx] = { ...next[idx], part_id: val, batch_id: "" };
+                        setLines(next);
+                        if (val && fromLoc) void loadStockAndBatches(val, idx);
+                      }}
+                      options={partOptions}
+                      placeholder="Select item..."
+                      searchPlaceholder="Search items..."
+                    />
+                  </div>
+
+                  <div className="md:col-span-4 space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Batch (Optional)</Label>
+                    <SearchableSelect
+                      value={line.batch_id || ""}
+                      onValueChange={(val) => {
+                        const next = [...lines];
+                        next[idx] = { ...next[idx], batch_id: val };
+                        setLines(next);
+                      }}
+                      options={(line.batches || []).map(b => ({
+                        value: String(b.id),
+                        label: `${b.batch_number} (Exp: ${b.expiry_date || 'N/A'}, Qty: ${Number(b.quantity_on_hand).toFixed(1)})`,
+                        keywords: `${b.batch_number} ${b.expiry_date}`
+                      }))}
+                      placeholder={line.batches?.length ? "Auto (FIFO)" : "No batches available"}
+                      disabled={!line.part_id || !line.batches?.length}
+                    />
+                  </div>
+
+                  <div className="md:col-span-3 space-y-2">
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qty</Label>
+                    <Input
+                      type="number"
+                      step="0.001"
+                      min="0"
+                      value={line.qty}
+                      onChange={(e) => {
+                        const next = [...lines];
+                        next[idx] = { ...next[idx], qty: e.target.value };
+                        setLines(next);
+                      }}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+
+                <div className="md:col-span-1 pt-6 flex justify-end">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => removeLine(idx)} 
+                    disabled={lines.length === 1}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {line.part_id && (
+                <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-muted-foreground">
+                  {(() => {
                     const p = parts.find((x) => String(x.id) === String(line.part_id));
                     const onHand = Number((p as any)?.stock_quantity ?? 0);
                     const unitCost = Number((p as any)?.cost_price ?? (p as any)?.price ?? 0);
                     const locStock = stockByPartId[String(line.part_id)] ?? null;
                     const locLoading = Boolean(loadingStockIds[String(line.part_id)]);
                     return (
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span>
-                          {fromLoc ? (
-                            <>
-                              {fromLocName ? `From stock (${fromLocName})` : "From stock"}:{" "}
-                              <span className="text-foreground font-medium">
-                                {locLoading ? "Loading..." : (locStock ? Number(locStock.available ?? 0).toFixed(3) : "—")}
+                      <>
+                        <div className="flex items-center gap-1.5">
+                          <Layers className="w-3 link-3" />
+                          <span>
+                            {fromLocName ? `${fromLocName}: ` : "Source: "}
+                            <span className="text-foreground font-medium">
+                              {locLoading ? "Loading..." : (locStock ? Number(locStock.available ?? 0).toFixed(3) : "—")}
+                            </span>
+                            {locStock && (
+                              <span className="opacity-80 ml-1">
+                                (OH: {Number(locStock.on_hand).toFixed(1)}, Res: {Number(locStock.reserved).toFixed(1)})
                               </span>
-                              {locStock ? (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  (On hand {Number(locStock.on_hand ?? 0).toFixed(3)}, reserved {Number(locStock.reserved ?? 0).toFixed(3)})
-                                </span>
-                              ) : null}
-                            </>
-                          ) : (
-                            <>
-                              System stock: <span className="text-foreground font-medium">{onHand.toFixed(3)}</span>
-                            </>
-                          )}
-                        </span>
-                        <span>
-                          System stock: <span className="text-foreground font-medium">{onHand.toFixed(3)}</span>
-                        </span>
-                        <span>
+                            )}
+                          </span>
+                        </div>
+                        <div>
+                          System total: <span className="text-foreground font-medium">{onHand.toFixed(1)}</span>
+                        </div>
+                        <div>
                           Unit: <span className="text-foreground font-medium">{(p as any)?.unit ?? "-"}</span>
-                        </span>
-                        <span>
-                          Cost: <span className="text-foreground font-medium">{Number.isFinite(unitCost) ? unitCost.toFixed(2) : "0.00"}</span>
-                        </span>
-                      </div>
+                        </div>
+                        <div>
+                          Line Value: <span className="text-foreground font-medium">{(unitCost * (Number(line.qty) || 0)).toFixed(2)}</span>
+                        </div>
+                      </>
                     );
-                  })()
-                ) : null}
-              </div>
-              <div className="md:col-span-3 space-y-2">
-                <Label>Qty</Label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={line.qty}
-                  onChange={(e) => {
-                    const next = [...lines];
-                    next[idx] = { ...next[idx], qty: e.target.value };
-                    setLines(next);
-                  }}
-                  placeholder="0"
-                />
-                {line.part_id && Number(line.qty) > 0 ? (
-                  (() => {
-                    const p = parts.find((x) => String(x.id) === String(line.part_id));
-                    const unitCost = Number((p as any)?.cost_price ?? (p as any)?.price ?? 0);
-                    const qty = Number(line.qty);
-                    const value = Number.isFinite(unitCost) ? unitCost * qty : 0;
-                    return (
-                      <div className="text-xs text-muted-foreground">
-                        Line value: <span className="text-foreground font-medium">{value.toFixed(2)}</span>
-                      </div>
-                    );
-                  })()
-                ) : null}
-              </div>
-              <div className="md:col-span-1 flex justify-end">
-                <Button variant="outline" size="icon" onClick={() => removeLine(idx)} disabled={lines.length === 1}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+                  })()}
+                </div>
+              )}
             </div>
           ))}
+
           <div className="flex items-center justify-between pt-2">
-            <Button variant="outline" className="gap-2" onClick={addLine}>
+            <Button variant="outline" className="gap-2 border-dashed" onClick={addLine}>
               <Plus className="w-4 h-4" />
               Add Item
             </Button>
             <div className="flex flex-col items-end gap-1">
               {!canSave ? (
-                <div className="text-xs text-muted-foreground">
-                  {!fromLoc || !toLoc
-                    ? "Select From/To locations to continue."
-                    : fromLoc === toLoc
-                      ? "From and To must be different."
-                      : "Add at least one item with qty > 0."}
+                <div className="text-xs text-muted-foreground italic">
+                  {!fromLoc || !toLoc ? "Select locations" : "Add some items"}
                 </div>
               ) : null}
-              <Button onClick={submit} disabled={!canSave || saving}>
-                {saving ? "Saving..." : "Create Transfer"}
+              <Button size="lg" onClick={submit} disabled={!canSave || saving} className="px-8 shadow-sm">
+                {saving ? "Creating..." : "Create Transfer"}
               </Button>
             </div>
           </div>

@@ -203,7 +203,8 @@ class AccountingHelper {
         $totalValueChange = 0;
         foreach ($lines as $line) {
             // Standard approach: value variance at current cost
-            $totalValueChange += ($line->qty_change * $line->unit_cost);
+            $cost = (float)($line->unit_cost ?? 0);
+            $totalValueChange += ($line->qty_change * $cost);
         }
 
         if (abs($totalValueChange) < 0.01) return true;

@@ -13,6 +13,10 @@ class DashboardController extends Controller {
         $this->db = new Database();
     }
 
+    public function index() {
+        $this->overview();
+    }
+
     private function inList($prefix, $values) {
         $vals = is_array($values) ? $values : [];
         $vals = array_values(array_filter(array_map('intval', $vals), function($x) { return $x > 0; }));
@@ -202,6 +206,170 @@ class DashboardController extends Controller {
             'recentCompletions' => $recent,
             'serviceBaysByStatus' => $baysByStatus,
             'serviceBaysTotal' => $bayTotal,
+        ]);
+    }
+
+    // GET /api/dashboard/sales
+    public function sales() {
+        $u = $this->requirePermission('reports.read');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        $locIds = $this->resolveLocationIds($u);
+        $inLoc = $this->inList('loc', $locIds);
+
+        // 1. KPIs: Revenue & Collections
+        // Today
+        $this->db->query("
+            SELECT COALESCE(SUM(grand_total), 0) AS revenue, COALESCE(SUM(paid_amount), 0) AS collection, COUNT(*) as cnt
+            FROM invoices 
+            WHERE location_id IN ($inLoc) AND issue_date = CURDATE() AND status <> 'Cancelled'
+        ");
+        $this->bindInList('loc', $locIds);
+        $todayObj = $this->db->single();
+
+        // Month
+        $this->db->query("
+            SELECT COALESCE(SUM(grand_total), 0) AS revenue, COALESCE(SUM(paid_amount), 0) AS collection
+            FROM invoices 
+            WHERE location_id IN ($inLoc) 
+              AND issue_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01') 
+              AND status <> 'Cancelled'
+        ");
+        $this->bindInList('loc', $locIds);
+        $monthObj = $this->db->single();
+
+        // Year
+        $this->db->query("
+            SELECT COALESCE(SUM(grand_total), 0) AS revenue, COALESCE(SUM(paid_amount), 0) AS collection
+            FROM invoices 
+            WHERE location_id IN ($inLoc) 
+              AND issue_date >= DATE_FORMAT(CURDATE(), '%Y-01-01') 
+              AND status <> 'Cancelled'
+        ");
+        $this->bindInList('loc', $locIds);
+        $yearObj = $this->db->single();
+
+        // Outstanding (All-time)
+        $this->db->query("
+            SELECT COALESCE(SUM(grand_total - paid_amount), 0) AS outstanding
+            FROM invoices 
+            WHERE location_id IN ($inLoc) AND status IN ('Unpaid', 'Partial')
+        ");
+        $this->bindInList('loc', $locIds);
+        $outstObj = $this->db->single();
+
+        // 2. Revenue Trend (Last 30 Days)
+        $this->db->query("
+            SELECT issue_date AS d, SUM(grand_total) AS revenue
+            FROM invoices
+            WHERE location_id IN ($inLoc) 
+              AND issue_date >= DATE_SUB(CURDATE(), INTERVAL 29 DAY)
+              AND status <> 'Cancelled'
+            GROUP BY issue_date
+            ORDER BY issue_date ASC
+        ");
+        $this->bindInList('loc', $locIds);
+        $trendRows = $this->db->resultSet() ?: [];
+        $trendMap = [];
+        foreach ($trendRows as $tr) {
+            $trendMap[(string)$tr->d] = (float)$tr->revenue;
+        }
+
+        $revenueTrend = [];
+        for ($i = 29; $i >= 0; $i--) {
+            $d = date('Y-m-d', strtotime("-{$i} day"));
+            $revenueTrend[] = [
+                'date' => $d,
+                'revenue' => $trendMap[$d] ?? 0.0,
+            ];
+        }
+
+        // 3. Payment Methods (Last 30 Days)
+        $this->db->query("
+            SELECT payment_method, SUM(amount) AS total
+            FROM invoice_payments p
+            JOIN invoices i ON i.id = p.invoice_id
+            WHERE i.location_id IN ($inLoc) 
+              AND p.payment_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+            GROUP BY payment_method
+        ");
+        $this->bindInList('loc', $locIds);
+        $payRows = $this->db->resultSet() ?: [];
+        $paymentMethods = array_map(function($r) {
+            return [
+                'method' => (string)$r->payment_method,
+                'amount' => (float)$r->total
+            ];
+        }, $payRows);
+
+        // 4. Top Selling Items (Month to Date)
+        $this->db->query("
+            SELECT description, SUM(quantity) as qty, SUM(line_total) as revenue
+            FROM invoice_items ii
+            JOIN invoices i ON i.id = ii.invoice_id
+            WHERE i.location_id IN ($inLoc)
+              AND i.issue_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+              AND i.status <> 'Cancelled'
+            GROUP BY description
+            ORDER BY revenue DESC
+            LIMIT 5
+        ");
+        $this->bindInList('loc', $locIds);
+        $topItemsRows = $this->db->resultSet() ?: [];
+        $topItems = array_map(function($r) {
+            return [
+                'name' => (string)$r->description,
+                'qty' => (float)$r->qty,
+                'revenue' => (float)$r->revenue
+            ];
+        }, $topItemsRows);
+
+        // 5. Recent Sales
+        $this->db->query("
+            SELECT i.id, i.invoice_no, i.grand_total, i.status, i.issue_date, c.name as customer_name
+            FROM invoices i
+            JOIN customers c ON c.id = i.customer_id
+            WHERE i.location_id IN ($inLoc)
+            ORDER BY i.id DESC
+            LIMIT 5
+        ");
+        $this->bindInList('loc', $locIds);
+        $recentRows = $this->db->resultSet() ?: [];
+        $recentSales = array_map(function($r) {
+            return [
+                'id' => (int)$r->id,
+                'invoice_no' => (string)$r->invoice_no,
+                'customer_name' => (string)$r->customer_name,
+                'total' => (float)$r->grand_total,
+                'status' => (string)$r->status,
+                'date' => (string)$r->issue_date,
+            ];
+        }, $recentRows);
+
+        $this->success([
+            'kpis' => [
+                'today' => [
+                    'revenue' => (float)($todayObj->revenue ?? 0),
+                    'collection' => (float)($todayObj->collection ?? 0),
+                    'count' => (int)($todayObj->cnt ?? 0)
+                ],
+                'month' => [
+                    'revenue' => (float)($monthObj->revenue ?? 0),
+                    'collection' => (float)($monthObj->collection ?? 0)
+                ],
+                'year' => [
+                    'revenue' => (float)($yearObj->revenue ?? 0),
+                    'collection' => (float)($yearObj->collection ?? 0)
+                ],
+                'outstanding' => (float)($outstObj->outstanding ?? 0)
+            ],
+            'revenueTrend' => $revenueTrend,
+            'paymentMethods' => $paymentMethods,
+            'topItems' => $topItems,
+            'recentSales' => $recentSales,
         ]);
     }
 }

@@ -10,16 +10,19 @@ import {
   ChevronRight,
   Calculator,
   Save,
-  Loader2
+  Loader2,
+  CreditCard,
+  Gift,
+  Sparkles
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { fetchOrder, createInvoice, fetchOrderParts, fetchParts, fetchTaxes, fetchLocations, fetchCustomers, createCustomer, fetchCompany } from "@/lib/api";
+import { fetchOrder, createInvoice, fetchOrderParts, fetchParts, fetchTaxes, fetchLocations, fetchCustomers, createCustomer, fetchCompany, fetchBanks, fetchPartBatches, api as apiHelper } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 export default function CreateInvoicePage() {
   const router = useRouter();
@@ -30,6 +33,9 @@ export default function CreateInvoicePage() {
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isPromotionPromptOpen, setIsPromotionPromptOpen] = useState(false);
+  const [promotionsPromptDismissed, setPromotionsPromptDismissed] = useState(false);
+  const [checkoutIntentActive, setCheckoutIntentActive] = useState(false);
 
   const [items, setItems] = useState<any[]>([]);
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -45,6 +51,13 @@ export default function CreateInvoicePage() {
   const [systemTaxes, setSystemTaxes] = useState<any[]>([]);
   const [billDiscount, setBillDiscount] = useState<string>("0");
   const [discountType, setDiscountType] = useState<"value" | "percent">("value");
+
+  // Bank & Promotions States
+  const [banks, setBanks] = useState<any[]>([]);
+  const [selectedBankId, setSelectedBankId] = useState<string>("any");
+  const [selectedCardCategory, setSelectedCardCategory] = useState<string>("Any");
+  const [eligiblePromotions, setEligiblePromotions] = useState<any[]>([]);
+  const [appliedPromotion, setAppliedPromotion] = useState<any | null>(null);
 
   const [locations, setLocations] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
@@ -84,7 +97,8 @@ export default function CreateInvoicePage() {
         fetchTaxes('', { all: true }).catch(() => []),
         fetchLocations().catch(() => []),
         fetchCustomers().catch(() => []),
-        fetchCompany().catch(() => null)
+        fetchCompany().catch(() => null),
+        fetchBanks().catch(() => [])
       ];
 
       // Only fetch order-specific data if not standalone
@@ -95,12 +109,12 @@ export default function CreateInvoicePage() {
 
       const results = await Promise.all(fetches);
       
-      let inventoryParts, allTaxesData, locs, custs, company, orderData, partsData;
+      let inventoryParts, allTaxesData, locs, custs, company, banksData, orderData, partsData;
       
       if (!isStandalone) {
-        [inventoryParts, allTaxesData, locs, custs, company, orderData, partsData] = results;
+        [inventoryParts, allTaxesData, locs, custs, company, banksData, orderData, partsData] = results;
       } else {
-        [inventoryParts, allTaxesData, locs, custs, company] = results;
+        [inventoryParts, allTaxesData, locs, custs, company, banksData] = results;
         orderData = null;
         partsData = [];
       }
@@ -120,24 +134,43 @@ export default function CreateInvoicePage() {
       }
       
       const filteredTaxes = (allTaxesData || []).filter((t: any) => t.is_active && enabledIds.has(t.id));
-      
       setSystemTaxes(filteredTaxes);
       setLocations(locs || []);
       setCustomers(custs || []);
-      
+      setBanks(banksData || []);
+
+      const defaultLoc = locs?.length > 0 ? String(locs[0].id) : "";
+      if (!selectedLocation) setSelectedLocation(defaultLoc);
+      const locToUse = selectedLocation || defaultLoc;
+
       // Standalone mode: default to empty items
       if (isStandalone) {
         setItems([]);
       } else if (partsData && partsData.length > 0) {
         // Map order parts to invoice items
-        const initialItems = partsData.map((p: any) => ({
-          description: p.part_name || p.description,
-          item_id: p.part_id,
-          item_type: "Part",
-          quantity: p.quantity,
-          unit_price: p.unit_price,
-          discount: 0,
-          line_total: p.line_total
+        const initialItems = await Promise.all(partsData.map(async (p: any) => {
+          const inventoryPart = inventoryParts.find((ip: any) => ip.id === p.part_id);
+          const isFifo = inventoryPart?.is_fifo === 1 || inventoryPart?.is_expiry === 1;
+          let batches = [];
+          if (isFifo && locToUse) {
+            try {
+              batches = await fetchPartBatches(p.part_id, locToUse);
+            } catch (err) {
+              console.error("Failed to load batches for", p.part_name);
+            }
+          }
+          return {
+            description: p.part_name || p.description,
+            item_id: p.part_id,
+            item_type: "Part",
+            quantity: p.quantity,
+            unit_price: p.unit_price,
+            discount: 0,
+            line_total: p.line_total,
+            is_fifo: isFifo,
+            available_batches: batches,
+            selected_batch: 'auto'
+          };
         }));
         setItems(initialItems);
       } else {
@@ -154,6 +187,36 @@ export default function CreateInvoicePage() {
       setLoading(false);
     }
   };
+
+  const refreshAllBatches = async () => {
+    if (!selectedLocation || items.length === 0) return;
+    const updatedItems = await Promise.all(items.map(async (item) => {
+      if (item.item_id) {
+        const p = allParts.find(x => String(x.id) === String(item.item_id));
+        const isFifo = p?.is_fifo === 1 || p?.is_expiry === 1;
+        if (isFifo) {
+          try {
+            const batches = await fetchPartBatches(item.item_id, selectedLocation);
+            return { ...item, is_fifo: true, available_batches: batches };
+          } catch (err) {
+            return { ...item, is_fifo: true, available_batches: [] };
+          }
+        }
+      }
+      return item;
+    }));
+    setItems(updatedItems);
+  };
+
+  useEffect(() => {
+    if (selectedLocation && items.length > 0) {
+      // Only refresh if some items are missing batches or if we want to be safe
+      const needsRefresh = items.some(i => i.item_id && !i.available_batches);
+      if (needsRefresh) {
+        refreshAllBatches();
+      }
+    }
+  }, [selectedLocation, allParts]);
 
   // discount is per-unit: line_total = (unit_price - discount) * qty
   const calculateLineTotal = (qty: number, price: number, discountPerUnit: number) => {
@@ -183,6 +246,100 @@ export default function CreateInvoicePage() {
     setItems(newItems);
   };
 
+  const validatePromotions = async () => {
+    const regularItems = items.filter(i => !i.is_reward);
+    if (regularItems.length === 0) {
+      setEligiblePromotions([]);
+      if (appliedPromotion) setAppliedPromotion(null);
+      return [];
+    }
+
+    const sub = regularItems.reduce((acc, i) => acc + (Number(i.quantity) * Number(i.unit_price) - Number(i.quantity) * Number(i.discount)), 0);
+    
+    try {
+      const res = await apiHelper('/api/promotion/validate', {
+        method: 'POST',
+        body: JSON.stringify({
+          items: regularItems.map(item => ({ id: item.item_id, quantity: item.quantity, unit_price: item.unit_price, discount: item.discount })),
+          subtotal: sub,
+          bank_id: selectedBankId === 'any' ? null : selectedBankId,
+          card_category: selectedCardCategory === 'Any' ? null : selectedCardCategory,
+          location_id: selectedLocation
+        })
+      });
+
+      const resData = await res.json();
+      const matches = Array.isArray(resData.data) ? resData.data : [];
+      setEligiblePromotions(matches);
+
+      // Auto-remove applied promotion if it's no longer eligible
+      if (appliedPromotion) {
+        if (!matches.some(m => m.promotion_id === appliedPromotion.promotion_id)) {
+          updateAppliedPromotion(null);
+          toast({ title: "Promotion Removed", description: "The previously applied promotion is no longer eligible.", variant: "destructive" });
+        }
+      }
+
+      // Proactive Prompting for BOGO: If we find a new BOGO and haven't dismissed prompts, show it.
+      if (!appliedPromotion && !isPromotionPromptOpen && !promotionsPromptDismissed && matches.some(p => p.missing_rewards)) {
+        setIsPromotionPromptOpen(true);
+      }
+
+      return matches;
+    } catch (error) {
+      setEligiblePromotions([]);
+      return [];
+    }
+  };
+
+  const updateAppliedPromotion = (promo: any | null) => {
+    // Remove existing rewards
+    setItems(prev => prev.filter(i => !i.is_reward));
+    setAppliedPromotion(promo);
+    if (promo) {
+      claimPromotionRewards(promo);
+    }
+  };
+
+  const claimPromotionRewards = async (promo: any) => {
+    if (!promo || !promo.missing_rewards) return;
+    const reward = promo.missing_rewards;
+    const product = allParts.find(p => String(p.id) === String(reward.item_id));
+    if (product) {
+      let batches = [];
+      const isFifo = product.is_fifo === 1 || product.is_expiry === 1;
+      if (isFifo && selectedLocation) {
+        try {
+          batches = await fetchPartBatches(product.id, selectedLocation);
+        } catch (err) {
+          console.error("Failed to load batches for reward");
+        }
+      }
+
+      const newLine = {
+        item_id: product.id,
+        description: (product.part_name || product.description) + " (Reward)",
+        item_type: product.item_type === "Service" ? "Service" : "Part",
+        quantity: reward.qty,
+        unit_price: Number(product.price || 0),
+        discount: Number(product.price || 0),
+        line_total: 0,
+        is_reward: true,
+        is_fifo: isFifo,
+        available_batches: batches,
+        selected_batch: 'auto'
+      };
+      setItems(prev => [...prev.filter(i => !i.is_reward), newLine]);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      validatePromotions();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [items.map(i => `${i.item_id}-${i.quantity}`).join('|'), selectedLocation, selectedBankId, selectedCardCategory]);
+
   // subtotal = gross (no discount), line_discount = total saved across all items (discount/unit * qty)
   const totals = items.reduce((acc, item) => {
     const qty = Number(item.quantity) || 0;
@@ -203,7 +360,8 @@ export default function CreateInvoicePage() {
     ? totals.line_totals_sum * (globalDiscountValue / 100)
     : globalDiscountValue;
 
-  const taxableAmount = Math.max(0, totals.line_totals_sum - globalDiscount);
+  const promoDiscountAmt = appliedPromotion ? Number(appliedPromotion.discount_value) : 0;
+  const taxableAmount = Math.max(0, totals.line_totals_sum - globalDiscount - promoDiscountAmt);
   
   let currentBase = taxableAmount;
   let taxSum = 0;
@@ -221,12 +379,11 @@ export default function CreateInvoicePage() {
   });
 
   const grandTotal = taxableAmount + taxSum;
-  const totalDiscount = totals.line_discount + globalDiscount;
+  const totalDiscount = totals.line_discount + globalDiscount + promoDiscountAmt;
 
   const handleSave = async () => {
-    // Basic Field Validations
     if (!selectedLocation) {
-      toast({ title: "Validation Error", description: "Please select an originating location.", variant: "destructive" });
+      toast({ title: "Validation Error", description: "Please select a location.", variant: "destructive" });
       return;
     }
 
@@ -251,6 +408,17 @@ export default function CreateInvoicePage() {
       return;
     }
 
+    // POS-style Promotion Catch: If offers exist but none applied, prompt the user
+    if (!appliedPromotion && eligiblePromotions.length > 0 && !promotionsPromptDismissed) {
+      setCheckoutIntentActive(true);
+      setIsPromotionPromptOpen(true);
+      return;
+    }
+
+    await doSave();
+  };
+
+  const doSave = async () => {
     setSubmitting(true);
     try {
       const payload = {
@@ -266,7 +434,15 @@ export default function CreateInvoicePage() {
         discount_total: totalDiscount,
         grand_total: grandTotal,
         notes: notes,
-        items: items,
+        applied_promotion_id: appliedPromotion ? appliedPromotion.promotion_id : null,
+        applied_promotion_name: appliedPromotion ? appliedPromotion.name : null,
+        bank_id: selectedBankId === 'any' ? null : Number(selectedBankId),
+        card_category: selectedCardCategory === 'Any' ? null : selectedCardCategory,
+        items: items.map(item => ({
+          ...item,
+          is_reward: item.is_reward ? 1 : 0,
+          selected_batches: item.selected_batch && item.selected_batch !== 'auto' ? [{ batch_id: Number(item.selected_batch), qty: Number(item.quantity) }] : null
+        })),
         applied_taxes: appliedTaxes.map(tax => ({
           ...tax,
           rate_percent: systemTaxes.find(st => st.code === tax.code)?.rate_percent || 0
@@ -285,6 +461,7 @@ export default function CreateInvoicePage() {
       });
     } finally {
       setSubmitting(false);
+      setCheckoutIntentActive(false);
     }
   };
 
@@ -456,6 +633,22 @@ export default function CreateInvoicePage() {
                       disabled={!!item.item_id}
                       className={`border-slate-200 dark:border-border focus:border-amber-400 focus:ring-amber-400/30 ${!!item.item_id ? 'bg-slate-100 dark:bg-muted text-slate-400 dark:text-muted-foreground cursor-not-allowed' : ''}`}
                     />
+                    {item.is_fifo && item.available_batches && item.available_batches.length > 0 && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-amber-600 dark:text-amber-500 uppercase">Batch:</span>
+                        <Select value={item.selected_batch || 'auto'} onValueChange={(val) => handleItemChange(index, 'selected_batch', val)}>
+                          <SelectTrigger className="h-7 text-xs border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-900/10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="auto">Auto (FIFO)</SelectItem>
+                            {item.available_batches.map((b: any) => (
+                              <SelectItem key={b.id} value={String(b.id)}>{b.batch_number} (Avail: {b.available_qty})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                   </div>
                   <div className="w-1/2 lg:w-1/6">
                     <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Type</label>
@@ -523,9 +716,19 @@ export default function CreateInvoicePage() {
                 <div className="w-full">
                   <SearchableSelect
                     value={selectedPartId}
-                    onValueChange={(val) => {
+                    onValueChange={async (val) => {
                       const p = allParts.find(x => String(x.id) === String(val));
                       if (p) {
+                        let availableBatches = [];
+                        let isFifo = p.is_fifo === 1 || p.is_expiry === 1;
+                        if (isFifo && selectedLocation) {
+                          try {
+                            availableBatches = await fetchPartBatches(p.id, selectedLocation);
+                          } catch (err) {
+                            console.error("Failed to load batches");
+                          }
+                        }
+
                         setItems([...items, {
                           item_id: p.id,
                           description: p.part_name,
@@ -533,7 +736,10 @@ export default function CreateInvoicePage() {
                           quantity: 1,
                           unit_price: p.price || p.cost_price || 0,
                           discount: 0,
-                          line_total: p.price || p.cost_price || 0
+                          line_total: p.price || p.cost_price || 0,
+                          is_fifo: isFifo,
+                          available_batches: availableBatches,
+                          selected_batch: 'auto'
                         }]);
                         setSelectedPartId("");
                       }
@@ -615,6 +821,43 @@ export default function CreateInvoicePage() {
               </div>
             </div>
 
+            {/* Payment Metadata Card (For Bank Promotions) */}
+            <div className="rounded-2xl border border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100 dark:border-border bg-slate-50 dark:bg-muted/40">
+                <div className="w-1 h-4 rounded-full bg-violet-400" />
+                <span className="font-bold text-slate-800 dark:text-foreground text-sm">Payment Metadata (Promotions)</span>
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Payment Bank</label>
+                  <Select value={selectedBankId} onValueChange={setSelectedBankId}>
+                    <SelectTrigger className="border-slate-200 dark:border-border focus:border-amber-400 focus:ring-amber-400/30">
+                      <SelectValue placeholder="Any Bank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Any Bank</SelectItem>
+                      {banks.map(b => (
+                        <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Card Category</label>
+                  <Select value={selectedCardCategory} onValueChange={setSelectedCardCategory}>
+                    <SelectTrigger className="border-slate-200 dark:border-border focus:border-amber-400 focus:ring-amber-400/30">
+                      <SelectValue placeholder="Any Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Any">Any Category</SelectItem>
+                      <SelectItem value="Credit">Credit Card</SelectItem>
+                      <SelectItem value="Debit">Debit Card</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
             {/* Totals Card */}
             <div className="rounded-2xl overflow-hidden shadow-lg border border-slate-200 dark:border-0">
               {/* Header */}
@@ -641,6 +884,38 @@ export default function CreateInvoicePage() {
                 </Button>
               </div>
 
+              {/* Promotions Engine */}
+              {eligiblePromotions.length > 0 && (
+                <div className="bg-amber-50/50 dark:bg-amber-900/10 px-5 py-4 border-b border-amber-100 dark:border-amber-900/30">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Gift className="w-4 h-4 text-amber-500" />
+                    <span className="text-xs font-bold text-amber-700 dark:text-amber-500 uppercase tracking-widest">Available Promotions</span>
+                  </div>
+                  <div className="space-y-2">
+                    {eligiblePromotions.map((promo: any) => {
+                      const isApplied = appliedPromotion?.promotion_id === promo.promotion_id;
+                      return (
+                        <div key={promo.promotion_id} className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg border transition-all ${isApplied ? 'bg-amber-100 border-amber-300 dark:bg-amber-500/20 dark:border-amber-500/40' : 'bg-white border-amber-100 hover:border-amber-300 dark:bg-slate-800 dark:border-slate-700'}`}>
+                          <div>
+                            <div className="font-bold text-sm text-slate-800 dark:text-slate-200">{promo.name}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{promo.missing_rewards || promo.type?.toUpperCase() === 'BOGO' ? 'Buy One Get One' : 'Discount Offer'}</div>
+                          </div>
+                          {isApplied ? (
+                            <Button size="sm" variant="outline" onClick={() => updateAppliedPromotion(null)} className="h-8 text-xs border-amber-300 text-amber-700 hover:bg-amber-200 dark:border-amber-500/50 dark:text-amber-400 shrink-0">
+                              Remove
+                            </Button>
+                          ) : (
+                            <Button size="sm" onClick={() => updateAppliedPromotion(promo)} className="h-8 text-xs bg-amber-500 hover:bg-amber-600 text-white shrink-0">
+                              Apply Offer
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Breakdown */}
               <div className="bg-white dark:bg-slate-800 px-5 py-4 space-y-2.5">
                 <div className="flex justify-between text-slate-600 dark:text-slate-300 text-sm">
@@ -659,7 +934,13 @@ export default function CreateInvoicePage() {
                     <span>−LKR {globalDiscount.toFixed(2)}</span>
                   </div>
                 )}
-                {(totals.line_discount > 0 || globalDiscount > 0) && (
+                {promoDiscountAmt > 0 && (
+                  <div className="flex justify-between text-amber-600 dark:text-amber-400 text-sm font-semibold">
+                    <span>Promo Discount</span>
+                    <span>−LKR {promoDiscountAmt.toFixed(2)}</span>
+                  </div>
+                )}
+                {(totals.line_discount > 0 || globalDiscount > 0 || promoDiscountAmt > 0) && (
                   <div className="flex justify-between text-slate-400 dark:text-slate-500 text-xs border-t border-slate-100 dark:border-slate-700 pt-2">
                     <span>After Discount</span>
                     <span>LKR {taxableAmount.toFixed(2)}</span>
@@ -679,6 +960,16 @@ export default function CreateInvoicePage() {
                 </div>
               </div>
 
+              {(totals.line_discount + globalDiscount + promoDiscountAmt) > 0 && (
+                <div className="bg-emerald-500/10 px-5 py-2.5 flex items-center justify-between border-t border-emerald-500/20">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest">Total Savings</span>
+                  </div>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">LKR {(totals.line_discount + globalDiscount + promoDiscountAmt).toFixed(2)}</span>
+                </div>
+              )}
+
               {/* CTA */}
               <button
                 onClick={handleSave}
@@ -693,6 +984,117 @@ export default function CreateInvoicePage() {
           </div>
         </div>
       </div>
+
+      {/* Promotion Prompt Dialog (POS Style) */}
+      <Dialog open={isPromotionPromptOpen} onOpenChange={(open) => {
+        setIsPromotionPromptOpen(open);
+        if (!open) {
+          setPromotionsPromptDismissed(true);
+          if (checkoutIntentActive) doSave();
+        }
+      }}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl rounded-3xl bg-white dark:bg-slate-950">
+          <div className="p-6 pb-2">
+            <DialogHeader className="space-y-1">
+              <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                Available Offers
+              </div>
+              <DialogTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+                Great news!
+              </DialogTitle>
+              <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
+                We've found {eligiblePromotions.length} special {eligiblePromotions.length === 1 ? 'offer' : 'offers'} for this invoice.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+
+          <div className="px-6 py-4 space-y-4">
+            <div className="max-h-[400px] overflow-y-auto pr-1 space-y-3">
+              {eligiblePromotions.map((promo) => {
+                const isPotential = !!promo.missing_rewards;
+                return (
+                  <div 
+                    key={promo.promotion_id}
+                    className={`group relative rounded-2xl p-4 border transition-all duration-200 cursor-pointer ${
+                      isPotential 
+                      ? 'bg-amber-50/30 dark:bg-amber-500/5 border-amber-100 dark:border-amber-900/30 hover:shadow-md hover:border-amber-200' 
+                      : 'bg-emerald-50/30 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-900/30 hover:shadow-md hover:border-emerald-200'
+                    }`}
+                    onClick={() => {
+                      updateAppliedPromotion(promo);
+                      setIsPromotionPromptOpen(false);
+                      setPromotionsPromptDismissed(true);
+                      if (checkoutIntentActive) setTimeout(doSave, 300);
+                    }}
+                  >
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="space-y-0.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider ${isPotential ? 'text-amber-600' : 'text-emerald-600'}`}>
+                          {promo.type?.toUpperCase()}
+                        </span>
+                        <h4 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                          {promo.name}
+                          {isPotential && <Gift className="w-3.5 h-3.5 text-amber-500" />}
+                        </h4>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase mb-1 ${
+                          isPotential 
+                          ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/50' 
+                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50'
+                        }`}>
+                          {isPotential ? 'BOGO' : 'Instant Save'}
+                        </span>
+                        <div className={`text-lg font-bold tabular-nums ${isPotential ? 'text-amber-700' : 'text-emerald-700'}`}>
+                          LKR {isPotential ? promo.missing_rewards.potential_discount : promo.discount_value}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className={`flex items-center justify-between gap-4 p-3 rounded-xl ${
+                      isPotential 
+                      ? 'bg-amber-500/10 text-amber-800 dark:text-amber-200' 
+                      : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'
+                    }`}>
+                      <div className="text-xs font-medium leading-tight">
+                        {isPotential ? (
+                          <span>Add {promo.missing_rewards.qty}x <span className="font-bold">{promo.missing_rewards.item_name}</span> to claim!</span>
+                        ) : (
+                          <span>Click to apply this discount.</span>
+                        )}
+                      </div>
+                      <Button 
+                        size="sm"
+                        className={`h-8 px-4 font-bold rounded-lg text-[11px] uppercase transition-all ${
+                          isPotential 
+                          ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                      >
+                        {isPotential ? 'Claim' : 'Apply'}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="pt-2 flex flex-col items-center gap-4">
+              <button 
+                onClick={() => {
+                  setIsPromotionPromptOpen(false);
+                  setPromotionsPromptDismissed(true);
+                  if (checkoutIntentActive) doSave();
+                }}
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors uppercase tracking-widest"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

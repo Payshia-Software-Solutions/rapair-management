@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Receipt, ExternalLink, Loader2, Banknote, CreditCard, Building2 } from "lucide-react";
+import { Search, Receipt, ExternalLink, Loader2, Banknote, CreditCard, Building2, Printer } from "lucide-react";
 import Link from "next/link";
 
 const METHOD_COLORS: Record<string, string> = {
@@ -141,7 +141,12 @@ export default function PaymentReceiptsPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{new Date(r.payment_date).toLocaleDateString('en-GB')}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">{Number(r.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex justify-end gap-1">
+                        <Link href={`/cms/payment-receipts/${r.id}/print`} target="_blank">
+                          <Button variant="ghost" size="sm" className="text-xs text-primary">
+                            <Printer className="w-3 h-3 mr-1" /> Print
+                          </Button>
+                        </Link>
                         <Link href={`/cms/invoices/${r.invoice_id}/view`}>
                           <Button variant="ghost" size="sm" className="text-xs">
                             <ExternalLink className="w-3 h-3 mr-1" /> Invoice

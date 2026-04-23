@@ -244,12 +244,23 @@ function PrintContent() {
                   <span className="font-bold tabular-nums">LKR {Number(invoice.subtotal).toFixed(2)}</span>
                 </div>
 
-                {Number(invoice.discount_total) > 0 && (
-                  <div className="flex justify-between items-center text-rose-600">
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Total Discount</span>
-                    <span className="font-bold tabular-nums">-LKR {Number(invoice.discount_total).toFixed(2)}</span>
-                  </div>
-                )}
+                {(() => {
+                  const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+                  const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+                  const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+                  
+                  if (actualDiscount > 0 || invoice.applied_promotion_name) {
+                    return (
+                      <div className="flex justify-between items-center text-rose-600">
+                        <span className="text-[10px] font-bold uppercase tracking-widest">
+                          Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}
+                        </span>
+                        <span className="font-bold tabular-nums">-LKR {actualDiscount.toFixed(2)}</span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
 
                 {invoice.applied_taxes && invoice.applied_taxes.length > 0 ? (
                   invoice.applied_taxes.map((tax: any) => (

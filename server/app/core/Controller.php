@@ -134,4 +134,15 @@ class Controller {
         }
         return $u;
     }
+
+    /**
+     * Enforce Nexus License Module check
+     */
+    protected function requireModule($moduleId) {
+        require_once APPROOT . '/app/helpers/NexusBridge.php';
+        $bridge = \App\Helpers\NexusBridge::getInstance();
+        if (!$bridge->isModuleActive($moduleId)) {
+            $this->error("The '$moduleId' module is not included in your current subscription. Please contact Nexus Support to upgrade.", 403);
+        }
+    }
 }

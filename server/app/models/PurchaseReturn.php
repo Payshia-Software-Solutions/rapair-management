@@ -40,7 +40,7 @@ class PurchaseReturn extends Model {
                 // Log Movement
                 $this->db->query("
                     INSERT INTO stock_movements (part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
-                    VALUES (:pid, :qty, 'TRANSFER_OUT', 'acc_purchase_returns', :rid, :cost, :notes, :uid)
+                    VALUES (:pid, :qty, 'PURCHASE_RETURN', 'acc_purchase_returns', :rid, :cost, :notes, :uid)
                 ");
                 $this->db->bind(':pid', $item['part_id']);
                 $this->db->bind(':qty', -$item['quantity']);

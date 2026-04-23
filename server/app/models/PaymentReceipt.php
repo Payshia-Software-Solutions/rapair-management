@@ -44,6 +44,15 @@ class PaymentReceipt {
             $this->db->execute();
         }
 
+        // Migration Check: Add bank_id and card_category
+        try {
+            $this->db->query("SELECT bank_id FROM payment_receipts LIMIT 1");
+            $this->db->execute();
+        } catch (Exception $e) {
+            $this->db->query("ALTER TABLE payment_receipts ADD COLUMN bank_id INT NULL AFTER card_auth_code, ADD COLUMN card_category VARCHAR(20) NULL AFTER bank_id");
+            $this->db->execute();
+        }
+
         // Migration Check: Add location_id if it doesn't exist
         try {
             $this->db->query("SELECT location_id FROM payment_receipts LIMIT 1");
@@ -66,7 +75,7 @@ class PaymentReceipt {
                 cheque_date     DATE NOT NULL,
                 payee_name      VARCHAR(150) NOT NULL DEFAULT '',
                 amount          DECIMAL(12,2) NOT NULL,
-                status          ENUM('Pending','Cleared','Bounced','Cancelled') NOT NULL DEFAULT 'Pending',
+                status          ENUM('Pending','Deposited','Cleared','Bounced','Cancelled') NOT NULL DEFAULT 'Pending',
                 cleared_date    DATE NULL,
                 notes           TEXT NULL,
                 created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -74,6 +83,18 @@ class PaymentReceipt {
                 INDEX idx_ci_status  (status)
             )
         ");
+        $this->db->execute();
+
+        // Robust ENUM check: Use DESCRIBE to see if 'Deposited' is in the allowed list
+        $this->db->query("DESCRIBE cheque_inventory status");
+        $col = $this->db->single();
+        if ($col && strpos($col->Type, 'Deposited') === false) {
+            $this->db->query("ALTER TABLE cheque_inventory MODIFY COLUMN status ENUM('Pending','Deposited','Cleared','Bounced','Cancelled') NOT NULL DEFAULT 'Pending'");
+            $this->db->execute();
+        }
+
+        // Data Cleanup: Fix broken statuses (empty strings caused by invalid ENUM state)
+        $this->db->query("UPDATE cheque_inventory SET status = 'Pending' WHERE status = '' OR status IS NULL");
         $this->db->execute();
 
         // Seed RCP sequence if not present
@@ -113,10 +134,10 @@ class PaymentReceipt {
         $this->db->query("
             INSERT INTO payment_receipts
                 (receipt_no, invoice_id, invoice_no, customer_id, customer_name, location_id,
-                 amount, payment_method, reference_no, payment_date, notes, card_type, card_last4, card_auth_code, created_by)
+                 amount, payment_method, reference_no, payment_date, notes, card_type, card_last4, card_auth_code, bank_id, card_category, created_by)
             VALUES
                 (:receipt_no, :invoice_id, :invoice_no, :customer_id, :customer_name, :location_id,
-                 :amount, :payment_method, :reference_no, :payment_date, :notes, :card_type, :card_last4, :card_auth_code, :created_by)
+                 :amount, :payment_method, :reference_no, :payment_date, :notes, :card_type, :card_last4, :card_auth_code, :bank_id, :card_category, :created_by)
         ");
         $this->db->bind(':receipt_no',      $receiptNo);
         $this->db->bind(':invoice_id',      $data['invoice_id']);
@@ -132,6 +153,8 @@ class PaymentReceipt {
         $this->db->bind(':card_type',       $data['card_type'] ?? null);
         $this->db->bind(':card_last4',      $data['card_last4'] ?? null);
         $this->db->bind(':card_auth_code',  $data['card_auth_code'] ?? null);
+        $this->db->bind(':bank_id',         $data['bank_id'] ?? null);
+        $this->db->bind(':card_category',   $data['card_category'] ?? null);
         $this->db->bind(':created_by',      $data['created_by'] ?? null);
 
         if (!$this->db->execute()) return false;
@@ -210,9 +233,11 @@ class PaymentReceipt {
     // ── Get by Invoice ───────────────────────────────────────────────────────
     public function getByInvoice($invoiceId) {
         $this->db->query("
-            SELECT pr.*, ci.cheque_no_last6, ci.bank_name, ci.branch_name, ci.cheque_date, ci.payee_name, ci.status as cheque_status
+            SELECT pr.*, ci.cheque_no_last6, ci.bank_name as cheque_bank_name, b.name as card_bank_name,
+                   ci.branch_name as cheque_branch_name, ci.cheque_date, ci.payee_name, ci.status as cheque_status
             FROM payment_receipts pr
             LEFT JOIN cheque_inventory ci ON ci.receipt_id = pr.id
+            LEFT JOIN banks b ON pr.bank_id = b.id
             WHERE pr.invoice_id = :id
             ORDER BY pr.created_at ASC
         ");
@@ -223,10 +248,12 @@ class PaymentReceipt {
     // ── Get Single Receipt ───────────────────────────────────────────────────
     public function getById($id) {
         $this->db->query("
-            SELECT pr.*, ci.cheque_no_last6, ci.bank_name, ci.branch_name, ci.cheque_date,
-                   ci.payee_name, ci.status as cheque_status, ci.cleared_date, ci.id as cheque_id
+            SELECT pr.*, ci.cheque_no_last6, ci.bank_name as cheque_bank_name, b.name as card_bank_name,
+                   ci.branch_name as cheque_branch_name, ci.cheque_date, ci.payee_name, ci.status as cheque_status,
+                   ci.cleared_date, ci.id as cheque_id
             FROM payment_receipts pr
             LEFT JOIN cheque_inventory ci ON ci.receipt_id = pr.id
+            LEFT JOIN banks b ON pr.bank_id = b.id
             WHERE pr.id = :id LIMIT 1
         ");
         $this->db->bind(':id', $id);
@@ -273,7 +300,8 @@ class PaymentReceipt {
     public function listCheques($status = null) {
         $where = $status ? "WHERE ci.status = :status" : "";
         $this->db->query("
-            SELECT ci.*, pr.receipt_no, pr.invoice_no, pr.customer_name, pr.payment_date
+            SELECT ci.*, ci.status as status, ci.amount as amount, 
+                   pr.receipt_no, pr.invoice_no, pr.customer_name, pr.payment_date
             FROM cheque_inventory ci
             JOIN payment_receipts pr ON pr.id = ci.receipt_id
             {$where}
@@ -289,6 +317,22 @@ class PaymentReceipt {
         $this->db->bind(':status',  $status);
         $this->db->bind(':cleared', $clearedDate);
         $this->db->bind(':id',      $chequeId);
+        return $this->db->execute();
+    }
+
+    public function bulkUpdateChequeStatus($ids, $status, $clearedDate = null) {
+        if (empty($ids)) return true;
+        
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->query("UPDATE cheque_inventory SET status = ?, cleared_date = ? WHERE id IN ($placeholders)");
+        
+        $this->db->bind(1, $status);
+        $this->db->bind(2, $clearedDate);
+        
+        foreach ($ids as $index => $id) {
+            $this->db->bind($index + 3, $id);
+        }
+        
         return $this->db->execute();
     }
 }

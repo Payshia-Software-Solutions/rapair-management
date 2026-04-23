@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { createStockAdjustmentBatchForLocation, fetchLocations, fetchParts, type PartRow } from "@/lib/api";
+import { createStockAdjustmentBatchForLocation, fetchLocations, fetchParts, fetchPartBatches, fetchLocationStockBalances, type PartRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -34,7 +34,14 @@ function nowLocalDatetime() {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-type Line = { key: string; part_id: number; physical_stock: number | ""; notes?: string; include_when_zero?: boolean };
+type Line = { 
+  key: string; 
+  part_id: number; 
+  batch_id: number | null;
+  physical_stock: number | ""; 
+  notes?: string; 
+  include_when_zero?: boolean 
+};
 
 function fmt3(n: number) {
   return n.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 });
@@ -66,6 +73,8 @@ export default function NewStockAdjustmentPage() {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null);
+  const [itemBatches, setItemBatches] = useState<Record<number, any[]>>({});
+  const [fetchingBatches, setFetchingBatches] = useState<Record<number, boolean>>({});
 
   // Add-item picker (adds a new line)
   const [addOpen, setAddOpen] = useState(false);
@@ -138,10 +147,11 @@ export default function NewStockAdjustmentPage() {
   }, [locationId]);
 
   useEffect(() => {
+    if (!locationId) return;
     const run = async () => {
       setLoading(true);
       try {
-        const p = await fetchParts("");
+        const p = await fetchLocationStockBalances(locationId);
         setParts(Array.isArray(p) ? p : []);
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load items", variant: "destructive" });
@@ -150,16 +160,28 @@ export default function NewStockAdjustmentPage() {
       }
     };
     void run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [locationId]);
 
   useEffect(() => {
     if (!preselectPartId) return;
     setLines([{ key: newKey(), part_id: preselectPartId, physical_stock: "", notes: "" }]);
   }, [preselectPartId]);
 
-  const addEmptyLine = () => setLines((p) => [...p, { key: newKey(), part_id: 0, physical_stock: "", notes: "" }]);
+  const addEmptyLine = () => setLines((p) => [...p, { key: newKey(), part_id: 0, batch_id: null, physical_stock: "", notes: "" }]);
   const removeLine = (key: string) => setLines((p) => p.filter((x) => x.key !== key));
+
+  const loadBatchesForPart = async (pid: number) => {
+    if (!pid || !locationId || itemBatches[pid]) return;
+    setFetchingBatches(prev => ({ ...prev, [pid]: true }));
+    try {
+      const b = await fetchPartBatches(pid, locationId);
+      setItemBatches(prev => ({ ...prev, [pid]: b }));
+    } catch {
+      // ignore
+    } finally {
+      setFetchingBatches(prev => ({ ...prev, [pid]: false }));
+    }
+  };
 
   const setOtherItemsToZero = (keepKey?: string | null) => {
     // This is meant for full stock-take style adjustments:
@@ -209,6 +231,7 @@ export default function NewStockAdjustmentPage() {
         out.push({
           key: newKey(),
           part_id: pid,
+          batch_id: null,
           physical_stock: 0,
           notes: "",
           include_when_zero: true,
@@ -262,8 +285,9 @@ export default function NewStockAdjustmentPage() {
       setAddOpen(false);
       return;
     }
-    setLines((p) => [...p, { key: newKey(), part_id: pid, physical_stock: "", notes: "" }]);
+    setLines((p) => [...p, { key: newKey(), part_id: pid, batch_id: null, physical_stock: "", notes: "" }]);
     setAddOpen(false);
+    void loadBatchesForPart(pid);
   };
 
   const changePart = (key: string, pid: number) => {
@@ -274,14 +298,16 @@ export default function NewStockAdjustmentPage() {
       setEditKey(null);
       return;
     }
-    setLines((p) => p.map((x) => (x.key === key ? { ...x, part_id: pid } : x)));
+    setLines((p) => p.map((x) => (x.key === key ? { ...x, part_id: pid, batch_id: null } : x)));
     setEditKey(null);
+    void loadBatchesForPart(pid);
   };
 
   const submit = async () => {
     const clean = lines
       .map((l) => ({
         part_id: Number(l.part_id),
+        batch_id: l.batch_id,
         physical_stock:
           l.physical_stock === ""
             ? null
@@ -292,6 +318,7 @@ export default function NewStockAdjustmentPage() {
       .filter((l) => l.part_id > 0 && l.physical_stock !== null)
       .map((l) => ({
         part_id: l.part_id,
+        batch_id: l.batch_id,
         physical_stock: l.physical_stock as number,
         notes: l.notes,
         include_when_zero: l.include_when_zero,
@@ -302,28 +329,14 @@ export default function NewStockAdjustmentPage() {
       return;
     }
 
-    // Open a placeholder tab synchronously (still part of the click event),
-    // so browsers don't block it as a popup after the async API call.
-    let printTab: Window | null = null;
-    try {
-      printTab = window.open("about:blank", "_blank", "noopener,noreferrer");
-      if (printTab && printTab.document) {
-        printTab.document.title = "Preparing Print...";
-        printTab.document.body.innerHTML =
-          "<div style='font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; padding: 20px; color: #334155'>Preparing print...</div>";
-      }
-    } catch {
-      printTab = null;
-    }
-
     setSaving(true);
     try {
       const res = await createStockAdjustmentBatchForLocation(
         {
-        adjusted_at: adjustedAt ? adjustedAt : undefined,
-        reason: reason.trim() || undefined,
-        notes: notes.trim() || undefined,
-        items: clean,
+          adjusted_at: adjustedAt ? adjustedAt : undefined,
+          reason: reason.trim() || undefined,
+          notes: notes.trim() || undefined,
+          items: clean,
         },
         locationId ?? undefined
       );
@@ -334,26 +347,16 @@ export default function NewStockAdjustmentPage() {
         const url = `/inventory/stock/adjustments/print/${encodeURIComponent(String(id))}?autoprint=1${
           locationId ? `&loc=${encodeURIComponent(String(locationId))}` : ""
         }`;
-        if (printTab && !printTab.closed) {
-          printTab.location.href = url;
-        } else {
-          const w = window.open(url, "_blank", "noopener,noreferrer");
-          printTab = w ?? null;
-        }
-        if (!printTab) {
+        
+        // Try to open it now. Since this is still within a few seconds of 
+        // the user's click gesture, most modern browsers will allow it.
+        const win = window.open(url, "_blank", "noopener,noreferrer");
+        if (!win) {
           toast({
             title: "Popup blocked",
-            description: "Allow popups to auto-open the print page.",
+            description: "The print page was blocked by your browser. Please click the 'Print' button on the adjustment page.",
             variant: "destructive",
           });
-        }
-      } else {
-        if (printTab && !printTab.closed) {
-          try {
-            printTab.close();
-          } catch {
-            // ignore
-          }
         }
       }
 
@@ -543,6 +546,7 @@ export default function NewStockAdjustmentPage() {
                   <TableHeader className="bg-muted/30">
                     <TableRow>
                       <TableHead>Item</TableHead>
+                      <TableHead>Batch</TableHead>
                       <TableHead className="w-[140px]">System Stock</TableHead>
                       <TableHead className="w-[160px]">Physical Stock</TableHead>
                       <TableHead className="w-[140px]">Variance</TableHead>
@@ -563,14 +567,25 @@ export default function NewStockAdjustmentPage() {
                       const part = parts.find((p) => String(p.id) === String(l.part_id));
                       const label = part ? (part.sku ? `${part.part_name} (${part.sku})` : part.part_name) : null;
                       const sub = part ? [part.unit ? `Unit: ${part.unit}` : null].filter(Boolean).join("  ") : null;
-                      const systemStock = Number(part?.stock_quantity ?? 0);
+                      
+                      const batches = part ? (itemBatches[part.id] || []) : [];
+                      const isFetching = part ? fetchingBatches[part.id] : false;
+                      const selectedBatch = l.batch_id ? batches.find((b: any) => b.id === l.batch_id) : null;
+
+                      const systemStock = selectedBatch 
+                        ? Number(selectedBatch.quantity_on_hand ?? 0)
+                        : Number(part?.stock_quantity ?? 0);
+
                       const physical = l.physical_stock === "" ? null : Number(l.physical_stock);
                       const variance = physical === null ? null : Number((physical - systemStock).toFixed(3));
                       return (
                         <TableRow
                           key={l.key}
                           className={cn(activeLineKey === l.key ? "bg-muted/20" : "")}
-                          onClick={() => setActiveLineKey(l.key)}
+                          onClick={() => {
+                            setActiveLineKey(l.key);
+                            if (part && !itemBatches[part.id]) void loadBatchesForPart(part.id);
+                          }}
                         >
                           <TableCell>
                             <Popover
@@ -651,6 +666,28 @@ export default function NewStockAdjustmentPage() {
                               </PopoverContent>
                             </Popover>
                             {sub ? <div className="text-xs text-muted-foreground mt-1 truncate">{sub}</div> : null}
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={l.batch_id ? String(l.batch_id) : "0"}
+                              onValueChange={(v) => {
+                                const id = Number(v);
+                                setLines((p) => p.map((x) => (x.key === l.key ? { ...x, batch_id: id > 0 ? id : null } : x)));
+                              }}
+                              disabled={!part || (batches.length === 0 && !isFetching)}
+                            >
+                              <SelectTrigger className="w-full">
+                                <SelectValue placeholder={isFetching ? "Loading..." : "Total Stock"} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="0">Total Stock (Unbatched)</SelectItem>
+                                {batches.map((b: any) => (
+                                  <SelectItem key={b.id} value={String(b.id)}>
+                                    {b.batch_number} {b.expiry_date ? `(Exp: ${b.expiry_date})` : ""} - {fmt3(Number(b.quantity_on_hand))}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                           <TableCell>
                             <div className="h-10 flex items-center">

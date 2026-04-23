@@ -6,7 +6,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import {
   Search, CheckCircle2, Car, ChevronRight, ArrowRight,
   Loader2, FileText, User, Hash, Gauge, CalendarDays, Tag, Phone,
-  Building2, Plus,
+  Building2, Plus, Fingerprint, Store
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

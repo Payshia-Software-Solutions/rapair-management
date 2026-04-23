@@ -137,7 +137,7 @@ class InvoiceController extends Controller {
             $invoiceId = $this->invoiceModel->create($data);
             if (!$invoiceId) throw new Exception('Failed to create invoice');
 
-            $this->invoiceModel->addItems($invoiceId, $data['items']);
+            $this->invoiceModel->addItems($invoiceId, $data['items'], $data['userId']);
             if (!empty($data['applied_taxes'])) {
                 $this->invoiceModel->addAppliedTaxes($invoiceId, $data['applied_taxes']);
             }
@@ -163,6 +163,8 @@ class InvoiceController extends Controller {
                         'card_type' => $p['cardType'] ?? null,
                         'card_last4' => $p['cardLast4'] ?? null,
                         'card_auth_code' => $p['cardAuthCode'] ?? null,
+                        'bank_id' => $p['bankId'] ?? $data['bank_id'] ?? null,
+                        'card_category' => $p['cardCategory'] ?? $data['card_category'] ?? null,
                         'cheque' => [
                             'cheque_no' => $p['chequeNo'] ?? '',
                             'bank_name' => $p['chequeBankName'] ?? '',

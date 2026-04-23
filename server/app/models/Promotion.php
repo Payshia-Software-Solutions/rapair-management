@@ -38,9 +38,86 @@ class Promotion extends Model {
         foreach ($promotions as $promo) {
             $promo->conditions = $this->getConditions($promo->id);
             $promo->benefits = $this->getBenefits($promo->id);
+            $this->enrichPromotionDetails($promo);
         }
 
         return $promotions;
+    }
+
+    private function enrichPromotionDetails(&$promo) {
+        // Collect all IDs needed for lookup
+        $partIds = [];
+        $collectionIds = [];
+
+        foreach ($promo->conditions as $cond) {
+            if ($cond->condition_type === 'ItemList') {
+                $ids = json_decode($cond->requirement_value, true) ?: [];
+                $partIds = array_merge($partIds, $ids);
+            }
+            if ($cond->condition_type === 'CollectionList') {
+                $ids = json_decode($cond->requirement_value, true) ?: [];
+                $collectionIds = array_merge($collectionIds, $ids);
+            }
+        }
+
+        foreach ($promo->benefits as $ben) {
+            if ($ben->benefit_type === 'FreeItem' && $ben->benefit_value > 0) {
+                $partIds[] = (int)$ben->benefit_value;
+            }
+            $tIds = json_decode($ben->trigger_items ?? '[]', true) ?: [];
+            $rIds = json_decode($ben->reward_items ?? '[]', true) ?: [];
+            $partIds = array_merge($partIds, $tIds, $rIds);
+        }
+
+        $partIds = array_unique(array_filter($partIds));
+        $collectionIds = array_unique(array_filter($collectionIds));
+
+        $partNames = !empty($partIds) ? $this->fetchPartNamesByIds($partIds) : [];
+        $collectionNames = !empty($collectionIds) ? $this->fetchCollectionNamesByIds($collectionIds) : [];
+
+        // Map them back
+        foreach ($promo->conditions as &$cond) {
+            if ($cond->condition_type === 'ItemList') {
+                $ids = json_decode($cond->requirement_value, true) ?: [];
+                $cond->item_names = array_intersect_key($partNames, array_flip($ids));
+            }
+            if ($cond->condition_type === 'CollectionList') {
+                $ids = json_decode($cond->requirement_value, true) ?: [];
+                $cond->collection_names = array_intersect_key($collectionNames, array_flip($ids));
+            }
+        }
+
+        foreach ($promo->benefits as &$ben) {
+            if ($ben->benefit_type === 'FreeItem') {
+                $ben->item_name = $partNames[(int)$ben->benefit_value] ?? 'Unknown Item';
+            }
+            $tIds = json_decode($ben->trigger_items ?? '[]', true) ?: [];
+            $rIds = json_decode($ben->reward_items ?? '[]', true) ?: [];
+            $ben->trigger_item_names = array_intersect_key($partNames, array_flip($tIds));
+            $ben->reward_item_names = array_intersect_key($partNames, array_flip($rIds));
+        }
+    }
+
+    private function fetchPartNamesByIds($ids) {
+        if (empty($ids)) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->query("SELECT id, part_name FROM parts WHERE id IN ($placeholders)");
+        foreach ($ids as $k => $id) $this->db->bind($k + 1, $id);
+        $rows = $this->db->resultSet();
+        $map = [];
+        foreach ($rows as $r) $map[$r->id] = $r->part_name;
+        return $map;
+    }
+
+    private function fetchCollectionNamesByIds($ids) {
+        if (empty($ids)) return [];
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $this->db->query("SELECT id, name FROM parts_categories WHERE id IN ($placeholders)");
+        foreach ($ids as $k => $id) $this->db->bind($k + 1, $id);
+        $rows = $this->db->resultSet();
+        $map = [];
+        foreach ($rows as $r) $map[$r->id] = $r->name;
+        return $map;
     }
 
     private function getConditions($promoId) {

@@ -21,7 +21,9 @@ import {
   MousePointer2,
   Zap,
   ArrowRight,
-  LayoutGrid
+  LayoutGrid,
+  Building2,
+  Store
 } from "lucide-react";
 import { 
   Dialog, 

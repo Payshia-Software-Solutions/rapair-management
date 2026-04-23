@@ -79,6 +79,16 @@ class PaymentreceiptController extends Controller {
         $this->json(['status' => $ok ? 'success' : 'error']);
     }
 
+    public function bulkchequestatus() {
+        $data = json_decode(file_get_contents('php://input'), true) ?? [];
+        if (empty($data['ids']) || !is_array($data['ids'])) {
+            $this->json(['status' => 'error', 'message' => 'IDs array required'], 422);
+            return;
+        }
+        $ok = $this->model->bulkUpdateChequeStatus($data['ids'], $data['status'] ?? 'Cleared', $data['cleared_date'] ?? null);
+        $this->json(['status' => $ok ? 'success' : 'error']);
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
     private function getAuthUserId() {
         $headers = getallheaders();

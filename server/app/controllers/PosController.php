@@ -13,6 +13,10 @@ class PosController extends Controller {
         PosHeldOrderSchema::ensure();
     }
 
+    public function index() {
+        $this->success(['message' => 'POS Controller Active']);
+    }
+
     public function day_ledger() {
         $u = $this->requirePermission('pos.read');
         $db = new Database();

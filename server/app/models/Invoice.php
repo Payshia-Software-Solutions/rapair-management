@@ -120,7 +120,7 @@ class Invoice extends Model {
         return false;
     }
 
-    public function addItems($invoiceId, $items) {
+    public function addItems($invoiceId, $items, $userId = null) {
         require_once 'Part.php';
         require_once 'ProductionBOM.php';
         $partModel = new Part();
@@ -146,26 +146,24 @@ class Invoice extends Model {
                     if ($shouldDeduct) {
                         $qty = (float)$item['quantity'];
                         $recipeType = $part->recipe_type ?? 'Standard';
-
                         if ($recipeType === 'A La Carte') {
-                            // Find active BOM
+                            // 1. Process Ingredients (only if BOM exists)
                             $bom = $bomModel->getActiveBOMForPart($pid);
                             if ($bom && !empty($bom->items)) {
-                                // Ingredient reduction location: product's default location OR invoice location
-                                $targetLoc = !empty($part->default_location_id) ? (int)$part->default_location_id : $invoiceLocationId;
-                                
+                                $ingredientLoc = !empty($part->default_location_id) ? (int)$part->default_location_id : $invoiceLocationId;
                                 foreach ($bom->items as $bi) {
                                     $ingredientQty = (float)$bi->qty * $qty;
-                                    $this->deductStock($bi->part_id, $ingredientQty, $targetLoc, $invoiceId, 0, null, 'BOM Consumption (' . $part->part_name . ')', 'SALE');
+                                    $this->deductStock($bi->part_id, $ingredientQty, $ingredientLoc, $invoiceId, 0, null, 'BOM Consumption (' . $part->part_name . ')', 'PRODUCTION_CONSUMPTION', $userId);
                                 }
-                            } else {
-                                // Fallback if no BOM is set for A La Carte
-                                $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null);
                             }
-                        } else {
-                            // Standard deduction
-                            $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null);
+                            
+                            // 2. Always log the "Assembly" (Plus entry) for A La Carte items
+                            $this->deductStock($pid, -1 * $qty, $invoiceLocationId, $invoiceId, $costPrice, null, 'A La Carte Assembly', 'PRODUCTION_RECEIPT', $userId);
                         }
+
+                        // Always deduct the main item if it's a part and $shouldDeduct is true
+                        // This handles both Standard and A La Carte (which now has an offsetting plus entry above)
+                        $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null, 'Retail Sale', 'SALE', $userId);
                     }
                 }
             }
@@ -194,7 +192,7 @@ class Invoice extends Model {
     /**
      * Helper to handle inventory deduction (Supports FIFO and Standard)
      */
-    private function deductStock($partId, $qty, $locationId, $invoiceId, $unitPrice = 0, $selectedBatches = null, $notes = 'Retail Sale', $movementType = 'SALE') {
+    private function deductStock($partId, $qty, $locationId, $invoiceId, $unitPrice = 0, $selectedBatches = null, $notes = 'Retail Sale', $movementType = 'SALE', $userId = null) {
         require_once 'Part.php';
         require_once 'InventoryBatch.php';
         $partModel = new Part();
@@ -204,9 +202,9 @@ class Invoice extends Model {
         if (!$part) return;
 
         $costPrice = (float)$part->cost_price;
-        $isFifo = (int)($part->is_fifo ?? 0) === 1 || (int)($part->is_expiry ?? 0) === 1;
+        $isFifo = ((int)($part->is_fifo ?? 0) === 1 || (int)($part->is_expiry ?? 0) === 1);
 
-        if ($isFifo) {
+        if ($isFifo && $qty > 0) {
             $deductions = [];
             if ($selectedBatches) {
                 foreach ($selectedBatches as $pb) {
@@ -221,8 +219,8 @@ class Invoice extends Model {
 
             foreach ($deductions as $d) {
                 $this->db->query("
-                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
-                    VALUES (:loc, :part_id, :batch_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                    VALUES (:loc, :part_id, :batch_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
                 ");
                 $this->db->bind(':loc', $locationId);
                 $this->db->bind(':part_id', $partId);
@@ -233,12 +231,13 @@ class Invoice extends Model {
                 $this->db->bind(':unit_cost', $costPrice);
                 $this->db->bind(':unit_price', (float)$unitPrice);
                 $this->db->bind(':notes', $notes . ($selectedBatches ? ' (Manual Batch)' : ' (Auto Batch)'));
+                $this->db->bind(':created_by', $userId);
                 $this->db->execute();
             }
         } else {
             $this->db->query("
-                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes)
-                VALUES (:loc, :part_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes)
+                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                VALUES (:loc, :part_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
             ");
             $this->db->bind(':loc', $locationId);
             $this->db->bind(':part_id', $partId);
@@ -248,6 +247,7 @@ class Invoice extends Model {
             $this->db->bind(':unit_cost', $costPrice);
             $this->db->bind(':unit_price', (float)$unitPrice);
             $this->db->bind(':notes', $notes);
+            $this->db->bind(':created_by', $userId);
             $this->db->execute();
         }
 
