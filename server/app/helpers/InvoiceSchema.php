@@ -36,6 +36,12 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'applied_promotion_name')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN applied_promotion_name VARCHAR(255) NULL AFTER applied_promotion_id");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'shipping_fee')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER grand_total");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'online_order_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN online_order_id INT NULL AFTER order_id");
+                }
             }
         } catch (Exception $e) {}
 

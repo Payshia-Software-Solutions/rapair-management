@@ -189,6 +189,18 @@ class InvoiceController extends Controller {
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'details' => json_encode(['invoice_no' => $invoiceNo]),
             ]);
+            // Optional: Mark online order as completed and link invoice
+            if (!empty($data['online_order_id'])) {
+                require_once '../app/models/OnlineOrder.php';
+                $onlineOrderModel = new OnlineOrder();
+                $onlineOrderModel->setInvoiceId($data['online_order_id'], $invoiceId);
+                
+                // Also update status to Completed
+                $db->query("UPDATE online_orders SET order_status = 'Completed' WHERE id = :id");
+                $db->bind(':id', $data['online_order_id']);
+                $db->execute();
+            }
+
             // Optional: Mark held order as completed if it came from a held bill
             if (!empty($data['held_order_id'])) {
                 require_once '../app/models/PosHeldOrder.php';

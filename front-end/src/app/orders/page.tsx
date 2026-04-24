@@ -68,17 +68,17 @@ import { AnalogTimePicker } from '@/components/ui/analog-time-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 const priorityColors: Record<Priority, string> = {
-  'Emergency': 'bg-red-500',
-  'High': 'bg-orange-500',
-  'Medium': 'bg-blue-500',
-  'Low': 'bg-slate-400'
+  'Emergency': 'bg-red-500 dark:bg-red-600',
+  'High': 'bg-orange-500 dark:bg-orange-600',
+  'Medium': 'bg-blue-500 dark:bg-blue-600',
+  'Low': 'bg-slate-400 dark:bg-slate-600'
 };
 
 const statusColors: Record<RepairStatus, string> = {
-  'Pending': 'bg-slate-100 text-slate-700',
-  'In Progress': 'bg-blue-100 text-primary',
-  'Completed': 'bg-green-100 text-green-700',
-  'Cancelled': 'bg-red-100 text-red-700'
+  'Pending': 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  'In Progress': 'bg-blue-100 text-primary dark:bg-blue-900/30 dark:text-blue-400',
+  'Completed': 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  'Cancelled': 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
 };
 
 export default function OrderQueuePage() {

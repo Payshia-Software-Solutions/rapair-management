@@ -277,3 +277,16 @@ export const fetchReturnPrintData = async (returnId: string | number) => {
   return data.data;
 };
 
+// Online Orders
+export const fetchOnlineOrders = async () => {
+  const res = await api('/api/onlineorder/index');
+  if (!res.ok) throw new Error('Failed to load online orders');
+  return res.json();
+};
+
+export const fetchOnlineOrder = async (id: string | number) => {
+  const res = await api(`/api/onlineorder/show/${id}`);
+  if (!res.ok) throw new Error('Failed to load online order');
+  const data = await res.json();
+  return data;
+};

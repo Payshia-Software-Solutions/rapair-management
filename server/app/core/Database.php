@@ -29,7 +29,8 @@ class Database {
             // A previous request that ran DDL (CREATE/ALTER) or left a broken transaction
             // would corrupt the reused connection, causing beginTransaction() to silently
             // fail, resulting in "There is no active transaction" on commit().
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_TIMEOUT => 5 // 5 seconds timeout
         ];
 
         // Create PDO instance
@@ -38,12 +39,19 @@ class Database {
             self::$sharedDbh = $this->dbh;
         } catch (PDOException $e) {
             $this->error = $e->getMessage();
-            echo $this->error;
+            // Don't echo here; let the caller handle it or check getError()
         }
+    }
+
+    public function getError() {
+        return $this->error;
     }
 
     // Prepare statement with query
     public function query($sql) {
+        if (!$this->dbh) {
+            throw new Exception("Database connection failed: " . $this->error);
+        }
         $this->stmt = $this->dbh->prepare($sql);
     }
 
@@ -74,6 +82,9 @@ class Database {
 
     // Execute a raw SQL statement directly on the connection (DDL/migrations).
     public function exec($sql) {
+        if (!$this->dbh) {
+            throw new Exception("Database connection failed: " . $this->error);
+        }
         return $this->dbh->exec($sql);
     }
 
@@ -96,6 +107,9 @@ class Database {
 
     // Get the last inserted id for the current connection.
     public function lastInsertId() {
+        if (!$this->dbh) {
+            throw new Exception("Database connection failed: " . $this->error);
+        }
         return $this->dbh->lastInsertId();
     }
 
@@ -103,6 +117,9 @@ class Database {
 
     // Transaction Methods
     public function beginTransaction() {
+        if (!$this->dbh) {
+            throw new Exception("Database connection failed: " . $this->error);
+        }
         if (self::$transactionCount === 0) {
             $this->dbh->beginTransaction();
         }

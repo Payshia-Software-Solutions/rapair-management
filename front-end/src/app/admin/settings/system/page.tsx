@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow } from "@/lib/api";
-import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff } from "lucide-react";
+import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,8 @@ export default function SystemSettingsPage() {
   const [newClient, setNewClient] = useState({ client_name: "", domain: "" });
   const [addingClient, setAddingClient] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [activeGateway, setActiveGateway] = useState<string | null>("payhere");
+  const [isAddingGateway, setIsAddingGateway] = useState(false);
   
   const [settings, setSettings] = useState<Record<string, string>>({
     mail_host: "",
@@ -52,27 +54,41 @@ export default function SystemSettingsPage() {
     mail_from_name: "",
     sms_gateway_url: "",
     sms_api_key: "",
-    sms_sender_id: ""
+    sms_sender_id: "",
+    payhere_merchant_id_live: "",
+    payhere_secret_live: "",
+    payhere_merchant_id_sandbox: "",
+    payhere_secret_sandbox: "",
+    payhere_is_sandbox: "1",
+    stripe_publishable_key_live: "",
+    stripe_secret_key_live: "",
+    stripe_publishable_key_sandbox: "",
+    stripe_secret_key_sandbox: "",
+    stripe_is_sandbox: "1",
+    online_sales_enabled: "0",
+    online_sales_cod: "1",
+    online_sales_ipg: "1"
   });
 
-  const load = async () => {
-    setLoading(true);
+  const loadSettings = async () => {
     try {
-      const [s, clients] = await Promise.all([
-        fetchSystemSettings(),
-        fetchApiClients()
-      ]);
+      const s = await fetchSystemSettings();
       setSettings(prev => ({ ...prev, ...s }));
-      setApiClients(clients);
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setLoading(false);
     }
   };
 
+  const loadApiClients = async () => {
+    try {
+      const res = await fetchApiClients();
+      setApiClients(res);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
-    void load();
+    setLoading(true);
+    Promise.all([loadSettings(), loadApiClients()]).finally(() => setLoading(false));
   }, []);
 
   const handleChange = (key: string, val: string) => {
@@ -116,8 +132,7 @@ export default function SystemSettingsPage() {
       toast({ title: "Client Added", description: "New API client created successfully." });
       setNewClient({ client_name: "", domain: "" });
       setIsDialogOpen(false);
-      const clients = await fetchApiClients();
-      setApiClients(clients);
+      await loadApiClients();
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
@@ -182,18 +197,18 @@ export default function SystemSettingsPage() {
       </div>
 
       <Tabs defaultValue="mail" className="space-y-6">
-        <TabsList className="bg-muted/50 p-1 rounded-xl border">
-          <TabsTrigger value="mail" className="rounded-lg px-6 gap-2">
-            <Mail className="w-4 h-4" />
-            Email (SMTP)
+        <TabsList className="grid grid-cols-4 w-full bg-muted/50 p-1 rounded-xl h-14">
+          <TabsTrigger value="mail" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <Mail className="w-4 h-4" /> Email
           </TabsTrigger>
-          <TabsTrigger value="sms" className="rounded-lg px-6 gap-2">
-            <MessageSquare className="w-4 h-4" />
-            SMS Gateway
+          <TabsTrigger value="sms" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <MessageSquare className="w-4 h-4" /> SMS
           </TabsTrigger>
-          <TabsTrigger value="public-api" className="rounded-lg px-6 gap-2">
-            <Globe className="w-4 h-4" />
-            Public API
+          <TabsTrigger value="public-api" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <Globe className="w-4 h-4" /> Public API
+          </TabsTrigger>
+          <TabsTrigger value="payments" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <CreditCard className="w-4 h-4" /> Payments
           </TabsTrigger>
         </TabsList>
 
@@ -328,7 +343,7 @@ export default function SystemSettingsPage() {
                   </p>
                   <div className="grid gap-2">
                     <Label htmlFor="test_phone">Recipient Number</Label>
-                    <Input id="test_phone" placeholder="9477..." value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+                    <Input id="test_phone" placeholder="9477..." onChange={(e) => setTestPhone(e.target.value)} />
                   </div>
                   <Button variant="secondary" onClick={handleTestSms} disabled={testingSms || !testPhone.trim()} className="w-full">
                     {testingSms ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <MessageSquare className="w-4 h-4 mr-2" />}
@@ -533,13 +548,13 @@ export default function SystemSettingsPage() {
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-muted-foreground">Base Inventory URL:</p>
                       <code className="text-[10px] break-all block bg-muted p-1.5 rounded select-all cursor-pointer">
-                        {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : ''}api/publicitem/inventory
+                        {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : ''}/api/publicitem/inventory
                       </code>
                     </div>
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-muted-foreground">Product Detail URL:</p>
                       <code className="text-[10px] break-all block bg-muted p-1.5 rounded">
-                        ...api/publicitem/get/{"{id}"}
+                        .../api/publicitem/get/{"{id}"}
                       </code>
                     </div>
                   </div>
@@ -548,7 +563,332 @@ export default function SystemSettingsPage() {
             </CardFooter>
           </Card>
         </TabsContent>
-      </Tabs>
+        <TabsContent value="payments">
+          <Card className="border-none shadow-lg overflow-hidden">
+            <CardHeader className="bg-primary/[0.03] border-b pb-4">
+               <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <CreditCard className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">Online Payment Gateways</CardTitle>
+                  <CardDescription>Configure PayHere Sri Lanka and other online sales settings.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-8">
+                  {/* Global Options */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <div>
+                        <h3 className="text-lg font-bold">Global Sales Options</h3>
+                        <p className="text-xs text-muted-foreground">Configure how online orders are accepted across all channels.</p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid gap-6 md:grid-cols-3">
+                      <div className="flex items-center justify-between p-4 bg-primary/5 rounded-xl border border-primary/10 shadow-sm">
+                        <div className="space-y-1">
+                          <Label className="text-base font-bold">Enable Online Sales</Label>
+                          <p className="text-[11px] text-muted-foreground">Master switch for website orders.</p>
+                        </div>
+                        <Switch 
+                          checked={settings.online_sales_enabled === "1"} 
+                          onCheckedChange={(v) => handleChange('online_sales_enabled', v ? "1" : "0")} 
+                        />
+                      </div>
+
+                      <div className="space-y-3 p-4 bg-muted/30 rounded-xl border flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <Label className="font-bold">Cash on Delivery</Label>
+                          <Switch 
+                            checked={settings.online_sales_cod === "1"} 
+                            onCheckedChange={(v) => handleChange('online_sales_cod', v ? "1" : "0")} 
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Allow orders without immediate payment.</p>
+                      </div>
+
+                      <div className="space-y-3 p-4 bg-muted/30 rounded-xl border flex flex-col justify-between">
+                        <div className="flex items-center justify-between">
+                          <Label className="font-bold">Online Payment (IPG)</Label>
+                          <Switch 
+                            checked={settings.online_sales_ipg === "1"} 
+                            onCheckedChange={(v) => handleChange('online_sales_ipg', v ? "1" : "0")} 
+                          />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">Require immediate payment via gateways.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Providers List */}
+                  <div className="space-y-6 pt-4">
+                    <div className="flex items-center justify-between border-b pb-4">
+                      <div>
+                        <h3 className="text-lg font-bold">Payment Providers</h3>
+                        <p className="text-xs text-muted-foreground">Manage and configure your integrated payment gateways.</p>
+                      </div>
+                      <Button 
+                        onClick={() => { setIsAddingGateway(true); setActiveGateway(null); }}
+                        variant="outline" 
+                        size="sm" 
+                        className="gap-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Add New IPG
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6">
+                      {/* Provider List Row */}
+                      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
+                        {['payhere', 'stripe'].map((gw) => (
+                          <button
+                            key={gw}
+                            onClick={() => { setActiveGateway(gw); setIsAddingGateway(false); }}
+                            className={`flex flex-col items-center justify-center p-6 rounded-2xl border-2 transition-all min-w-[160px] ${
+                              activeGateway === gw && !isAddingGateway
+                                ? "border-primary bg-primary/5 shadow-md shadow-primary/10" 
+                                : "border-muted bg-card hover:border-muted-foreground/30"
+                            }`}
+                          >
+                            <div className={`p-3 rounded-xl mb-3 ${activeGateway === gw && !isAddingGateway ? "bg-primary text-white" : "bg-muted text-muted-foreground"}`}>
+                              <CreditCard className="w-6 h-6" />
+                            </div>
+                            <span className="font-bold capitalize">{gw}</span>
+                            <Badge variant={activeGateway === gw && !isAddingGateway ? "default" : "secondary"} className="mt-2 text-[9px]">
+                              {gw === 'payhere' ? "Sri Lanka" : "International"}
+                            </Badge>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Detail View / Configuration Area */}
+                      {(activeGateway || isAddingGateway) && (
+                        <div className="bg-muted/20 rounded-2xl border p-8 space-y-8 animate-in fade-in slide-in-from-top-4 duration-300">
+                          {isAddingGateway ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center">
+                              <div className="p-4 bg-primary/10 rounded-full text-primary mb-4">
+                                <Plus className="w-8 h-8" />
+                              </div>
+                              <h4 className="text-xl font-bold">Add New Gateway</h4>
+                              <p className="text-sm text-muted-foreground max-w-sm mt-2">
+                                Please select a supported gateway from the list above or contact support to request a new integration.
+                              </p>
+                              <Button variant="ghost" className="mt-4" onClick={() => setIsAddingGateway(false)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : activeGateway === 'payhere' ? (
+                            <div className="space-y-8">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className="p-3 bg-amber-100 rounded-2xl text-amber-600">
+                                    <ShieldCheck className="w-8 h-8" />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-2xl font-bold">PayHere Sri Lanka</h4>
+                                    <p className="text-sm text-muted-foreground">The leading payment gateway for Sri Lankan businesses.</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 px-4 py-2 bg-amber-50 rounded-xl border border-amber-100">
+                                  <div className="space-y-0.5">
+                                    <Label className="text-xs font-bold text-amber-900">Sandbox Mode</Label>
+                                    <p className="text-[10px] text-amber-600">Use test environment for development</p>
+                                  </div>
+                                  <Switch 
+                                    checked={settings.payhere_is_sandbox === "1"} 
+                                    onCheckedChange={(v) => handleChange('payhere_is_sandbox', v ? "1" : "0")} 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-6 pt-4">
+                                <div className="space-y-4 p-8 bg-card rounded-2xl border-2 border-primary/10 shadow-sm relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 p-3 bg-primary/10 rounded-bl-2xl text-primary text-xs font-black uppercase tracking-widest">Live Production</div>
+                                  <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Merchant ID</Label>
+                                      <Input className="h-12 text-base" placeholder="e.g. 123456" value={settings.payhere_merchant_id_live} onChange={(e) => handleChange('payhere_merchant_id_live', e.target.value)} />
+                                    </div>
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Merchant Secret</Label>
+                                      <Input className="h-12 text-base" type="password" placeholder="••••••••••••••••" value={settings.payhere_secret_live} onChange={(e) => handleChange('payhere_secret_live', e.target.value)} />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-4 p-8 bg-card rounded-2xl border-2 border-orange-500/10 shadow-sm relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 p-3 bg-orange-500/10 rounded-bl-2xl text-orange-600 text-xs font-black uppercase tracking-widest">Sandbox Environment</div>
+                                  <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Sandbox Merchant ID</Label>
+                                      <Input className="h-12 text-base border-orange-200 dark:border-orange-500/20" placeholder="e.g. 123456" value={settings.payhere_merchant_id_sandbox} onChange={(e) => handleChange('payhere_merchant_id_sandbox', e.target.value)} />
+                                    </div>
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Sandbox Merchant Secret</Label>
+                                      <Input className="h-12 text-base border-orange-200 dark:border-orange-500/20" type="password" placeholder="••••••••••••••••" value={settings.payhere_secret_sandbox} onChange={(e) => handleChange('payhere_secret_sandbox', e.target.value)} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="bg-amber-50 border-2 border-amber-100 rounded-2xl p-6 flex items-start gap-4">
+                                <div className="p-2 bg-amber-100 rounded-lg text-amber-600">
+                                  <AlertCircle className="w-6 h-6" />
+                                </div>
+                                <div className="space-y-2 flex-1">
+                                  <p className="font-bold text-amber-900">Configure Webhook Notifications</p>
+                                  <p className="text-sm text-amber-800 leading-relaxed">
+                                    To receive automatic payment updates, copy the URL below and paste it as the <strong>Notify URL</strong> in your PayHere Merchant Panel Settings.
+                                  </p>
+                                  <div className="flex items-center gap-2 mt-4">
+                                    <code className="flex-1 bg-white/50 border border-amber-200 p-3 rounded-xl text-xs font-mono select-all">
+                                      {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}` : ''}/api/payment/payhere_notify
+                                    </code>
+                                    <Button size="icon" variant="ghost" className="h-11 w-11 rounded-xl bg-white border border-amber-200" onClick={() => {
+                                      navigator.clipboard.writeText(`${window.location.protocol}//${window.location.host}/api/payment/payhere_notify`);
+                                      toast({ title: "Copied!", description: "Notify URL copied to clipboard." });
+                                    }}>
+                                      <Copy className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : activeGateway === 'stripe' ? (
+                            <div className="space-y-8">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                  <div className="p-3 bg-blue-100 rounded-2xl text-blue-600">
+                                    <Globe className="w-8 h-8" />
+                                  </div>
+                                  <div>
+                                    <h4 className="text-2xl font-bold">Stripe Payments</h4>
+                                    <p className="text-sm text-muted-foreground">International payment processing for global customers.</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 rounded-xl border border-blue-100">
+                                  <div className="space-y-0.5">
+                                    <Label className="text-xs font-bold text-blue-900">Test Mode</Label>
+                                    <p className="text-[10px] text-blue-600">Use Stripe test keys for development</p>
+                                  </div>
+                                  <Switch 
+                                    checked={settings.stripe_is_sandbox === "1"} 
+                                    onCheckedChange={(v) => handleChange('stripe_is_sandbox', v ? "1" : "0")} 
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 gap-6 pt-4">
+                                <div className="space-y-6 p-8 bg-white dark:bg-slate-900 rounded-2xl border-2 border-primary/10 shadow-sm relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 p-3 bg-primary/10 rounded-bl-2xl text-primary text-xs font-black uppercase tracking-widest">Live</div>
+                                  <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Live Publishable Key</Label>
+                                      <Input className="h-12 text-base" placeholder="pk_live_..." value={settings.stripe_publishable_key_live} onChange={(e) => handleChange('stripe_publishable_key_live', e.target.value)} />
+                                    </div>
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Live Secret Key</Label>
+                                      <Input className="h-12 text-base" type="password" placeholder="sk_live_..." value={settings.stripe_secret_key_live} onChange={(e) => handleChange('stripe_secret_key_live', e.target.value)} />
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="space-y-6 p-8 bg-white dark:bg-slate-900 rounded-2xl border-2 border-blue-500/10 shadow-sm relative overflow-hidden">
+                                  <div className="absolute top-0 right-0 p-3 bg-blue-500/10 rounded-bl-2xl text-blue-600 text-xs font-black uppercase tracking-widest">Test</div>
+                                  <div className="flex flex-col md:flex-row gap-8">
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Test Publishable Key</Label>
+                                      <Input className="h-12 text-base border-blue-200 dark:border-blue-500/20" placeholder="pk_test_..." value={settings.stripe_publishable_key_sandbox} onChange={(e) => handleChange('stripe_publishable_key_sandbox', e.target.value)} />
+                                    </div>
+                                    <div className="flex-1 grid gap-4">
+                                      <Label className="text-sm font-bold">Test Secret Key</Label>
+                                      <Input className="h-12 text-base border-blue-200 dark:border-blue-500/20" type="password" placeholder="sk_test_..." value={settings.stripe_secret_key_sandbox} onChange={(e) => handleChange('stripe_secret_key_sandbox', e.target.value)} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* API Integration Section */}
+                  <div className="pt-8 border-t space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg text-slate-600">
+                        <Terminal className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold">API Integration Reference</h3>
+                        <p className="text-xs text-muted-foreground">Sample data set for public checkout integration.</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-900 rounded-2xl overflow-hidden border shadow-inner">
+                      <div className="flex items-center justify-between px-6 py-3 bg-slate-800 border-b">
+                        <div className="flex items-center gap-2">
+                          <Code2 className="w-4 h-4 text-slate-400" />
+                          <span className="text-[11px] font-black uppercase tracking-widest text-slate-300">Sample Checkout Payload (POST)</span>
+                        </div>
+                        <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400 uppercase">application/json</Badge>
+                      </div>
+                      <div className="p-6">
+                        <pre className="text-xs text-emerald-400 font-mono leading-relaxed overflow-x-auto whitespace-pre">
+{`{
+  "location_id": 1,
+  "customer_details": {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "phone": "0771234567"
+  },
+  "shipping_address": "No 123, Main Street, Colombo",
+  "billing_address": "No 123, Main Street, Colombo",
+  "total_amount": 12500.00,
+  "payment_method": "IPG",
+  "items": [
+    {
+      "item_id": 45,
+      "description": "Brake Pad Front",
+      "quantity": 1,
+      "unit_price": 8500.00,
+      "line_total": 8500.00
+    },
+    {
+      "item_id": 12,
+      "description": "Oil Filter",
+      "quantity": 2,
+      "unit_price": 2000.00,
+      "line_total": 4000.00
+    }
+  ]
+}`}
+                        </pre>
+                      </div>
+                      <div className="px-6 py-4 bg-slate-800/50 border-t border-slate-700/50">
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 uppercase font-bold tracking-widest">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-500" />
+                          Endpoint: /api/public/checkout
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-muted/30 border-t p-6 flex justify-end">
+                <Button onClick={save} disabled={saving} size="lg" className="px-8 shadow-md">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                  Save Payment Settings
+                </Button>
+              </CardFooter>
+            </Card>
+          </TabsContent>
+        </Tabs>
     </DashboardLayout>
   );
 }

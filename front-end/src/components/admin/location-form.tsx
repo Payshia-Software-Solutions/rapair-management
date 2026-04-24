@@ -36,6 +36,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
   const [allowRetail, setAllowRetail] = useState(true);
   const [isPosActive, setIsPosActive] = useState(true);
   const [allowProduction, setAllowProduction] = useState(false);
+  const [allowOnline, setAllowOnline] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -52,6 +53,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       setAllowRetail(Boolean(initialData.allow_retail));
       setIsPosActive(Boolean(initialData.is_pos_active));
       setAllowProduction(Boolean(initialData.allow_production));
+      setAllowOnline(Boolean(initialData.allow_online));
     }
   }, [initialData]);
 
@@ -75,6 +77,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
         allow_retail: allowRetail ? 1 : 0,
         is_pos_active: isPosActive ? 1 : 0,
         allow_production: allowProduction ? 1 : 0,
+        allow_online: allowOnline ? 1 : 0,
       };
 
       if (isEdit && initialData) {
@@ -259,6 +262,13 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                       <span className="text-sm">Allow Retail Sales</span>
                     </div>
                     <Switch checked={allowRetail} onCheckedChange={setAllowRetail} />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Store className="w-4 h-4 text-purple-500" />
+                      <span className="text-sm">Allow Online Sales</span>
+                    </div>
+                    <Switch checked={allowOnline} onCheckedChange={setAllowOnline} />
                   </div>
                 </div>
               </div>

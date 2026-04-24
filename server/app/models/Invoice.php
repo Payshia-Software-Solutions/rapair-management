@@ -84,17 +84,18 @@ class Invoice extends Model {
     public function create($data) {
         $this->db->query("
             INSERT INTO invoices (
-                invoice_no, order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
-                subtotal, tax_total, discount_total, grand_total, order_type, table_id, steward_id, notes,
+                invoice_no, order_id, online_order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
+                subtotal, tax_total, discount_total, shipping_fee, grand_total, order_type, table_id, steward_id, notes,
                 applied_promotion_id, applied_promotion_name, created_by, updated_by
             ) VALUES (
-                :invoice_no, :order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
-                :subtotal, :tax_total, :discount_total, :grand_total, :order_type, :table_id, :steward_id, :notes,
+                :invoice_no, :order_id, :online_order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
+                :subtotal, :tax_total, :discount_total, :shipping_fee, :grand_total, :order_type, :table_id, :steward_id, :notes,
                 :applied_promo_id, :applied_promo_name, :created_by, :updated_by
             )
         ");
         $this->db->bind(':invoice_no', $data['invoice_no']);
         $this->db->bind(':order_id', $data['order_id'] ?? null);
+        $this->db->bind(':online_order_id', $data['online_order_id'] ?? null);
         $this->db->bind(':location_id', $data['location_id'] ?? null);
         $this->db->bind(':customer_id', $data['customer_id']);
         $this->db->bind(':billing_address', $data['billing_address'] ?? null);
@@ -104,6 +105,7 @@ class Invoice extends Model {
         $this->db->bind(':subtotal', $data['subtotal']);
         $this->db->bind(':tax_total', $data['tax_total']);
         $this->db->bind(':discount_total', $data['discount_total'] ?? 0);
+        $this->db->bind(':shipping_fee', $data['shipping_fee'] ?? 0);
         $this->db->bind(':grand_total', $data['grand_total']);
         $this->db->bind(':order_type', $data['order_type'] ?? 'retail');
         $this->db->bind(':table_id', $data['table_id'] ?? null);
@@ -346,5 +348,12 @@ class Invoice extends Model {
         $this->db->bind(':status', $status);
         $this->db->bind(':id', $invoiceId);
         $this->db->execute();
+    }
+
+    public function setOnlineOrderId($id, $onlineOrderId) {
+        $this->db->query("UPDATE invoices SET online_order_id = :online_order_id WHERE id = :id");
+        $this->db->bind(':online_order_id', $onlineOrderId);
+        $this->db->bind(':id', $id);
+        return $this->db->execute();
     }
 }

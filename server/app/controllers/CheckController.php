@@ -66,21 +66,39 @@ class CheckController extends Controller {
         $checks = [];
         $missing = [];
 
-        foreach ($this->requiredTables as $table) {
-            $this->db->query("SHOW TABLES LIKE :tbl");
-            $this->db->bind(':tbl', $table);
-            $result = $this->db->single();
-            $available = (bool) $result;
+        // Check if database is connected
+        if ($this->db->getError()) {
+            $this->json([
+                'status' => 'error',
+                'message' => 'Database connection failed. Please ensure MySQL is running.',
+                'error' => $this->db->getError()
+            ], 500);
+            return;
+        }
 
-            $checks[] = [
-                'name' => $table,
-                'available' => $available,
-                'message' => $available ? 'Table is available' : 'Table is missing'
-            ];
+        try {
+            foreach ($this->requiredTables as $table) {
+                $this->db->query("SHOW TABLES LIKE :tbl");
+                $this->db->bind(':tbl', $table);
+                $result = $this->db->single();
+                $available = (bool) $result;
 
-            if (!$available) {
-                $missing[] = $table;
+                $checks[] = [
+                    'name' => $table,
+                    'available' => $available,
+                    'message' => $available ? 'Table is available' : 'Table is missing'
+                ];
+
+                if (!$available) {
+                    $missing[] = $table;
+                }
             }
+        } catch (Exception $e) {
+            $this->json([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ], 500);
+            return;
         }
 
         if (empty($missing)) {

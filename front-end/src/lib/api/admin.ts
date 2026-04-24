@@ -139,6 +139,7 @@ export interface ServiceLocation {
   allow_retail?: number;
   is_pos_active?: number;
   allow_production?: number;
+  allow_online?: number;
   created_at?: string;
   updated_at?: string;
 }

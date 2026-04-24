@@ -33,7 +33,8 @@ import {
   TrendingUp,
   Factory,
   Building2,
-  Banknote
+  Banknote,
+  ShoppingCart
 } from "lucide-react";
 
 export type NavItem = {
@@ -91,6 +92,7 @@ export const crmItems: NavItem[] = [
 
 export const salesItems: NavItem[] = [
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
+  { icon: ShoppingCart, label: "Online Orders", href: "/sales/online-orders", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "invoices.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "invoices.read" },
 ];
@@ -137,6 +139,7 @@ export const adminNavItems: NavItem[] = [
   { icon: Database, label: "Locations", href: "/admin/locations" },
   { icon: Settings, label: "Company", href: "/admin/company" },
   { icon: Settings, label: "System Settings", href: "/admin/settings/system" },
+  { icon: Truck, label: "Shipping Management", href: "/admin/shipping" },
   { icon: Layers, label: "Database Schema", href: "/admin/schema" },
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
 ];
