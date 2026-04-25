@@ -23,15 +23,25 @@ class SaasHelper {
                 $response = json_decode($json, true);
                 if (isset($response['status']) && $response['status'] === 'success') {
                     self::$config = $response['data'];
+                    self::$config['api_connected'] = true;
                     self::setCache(self::$config);
                 }
             }
 
             if (!self::$config) {
-                self::$config = ['name' => 'Restricted', 'modules' => ['serviceCenter', 'promotions']];
+                self::$config = [
+                    'name' => 'Restricted', 
+                    'modules' => ['serviceCenter', 'promotions'],
+                    'api_connected' => false
+                ];
             }
         } catch (Exception $e) {
             error_log("Nexus Connection Error: " . $e->getMessage());
+            self::$config = [
+                'name' => 'Restricted', 
+                'modules' => ['serviceCenter', 'promotions'],
+                'api_connected' => false
+            ];
         }
         return self::$config;
     }

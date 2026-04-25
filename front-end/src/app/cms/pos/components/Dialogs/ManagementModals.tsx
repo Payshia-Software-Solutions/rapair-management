@@ -145,20 +145,24 @@ export const ManagementModals: React.FC = () => {
                setVKeyboardActiveInput(null);
            }
       }}>
-        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl">
-          <div className="bg-rose-600 p-6 text-white text-center">
-            <div className="flex justify-center mb-3">
-               <div className="p-3 bg-white/20 rounded-2xl animate-pulse"><RotateCcw className="w-8 h-8" /></div>
+        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl flex flex-col">
+          <div className="bg-white dark:bg-slate-950 sm:bg-rose-600 p-4 sm:p-6 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none">
+            <div className="flex sm:flex-col items-center sm:justify-center gap-3">
+               <div className="p-2 sm:p-3 bg-rose-100 dark:bg-rose-900/30 sm:bg-white/20 rounded-xl sm:rounded-2xl shrink-0">
+                 <RotateCcw className="w-5 h-5 sm:w-8 sm:h-8 text-rose-600 sm:text-white" />
+               </div>
+               <div className="text-left sm:text-center">
+                  <DialogTitle className="text-base sm:text-2xl font-black uppercase tracking-tight">Return Items</DialogTitle>
+                  <DialogDescription className="hidden sm:block text-rose-100 text-sm font-medium opacity-90 mt-2">
+                    Restock items from a previous sale and generate a completion note.
+                  </DialogDescription>
+               </div>
             </div>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight">Return Items</DialogTitle>
-            <DialogDescription className="text-rose-100 font-medium opacity-90 mt-2">
-              Restock items from a previous sale and generate a completion note.
-            </DialogDescription>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto custom-scrollbar">
              {!returnInvoiceData && !isManualReturn ? (
-               <div className="space-y-6">
+               <div className="space-y-4 sm:space-y-6">
                   <div className="space-y-3">
                      <div className="flex justify-between items-end px-1">
                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Step 1: Lookup Original Invoice</label>
@@ -567,20 +571,24 @@ export const ManagementModals: React.FC = () => {
               setVKeyboardActiveInput(null);
           }
       }}>
-        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl">
-          <div className="bg-amber-500 p-6 text-white text-center">
-            <div className="flex justify-center mb-3">
-               <div className="p-3 bg-white/20 rounded-2xl"><Banknote className="w-8 h-8" /></div>
+        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl flex flex-col">
+          <div className="bg-white dark:bg-slate-950 sm:bg-amber-500 p-4 sm:p-6 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none">
+            <div className="flex sm:flex-col items-center sm:justify-center gap-3">
+               <div className="p-2 sm:p-3 bg-amber-100 dark:bg-amber-900/30 sm:bg-white/20 rounded-xl sm:rounded-2xl shrink-0">
+                 <Banknote className="w-5 h-5 sm:w-8 sm:h-8 text-amber-600 sm:text-white" />
+               </div>
+               <div className="text-left sm:text-center">
+                  <DialogTitle className="text-base sm:text-2xl font-black uppercase tracking-tight">Financial Refund</DialogTitle>
+                  <DialogDescription className="hidden sm:block text-amber-50 text-sm font-medium opacity-90 mt-2">
+                    Issue cash or bank transfer for a completed return document.
+                  </DialogDescription>
+               </div>
             </div>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight">Financial Refund</DialogTitle>
-            <DialogDescription className="text-amber-50 font-medium opacity-90 mt-2">
-              Issue cash or bank transfer for a completed return document.
-            </DialogDescription>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto custom-scrollbar">
               {!refundReturnData ? (
-                 <div className="space-y-6">
+                 <div className="space-y-4 sm:space-y-6">
                    <div className="space-y-3">
                       <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Step 1: Lookup Return Number</label>
                       <div className="flex gap-2">

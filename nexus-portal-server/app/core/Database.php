@@ -5,10 +5,10 @@ use PDO;
 use PDOException;
 
 class Database {
-    private $host = 'localhost';
-    private $user = 'root';
-    private $pass = '';
-    private $dbname = 'saas_master_db';
+    private $host = Config::DB_HOST;
+    private $user = Config::DB_USER;
+    private $pass = Config::DB_PASS;
+    private $dbname = Config::DB_NAME;
 
     private $dbh;
     private $stmt;
