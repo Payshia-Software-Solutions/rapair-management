@@ -42,9 +42,8 @@ class RbacController extends Controller {
         $this->success($rows);
     }
 
-    // POST /api/rbac/roles_create
-    // (Router maps URL segments, so we use roles_create not roles/create)
-    public function roles_create() {
+    // POST /api/rbac/create_role
+    public function create_role() {
         $this->requireAdmin();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
@@ -71,8 +70,8 @@ class RbacController extends Controller {
         }
     }
 
-    // DELETE /api/rbac/roles_delete/{id}
-    public function roles_delete($id = null) {
+    // DELETE /api/rbac/delete_role/{id}
+    public function delete_role($id = null) {
         $this->requireAdmin();
         $method = $_SERVER['REQUEST_METHOD'];
         if ($method === 'POST') {
@@ -146,8 +145,8 @@ class RbacController extends Controller {
         $this->success($keys);
     }
 
-    // POST /api/rbac/role_permissions_set/{roleId}
-    public function role_permissions_set($roleId = null) {
+    // POST /api/rbac/set_role_permissions/{roleId}
+    public function set_role_permissions($roleId = null) {
         $this->requireAdmin();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
@@ -160,7 +159,7 @@ class RbacController extends Controller {
 
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
-        $keys = $data['permission_keys'] ?? null;
+        $keys = $data['permissions'] ?? $data['permission_keys'] ?? null;
         if (!is_array($keys)) {
             $this->error('permission_keys must be an array', 400);
             return;
