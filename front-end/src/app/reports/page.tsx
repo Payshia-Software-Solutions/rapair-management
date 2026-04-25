@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { fetchReportOverview } from "@/lib/api";
-import { BarChart3, Calendar, Download, FileText, Clock, Wrench, Tags, ListChecks, Boxes, ArrowLeftRight, Car, Activity, AlertTriangle, Filter, ChevronRight } from "lucide-react";
+import { BarChart3, Calendar, Download, FileText, Clock, Wrench, Tags, ListChecks, Boxes, ArrowLeftRight, Car, Activity, AlertTriangle, Filter, ChevronRight, TrendingUp, Receipt, MapPin, Users, Percent, Database, ShieldCheck } from "lucide-react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 const COLORS = ["#2952A3", "#13C9EC", "#4AD991", "#FF9F43", "#FF4D4D", "#6C5CE7"];
@@ -105,13 +105,28 @@ export default function ReportsPage() {
       { title: "Vehicles", desc: "Vehicle register and filters", href: "/reports/vehicles", icon: Car },
       { title: "Maintenance History", desc: "Pick a vehicle to view job history", href: "/reports/maintenance-history", icon: FileText },
     ];
-    return [
-      { id: "overview", label: "Overview", icon: BarChart3, items: [] as ReportLink[] },
-      { id: "inventory", label: "Stock", icon: Boxes, items: inventory },
-      { id: "purchasing", label: "Purchasing", icon: FileText, items: purchasing },
-      { id: "fleet", label: "Vehicles", icon: Car, items: fleet },
+    const sales: ReportLink[] = [
+      { title: "Sale Summary", desc: "Daily/Monthly aggregation of sales totals", href: "/reports/sales/summary", icon: TrendingUp },
+      { title: "Invoice Report", desc: "Detailed list of invoices with status", href: "/reports/sales/invoices", icon: FileText },
+      { title: "Payment Receipts", desc: "List of payment receipts by method", href: "/reports/sales/receipts", icon: Receipt },
+      { title: "Day End Report", desc: "Comprehensive report for a specific day", href: "/reports/sales/day-end", icon: Clock },
+      { title: "Location Sales", desc: "Sales performance by location", href: "/reports/sales/locations", icon: MapPin },
+      { title: "Top Selling Items", desc: "Most popular products and services", href: "/reports/sales/top-items", icon: BarChart3 },
+      { title: "Customer Sales", desc: "Sales totals per customer", href: "/reports/sales/customers", icon: Users },
+      { title: "Tax Report", desc: "Summary of taxes collected", href: "/reports/sales/tax", icon: Percent },
     ];
-  }, []);
+      const system: ReportLink[] = [
+        { title: "Database Schema Audit", desc: "View table structures and optimization status", href: "/reports/database", icon: Database },
+      ];
+      return [
+        { id: "overview", label: "Overview", icon: BarChart3, items: [] as ReportLink[] },
+        { id: "sales", label: "Sales", icon: TrendingUp, items: sales },
+        { id: "inventory", label: "Stock", icon: Boxes, items: inventory },
+        { id: "purchasing", label: "Purchasing", icon: FileText, items: purchasing },
+        { id: "fleet", label: "Vehicles", icon: Car, items: fleet },
+        { id: "system", label: "System", icon: ShieldCheck, items: system },
+      ];
+    }, []);
 
   const groupById = useMemo(() => {
     const m = new Map<string, (typeof groups)[number]>();

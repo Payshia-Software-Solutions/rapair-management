@@ -491,4 +491,360 @@ class ReportController extends Controller {
         $rows = $this->db->resultSet();
         $this->success($rows);
     }
+
+    // GET /api/report/sales_summary?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD
+    public function sales_summary() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $this->db->query("
+            SELECT 
+                DATE(issue_date) as date,
+                COUNT(id) as invoice_count,
+                SUM(subtotal) as total_subtotal,
+                SUM(tax_total) as total_tax,
+                SUM(discount_total) as total_discount,
+                SUM(grand_total) as total_grand,
+                SUM(paid_amount) as total_paid
+            FROM invoices
+            WHERE status != 'Cancelled'
+            AND location_id IN ($inLoc)
+            AND issue_date BETWEEN :from AND :to
+            GROUP BY DATE(issue_date)
+            ORDER BY DATE(issue_date) DESC
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/invoice_report?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD&status=
+    public function invoice_report() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $status = $_GET['status'] ?? '';
+
+        $sql = "
+            SELECT i.*, c.name as customer_name, l.name as location_name
+            FROM invoices i
+            LEFT JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN service_locations l ON i.location_id = l.id
+            WHERE i.location_id IN ($inLoc)
+            AND i.issue_date BETWEEN :from AND :to
+        ";
+        if ($status) {
+            $sql .= " AND i.status = :status";
+        }
+        $sql .= " ORDER BY i.issue_date DESC, i.id DESC";
+
+        $this->db->query($sql);
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        if ($status) $this->db->bind(':status', $status);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/payment_receipt_report?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD
+    public function payment_receipt_report() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $this->db->query("
+            SELECT pr.*, l.name as location_name
+            FROM payment_receipts pr
+            LEFT JOIN service_locations l ON pr.location_id = l.id
+            WHERE pr.location_id IN ($inLoc)
+            AND pr.payment_date BETWEEN :from AND :to
+            ORDER BY pr.payment_date DESC, pr.id DESC
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/day_end_sales?location_id=1&date=YYYY-MM-DD
+    public function day_end_sales() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null, false);
+        $inLoc = $this->inList('loc', $locIds);
+        $date = $_GET['date'] ?? date('Y-m-d');
+
+        // 1. Sales Summary by Method (Invoices created today)
+        $this->db->query("
+            SELECT 
+                COALESCE(SUM(grand_total), 0) as total_sales,
+                COALESCE(SUM(paid_amount), 0) as total_received,
+                COUNT(id) as invoice_count
+            FROM invoices
+            WHERE location_id IN ($inLoc) AND issue_date = :date AND status != 'Cancelled'
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':date', $date);
+        $summary = $this->db->single();
+
+        // 2. Payments by Method
+        $this->db->query("
+            SELECT payment_method, SUM(amount) as total
+            FROM payment_receipts
+            WHERE location_id IN ($inLoc) AND payment_date = :date
+            GROUP BY payment_method
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':date', $date);
+        $payments = $this->db->resultSet();
+
+        // 3. Returns
+        $this->db->query("
+            SELECT COALESCE(SUM(total_amount), 0) as total_returns
+            FROM sales_returns
+            WHERE location_id IN ($inLoc) AND return_date = :date AND status = 'Completed'
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':date', $date);
+        $returns = $this->db->single();
+
+        $this->success([
+            'summary' => $summary,
+            'payments' => $payments,
+            'returns' => $returns->total_returns ?? 0,
+            'date' => $date
+        ]);
+    }
+
+    // GET /api/report/location_sales?from=YYYY-MM-DD&to=YYYY-MM-DD
+    public function location_sales() {
+        $u = $this->requirePermission('reports.read');
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $this->db->query("
+            SELECT 
+                l.name as location_name,
+                COUNT(i.id) as invoice_count,
+                COALESCE(SUM(i.grand_total), 0) as total_sales,
+                COALESCE(SUM(i.paid_amount), 0) as total_paid
+            FROM service_locations l
+            LEFT JOIN invoices i ON l.id = i.location_id AND i.status != 'Cancelled' AND i.issue_date BETWEEN :from AND :to
+            GROUP BY l.id
+            ORDER BY total_sales DESC
+        ");
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/top_selling_items?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD&limit=20
+    public function top_selling_items() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $limit = (int)($_GET['limit'] ?? 20);
+
+        $this->db->query("
+            SELECT 
+                ii.description,
+                ii.item_type,
+                SUM(ii.quantity) as total_qty,
+                SUM(ii.line_total) as total_revenue
+            FROM invoice_items ii
+            JOIN invoices i ON ii.invoice_id = i.id
+            WHERE i.status != 'Cancelled'
+            AND i.location_id IN ($inLoc)
+            AND i.issue_date BETWEEN :from AND :to
+            GROUP BY ii.description, ii.item_type
+            ORDER BY total_qty DESC
+            LIMIT :limit
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->db->bind(':limit', $limit);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/customer_sales?from=YYYY-MM-DD&to=YYYY-MM-DD&limit=50
+    public function customer_sales() {
+        $u = $this->requirePermission('reports.read');
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $limit = (int)($_GET['limit'] ?? 50);
+
+        $this->db->query("
+            SELECT 
+                c.name as customer_name,
+                c.phone,
+                COUNT(i.id) as invoice_count,
+                SUM(i.grand_total) as total_sales,
+                SUM(i.paid_amount) as total_paid,
+                SUM(i.grand_total - i.paid_amount) as outstanding
+            FROM customers c
+            JOIN invoices i ON c.id = i.customer_id
+            WHERE i.status != 'Cancelled'
+            AND i.issue_date BETWEEN :from AND :to
+            GROUP BY c.id
+            ORDER BY total_sales DESC
+            LIMIT :limit
+        ");
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->db->bind(':limit', $limit);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/tax_report?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD
+    public function tax_report() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $this->db->query("
+            SELECT 
+                it.tax_name,
+                SUM(it.tax_amount) as total_tax,
+                SUM(it.taxable_amount) as total_taxable
+            FROM invoice_taxes it
+            JOIN invoices i ON it.invoice_id = i.id
+            WHERE i.status != 'Cancelled'
+            AND i.location_id IN ($inLoc)
+            AND i.issue_date BETWEEN :from AND :to
+            GROUP BY it.tax_name
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/database_audit
+    public function database_audit() {
+        $u = $this->requireAuth();
+        if ($u['role'] !== 'Admin') {
+            $this->error('Access Denied', 403);
+            return;
+        }
+
+        $res = $this->db->rawQuery("SHOW TABLES");
+        $tables = $res->fetchAll(PDO::FETCH_COLUMN);
+        
+        require_once dirname(__FILE__) . '/../core/SchemaDefinition.php';
+        $defined = SchemaDefinition::get();
+
+        $audit = [];
+        // Combine all table names from both live and defined
+        $allTableNames = array_unique(array_merge($tables, array_keys($defined)));
+        sort($allTableNames);
+
+        foreach ($allTableNames as $table) {
+            $tableInfo = [
+                'name' => $table,
+                'live' => null,
+                'defined' => $defined[$table] ?? null
+            ];
+
+            if (in_array($table, $tables)) {
+                $liveInfo = [
+                    'columns' => [],
+                    'indexes' => []
+                ];
+                // Columns
+                $resCol = $this->db->rawQuery("DESCRIBE `$table` ");
+                while ($c = $resCol->fetch(PDO::FETCH_ASSOC)) {
+                    $liveInfo['columns'][$c['Field']] = $c;
+                }
+                // Indexes
+                $resIdx = $this->db->rawQuery("SHOW INDEX FROM `$table` ");
+                while ($i = $resIdx->fetch(PDO::FETCH_ASSOC)) {
+                    $key = $i['Key_name'];
+                    if (!isset($liveInfo['indexes'][$key])) {
+                        $liveInfo['indexes'][$key] = [
+                            'Key_name' => $key,
+                            'Non_unique' => $i['Non_unique'],
+                            'Columns' => []
+                        ];
+                    }
+                    $liveInfo['indexes'][$key]['Columns'][] = $i['Column_name'];
+                }
+                $tableInfo['live'] = $liveInfo;
+            }
+
+            $audit[] = $tableInfo;
+        }
+
+        // Optimization Checks
+        $optimizations = [
+            ['table' => 'invoices', 'index' => 'idx_inv_location'],
+            ['table' => 'payment_receipts', 'index' => 'idx_pr_location'],
+            ['table' => 'sales_returns', 'index' => 'idx_sr_location']
+        ];
+
+        $optStatus = [];
+        foreach ($optimizations as $opt) {
+            $table = $opt['table'];
+            $index = $opt['index'];
+            $check = $this->db->rawQuery("SHOW INDEX FROM `$table` WHERE Key_name = '$index'")->fetch();
+            $optStatus[] = [
+                'table' => $table,
+                'index' => $index,
+                'status' => $check ? 'success' : 'failed'
+            ];
+        }
+
+        $this->success([
+            'tables' => $audit,
+            'optimizations' => $optStatus
+        ]);
+    }
+
+    // GET /api/report/schema_diff
+    public function schema_diff() {
+        $u = $this->requireAuth();
+        if ($u['role'] !== 'Admin') {
+            $this->error('Access Denied', 403);
+            return;
+        }
+
+        require_once dirname(__FILE__) . '/../core/SchemaHelper.php';
+        $helper = new SchemaHelper($this->db);
+        $diff = $helper->getDiff();
+        $this->success($diff);
+    }
+
+    // POST /api/report/schema_sync
+    public function schema_sync() {
+        $u = $this->requireAuth();
+        if ($u['role'] !== 'Admin') {
+            $this->error('Access Denied', 403);
+            return;
+        }
+
+        $tableName = $_GET['table'] ?? null;
+
+        require_once dirname(__FILE__) . '/../core/SchemaHelper.php';
+        $helper = new SchemaHelper($this->db);
+        $diff = $helper->getDiff($tableName);
+        
+        if (isset($diff['error'])) {
+            $this->error($diff['error']);
+            return;
+        }
+
+        $results = $helper->sync($diff);
+        $this->success($results);
+    }
 }

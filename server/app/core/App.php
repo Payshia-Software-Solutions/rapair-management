@@ -37,6 +37,15 @@ class App {
             if (method_exists($this->currentController, $url[0])) {
                 $this->currentMethod = $url[0];
                 array_shift($url);
+            } else {
+                // Method was provided but doesn't exist - return 404 instead of falling back to index
+                http_response_code(404);
+                header('Content-Type: application/json');
+                echo json_encode([
+                    'success' => false,
+                    'error' => 'Method ' . $url[0] . ' not found in controller ' . get_class($this->currentController)
+                ]);
+                exit;
             }
         }
 
@@ -44,7 +53,18 @@ class App {
         $this->params = $url ? array_values($url) : [];
 
         // 4. Call the method with params
-        call_user_func_array([$this->currentController, $this->currentMethod], $this->params);
+        if (method_exists($this->currentController, $this->currentMethod)) {
+            call_user_func_array([$this->currentController, $this->currentMethod], $this->params);
+        } else {
+            // Handle method not found
+            http_response_code(404);
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => false,
+                'error' => 'Method ' . $this->currentMethod . ' not found in controller ' . get_class($this->currentController)
+            ]);
+            exit;
+        }
     }
 
     public function getUrl() {

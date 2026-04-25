@@ -99,6 +99,133 @@ export const fetchItemsReport = async (params: { q?: string; brand_id?: number; 
   return data.status === 'success' ? data.data : data;
 };
 
+// --- Sales Reports ---
+
+export const fetchSalesReportSummary = async (params: { location_id?: string; from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+
+  const res = await api(`/api/report/sales_summary?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load sales summary report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchInvoiceReport = async (params: { location_id?: string; from?: string; to?: string; status?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.status) qs.set('status', params.status);
+
+  const res = await api(`/api/report/invoice_report?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load invoice report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchPaymentReceiptReport = async (params: { location_id?: string; from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+
+  const res = await api(`/api/report/payment_receipt_report?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load payment receipts report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchDayEndSalesReport = async (params: { location_id?: string; date?: string }) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.date) qs.set('date', params.date);
+
+  const res = await api(`/api/report/day_end_sales?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load day end sales report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchLocationSalesReport = async (params: { from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+
+  const res = await api(`/api/report/location_sales?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load location sales report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchTopSellingItemsReport = async (params: { location_id?: string; from?: string; to?: string; limit?: number } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.limit) qs.set('limit', String(params.limit));
+
+  const res = await api(`/api/report/top_selling_items?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load top selling items report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchCustomerSalesReport = async (params: { from?: string; to?: string; limit?: number } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.limit) qs.set('limit', String(params.limit));
+
+  const res = await api(`/api/report/customer_sales?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load customer sales report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchTaxReport = async (params: { location_id?: string; from?: string; to?: string } = {}) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+
+  const res = await api(`/api/report/tax_report?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load tax report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchDatabaseAudit = async () => {
+  const res = await api('/api/report/database_audit');
+  if (!res.ok) throw new Error('Failed to load database audit');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchSchemaDiff = async () => {
+  const res = await api('/api/report/schema_diff');
+  if (!res.ok) throw new Error('Failed to load schema diff');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const syncSchema = async (tableName?: string) => {
+  const url = tableName ? `/api/report/schema_sync?table=${tableName}` : '/api/report/schema_sync';
+  const res = await api(url, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to sync schema');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createSchemaSnapshot = async () => {
+  const res = await api('/api/report/schema_snapshot', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to create snapshot');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
 // --- Aliases for Backward Compatibility ---
 export const fetchReportStockBalance = fetchStockBalance;
 export const fetchReportStockTransfers = fetchStockTransferReport;

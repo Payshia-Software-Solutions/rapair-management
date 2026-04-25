@@ -88,6 +88,14 @@ class Database {
         return $this->dbh->exec($sql);
     }
 
+    // Execute a raw SQL statement and return the PDOStatement result
+    public function rawQuery($sql) {
+        if (!$this->dbh) {
+            throw new Exception("Database connection failed: " . $this->error);
+        }
+        return $this->dbh->query($sql);
+    }
+
     // Get result set as array of objects
     public function resultSet() {
         $this->execute();

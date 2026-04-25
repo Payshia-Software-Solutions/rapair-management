@@ -10,6 +10,10 @@ class CustomerController extends Controller {
         $this->customerModel = $this->model('Customer');
     }
 
+    public function index() {
+        $this->list();
+    }
+
     public function list() {
         $this->requirePermission('customers.read');
         $customers = $this->customerModel->getAll();
@@ -76,5 +80,12 @@ class CustomerController extends Controller {
         } else {
             $this->error('Failed to delete customer');
         }
+    }
+
+    public function vehicles($id) {
+        $this->requirePermission('vehicles.read');
+        $vehicleModel = $this->model('Vehicle');
+        $vehicles = $vehicleModel->getByCustomer($id);
+        $this->success($vehicles);
     }
 }
