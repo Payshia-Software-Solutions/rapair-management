@@ -2,7 +2,7 @@
 /**
  * RestaurantTableController
  */
-class RestaurantTableController extends Controller {
+class TableController extends Controller {
     private $tableModel;
 
     public function __construct() {
