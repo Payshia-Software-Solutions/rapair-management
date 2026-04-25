@@ -262,16 +262,16 @@ function TableComparison({ table, onSync, syncing }: { table: any, onSync: (name
               <Badge variant="destructive" className="text-[10px]">Missing from Database</Badge>
             )}
             
-            {hasMismatch && !isMissingInLive && (
+            {hasMismatch && (
               <Button 
                 variant="default" 
                 size="xs" 
-                className="h-6 text-[10px] gap-1 bg-amber-600 hover:bg-amber-700" 
+                className={`h-6 text-[10px] gap-1 ${isMissingInLive ? 'bg-destructive hover:bg-destructive/90' : 'bg-amber-600 hover:bg-amber-700'}`}
                 onClick={() => onSync(table.name)}
                 disabled={syncing}
               >
                 <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
-                Update Table
+                {isMissingInLive ? 'Create Table' : 'Update Table'}
               </Button>
             )}
           </div>
