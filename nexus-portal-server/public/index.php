@@ -28,13 +28,37 @@ spl_autoload_register(function ($class) {
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) return;
     $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-    if (file_exists($file)) require $file;
+    
+    // Fix for Linux: Try the exact path first, then try all-lowercase path if it fails
+    $path = str_replace('\\', '/', $relative_class);
+    $file = $base_dir . $path . '.php';
+    
+    if (file_exists($file)) {
+        require $file;
+    } else {
+        // Fallback for lowercase folder names on Linux
+        $file_lower = $base_dir . strtolower($path) . '.php';
+        if (file_exists($file_lower)) require $file_lower;
+    }
 });
 
 use App\Core\Router;
 
 $router = new Router();
+
+// Root Health Check
+if (empty($_GET['url']) || $_GET['url'] === '/') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'online',
+        'service' => 'Nexus Master ERP API',
+        'version' => '1.0.0',
+        'api_key_configured' => true,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'environment' => PHP_OS === 'WINNT' ? 'Development' : 'Production'
+    ]);
+    exit;
+}
 
 // Routes
 $router->add('api/request', ['controller' => 'PortalController', 'action' => 'submitRequest'], 'POST');
