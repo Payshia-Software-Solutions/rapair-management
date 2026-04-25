@@ -77,16 +77,23 @@ export default function AdminUsersPage() {
     void load();
   }, []);
 
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const filtered = useMemo(() => {
+    let list = users;
+    
+    // Status Filter
+    if (statusFilter === "active") list = list.filter(u => (u.is_active ?? 1) === 1);
+    if (statusFilter === "inactive") list = list.filter(u => (u.is_active ?? 1) === 0);
+
     const q = query.trim().toLowerCase();
-    if (!q) return users;
-    return users.filter((u) =>
+    if (!q) return list;
+    return list.filter((u) =>
       u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q) ||
       u.role.toLowerCase().includes(q) ||
       (u.allowed_locations ?? "").toLowerCase().includes(q)
     );
-  }, [users, query]);
+  }, [users, query, statusFilter]);
 
   const setRole = async (userId: number, roleId: number) => {
     setSavingUserId(userId);
@@ -191,12 +198,25 @@ export default function AdminUsersPage() {
         <CardHeader className="border-b bg-muted/20">
           <CardTitle className="text-lg">Directory</CardTitle>
           <CardDescription>Search users and assign roles</CardDescription>
-          <div className="pt-3">
-            <Input
-              placeholder="Search by name, email, or role..."
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
+          <div className="pt-3 flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search by name, email, or role..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
+              <SelectTrigger className="w-full sm:w-[150px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active Only</SelectItem>
+                <SelectItem value="inactive">Inactive Only</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -215,15 +235,22 @@ export default function AdminUsersPage() {
                   <TableHead>Role</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Allowed Locations</TableHead>
-                  <TableHead>Active</TableHead>
+                  <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((u) => (
-                  <TableRow key={u.id} className="hover:bg-muted/10">
-                    <TableCell className="font-mono text-xs font-bold">#{u.id}</TableCell>
-                    <TableCell className="font-semibold">{u.name}</TableCell>
+                {filtered.map((u) => {
+                  const isActive = (u.is_active ?? 1) === 1;
+                  return (
+                    <TableRow key={u.id} className={`hover:bg-muted/10 transition-opacity ${!isActive ? 'opacity-60 bg-muted/5' : ''}`}>
+                      <TableCell className="font-mono text-xs font-bold">#{u.id}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{u.name}</span>
+                          {!isActive && <span className="text-[10px] text-destructive font-bold uppercase tracking-wider">Deactivated</span>}
+                        </div>
+                      </TableCell>
                     <TableCell className="text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
                       <div className="max-w-xs">

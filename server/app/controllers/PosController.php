@@ -195,4 +195,33 @@ class PosController extends Controller {
             $this->error('Failed to mark KOT as printed');
         }
     }
+
+    public function stewards() {
+        $u = $this->requireAuth();
+        $locationId = $this->currentLocationId($u);
+        
+        $db = new Database();
+        $db->query("
+            SELECT u.id, u.name, u.email, r.name as role_name
+            FROM users u
+            INNER JOIN roles r ON r.id = u.role_id
+            WHERE u.location_id = :locId
+              AND u.is_active = 1
+            ORDER BY u.name ASC
+        ");
+        $db->bind(':locId', $locationId);
+        $rows = $db->resultSet();
+        
+        // Filter by role in PHP to avoid SQL case/trim issues
+        $filtered = array_values(array_filter($rows, function($row) {
+            $role = strtolower(trim($row->role_name));
+            return (
+                strpos($role, 'steward') !== false || 
+                strpos($role, 'officer') !== false || 
+                strpos($role, 'waiter') !== false
+            );
+        }));
+        
+        $this->success($filtered);
+    }
 }
