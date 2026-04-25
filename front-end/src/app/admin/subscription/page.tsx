@@ -99,39 +99,61 @@ export default function SubscriptionPage() {
 
   return (
     <DashboardLayout title="Subscription & Billing">
-      <div className="p-8 w-full space-y-8">
+      <div className="p-4 md:p-8 w-full space-y-6 md:space-y-8">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
             <button 
                 onClick={() => router.back()}
-                className="p-2 hover:bg-muted rounded-xl transition-colors"
+                className="p-2 hover:bg-muted rounded-xl transition-colors shrink-0"
             >
                 <ArrowLeft size={20} />
             </button>
-            <h1 className="text-3xl font-black tracking-tighter uppercase italic">Subscription & Billing</h1>
+            <h1 className="text-xl md:text-3xl font-black tracking-tighter uppercase italic truncate">Subscription & Billing</h1>
           </div>
-          <p className="text-muted-foreground font-medium pl-12">Manage your license identity, feature entitlements, and payment history.</p>
+          <p className="text-xs md:text-sm text-muted-foreground font-medium pl-11">Manage license identity, entitlements, and history.</p>
         </div>
-        <div className="flex items-center gap-3 pl-12 md:pl-0">
-           <Badge variant="outline" className="px-4 py-2 bg-emerald-500/5 text-emerald-500 border-emerald-500/20 font-black uppercase tracking-widest text-[10px]">
-              Sync Status: Stable
-           </Badge>
-           <Badge variant="outline" className="px-4 py-2 bg-blue-500/5 text-blue-400 border-blue-500/20 font-black uppercase tracking-widest text-[10px]">
+        <div className="flex flex-wrap items-center gap-2 pl-11 lg:pl-0">
+           {saasData?.api_connected === false ? (
+              <Badge variant="outline" className="px-3 py-1.5 bg-red-500/10 text-red-500 border-red-500/20 font-black uppercase tracking-widest text-[9px] animate-pulse">
+                 Sync Status: Disconnected
+              </Badge>
+           ) : (
+              <Badge variant="outline" className="px-3 py-1.5 bg-emerald-500/5 text-emerald-500 border-emerald-500/20 font-black uppercase tracking-widest text-[9px]">
+                 Sync Status: Stable
+              </Badge>
+           )}
+           <Badge variant="outline" className="px-3 py-1.5 bg-blue-500/5 text-blue-400 border-blue-500/20 font-black uppercase tracking-widest text-[9px]">
               Node: #01-SG
            </Badge>
            <Button 
                 variant="outline" 
                 onClick={handleSync}
                 disabled={syncing}
-                className="h-10 px-6 rounded-xl border-white/5 bg-white/5 hover:bg-white/10 text-[10px] font-black uppercase tracking-widest gap-2"
+                className="h-9 px-4 rounded-xl border-white/5 bg-white/5 hover:bg-white/10 text-[9px] font-black uppercase tracking-widest gap-2 ml-auto lg:ml-0"
             >
-                <RefreshCw className={syncing ? "animate-spin w-3.5 h-3.5" : "w-3.5 h-3.5"} />
-                {syncing ? 'Synchronizing...' : 'Force Sync Now'}
+                <RefreshCw className={syncing ? "animate-spin w-3 h-3" : "w-3 h-3"} />
+                {syncing ? 'Syncing...' : 'Force Sync'}
             </Button>
         </div>
       </div>
+
+      {saasData?.api_connected === false && (
+         <motion.div 
+           initial={{ opacity: 0, y: -10 }}
+           animate={{ opacity: 1, y: 0 }}
+           className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-start gap-4"
+         >
+            <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+            <div className="space-y-1">
+               <p className="text-sm font-black text-red-500 uppercase tracking-tight">Master API Connection Failed</p>
+               <p className="text-xs text-red-400 font-medium">
+                  We could not reach the Nexus Licensing Server. The system is currently running on cached credentials (Restricted Mode). Some feature updates may be delayed until connectivity is restored.
+               </p>
+            </div>
+         </motion.div>
+      )}
 
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Left Column: Plan Summary */}
@@ -139,7 +161,7 @@ export default function SubscriptionPage() {
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass p-8 relative overflow-hidden"
+                className="glass p-5 md:p-8 relative overflow-hidden"
             >
                 <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
                 <div className="flex items-center gap-4 mb-8">
@@ -202,7 +224,7 @@ export default function SubscriptionPage() {
                 className="glass p-8"
             >
                 <h3 className="text-lg font-black uppercase tracking-tighter italic mb-6">Module Entitlement Audit</h3>
-                <div className="grid md:grid-cols-2 gap-4">
+                <div className="grid sm:grid-cols-2 gap-4">
                     {ALL_ERP_MODULES.map((mod) => {
                         const included = isModuleIncluded(mod.id);
                         return (
@@ -234,15 +256,15 @@ export default function SubscriptionPage() {
                 transition={{ delay: 0.2 }}
                 className="glass p-8"
             >
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                     <h3 className="text-lg font-black uppercase tracking-tighter italic">Billing History</h3>
-                    <Button variant="outline" size="sm" className="rounded-xl text-[10px] font-black uppercase tracking-widest">
+                    <Button variant="outline" size="sm" className="rounded-xl text-[10px] font-black uppercase tracking-widest w-full sm:w-auto">
                         Download All
                     </Button>
                 </div>
 
-                <div className="overflow-hidden rounded-2xl border border-white/5 bg-white/[0.02]">
-                    <table className="w-full text-left border-collapse">
+                <div className="overflow-x-auto rounded-2xl border border-white/5 bg-white/[0.02] -mx-8 sm:mx-0">
+                    <table className="w-full text-left border-collapse min-w-[600px]">
                         <thead>
                             <tr className="bg-white/5 border-b border-white/5">
                                 <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice #</th>

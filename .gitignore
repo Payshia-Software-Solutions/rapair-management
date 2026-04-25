@@ -1,3 +1,4 @@
 # Local secrets / environment-specific config
 /server/config/config.php
+/nexus-portal-server/app/core/Config.php
 
