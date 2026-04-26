@@ -251,83 +251,84 @@ export default function AdminUsersPage() {
                           {!isActive && <span className="text-[10px] text-destructive font-bold uppercase tracking-wider">Deactivated</span>}
                         </div>
                       </TableCell>
-                    <TableCell className="text-muted-foreground">{u.email}</TableCell>
-                    <TableCell>
-                      <div className="max-w-xs">
-                        <Select
-                          value={String(u.role_id)}
-                          onValueChange={(v) => void setRole(u.id, Number(v))}
-                          disabled={savingUserId === u.id}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {roles.map((r) => (
-                              <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="max-w-xs">
-                        <Select
-                          value={String(u.location_id)}
-                          onValueChange={(v) => void setLocation(u.id, Number(v))}
-                          disabled={savingUserId === u.id || locations.length === 0}
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {locations.map((l) => (
-                              <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-between gap-3">
-                        <div
-                          className="text-xs text-muted-foreground max-w-[240px] truncate"
-                          title={u.allowed_locations ?? ""}
-                        >
-                          {u.allowed_locations ? u.allowed_locations : "-"}
+                      <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                      <TableCell>
+                        <div className="max-w-xs">
+                          <Select
+                            value={String(u.role_id)}
+                            onValueChange={(v) => void setRole(u.id, Number(v))}
+                            disabled={savingUserId === u.id}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roles.map((r) => (
+                                <SelectItem key={r.id} value={String(r.id)}>{r.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="max-w-xs">
+                          <Select
+                            value={String(u.location_id)}
+                            onValueChange={(v) => void setLocation(u.id, Number(v))}
+                            disabled={savingUserId === u.id || locations.length === 0}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {locations.map((l) => (
+                                <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-between gap-3">
+                          <div
+                            className="text-xs text-muted-foreground max-w-[240px] truncate"
+                            title={u.allowed_locations ?? ""}
+                          >
+                            {u.allowed_locations ? u.allowed_locations : "-"}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => void openLocationsDialog(u)}
+                            disabled={savingUserId === u.id || locations.length === 0}
+                          >
+                            Assign
+                          </Button>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center justify-center">
+                          <Switch
+                            checked={(u.is_active ?? 1) === 1}
+                            onCheckedChange={(v) => void setActive(u.id, Boolean(v))}
+                            disabled={savingUserId === u.id || u.email === "admin@local"}
+                            aria-label="Active"
+                          />
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => void openLocationsDialog(u)}
-                          disabled={savingUserId === u.id || locations.length === 0}
+                          disabled={savingUserId === u.id}
+                          onClick={() => void load()}
                         >
-                          Assign
+                          {savingUserId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
                         </Button>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-center">
-                        <Switch
-                          checked={(u.is_active ?? 1) === 1}
-                          onCheckedChange={(v) => void setActive(u.id, Boolean(v))}
-                          disabled={savingUserId === u.id || u.email === "admin@local"}
-                          aria-label="Active"
-                        />
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={savingUserId === u.id}
-                        onClick={() => void load()}
-                      >
-                        {savingUserId === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Refresh"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           )}

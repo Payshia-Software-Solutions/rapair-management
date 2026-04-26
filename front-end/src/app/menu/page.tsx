@@ -9,7 +9,20 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, LogOut, MapPin, User } from "lucide-react";
 import { api } from "@/lib/api";
-import { adminNavItems, inventoryItems, mainNavItems, masterDataItems, type NavItem } from "@/lib/nav-items";
+import { 
+  adminNavItems, 
+  inventoryItems, 
+  mainNavItems, 
+  masterDataItems, 
+  serviceCenterItems,
+  vendorItems,
+  crmItems,
+  salesItems,
+  accountingItems,
+  productionItems,
+  hrmItems,
+  type NavItem 
+} from "@/lib/nav-items";
 
 function decodeJwtPayload(token: string): any | null {
   try {
@@ -23,6 +36,7 @@ function decodeJwtPayload(token: string): any | null {
 export default function MenuPage() {
   const router = useRouter();
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(null);
+  const [saasModules, setSaasModules] = useState<string[] | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
   const [locationName, setLocationName] = useState<string>("");
@@ -41,12 +55,23 @@ export default function MenuPage() {
 
     void (async () => {
       try {
-        const res = await api("/api/auth/permissions");
-        const data = await res.json();
-        if (data.status === "success" && Array.isArray(data.data)) setPermissionKeys(data.data);
+        const [permRes, saasRes] = await Promise.all([
+          api("/api/auth/permissions"),
+          fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/saas/config`).then(r => r.json())
+        ]);
+        
+        const permData = await permRes.json();
+        if (permData.status === "success" && Array.isArray(permData.data)) setPermissionKeys(permData.data);
         else setPermissionKeys([]);
+
+        if (saasRes.status === 'success' && saasRes.data) {
+          setSaasModules(saasRes.data.modules || []);
+        } else {
+          setSaasModules([]);
+        }
       } catch {
         setPermissionKeys([]);
+        setSaasModules([]);
       }
     })();
   }, [router]);
@@ -60,24 +85,48 @@ export default function MenuPage() {
 
   const hasPerm = (perm?: string) => {
     if (!perm) return true;
-    if (!permissionKeys) return true; // fast paint, then filter
+    if (!permissionKeys) return true;
     if (permissionKeys.includes("*")) return true;
     return permissionKeys.includes(perm);
   };
 
+  const isModuleAllowed = (module: string) => {
+    if (!saasModules) return true; // Wait for load
+    if (saasModules.includes("*")) return true;
+    return saasModules.includes(module);
+  };
+
   const sections = useMemo(() => {
+    if (!permissionKeys) return [];
+
     const core = mainNavItems.filter((it) => hasPerm(it.perm));
-    const inv = inventoryItems.filter((it) => hasPerm(it.perm));
-    const master = masterDataItems.filter((it) => hasPerm(it.perm));
-    const admin = userRole === "Admin" ? adminNavItems.filter((it) => hasPerm(it.perm)) : [];
+    const service = isModuleAllowed('serviceCenter') ? serviceCenterItems.filter(it => hasPerm(it.perm)) : [];
+    const vendors = isModuleAllowed('vendors') ? vendorItems.filter(it => hasPerm(it.perm)) : [];
+    const inv = isModuleAllowed('inventory') ? inventoryItems.filter((it) => hasPerm(it.perm) && it.label !== 'Promotions') : [];
+    const crm = isModuleAllowed('crm') ? crmItems.filter(it => hasPerm(it.perm)) : [];
+    const sales = isModuleAllowed('sales') ? salesItems.filter(it => hasPerm(it.perm)) : [];
+    const marketing = isModuleAllowed('promotions') ? inventoryItems.filter(it => it.label === 'Promotions' && hasPerm(it.perm)) : [];
+    const acc = isModuleAllowed('accounting') ? accountingItems.filter(it => hasPerm(it.perm)) : [];
+    const prod = isModuleAllowed('production') ? productionItems.filter(it => hasPerm(it.perm)) : [];
+    const hrm = isModuleAllowed('hrm') ? hrmItems.filter(it => hasPerm(it.perm)) : [];
+    const master = isModuleAllowed('masterData') ? masterDataItems.filter((it) => hasPerm(it.perm)) : [];
+    const admin = userRole.toLowerCase() === "admin" ? adminNavItems : [];
 
     return [
-      { title: "Core", tone: "bg-blue-600", items: core },
+      { title: "Core Features", tone: "bg-blue-600", items: core },
+      { title: "Service Center", tone: "bg-orange-600", items: service },
+      { title: "Vendors", tone: "bg-slate-600", items: vendors },
       { title: "Inventory", tone: "bg-emerald-600", items: inv },
-      { title: "Master Data", tone: "bg-indigo-600", items: master },
+      { title: "CRM", tone: "bg-pink-600", items: crm },
+      { title: "Sales", tone: "bg-cyan-600", items: sales },
+      { title: "Marketing", tone: "bg-purple-600", items: marketing },
+      { title: "Accounting", tone: "bg-amber-600", items: acc },
+      { title: "Production", tone: "bg-indigo-600", items: prod },
+      { title: "HRM", tone: "bg-rose-600", items: hrm },
+      { title: "Master Data", tone: "bg-zinc-600", items: master },
       { title: "Administration", tone: "bg-slate-700", items: admin },
     ].filter((s) => s.items.length > 0);
-  }, [permissionKeys, userRole]);
+  }, [permissionKeys, userRole, saasModules]);
 
   const handleLogout = () => {
     window.localStorage.removeItem("auth_token");
