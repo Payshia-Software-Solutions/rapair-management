@@ -28,13 +28,40 @@ spl_autoload_register(function ($class) {
     $len = strlen($prefix);
     if (strncmp($prefix, $class, $len) !== 0) return;
     $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-    if (file_exists($file)) require $file;
+    
+    // Fix for Linux: Try the exact path first, then try lowercase directory fallback
+    $path = str_replace('\\', '/', $relative_class);
+    $parts = explode('/', $path);
+    $filename = array_pop($parts) . '.php';
+    $dirPath = count($parts) > 0 ? implode('/', $parts) . '/' : '';
+    
+    $file = $base_dir . $dirPath . $filename;
+    if (file_exists($file)) {
+        require $file;
+    } else {
+        // Fallback: many Linux deployments use lowercase folder names (app/core/Router.php)
+        $file_lower_dir = $base_dir . strtolower($dirPath) . $filename;
+        if (file_exists($file_lower_dir)) require $file_lower_dir;
+    }
 });
 
 use App\Core\Router;
 
 $router = new Router();
+
+// Root Health Check
+if (empty($_GET['url']) || $_GET['url'] === '/') {
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'online',
+        'service' => 'Nexus Master ERP API',
+        'version' => '1.0.0',
+        'api_key_configured' => true,
+        'timestamp' => date('Y-m-d H:i:s'),
+        'environment' => PHP_OS === 'WINNT' ? 'Development' : 'Production'
+    ]);
+    exit;
+}
 
 // Routes
 $router->add('api/request', ['controller' => 'PortalController', 'action' => 'submitRequest'], 'POST');

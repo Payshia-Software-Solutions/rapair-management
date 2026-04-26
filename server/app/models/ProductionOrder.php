@@ -43,6 +43,8 @@ class ProductionOrder extends Model {
                 part_id INT NOT NULL,
                 planned_qty DECIMAL(15,3) NOT NULL,
                 actual_qty DECIMAL(15,3) NULL,
+                batch_number VARCHAR(100) NULL,
+                expiry_date DATE NULL,
                 waste_reason VARCHAR(255) NULL,
                 FOREIGN KEY (order_id) REFERENCES {$this->table}(id) ON DELETE CASCADE,
                 FOREIGN KEY (bom_id) REFERENCES production_boms(id),
@@ -57,6 +59,14 @@ class ProductionOrder extends Model {
                     $this->db->query("ALTER TABLE {$this->table} ADD COLUMN actual_yield DECIMAL(15,3) NULL AFTER qty");
                     $this->db->execute();
                     $this->db->query("ALTER TABLE {$this->table} ADD COLUMN waste_reason VARCHAR(255) NULL AFTER actual_yield");
+                    $this->db->execute();
+                }
+
+                $check = $this->db->query("SHOW COLUMNS FROM production_order_outputs LIKE 'batch_number'");
+                if (!$this->db->single()) {
+                    $this->db->query("ALTER TABLE production_order_outputs ADD COLUMN batch_number VARCHAR(100) NULL AFTER actual_qty");
+                    $this->db->execute();
+                    $this->db->query("ALTER TABLE production_order_outputs ADD COLUMN expiry_date DATE NULL AFTER batch_number");
                     $this->db->execute();
                 }
             } catch (Exception $e) {}
@@ -112,7 +122,7 @@ class ProductionOrder extends Model {
             $order->items = $this->getItems($id);
             
             // Get Outputs
-            $this->db->query("SELECT po.*, p.part_name, p.sku, p.unit
+            $this->db->query("SELECT po.*, p.part_name, p.sku, p.unit, p.is_expiry, p.is_fifo
                              FROM production_order_outputs po
                              JOIN parts p ON po.part_id = p.id
                              WHERE po.order_id = :oid");
@@ -226,7 +236,19 @@ class ProductionOrder extends Model {
                 }
             }
 
-            // 4. Insert Aggregated Materials
+            // 4. Stock Availability Check
+            $partModel = new Part();
+            foreach ($aggregatedMaterials as $pid => $mat) {
+                $stock = $partModel->getLocationStock($pid, $data['location_id']);
+                $available = (float)($stock->available ?? 0);
+                if ($available < (float)$mat['qty']) {
+                    $part = $partModel->getById($pid);
+                    $name = $part->part_name ?? "Part #$pid";
+                    throw new Exception("Insufficient stock for material: {$name}. Needed: {$mat['qty']}, Available: {$available}");
+                }
+            }
+
+            // 5. Insert Aggregated Materials
             foreach ($aggregatedMaterials as $pid => $mat) {
                 $this->db->query("INSERT INTO {$this->itemsTable} (order_id, part_id, planned_qty, unit_cost)
                                  VALUES (:order_id, :part_id, :planned_qty, :unit_cost)");
@@ -241,8 +263,7 @@ class ProductionOrder extends Model {
             return $orderId;
         } catch (Exception $e) {
             $this->db->exec("ROLLBACK");
-            error_log("Production Error: " . $e->getMessage());
-            return false;
+            throw $e;
         }
     }
 

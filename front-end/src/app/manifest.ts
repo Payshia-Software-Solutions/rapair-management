@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ServiceBay | Vehicle Repair Management",
-    short_name: "ServiceBay",
+    name: "BizFlow | Business ERP System",
+    short_name: "BizFlow",
     description: "Vehicle repair management for workshops.",
     start_url: "/",
     scope: "/",

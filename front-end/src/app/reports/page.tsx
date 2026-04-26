@@ -115,16 +115,12 @@ export default function ReportsPage() {
       { title: "Customer Sales", desc: "Sales totals per customer", href: "/reports/sales/customers", icon: Users },
       { title: "Tax Report", desc: "Summary of taxes collected", href: "/reports/sales/tax", icon: Percent },
     ];
-      const system: ReportLink[] = [
-        { title: "Database Schema Audit", desc: "View table structures and optimization status", href: "/reports/database", icon: Database },
-      ];
       return [
         { id: "overview", label: "Overview", icon: BarChart3, items: [] as ReportLink[] },
         { id: "sales", label: "Sales", icon: TrendingUp, items: sales },
         { id: "inventory", label: "Stock", icon: Boxes, items: inventory },
         { id: "purchasing", label: "Purchasing", icon: FileText, items: purchasing },
         { id: "fleet", label: "Vehicles", icon: Car, items: fleet },
-        { id: "system", label: "System", icon: ShieldCheck, items: system },
       ];
     }, []);
 

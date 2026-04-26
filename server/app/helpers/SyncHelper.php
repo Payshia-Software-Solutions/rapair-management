@@ -39,6 +39,16 @@ class SyncHelper {
             $results[] = ['module' => 'Vehicles', 'status' => 'error', 'message' => $e->getMessage()];
         }
 
+        // 2.1 Service Locations
+        try {
+            require_once __DIR__ . '/../models/ServiceLocation.php';
+            $slModel = new ServiceLocation();
+            $slModel->ensureSchema();
+            $results[] = ['module' => 'Service Locations', 'status' => 'success'];
+        } catch (Exception $e) {
+            $results[] = ['module' => 'Service Locations', 'status' => 'error', 'message' => $e->getMessage()];
+        }
+
         // 3. Taxes
         try {
             require_once __DIR__ . '/TaxSchema.php';

@@ -1,0 +1,21 @@
+name: 🚀 Deploy website on push QA API
+on:
+  push:
+    branches:
+      - master-api  # Trigger deployment on push to the main branch
+      
+jobs:
+  web-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest
+    steps:
+    - name: 🚚 Get latest code
+      uses: actions/checkout@v4
+
+    - name: 📂 Sync files
+      uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      with:        
+        server: ${{ secrets.FTP_SERVER }}
+        username: ${{ secrets.MASTER_FTP_USERNAME }}
+        password: ${{ secrets.MASTER_FTP_PASSWORD }}
+        local-dir: ./nexus-portal-server/  # Tells the action to only upload the contents of the server folder

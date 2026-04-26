@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow } from "@/lib/api";
+import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow, fetchLocations, ServiceLocation } from "@/lib/api";
 import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -37,8 +37,9 @@ export default function SystemSettingsPage() {
   const [copied, setCopied] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [apiClients, setApiClients] = useState<ApiClientRow[]>([]);
+  const [locations, setLocations] = useState<ServiceLocation[]>([]);
   const [showKeyId, setShowKeyId] = useState<number | null>(null);
-  const [newClient, setNewClient] = useState({ client_name: "", domain: "" });
+  const [newClient, setNewClient] = useState<{ client_name: string; domain: string; location_id: number | null }>({ client_name: "", domain: "", location_id: null });
   const [addingClient, setAddingClient] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [activeGateway, setActiveGateway] = useState<string | null>("payhere");
@@ -86,9 +87,16 @@ export default function SystemSettingsPage() {
     } catch (err) { console.error(err); }
   };
 
+  const loadLocations = async () => {
+    try {
+      const res = await fetchLocations();
+      setLocations(Array.isArray(res) ? res : []);
+    } catch (err) { console.error(err); }
+  };
+
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadSettings(), loadApiClients()]).finally(() => setLoading(false));
+    Promise.all([loadSettings(), loadApiClients(), loadLocations()]).finally(() => setLoading(false));
   }, []);
 
   const handleChange = (key: string, val: string) => {
@@ -130,7 +138,7 @@ export default function SystemSettingsPage() {
     try {
       await createApiClient(newClient);
       toast({ title: "Client Added", description: "New API client created successfully." });
-      setNewClient({ client_name: "", domain: "" });
+      setNewClient({ client_name: "", domain: "", location_id: null });
       setIsDialogOpen(false);
       await loadApiClients();
     } catch (err) {
@@ -398,6 +406,24 @@ export default function SystemSettingsPage() {
                         <Input id="domain" placeholder="https://www.example.com" value={newClient.domain} onChange={(e) => setNewClient(p => ({ ...p, domain: e.target.value }))} />
                         <p className="text-[10px] text-muted-foreground">The protocol (http/https) and domain must match exactly.</p>
                       </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="loc-select">Link to Location</Label>
+                        <Select 
+                          value={newClient.location_id ? String(newClient.location_id) : "none"} 
+                          onValueChange={(v) => setNewClient(p => ({ ...p, location_id: v === "none" ? null : Number(v) }))}
+                        >
+                          <SelectTrigger id="loc-select">
+                            <SelectValue placeholder="Select a location" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Location (Global)</SelectItem>
+                            {locations.map(l => (
+                              <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground italic">Essential for returning location-specific analytics codes.</p>
+                      </div>
                     </div>
                     <DialogFooter>
                       <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
@@ -417,6 +443,7 @@ export default function SystemSettingsPage() {
                   <TableHeader className="bg-muted/30">
                     <TableRow>
                       <TableHead className="w-[200px]">Client / Domain</TableHead>
+                      <TableHead>Linked Location</TableHead>
                       <TableHead>API Key</TableHead>
                       <TableHead className="w-[100px] text-center">Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -439,8 +466,18 @@ export default function SystemSettingsPage() {
                             <div className="font-medium text-sm">{client.client_name}</div>
                             <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                               <ExternalLink className="w-2.5 h-2.5" />
-                              {client.domain}
+                               {client.domain}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {client.location_name ? (
+                              <Badge variant="outline" className="gap-1.5 bg-blue-50 text-blue-700 border-blue-200">
+                                <MapPin className="w-3 h-3" />
+                                {client.location_name}
+                              </Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">No Link</span>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2 max-w-[250px]">

@@ -23,15 +23,25 @@ class SaasHelper {
                 $response = json_decode($json, true);
                 if (isset($response['status']) && $response['status'] === 'success') {
                     self::$config = $response['data'];
+                    self::$config['api_connected'] = true;
                     self::setCache(self::$config);
                 }
             }
 
             if (!self::$config) {
-                self::$config = ['name' => 'Restricted', 'modules' => ['serviceCenter', 'promotions']];
+                self::$config = [
+                    'name' => 'Restricted', 
+                    'modules' => ['serviceCenter', 'promotions'],
+                    'api_connected' => false
+                ];
             }
         } catch (Exception $e) {
             error_log("Nexus Connection Error: " . $e->getMessage());
+            self::$config = [
+                'name' => 'Restricted', 
+                'modules' => ['serviceCenter', 'promotions'],
+                'api_connected' => false
+            ];
         }
         return self::$config;
     }
@@ -39,6 +49,23 @@ class SaasHelper {
     public static function syncConfig() {
         self::clearCache();
         return self::getConfig(true);
+    }
+
+    public static function getPackages() {
+        try {
+            $masterApiUrl = NEXUS_PORTAL_URL . "/api/saas/packages";
+            $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+            $json = @file_get_contents($masterApiUrl, false, $ctx);
+            if ($json) {
+                $response = json_decode($json, true);
+                if (isset($response['status']) && $response['status'] === 'success') {
+                    return $response['data'];
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Nexus Packages Error: " . $e->getMessage());
+        }
+        return [];
     }
 
     private static function clearCache() {

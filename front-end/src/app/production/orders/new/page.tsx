@@ -14,6 +14,7 @@ import { SearchableSelect } from '@/components/ui/searchable-select'
 import { Loader2, ChevronLeft, Boxes, AlertCircle, Info } from 'lucide-react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 export default function NewProductionOrderPage() {
   const router = useRouter()
@@ -28,6 +29,7 @@ export default function NewProductionOrderPage() {
   // Form State
   const [locationId, setLocationId] = useState('')
   const [batch, setBatch] = useState<any[]>([])
+  const [stockLevels, setStockLevels] = useState<Record<number, number>>({})
   
   // Current Item State
   const [bomId, setBomId] = useState('')
@@ -127,19 +129,54 @@ export default function NewProductionOrderPage() {
   }
 
   const materialBatchPreview = useMemo(() => {
-    const map = new Map<number, { name: string, qty: number, unit: string, sku: string }>()
+    const map = new Map<number, { part_id: number, name: string, qty: number, unit: string, sku: string }>()
     batch.forEach(order => {
       const bom = boms.find(b => b.id === order.bom_id)
       if (bom && bom.items) {
         bom.items.forEach((item: any) => {
-          const current = map.get(item.part_id) || { name: item.part_name, qty: 0, unit: item.unit, sku: item.sku }
+          const current = map.get(item.part_id) || { part_id: item.part_id, name: item.part_name, qty: 0, unit: item.unit, sku: item.sku }
           current.qty += (item.qty * order.qty)
           map.set(item.part_id, current)
         })
       }
     })
-    return Array.from(map.values())
-  }, [batch, boms])
+    return Array.from(map.values()).map((m: any) => ({
+      ...m,
+      available: stockLevels[m.part_id] ?? 0
+    }))
+  }, [batch, boms, stockLevels])
+
+  const hasShortage = useMemo(() => {
+    return materialBatchPreview.some((m: any) => m.available < m.qty)
+  }, [materialBatchPreview])
+
+  useEffect(() => {
+    if (batch.length > 0 && locationId) {
+      void fetchBatchStock()
+    }
+  }, [batch, locationId])
+
+  const fetchBatchStock = async () => {
+    const partIds = materialBatchPreview.map((m: any) => m.part_id)
+    if (partIds.length === 0) return
+
+    try {
+      const res = await api(`/api/inventory/stock-levels`, {
+        method: 'POST',
+        body: JSON.stringify({ part_ids: partIds, location_id: Number(locationId) })
+      })
+      const data = await res.json()
+      if (data.status === 'success') {
+        const levels: Record<number, number> = {}
+        data.data.forEach((item: any) => {
+          levels[item.part_id] = Number(item.available)
+        })
+        setStockLevels(levels)
+      }
+    } catch (e) {
+      console.error("Failed to fetch stock levels", e)
+    }
+  }
 
   if (loadingData) {
     return (
@@ -234,10 +271,20 @@ export default function NewProductionOrderPage() {
               </CardContent>
             </Card>
 
-            <Button onClick={handleSubmit} disabled={submitting || batch.length === 0} className="w-full h-14 text-lg shadow-lg shadow-primary/20 gap-2">
+            <Button 
+              onClick={handleSubmit} 
+              disabled={submitting || batch.length === 0 || hasShortage} 
+              className={cn("w-full h-14 text-lg shadow-lg gap-2", hasShortage ? "bg-muted text-muted-foreground shadow-none" : "shadow-primary/20")}
+            >
               {submitting ? <Loader2 className="w-5 h-5 animate-spin"/> : <Boxes className="w-5 h-5" />}
-              Initialize Batch ({batch.length} Orders)
+              {hasShortage ? "Insufficient Stock to Plan" : `Initialize Batch (${batch.length} Orders)`}
             </Button>
+            {hasShortage && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold border border-rose-100">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                Production blocked until materials are replenished.
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-7 space-y-6">
@@ -318,13 +365,23 @@ export default function NewProductionOrderPage() {
                         </TableHeader>
                         <TableBody>
                           {materialBatchPreview.map((item: any, idx: number) => (
-                            <TableRow key={idx}>
+                            <TableRow key={idx} className={item.available < item.qty ? "bg-rose-50/50 dark:bg-rose-950/10" : ""}>
                               <TableCell>
-                                <div className="font-semibold">{item.name}</div>
-                                <div className="text-[10px] text-muted-foreground font-mono">{item.sku || 'NO-SKU'}</div>
+                                <div className="flex items-center gap-2">
+                                  {item.available < item.qty && <AlertCircle className="w-3.5 h-3.5 text-destructive" />}
+                                  <div>
+                                    <div className="font-semibold">{item.name}</div>
+                                    <div className="text-[10px] text-muted-foreground font-mono">{item.sku || 'NO-SKU'}</div>
+                                  </div>
+                                </div>
                               </TableCell>
-                              <TableCell className="text-right font-bold text-primary">
-                                {item.qty.toLocaleString()} {item.unit}
+                              <TableCell className="text-right">
+                                <div className="flex flex-col items-end">
+                                  <div className="text-xs text-muted-foreground mb-0.5">Avail: {item.available.toLocaleString()}</div>
+                                  <div className={cn("font-bold text-base", item.available < item.qty ? "text-destructive" : "text-primary")}>
+                                    {item.qty.toLocaleString()} {item.unit}
+                                  </div>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}

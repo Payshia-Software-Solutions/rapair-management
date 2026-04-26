@@ -330,12 +330,25 @@ class AdminController extends Controller {
 
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
-        $isActive = isset($data['is_active']) ? (int)$data['is_active'] : -1;
+        
+        $val = $data['active'] ?? $data['is_active'] ?? null;
+        if ($val === null) {
+            $this->error('Status value required', 400);
+            return;
+        }
+
+        // Convert boolean or numeric string to int
+        if (is_bool($val)) {
+            $isActive = $val ? 1 : 0;
+        } else {
+            $isActive = (int)$val;
+        }
+
         if (!in_array($isActive, [0, 1], true)) {
             $this->error('is_active must be 0 or 1', 400);
             return;
         }
-
+    
         // Ensure column exists (older installs).
         try {
             $this->db->exec("ALTER TABLE users ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1");

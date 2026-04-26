@@ -25,7 +25,7 @@ class ProductionService {
         }
 
         $wipId = AccountingHelper::getMappedId('production_wip');
-        $invId = AccountingHelper::getMappedId('grn_inventory');
+        $invId = AccountingHelper::getMappedId('production_inventory');
 
         if (!$wipId || !$invId) {
             return ['success' => false, 'message' => 'Accounting mappings for Production/Inventory not found.'];
@@ -42,15 +42,29 @@ class ProductionService {
                 $lineValue = $qty * $cost;
                 $totalCost += $lineValue;
 
-                // Deduct from Inventory
-                $ok = $partModel->adjustStock(
-                    $item->part_id, 
-                    -$qty, 
-                    "Production Consumption: {$order->order_number}", 
-                    $userId, 
-                    $order->location_id, 
-                    'PRODUCTION_CONSUMPTION'
-                );
+                // Deduct using FIFO if enabled, else standard adjustment
+                $part = $partModel->getById($item->part_id);
+                if ($part && $part->is_fifo) {
+                    $ok = $partModel->deductStockFIFO(
+                        $item->part_id, 
+                        $qty, 
+                        "Production Consumption: {$order->order_number}", 
+                        $userId, 
+                        $order->location_id, 
+                        'PRODUCTION_CONSUMPTION',
+                        'production_orders',
+                        $orderId
+                    );
+                } else {
+                    $ok = $partModel->adjustStock(
+                        $item->part_id, 
+                        -$qty, 
+                        "Production Consumption: {$order->order_number}", 
+                        $userId, 
+                        $order->location_id, 
+                        'PRODUCTION_CONSUMPTION'
+                    );
+                }
 
                 if (!$ok) {
                     throw new Exception("Insufficient stock or failed to deduct part ID: {$item->part_id}");
@@ -100,7 +114,7 @@ class ProductionService {
         }
 
         $wipId = AccountingHelper::getMappedId('production_wip');
-        $invId = AccountingHelper::getMappedId('grn_inventory');
+        $invId = AccountingHelper::getMappedId('production_finished_goods');
 
         if (!$wipId || !$invId) {
             return ['success' => false, 'message' => 'Accounting mappings for Production/Inventory not found.'];
@@ -145,22 +159,50 @@ class ProductionService {
 
                 $totalActualYield += $yieldQty;
 
-                // Receipt into stock
+                // 2.a Get Batch/Expiry Info
+                $batchNo = isset($out->batch_number) ? $out->batch_number : null;
+                $expiry = isset($out->expiry_date) ? $out->expiry_date : null;
+
+                if ($outputYields && is_array($outputYields)) {
+                    foreach ($outputYields as $iy) {
+                        if ($iy['id'] == $outId) {
+                            $batchNo = $iy['batch_number'] ?? $batchNo;
+                            $expiry = $iy['expiry_date'] ?? $expiry;
+                            break;
+                        }
+                    }
+                }
+
+                // 2.b Receipt into stock with Batch
+                $db->query("INSERT INTO inventory_batches (part_id, location_id, batch_number, expiry_date, quantity_received, quantity_on_hand, unit_cost, created_at)
+                                 VALUES (:pid, :loc, :batch, :exp, :qty, :qty, :cost, NOW())");
+                $db->bind(':pid', $out->part_id);
+                $db->bind(':loc', $order->location_id);
+                $db->bind(':batch', $batchNo);
+                $db->bind(':exp', $expiry);
+                $db->bind(':qty', $yieldQty);
+                $db->bind(':cost', (float)($out->standard_unit_cost ?? 0));
+                $db->execute();
+                $batchId = $db->lastInsertId();
+
                 $partModel->adjustStock(
                     $out->part_id, 
                     $yieldQty, 
                     "Production Entry: {$order->order_number}", 
                     $userId, 
                     $order->location_id, 
-                    'PRODUCTION_RECEIPT'
+                    'PRODUCTION_RECEIPT',
+                    $batchId
                 );
 
                 // Update output record
                 $db->query("UPDATE production_order_outputs 
-                           SET actual_qty = :q, waste_reason = :r 
+                           SET actual_qty = :q, waste_reason = :r, batch_number = :batch, expiry_date = :exp
                            WHERE id = :id");
                 $db->bind(':q', $yieldQty);
                 $db->bind(':r', $outWaste);
+                $db->bind(':batch', $batchNo);
+                $db->bind(':exp', $expiry);
                 $db->bind(':id', $outId);
                 $db->execute();
             }

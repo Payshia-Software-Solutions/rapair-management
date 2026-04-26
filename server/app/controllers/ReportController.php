@@ -733,6 +733,9 @@ class ReportController extends Controller {
 
     // GET /api/report/database_audit
     public function database_audit() {
+        @ini_set('memory_limit', '256M');
+        @set_time_limit(60);
+
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
@@ -846,5 +849,68 @@ class ReportController extends Controller {
 
         $results = $helper->sync($diff);
         $this->success($results);
+    }
+
+    // POST /api/report/schema_snapshot?table=name
+    public function schema_snapshot() {
+        $u = $this->requireAuth();
+        if ($u['role'] !== 'Admin') {
+            $this->error('Access Denied', 403);
+            return;
+        }
+
+        $targetTable = $_GET['table'] ?? null;
+        require_once dirname(__FILE__) . '/../core/SchemaDefinition.php';
+        $currentSchema = SchemaDefinition::get();
+
+        $res = $this->db->rawQuery("SHOW TABLES");
+        $allLiveTables = $res->fetchAll(PDO::FETCH_COLUMN);
+
+        $tablesToProcess = $targetTable ? [$targetTable] : $allLiveTables;
+        
+        // If we are doing a full snapshot, we'll start fresh. 
+        // If we are doing a single table, we'll merge into currentSchema.
+        $newSchema = $targetTable ? $currentSchema : [];
+
+        foreach ($tablesToProcess as $table) {
+            if (!in_array($table, $allLiveTables)) continue;
+
+            $tableInfo = [
+                'name' => $table,
+                'columns' => [],
+                'indexes' => []
+            ];
+            // Columns
+            $resCol = $this->db->rawQuery("DESCRIBE `$table` ");
+            while ($c = $resCol->fetch(PDO::FETCH_ASSOC)) {
+                $tableInfo['columns'][$c['Field']] = $c;
+            }
+            // Indexes
+            $resIdx = $this->db->rawQuery("SHOW INDEX FROM `$table` ");
+            while ($i = $resIdx->fetch(PDO::FETCH_ASSOC)) {
+                $key = $i['Key_name'];
+                if (!isset($tableInfo['indexes'][$key])) {
+                    $tableInfo['indexes'][$key] = [
+                        'Key_name' => $key,
+                        'Non_unique' => $i['Non_unique'],
+                        'Columns' => []
+                    ];
+                }
+                $tableInfo['indexes'][$key]['Columns'][] = $i['Column_name'];
+            }
+            $newSchema[$table] = $tableInfo;
+        }
+
+        // Sort by table name for consistency
+        ksort($newSchema);
+
+        $code = "<?php\n\nclass SchemaDefinition {\n    public static function get() {\n        return " . var_export($newSchema, true) . ";\n    }\n}\n";
+        $filePath = dirname(__FILE__) . '/../core/SchemaDefinition.php';
+        
+        if (file_put_contents($filePath, $code)) {
+            $this->success(null, $targetTable ? "Definition for '$targetTable' updated" : "System definition updated from live database structure");
+        } else {
+            $this->error('Failed to write SchemaDefinition.php');
+        }
     }
 }

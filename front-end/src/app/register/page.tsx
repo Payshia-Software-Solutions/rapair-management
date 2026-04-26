@@ -55,13 +55,13 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50">
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="p-3 bg-primary rounded-2xl shadow-lg shadow-primary/20">
             <Wrench className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">ServiceBay</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">BizFlow</h1>
           <p className="text-muted-foreground text-sm">Workshop Management Simplified</p>
         </div>
 
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               <div className="flex items-start space-x-2 py-2">
                 <Checkbox id="terms" required />
                 <Label htmlFor="terms" className="text-xs text-muted-foreground leading-tight cursor-pointer">
-                  I agree to the <Link href="#" className="text-primary hover:underline">Terms of Service</Link> and <Link href="#" className="text-primary hover:underline">Privacy Policy</Link>.
+                  I agree to the <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link> and <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>.
                 </Label>
               </div>
 

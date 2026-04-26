@@ -438,7 +438,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
                 <div className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                  ServiceBay
+                  BizFlow
                 </div>
                 <div className="text-[10px] text-white/70 uppercase tracking-widest font-bold truncate max-w-[160px]">
                   {currentLocationName ? `Location: ${currentLocationName}` : "Location: -"}
@@ -1087,7 +1087,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                   </Button>
                 </div>
               ) : null}
-              <h1 className="lg:hidden font-bold text-lg">ServiceBay</h1>
+              <h1 className="lg:hidden font-bold text-lg">BizFlow</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               {docTitle ? (
