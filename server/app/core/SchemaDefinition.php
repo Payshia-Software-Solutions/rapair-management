@@ -1208,6 +1208,15 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'location_id' => 
+      array (
+        'Field' => 'location_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'is_active' => 
       array (
         'Field' => 'is_active',
@@ -7196,6 +7205,24 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'batch_number' => 
+      array (
+        'Field' => 'batch_number',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'expiry_date' => 
+      array (
+        'Field' => 'expiry_date',
+        'Type' => 'date',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'waste_reason' => 
       array (
         'Field' => 'waste_reason',
@@ -9345,6 +9372,24 @@ class SchemaDefinition {
         'Null' => 'NO',
         'Key' => '',
         'Default' => '0',
+        'Extra' => '',
+      ),
+      'google_analytics_code' => 
+      array (
+        'Field' => 'google_analytics_code',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'facebook_pixel_code' => 
+      array (
+        'Field' => 'facebook_pixel_code',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
         'Extra' => '',
       ),
     ),

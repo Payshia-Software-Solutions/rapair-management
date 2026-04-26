@@ -39,10 +39,10 @@ class SystemSchema {
             'mail_pass' => '',
             'mail_encryption' => 'tls',
             'mail_from_addr' => 'no-reply@servicebay.com',
-            'mail_from_name' => 'ServiceBay',
+            'mail_from_name' => 'BizFlow',
             'sms_gateway_url' => 'https://sms.send.lk/api/v3/sms/send',
             'sms_api_key' => '',
-            'sms_sender_id' => 'ServiceBay'
+            'sms_sender_id' => 'BizFlow'
         ];
 
         foreach ($defaults as $key => $val) {

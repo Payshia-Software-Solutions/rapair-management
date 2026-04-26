@@ -19,4 +19,12 @@ class SaasController extends Controller {
             'data' => $config
         ]);
     }
+
+    public function packages() {
+        $packages = SaasHelper::getPackages();
+        echo json_encode([
+            'status' => 'success',
+            'data' => $packages
+        ]);
+    }
 }

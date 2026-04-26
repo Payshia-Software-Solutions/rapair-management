@@ -346,7 +346,7 @@ class Part extends Model {
         return $this->db->execute();
     }
 
-    public function adjustStock($partId, $qtyChange, $notes = null, $userId = null, $locationId = 1, $movementType = 'ADJUSTMENT') {
+    public function adjustStock($partId, $qtyChange, $notes = null, $userId = null, $locationId = 1, $movementType = 'ADJUSTMENT', $batchId = null) {
         $this->ensureSchema();
         $pid = (int)$partId;
         $delta = (float)$qtyChange;
@@ -357,13 +357,18 @@ class Part extends Model {
             $this->db->exec("START TRANSACTION");
 
             // lock row
-            $this->db->query("SELECT stock_quantity FROM {$this->table} WHERE id = :id FOR UPDATE");
+            $this->db->query("SELECT stock_quantity, is_fifo FROM {$this->table} WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $row = $this->db->single();
             if (!$row) {
                 $this->db->exec("ROLLBACK");
                 return false;
             }
+
+            // If it's a deduction and the item is marked as FIFO, and no specific batch is provided, 
+            // we should ideally use deductStockFIFO. But for backward compatibility and explicit adjustments, 
+            // we allow adjustStock to work directly.
+            
             $current = (float)($row->stock_quantity ?? 0);
             $next = $current + $delta;
             
@@ -375,11 +380,12 @@ class Part extends Model {
 
             // movement
             $this->db->query("
-                INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                VALUES (:loc, :part_id, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
+                INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                VALUES (:loc, :part_id, :batch_id, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
             ");
             $this->db->bind(':loc', $loc);
             $this->db->bind(':part_id', $pid);
+            $this->db->bind(':batch_id', $batchId);
             $this->db->bind(':qty_change', $delta);
             $this->db->bind(':type', $movementType);
             $this->db->bind(':ref_table', 'parts');
@@ -392,6 +398,100 @@ class Part extends Model {
             return true;
         } catch (Exception $e) {
             try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            return false;
+        }
+    }
+
+    /**
+     * Deduct Stock using FIFO logic across batches
+     */
+    public function deductStockFIFO($partId, $qtyToDeduct, $notes = null, $userId = null, $locationId = 1, $movementType = 'SALE', $refTable = null, $refId = null) {
+        $this->ensureSchema();
+        $pid = (int)$partId;
+        $totalNeeded = abs((float)$qtyToDeduct);
+        $loc = (int)$locationId;
+        if ($pid <= 0 || $totalNeeded <= 0) return false;
+
+        try {
+            $this->db->exec("START TRANSACTION");
+
+            // 1. Get batches ordered by FIFO (oldest first)
+            $this->db->query("
+                SELECT * FROM inventory_batches 
+                WHERE part_id = :pid AND location_id = :loc AND is_exhausted = 0 
+                ORDER BY created_at ASC, id ASC 
+                FOR UPDATE
+            ");
+            $this->db->bind(':pid', $pid);
+            $this->db->bind(':loc', $loc);
+            $batches = $this->db->resultSet();
+
+            $remaining = $totalNeeded;
+            foreach ($batches as $batch) {
+                if ($remaining <= 0) break;
+
+                $batchQty = (float)$batch->quantity_on_hand;
+                $take = min($remaining, $batchQty);
+                $newBatchQty = $batchQty - $take;
+                $isExhausted = ($newBatchQty <= 0.001) ? 1 : 0;
+
+                // Update Batch
+                $this->db->query("UPDATE inventory_batches SET quantity_on_hand = :q, is_exhausted = :ex WHERE id = :id");
+                $this->db->bind(':q', $newBatchQty);
+                $this->db->bind(':ex', $isExhausted);
+                $this->db->bind(':id', $batch->id);
+                $this->db->execute();
+
+                // Create Movement for this batch
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                    VALUES (:loc, :part_id, :batch_id, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
+                ");
+                $this->db->bind(':loc', $loc);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':batch_id', $batch->id);
+                $this->db->bind(':qty_change', -$take);
+                $this->db->bind(':type', $movementType);
+                $this->db->bind(':ref_table', $refTable ?: 'parts');
+                $this->db->bind(':ref_id', $refId ?: $pid);
+                $this->db->bind(':notes', $notes . " (Batch: {$batch->batch_number})");
+                $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+
+                $remaining -= $take;
+            }
+
+            // If we still have remaining, it means we oversold/over-consumed based on batches
+            // We still deduct from the main parts table to keep total stock consistent
+            if ($remaining > 0) {
+                // You might want to throw an error here if strict FIFO is required
+                // For now, we'll create an unbatched movement for the negative balance
+                 $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                    VALUES (:loc, :part_id, NULL, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
+                ");
+                $this->db->bind(':loc', $loc);
+                $this->db->bind(':part_id', $pid);
+                $this->db->bind(':qty_change', -$remaining);
+                $this->db->bind(':type', $movementType);
+                $this->db->bind(':ref_table', $refTable ?: 'parts');
+                $this->db->bind(':ref_id', $refId ?: $pid);
+                $this->db->bind(':notes', $notes . " (Unbatched Overflow)");
+                $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+            }
+
+            // 2. Update Master Stock
+            $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :q WHERE id = :id");
+            $this->db->bind(':q', $totalNeeded);
+            $this->db->bind(':id', $pid);
+            $this->db->execute();
+
+            $this->db->exec("COMMIT");
+            return true;
+        } catch (Exception $e) {
+            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("FIFO Deduction Error: " . $e->getMessage());
             return false;
         }
     }

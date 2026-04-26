@@ -84,6 +84,8 @@ export interface ApiClientRow {
   client_name: string;
   domain: string;
   api_key: string;
+  location_id?: number | null;
+  location_name?: string | null;
   is_active: number;
   created_at: string;
   last_used_at?: string;
@@ -96,7 +98,7 @@ export const fetchApiClients = async () => {
   return data.data || [];
 };
 
-export const createApiClient = async (payload: { client_name: string; domain: string }) => {
+export const createApiClient = async (payload: { client_name: string; domain: string; location_id?: number | null }) => {
   const res = await api('/api/apiclient/create', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) {
     const err = await res.json();
@@ -140,6 +142,8 @@ export interface ServiceLocation {
   is_pos_active?: number;
   allow_production?: number;
   allow_online?: number;
+  google_analytics_code?: string | null;
+  facebook_pixel_code?: string | null;
   created_at?: string;
   updated_at?: string;
 }

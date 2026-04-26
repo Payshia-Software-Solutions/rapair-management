@@ -1,74 +1,84 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from "react";
-import { ReportShell } from "../_components/report-shell";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useToast } from "@/hooks/use-toast";
-import { fetchDatabaseAudit, fetchSchemaDiff, syncSchema } from "@/lib/api/reports";
-import { Loader2, Database, ShieldCheck, ShieldAlert, Search, Table as TableIcon, RefreshCw, Camera, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
+import { fetchDatabaseAudit, syncSchema } from "@/lib/api/reports";
+import { 
+  Database, 
+  ShieldCheck, 
+  AlertTriangle, 
+  CheckCircle2, 
+  RefreshCcw, 
+  Search, 
+  Table as TableIcon,
+  ChevronDown,
+  ChevronRight,
+  ShieldAlert,
+  Settings2
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
-export default function DatabaseAuditPage() {
+type TableAudit = {
+  name: string;
+  live: {
+    columns: Record<string, any>;
+    indexes: Record<string, any>;
+  } | null;
+  defined: {
+    name: string;
+    columns: Record<string, any>;
+    indexes: Record<string, any>;
+  } | null;
+};
+
+export default function TableVerificationPage() {
   const { toast } = useToast();
+  const [data, setData] = useState<TableAudit[] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<{ tables: any[]; optimizations: any[] } | null>(null);
-  const [diff, setDiff] = useState<{ 
-    defined_table_count: number, 
-    live_table_count: number,
-    missing_tables: string[], 
-    missing_columns: any[], 
-    missing_indexes: any[] 
-  } | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [syncing, setSyncing] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "healthy" | "mismatch" | "missing">("all");
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(new Set());
 
   const load = async () => {
     setLoading(true);
     try {
-      const [auditRes, diffRes] = await Promise.all([
-        fetchDatabaseAudit(),
-        fetchSchemaDiff()
-      ]);
-      setData(auditRes);
-      setDiff(diffRes);
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to load database audit", variant: "destructive" });
+      const d = await fetchDatabaseAudit();
+      console.log("Audit data received:", d);
+      if (d && d.tables) {
+        setData(d.tables);
+      } else {
+        setData([]);
+      }
+    } catch (err) {
+      console.error("Audit load failed:", err);
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSync = async () => {
-    if (!diff || (diff.missing_columns.length === 0 && diff.missing_indexes.length === 0)) {
-      toast({ title: "System Up to Date", description: "No changes needed." });
-      return;
-    }
+  const handleSync = async (tableName?: string) => {
+    const msg = tableName 
+      ? `Are you sure you want to verify and repair the table '${tableName}'?`
+      : "Are you sure you want to verify and repair ALL system tables?";
     
-    setSyncing(true);
-    try {
-      const res = await syncSchema();
-      toast({ title: "Success", description: `Applied ${res.length} changes to database.` });
-      await load();
-    } catch (e: any) {
-      toast({ title: "Sync Failed", description: e?.message, variant: "destructive" });
-    } finally {
-      setSyncing(false);
-    }
-  };
+    if (!confirm(msg)) return;
 
-  const handleTableSync = async (tableName: string) => {
-    setSyncing(true);
+    setSyncing(tableName || "all");
     try {
-      const res = await syncSchema(tableName);
-      toast({ title: "Table Updated", description: `Applied ${res.length} changes to ${tableName}.` });
-      await load();
-    } catch (e: any) {
-      toast({ title: "Sync Failed", description: e?.message, variant: "destructive" });
+      await syncSchema(tableName);
+      toast({ title: "Success", description: "Table structure verified and updated." });
+      void load();
+    } catch (err) {
+      toast({ title: "Sync Failed", description: (err as Error).message, variant: "destructive" });
     } finally {
-      setSyncing(false);
+      setSyncing(null);
     }
   };
 
@@ -76,281 +86,325 @@ export default function DatabaseAuditPage() {
     void load();
   }, []);
 
-  const filteredTables = useMemo(() => {
-    if (!data?.tables) return [];
+  const filteredData = useMemo(() => {
+    if (!data) return [];
+    const q = searchQuery.toLowerCase().trim();
     
-    const tables = data.tables.filter(t => 
-      t.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    // 1. Filter by Search
+    let filtered = q ? data.filter(t => 
+      t.name.toLowerCase().includes(q) || 
+      Object.keys(t.defined?.columns || {}).some(c => c.toLowerCase().includes(q))
+    ) : [...data];
 
-    // Sort by mismatch status first, then by name
-    return [...tables].sort((a, b) => {
-      const aMissing = !a.live || !a.defined;
-      const bMissing = !b.live || !b.defined;
+    // 2. Filter by Status
+    if (filter !== "all") {
+      filtered = filtered.filter(t => {
+        const isMissing = !t.live;
+        const liveCols = t.live ? Object.keys(t.live.columns) : [];
+        const defCols = t.defined ? Object.keys(t.defined.columns) : [];
+        const isMismatch = !isMissing && (liveCols.length !== defCols.length || defCols.some(c => !t.live?.columns[c]));
+        
+        if (filter === "missing") return isMissing;
+        if (filter === "mismatch") return isMismatch;
+        if (filter === "healthy") return !isMissing && !isMismatch;
+        return true;
+      });
+    }
 
-      // Check for column mismatches
-      const aColsDefined = Object.keys(a.defined?.columns || {});
-      const aColsLive = Object.keys(a.live?.columns || {});
-      const aMismatched = aMissing || aColsDefined.length !== aColsLive.length || aColsDefined.some(c => !a.live?.columns[c]);
-
-      const bColsDefined = Object.keys(b.defined?.columns || {});
-      const bColsLive = Object.keys(b.live?.columns || {});
-      const bMismatched = bMissing || bColsDefined.length !== bColsLive.length || bColsDefined.some(c => !b.live?.columns[c]);
-
-      if (aMismatched && !bMismatched) return -1;
-      if (!aMismatched && bMismatched) return 1;
+    // 3. Sort: Missing (0) > Mismatched (1) > Healthy (2)
+    return filtered.sort((a, b) => {
+      const getScore = (t: TableAudit) => {
+        if (!t.live) return 0; // Missing (Highest Priority)
+        
+        const liveCols = Object.keys(t.live.columns);
+        const defCols = Object.keys(t.defined?.columns || {});
+        const isMismatch = liveCols.length !== defCols.length || defCols.some(c => !t.live?.columns[c]);
+        
+        if (isMismatch) return 1; // Mismatch
+        return 2; // OK
+      };
+      
+      const scoreA = getScore(a);
+      const scoreB = getScore(b);
+      
+      if (scoreA !== scoreB) return scoreA - scoreB;
       return a.name.localeCompare(b.name);
     });
-  }, [data?.tables, searchTerm]);
+  }, [data, searchQuery, filter]);
+
+  const stats = useMemo(() => {
+    if (!data) return { total: 0, missing: 0, mismatch: 0, ok: 0 };
+    let missing = 0, mismatch = 0, ok = 0;
+    for (const t of data) {
+      if (!t.live) missing++;
+      else if (!t.defined) mismatch++; // Unexpected table
+      else {
+        const liveCols = Object.keys(t.live.columns);
+        const defCols = Object.keys(t.defined.columns);
+        const isMismatch = liveCols.length !== defCols.length || defCols.some(c => !t.live?.columns[c]);
+        if (isMismatch) mismatch++;
+        else ok++;
+      }
+    }
+    return { total: data.length, missing, mismatch, ok };
+  }, [data]);
+
+  const toggleTable = (name: string) => {
+    const next = new Set(expandedTables);
+    if (next.has(name)) next.delete(name);
+    else next.add(name);
+    setExpandedTables(next);
+  };
+
+  const handleSnapshot = async (tableName?: string) => {
+    const msg = tableName 
+      ? `Are you sure you want to update the definition for '${tableName}' from the live database structure?`
+      : "Are you sure you want to update the ENTIRE system definition files from the current live database structure? This will modify server-side code.";
+    
+    if (!confirm(msg)) return;
+    
+    setSyncing(tableName || "snapshot");
+    try {
+      await createSchemaSnapshot(tableName);
+      toast({ title: "Success", description: tableName ? `Definition for ${tableName} updated.` : "System definition file updated successfully." });
+      void load();
+    } catch (err) {
+      toast({ title: "Update Failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSyncing(null);
+    }
+  };
 
   return (
-    <ReportShell
-      title="Database Schema Audit"
-      subtitle="Side-by-side comparison between Defined Schema and Live Database"
-    >
-      <div className="space-y-6">
-        {/* Sync Status Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <Card className="lg:col-span-2 border-none shadow-md bg-gradient-to-br from-primary/10 to-background">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <RefreshCw className={`w-5 h-5 ${syncing ? 'animate-spin' : ''}`} />
-                    Schema Sync Dashboard
-                  </CardTitle>
-                  <CardDescription className="flex items-center gap-2 mt-1">
-                    Comparison Status
-                    {diff && (
-                      <span className="flex items-center gap-1">
-                        <Badge variant="secondary" className="text-[9px] h-4">Defined: {diff.defined_table_count}</Badge>
-                        <Badge variant="outline" className="text-[9px] h-4">Live: {diff.live_table_count}</Badge>
-                      </span>
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    onClick={handleSync} 
-                    disabled={syncing || !diff || (diff.missing_columns.length === 0 && diff.missing_indexes.length === 0)}
-                    className="gap-2"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} /> Update All Tables
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="h-20 flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin" /></div>
-              ) : diff && (diff.missing_columns.length > 0 || diff.missing_indexes.length > 0 || diff.missing_tables.length > 0) ? (
-                <Alert variant="destructive" className="bg-destructive/5 border-destructive/20">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Divergence Detected</AlertTitle>
-                  <AlertDescription className="text-xs space-y-1 mt-2">
-                    {diff.missing_tables.length > 0 && <div>• {diff.missing_tables.length} tables missing in live database.</div>}
-                    {diff.missing_columns.length > 0 && <div>• {diff.missing_columns.length} columns missing in live database.</div>}
-                    {diff.missing_indexes.length > 0 && <div>• {diff.missing_indexes.length} indexes missing in live database.</div>}
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/20 rounded-lg text-green-700">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <div>
-                    <div className="font-bold text-sm">Schema Synchronized</div>
-                    <div className="text-[10px] opacity-80">The live database perfectly matches the defined schema snapshot.</div>
-                  </div>
-                </div>
-              )}
+    <DashboardLayout>
+      <div className="flex flex-col gap-6 w-full pb-10 px-4 md:px-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2 text-primary">
+              <ShieldCheck className="w-8 h-8" />
+              Table Verification
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Verify database integrity against system-defined schema.
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2">
+              <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
+              Refresh
+            </Button>
+            <Button variant="default" onClick={() => void handleSync()} disabled={loading || !!syncing} className="gap-2 bg-primary">
+              <Settings2 className={cn("w-4 h-4", syncing === "all" && "animate-spin")} />
+              Repair All Tables
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="bg-card/50 border-none shadow-sm">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+              <span className="text-2xl font-bold">{stats.total}</span>
+              <span className="text-xs text-muted-foreground uppercase font-semibold">Total Tables</span>
             </CardContent>
           </Card>
-
-          <Card className="border-none shadow-md overflow-hidden bg-primary/5">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-primary" />
-                Index Health
-              </CardTitle>
-              <CardDescription>Critical report optimizations</CardDescription>
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="space-y-2">
-                {loading ? (
-                  Array(3).fill(0).map((_, i) => <div key={i} className="h-10 bg-muted animate-pulse rounded-md" />)
-                ) : data?.optimizations.map((opt, i) => (
-                  <div key={i} className="bg-background border rounded p-2 flex items-center justify-between text-xs">
-                    <div className="font-mono">{opt.index}</div>
-                    {opt.status === 'success' ? (
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-destructive" />
-                    )}
-                  </div>
-                ))}
-              </div>
+          <Card className="bg-green-500/5 border-none shadow-sm">
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+              <span className="text-2xl font-bold text-green-600">{stats.ok}</span>
+              <span className="text-xs text-green-600/70 uppercase font-semibold">Healthy</span>
+            </CardContent>
+          </Card>
+          <Card className={cn("border-none shadow-sm", stats.mismatch > 0 ? "bg-amber-500/5" : "bg-card/50")}>
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+              <span className={cn("text-2xl font-bold", stats.mismatch > 0 && "text-amber-600")}>{stats.mismatch}</span>
+              <span className={cn("text-xs uppercase font-semibold", stats.mismatch > 0 ? "text-amber-600/70" : "text-muted-foreground")}>Mismatched</span>
+            </CardContent>
+          </Card>
+          <Card className={cn("border-none shadow-sm", stats.missing > 0 ? "bg-red-500/5" : "bg-card/50")}>
+            <CardContent className="p-4 flex flex-col items-center justify-center text-center">
+              <span className={cn("text-2xl font-bold", stats.missing > 0 && "text-red-600")}>{stats.missing}</span>
+              <span className={cn("text-xs uppercase font-semibold", stats.missing > 0 ? "text-red-600/70" : "text-muted-foreground")}>Missing</span>
             </CardContent>
           </Card>
         </div>
 
-        {/* Table Comparison Explorer */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-bold flex items-center gap-2">
-              <TableIcon className="w-5 h-5" />
-              Side-by-Side Schema Explorer
-            </h2>
-            <div className="relative w-72">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input 
-                placeholder="Search tables..." 
-                className="pl-9"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <Input 
+              placeholder="Search tables or columns..." 
+              className="pl-10 bg-background/50 border-none shadow-sm focus-visible:ring-1" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
           </div>
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+             <Button 
+                variant={filter === 'all' ? 'default' : 'outline'} 
+                size="sm" 
+                onClick={() => setFilter('all')} 
+                className="rounded-full px-4 h-9"
+             >
+                All ({stats.total})
+             </Button>
+             <Button 
+                variant={filter === 'mismatch' ? 'default' : 'default'} 
+                size="sm" 
+                onClick={() => setFilter('mismatch')} 
+                className={cn(
+                  "rounded-full px-4 h-9 transition-all",
+                  filter === 'mismatch' ? "bg-amber-600 hover:bg-amber-700" : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20"
+                )}
+             >
+                Mismatched ({stats.mismatch})
+             </Button>
+             <Button 
+                variant={filter === 'missing' ? 'default' : 'default'} 
+                size="sm" 
+                onClick={() => setFilter('missing')} 
+                className={cn(
+                  "rounded-full px-4 h-9 transition-all",
+                  filter === 'missing' ? "bg-red-600 hover:bg-red-700" : "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
+                )}
+             >
+                Missing ({stats.missing})
+             </Button>
+             <Button 
+                variant={filter === 'healthy' ? 'default' : 'outline'} 
+                size="sm" 
+                onClick={() => setFilter('healthy')} 
+                className="rounded-full px-4 h-9"
+             >
+                Healthy ({stats.ok})
+             </Button>
+          </div>
+        </div>
 
+        <div className="space-y-4">
           {loading ? (
-            <div className="py-20 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>
-          ) : (
-            <div className="grid grid-cols-1 gap-8">
-              {filteredTables.map((table, i) => (
-                <TableComparison key={i} table={table} onSync={handleTableSync} syncing={syncing} />
-              ))}
+            <div className="flex flex-col items-center justify-center py-20 gap-4">
+              <RefreshCcw className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Auditing database schema...</p>
             </div>
+          ) : filteredData.length === 0 ? (
+            <div className="text-center py-20 border-2 border-dashed rounded-xl">
+              <p className="text-muted-foreground">No tables found matching your search.</p>
+            </div>
+          ) : (
+            filteredData.map((table) => {
+              const isMissing = !table.live;
+              const liveCols = table.live ? Object.keys(table.live.columns) : [];
+              const defCols = table.defined ? Object.keys(table.defined.columns) : [];
+              const missingCols = defCols.filter(c => !liveCols.includes(c));
+              const isMismatch = missingCols.length > 0;
+              const isHealthy = !isMissing && !isMismatch;
+
+              return (
+                <Card key={table.name} className="overflow-hidden border-none shadow-sm">
+                  <div className="flex items-center justify-between p-4 bg-card/30">
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => toggleTable(table.name)} className="p-1 hover:bg-accent rounded">
+                        {expandedTables.has(table.name) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                      <div className="p-2 bg-primary/10 rounded-lg">
+                        <TableIcon className="w-4 h-4 text-primary" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg">{table.name}</h3>
+                        <div className="flex gap-2 mt-0.5">
+                          {isMissing ? (
+                            <Badge variant="destructive" className="text-[10px] uppercase">Missing Table</Badge>
+                          ) : isMismatch ? (
+                            <Badge variant="outline" className="text-[10px] uppercase text-amber-600 border-amber-600/20 bg-amber-600/5">Structure Mismatch</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px] uppercase text-green-600 border-green-600/20 bg-green-600/5">Verified Healthy</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isHealthy && (
+                        <Button 
+                          size="sm" 
+                          variant="secondary" 
+                          className="bg-primary/10 text-primary hover:bg-primary/20"
+                          onClick={() => void handleSync(table.name)}
+                          disabled={!!syncing}
+                        >
+                          {syncing === table.name ? <RefreshCcw className="w-3 h-3 animate-spin mr-2" /> : <ShieldCheck className="w-3 h-3 mr-2" />}
+                          {isMissing ? "Create Table" : "Update Structure"}
+                        </Button>
+                      )}
+                      {!isHealthy && table.live && (
+                         <Button 
+                          size="sm" 
+                          variant="outline" 
+                          className="border-primary/20 text-primary hover:bg-primary/5"
+                          onClick={() => void handleSnapshot(table.name)}
+                          disabled={!!syncing}
+                        >
+                          {syncing === table.name ? <RefreshCcw className="w-3 h-3 animate-spin mr-2" /> : <Database className="w-3 h-3 mr-2" />}
+                          Update Definition
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {expandedTables.has(table.name) && (
+                    <CardContent className="p-4 border-t bg-background/20">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                            <Database className="w-3 h-3" />
+                            Live Structure
+                          </h4>
+                          {isMissing ? (
+                            <div className="p-4 rounded-lg bg-red-500/5 border border-red-500/10 flex items-center gap-3 text-red-600">
+                              <ShieldAlert className="w-5 h-5" />
+                              <span className="text-sm font-medium">Table does not exist in the database.</span>
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5">
+                              {liveCols.map(c => (
+                                <div key={c} className="flex items-center justify-between p-2 rounded bg-background/50 text-xs">
+                                  <span className="font-mono">{c}</span>
+                                  <span className="text-muted-foreground">{table.live?.columns[c].Type}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-2">
+                            <Settings2 className="w-3 h-3" />
+                            Defined Schema
+                          </h4>
+                          <div className="space-y-1.5">
+                            {defCols.map(c => {
+                              const missing = isMissing || !liveCols.includes(c);
+                              return (
+                                <div key={c} className={cn(
+                                  "flex items-center justify-between p-2 rounded text-xs",
+                                  missing ? "bg-amber-500/10 border border-amber-500/20 text-amber-700" : "bg-background/50"
+                                )}>
+                                  <span className="font-mono flex items-center gap-2">
+                                    {c}
+                                    {missing && <AlertTriangle className="w-3 h-3" />}
+                                  </span>
+                                  <span className="opacity-70">{table.defined?.columns[c].Type}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
           )}
         </div>
       </div>
-    </ReportShell>
-  );
-}
-
-function TableComparison({ table, onSync, syncing }: { table: any, onSync: (name: string) => void, syncing: boolean }) {
-  const isMissingInLive = !table.live;
-  const isMissingInDefined = !table.defined;
-
-  // Check for mismatches
-  const definedCols = Object.keys(table.defined?.columns || {});
-  const liveCols = Object.keys(table.live?.columns || {});
-  const hasMismatch = isMissingInLive || isMissingInDefined || definedCols.length !== liveCols.length || definedCols.some(c => !table.live?.columns[c]);
-
-  // Union of all column names
-  const allCols = Array.from(new Set([
-    ...Object.keys(table.defined?.columns || {}),
-    ...Object.keys(table.live?.columns || {})
-  ])).sort();
-
-  return (
-    <Card className={`border-none shadow-md overflow-hidden ${isMissingInLive ? 'ring-2 ring-destructive/20' : hasMismatch ? 'ring-2 ring-amber-500/20' : ''}`}>
-      <CardHeader className="bg-muted/30 border-b py-3 px-4">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base font-mono flex items-center gap-2">
-            <Database className="w-4 h-4 text-muted-foreground" />
-            {table.name}
-            {hasMismatch && <AlertCircle className="w-4 h-4 text-amber-500" />}
-          </CardTitle>
-          <div className="flex gap-2">
-            {!isMissingInDefined ? (
-              <Badge variant="secondary" className="text-[10px]">In Defined Schema</Badge>
-            ) : (
-              <Badge variant="destructive" className="text-[10px]">Not in Defined</Badge>
-            )}
-            {!isMissingInLive ? (
-              <Badge variant="outline" className="text-[10px] bg-green-50 text-green-700 border-green-200">Live in Database</Badge>
-            ) : (
-              <Badge variant="destructive" className="text-[10px]">Missing from Database</Badge>
-            )}
-            
-            {hasMismatch && (
-              <Button 
-                variant="default" 
-                size="xs" 
-                className={`h-6 text-[10px] gap-1 ${isMissingInLive ? 'bg-destructive hover:bg-destructive/90' : 'bg-amber-600 hover:bg-amber-700'}`}
-                onClick={() => onSync(table.name)}
-                disabled={syncing}
-              >
-                <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
-                {isMissingInLive ? 'Create Table' : 'Update Table'}
-              </Button>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="grid grid-cols-1 md:grid-cols-2 divide-x divide-muted-foreground/10">
-          {/* Defined Side */}
-          <div className="bg-muted/5">
-            <div className="px-4 py-2 text-[10px] font-bold uppercase border-b bg-muted/20 text-muted-foreground flex justify-between">
-              <span>Defined Structure (Snapshot)</span>
-              {isMissingInDefined && <span className="text-destructive">MISSING</span>}
-            </div>
-            <div className="p-0">
-              <table className="w-full text-[11px]">
-                <thead className="bg-muted/10 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-2">Column</th>
-                    <th className="text-left px-4 py-2">Type</th>
-                    <th className="text-center px-4 py-2">Key</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-muted/10">
-                  {allCols.map(colName => {
-                    const col = table.defined?.columns?.[colName];
-                    const existsInLive = !!table.live?.columns?.[colName];
-                    return (
-                      <tr key={colName} className={`h-10 ${!col ? 'bg-muted/5 opacity-30' : ''} ${col && !existsInLive ? 'bg-amber-500/5' : ''}`}>
-                        <td className="px-4 py-2 font-bold">{colName}</td>
-                        <td className="px-4 py-2 text-muted-foreground">{col?.Type || '-'}</td>
-                        <td className="px-4 py-2 text-center">
-                          {col?.Key && <Badge variant="secondary" className="text-[9px] h-4">{col.Key}</Badge>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Live Side */}
-          <div className="bg-background">
-            <div className="px-4 py-2 text-[10px] font-bold uppercase border-b bg-primary/5 text-primary flex justify-between">
-              <span>Live Structure (Database)</span>
-              {isMissingInLive && <span className="text-destructive">MISSING TABLE</span>}
-            </div>
-            <div className="p-0">
-              <table className="w-full text-[11px]">
-                <thead className="bg-primary/5 border-b">
-                  <tr>
-                    <th className="text-left px-4 py-2">Column</th>
-                    <th className="text-left px-4 py-2">Type</th>
-                    <th className="text-center px-4 py-2">Key</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-muted/10">
-                  {allCols.map(colName => {
-                    const col = table.live?.columns?.[colName];
-                    const existsInDefined = !!table.defined?.columns?.[colName];
-                    return (
-                      <tr key={colName} className={`h-10 ${!col ? 'bg-destructive/5 text-destructive' : ''} ${col && !existsInDefined ? 'bg-blue-500/5' : ''}`}>
-                        <td className="px-4 py-2 font-bold">
-                          {colName}
-                          {!col && !isMissingInLive && <span className="ml-2 text-[8px] uppercase">[Missing]</span>}
-                        </td>
-                        <td className="px-4 py-2 text-muted-foreground">{col?.Type || '-'}</td>
-                        <td className="px-4 py-2 text-center">
-                          {col?.Key && <Badge variant="secondary" className="text-[9px] h-4">{col.Key}</Badge>}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    </DashboardLayout>
   );
 }

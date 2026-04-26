@@ -76,7 +76,19 @@ class Invoice extends Model {
     }
 
     public function getPayments($invoiceId) {
-        $this->db->query("SELECT * FROM invoice_payments WHERE invoice_id = :invoice_id ORDER BY payment_date DESC");
+        $this->db->query("
+            SELECT ip.*, 
+                   ci.cheque_no_last6, ci.bank_name as cheque_bank_name, 
+                   ci.branch_name as cheque_branch_name, ci.cheque_date, ci.payee_name,
+                   pr.card_type, pr.card_last4, pr.card_auth_code, pr.card_category, b.name as card_bank_name
+            FROM invoice_payments ip
+            LEFT JOIN payment_receipts pr ON pr.invoice_id = ip.invoice_id AND pr.amount = ip.amount AND pr.payment_method = ip.payment_method
+            LEFT JOIN cheque_inventory ci ON ci.receipt_id = pr.id
+            LEFT JOIN banks b ON pr.bank_id = b.id
+            WHERE ip.invoice_id = :invoice_id
+            GROUP BY ip.id
+            ORDER BY ip.payment_date DESC
+        ");
         $this->db->bind(':invoice_id', $invoiceId);
         return $this->db->resultSet();
     }

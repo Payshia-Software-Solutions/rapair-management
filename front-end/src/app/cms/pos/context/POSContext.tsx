@@ -165,6 +165,12 @@ interface POSContextType {
   setAppliedPromotion: (val: any | null) => void;
   setTableManagementOpen: (val: boolean) => void;
   setBankBranches: (val: any[]) => void;
+
+  // Print Selection
+  printSelectionOpen: boolean;
+  setPrintSelectionOpen: (val: boolean) => void;
+  lastInvoiceId: number | null;
+  setLastInvoiceId: (val: number | null) => void;
 }
 
 
@@ -261,6 +267,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [checkoutIntentActive, setCheckoutIntentActive] = useState(false);
   const [tableManagementOpen, setTableManagementOpen] = useState(false);
   const lastFootprint = React.useRef("");
+
+  // Print Selection State
+  const [printSelectionOpen, setPrintSelectionOpen] = useState(false);
+  const [lastInvoiceId, setLastInvoiceId] = useState<number | null>(null);
 
 
   const updateAppliedPromotion = (promo: any | null) => {
@@ -788,21 +798,23 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const invoiceRes = await createInvoice(payload);
       const invoiceId = invoiceRes.data.id;
-
       toast({ title: "Sale Complete", description: "Invoice and payments processed atomically." });
       
       // Update local stock quantities
       await refreshInventory();
 
       setCart([]);
-       setBillDiscountValue(0);
-       setBillDiscountType('flat');
-       setHeldOrderId(null);
-       setOrderType(null);
-       setOrderTypeDialogOpen(true);
-       refreshHeldOrders();
-       if (customers.length > 0) setSelectedCustomer(String(customers[0].id));
-       window.open(`/cms/invoices/${invoiceId}/receipt?autoprint=1`, '_blank');
+      setBillDiscountValue(0);
+      setBillDiscountType('flat');
+      setHeldOrderId(null);
+      setOrderType(null);
+      setOrderTypeDialogOpen(true);
+      refreshHeldOrders();
+      if (customers.length > 0) setSelectedCustomer(String(customers[0].id));
+      
+      // Instead of opening print immediately, open selection dialog
+      setLastInvoiceId(invoiceId);
+      setPrintSelectionOpen(true);
 
     } catch (err: any) {
       toast({ title: "Checkout Failed", description: err.message, variant: "destructive" });
@@ -932,7 +944,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       checkoutIntentActive, setCheckoutIntentActive,
       claimPromotionRewards,
       setTableManagementOpen,
-      setBankBranches
+      setBankBranches,
+      printSelectionOpen,
+      setPrintSelectionOpen,
+      lastInvoiceId,
+      setLastInvoiceId
     };
   
     return (

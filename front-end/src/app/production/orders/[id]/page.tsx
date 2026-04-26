@@ -68,6 +68,9 @@ export default function ProductionOrderDetailPage({ params }: { params: Promise<
             part_name: out.part_name,
             planned_qty: out.planned_qty,
             actual_yield: String(out.planned_qty),
+            batch_number: out.batch_number || '',
+            expiry_date: out.expiry_date || '',
+            is_expiry: out.is_expiry == 1,
             waste_reason: ''
           })))
         }
@@ -117,6 +120,8 @@ export default function ProductionOrderDetailPage({ params }: { params: Promise<
         outputs: yields.map(y => ({
           id: y.id,
           actual_yield: Number(y.actual_yield),
+          batch_number: y.batch_number,
+          expiry_date: y.expiry_date,
           waste_reason: y.waste_reason
         })),
         waste_reason: wasteReason // Global note
@@ -224,29 +229,54 @@ export default function ProductionOrderDetailPage({ params }: { params: Promise<
                      <Label className="text-base font-bold text-primary">{y.part_name}</Label>
                      <Badge variant="outline" className="font-mono text-[10px]">Planned: {y.planned_qty}</Badge>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-1.5">
-                      <Label htmlFor={`yield-${y.id}`} className="text-xs uppercase font-bold text-muted-foreground">Actual Yield</Label>
-                      <Input
-                        id={`yield-${y.id}`}
-                        type="number"
-                        step="0.001"
-                        value={y.actual_yield}
-                        onChange={(e) => updateYield(y.id, 'actual_yield', e.target.value)}
-                        className="font-bold"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-1.5">
+                        <Label htmlFor={`yield-${y.id}`} className="text-[10px] uppercase font-bold text-muted-foreground">Actual Yield</Label>
+                        <Input
+                          id={`yield-${y.id}`}
+                          type="number"
+                          step="0.001"
+                          value={y.actual_yield}
+                          onChange={(e) => updateYield(y.id, 'actual_yield', e.target.value)}
+                          className="font-bold h-9"
+                        />
+                      </div>
+                      <div className="grid gap-1.5">
+                        <Label htmlFor={`waste-${y.id}`} className="text-[10px] uppercase font-bold text-muted-foreground">Item Waste Reason</Label>
+                        <Input
+                          id={`waste-${y.id}`}
+                          placeholder="e.g. Reject"
+                          value={y.waste_reason}
+                          onChange={(e) => updateYield(y.id, 'waste_reason', e.target.value)}
+                          className="h-9"
+                        />
+                      </div>
                     </div>
-                    <div className="grid gap-1.5">
-                      <Label htmlFor={`waste-${y.id}`} className="text-xs uppercase font-bold text-muted-foreground">Item Waste Reason</Label>
-                      <Input
-                        id={`waste-${y.id}`}
-                        placeholder="e.g. Reject"
-                        value={y.waste_reason}
-                        onChange={(e) => updateYield(y.id, 'waste_reason', e.target.value)}
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-1.5">
+                        <Label htmlFor={`batch-${y.id}`} className="text-[10px] uppercase font-bold text-muted-foreground">Batch Number</Label>
+                        <Input
+                          id={`batch-${y.id}`}
+                          placeholder="Batch #"
+                          value={y.batch_number}
+                          onChange={(e) => updateYield(y.id, 'batch_number', e.target.value)}
+                          className="h-9 font-mono"
+                        />
+                      </div>
+                      {y.is_expiry && (
+                        <div className="grid gap-1.5">
+                          <Label htmlFor={`expiry-${y.id}`} className="text-[10px] uppercase font-bold text-muted-foreground">Expiry Date</Label>
+                          <Input
+                            id={`expiry-${y.id}`}
+                            type="date"
+                            value={y.expiry_date}
+                            onChange={(e) => updateYield(y.id, 'expiry_date', e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
-                </div>
               ))}
               
               <div className="pt-2 border-t mt-2">
@@ -347,11 +377,19 @@ export default function ProductionOrderDetailPage({ params }: { params: Promise<
                                  </Badge>
                               </div>
                               {order.status === 'Completed' && (
-                                <div className="mt-3 pt-3 border-t border-dashed flex items-center justify-between text-xs">
-                                   <span className="text-muted-foreground">Actual Yield:</span>
-                                   <span className={cn("font-bold", Number(out.actual_qty) < Number(out.planned_qty) ? "text-amber-600" : "text-emerald-600")}>
-                                     {Number(out.actual_qty).toLocaleString()} {out.unit}
-                                   </span>
+                                <div className="mt-3 pt-3 border-t border-dashed space-y-2">
+                                   <div className="flex items-center justify-between text-xs">
+                                     <span className="text-muted-foreground">Actual Yield:</span>
+                                     <span className={cn("font-bold", Number(out.actual_qty) < Number(out.planned_qty) ? "text-amber-600" : "text-emerald-600")}>
+                                       {Number(out.actual_qty).toLocaleString()} {out.unit}
+                                     </span>
+                                   </div>
+                                   <div className="flex items-center justify-between text-[10px]">
+                                     <span className="text-muted-foreground">Batch/Expiry:</span>
+                                     <span className="font-mono text-muted-foreground">
+                                       {out.batch_number || 'N/A'} {out.expiry_date && out.expiry_date !== '0000-00-00' ? `| ${out.expiry_date}` : ''}
+                                     </span>
+                                   </div>
                                 </div>
                               )}
                            </div>

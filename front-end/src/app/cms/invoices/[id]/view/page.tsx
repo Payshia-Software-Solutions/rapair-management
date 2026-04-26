@@ -38,6 +38,7 @@ function InvoiceContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const shouldPrint = searchParams.get('print') === 'true';
+  const taxInclusive = searchParams.get('tax_inclusive') === '1';
 
   const [invoice, setInvoice] = useState<any>(null);
   const [company, setCompany] = useState<CompanyRow | null>(null);
@@ -411,50 +412,61 @@ function InvoiceContent() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {invoice.items?.map((item: any) => (
-                    <tr key={item.id} className="group hover:bg-muted/20 transition-colors">
-                      <td className="py-5 px-6">
-                        <div className="font-bold text-foreground text-base group-hover:text-primary transition-colors">{item.description}</div>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className={`text-[10px] font-black uppercase tracking-tighter px-2.5 py-0.5 rounded-md border
-                            ${item.item_type === 'Service' ? 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' : 'text-muted-foreground bg-muted border-border'}
-                          `}>
-                            {item.item_type}
-                          </span>
-                        </div>
-                        {/* Sold Batch Details */}
-                        {invoice.batch_movements?.filter((bm: any) => Number(bm.part_id) === Number(item.item_id))?.length > 0 && (
-                          <div className="mt-3 space-y-1.5 border-l-2 border-primary/20 pl-3">
-                            {invoice.batch_movements
-                              .filter((bm: any) => Number(bm.part_id) === Number(item.item_id))
-                              .map((bm: any, bIdx: number) => (
-                                <div key={bIdx} className="text-[11px] flex items-center gap-2">
-                                  <span className="font-black text-primary/70 uppercase tracking-widest text-[9px]">Batch</span>
-                                  <span className="font-bold text-foreground/80">{bm.batch_number || 'UNBATCHED'}</span>
-                                  {bm.expiry_date && (
-                                    <>
-                                      <span className="text-muted-foreground/40 text-[8px]">/</span>
-                                      <span className="text-muted-foreground uppercase text-[9px]">Exp: {bm.expiry_date}</span>
-                                    </>
-                                  )}
-                                  <span className="ml-auto tabular-nums font-bold text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">
-                                    Qty: {Math.abs(Number(bm.qty_change))}
-                                  </span>
-                                </div>
-                              ))}
+                  {invoice.items?.map((item: any) => {
+                    const totalTaxPercent = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.rate_percent || 0), 0);
+                    let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
+                    let displayLineTotal = Number(item.line_total);
+                    
+                    if (taxInclusive && totalTaxPercent > 0) {
+                      displayUnitPrice = displayUnitPrice * (1 + totalTaxPercent / 100);
+                      displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
+                    }
+
+                    return (
+                      <tr key={item.id} className="group hover:bg-muted/20 transition-colors">
+                        <td className="py-5 px-6">
+                          <div className="font-bold text-foreground text-base group-hover:text-primary transition-colors">{item.description}</div>
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className={`text-[10px] font-black uppercase tracking-tighter px-2.5 py-0.5 rounded-md border
+                              ${item.item_type === 'Service' ? 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' : 'text-muted-foreground bg-muted border-border'}
+                            `}>
+                              {item.item_type}
+                            </span>
                           </div>
-                        )}
-                      </td>
-                      <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{item.quantity}</td>
-                      <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{formatCurrency(item.unit_price)}</td>
-                      <td className="py-5 px-6 text-right font-bold text-rose-500 tabular-nums uppercase tracking-tighter">
-                        {Number(item.discount) > 0 ? `-${formatCurrency(item.discount)}` : "-"}
-                      </td>
-                      <td className="py-5 px-6 text-right font-black text-foreground tabular-nums tracking-tighter shadow-sm">
-                        {formatCurrency(item.line_total)}
-                      </td>
-                    </tr>
-                  ))}
+                          {/* Sold Batch Details */}
+                          {invoice.batch_movements?.filter((bm: any) => Number(bm.part_id) === Number(item.item_id))?.length > 0 && (
+                            <div className="mt-3 space-y-1.5 border-l-2 border-primary/20 pl-3">
+                              {invoice.batch_movements
+                                .filter((bm: any) => Number(bm.part_id) === Number(item.item_id))
+                                .map((bm: any, bIdx: number) => (
+                                  <div key={bIdx} className="text-[11px] flex items-center gap-2">
+                                    <span className="font-black text-primary/70 uppercase tracking-widest text-[9px]">Batch</span>
+                                    <span className="font-bold text-foreground/80">{bm.batch_number || 'UNBATCHED'}</span>
+                                    {bm.expiry_date && (
+                                      <>
+                                        <span className="text-muted-foreground/40 text-[8px]">/</span>
+                                        <span className="text-muted-foreground uppercase text-[9px]">Exp: {bm.expiry_date}</span>
+                                      </>
+                                    )}
+                                    <span className="ml-auto tabular-nums font-bold text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">
+                                      Qty: {Math.abs(Number(bm.qty_change))}
+                                    </span>
+                                  </div>
+                                ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{item.quantity}</td>
+                        <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{formatCurrency(displayUnitPrice)}</td>
+                        <td className="py-5 px-6 text-right font-bold text-rose-500 tabular-nums uppercase tracking-tighter">
+                          {Number(item.discount) > 0 ? `-${formatCurrency(item.discount)}` : "-"}
+                        </td>
+                        <td className="py-5 px-6 text-right font-black text-foreground tabular-nums tracking-tighter shadow-sm">
+                          {formatCurrency(displayLineTotal)}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -488,14 +500,17 @@ function InvoiceContent() {
                             <div className="flex flex-wrap gap-2 items-center text-[9px] font-bold uppercase tracking-tight">
                               {p.card_type && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500">{p.card_type}</span>}
                               {p.card_bank_name && <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/20 rounded text-indigo-600 dark:text-indigo-400">{p.card_bank_name}</span>}
-                              {p.card_category && <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400">{p.card_category} Card</span>}
+                              {p.card_category && <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400">{p.card_category}</span>}
                               {p.card_last4 && <span className="font-mono text-slate-400">**** {p.card_last4}</span>}
+                              {p.card_auth_code && <span className="text-slate-400 opacity-60 italic">Auth: {p.card_auth_code}</span>}
                             </div>
                           )}
                           {p.payment_method === 'Cheque' && p.cheque_no_last6 && (
                             <div className="flex flex-wrap gap-2 items-center text-[9px] font-bold uppercase tracking-tight text-amber-600">
                               <span>Cheque #{p.cheque_no_last6}</span>
+                              {p.cheque_date && <span>• Date: {p.cheque_date}</span>}
                               {p.cheque_bank_name && <span>• {p.cheque_bank_name}</span>}
+                              {p.cheque_branch_name && <span>• {p.cheque_branch_name}</span>}
                             </div>
                           )}
                         </div>
@@ -507,42 +522,72 @@ function InvoiceContent() {
 
               <div className="w-full md:w-80 space-y-4 bg-muted/20 p-6 rounded-3xl border border-border/50">
                 <div className="space-y-3 pb-5 border-b border-border">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground/70 font-medium">Subtotal</span>
-                    <span className="font-bold text-foreground/90 tabular-nums">LKR {Number(invoice.subtotal).toFixed(2)}</span>
-                  </div>
-                  {(() => {
-                    const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
-                    const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
-                    const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
-                    
-                    if (actualDiscount > 0 || invoice.applied_promotion_name) {
-                      return (
-                        <div className="flex justify-between items-center text-sm">
-                          <span className="text-muted-foreground/70 font-medium">
-                            Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}
-                          </span>
-                          <span className="font-bold text-rose-500 tabular-nums">-LKR {actualDiscount.toFixed(2)}</span>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {invoice.applied_taxes && invoice.applied_taxes.length > 0 ? (
-                    invoice.applied_taxes.map((tax: any) => (
-                      <div key={tax.id} className="flex justify-between items-center text-sm text-blue-600 dark:text-cyan-400">
-                        <span className="font-medium">{tax.tax_code} {Number(tax.rate_percent) > 0 ? `(${Number(tax.rate_percent)}%)` : ''}</span>
-                        <span className="font-bold tabular-nums">+LKR {Number(tax.amount).toFixed(2)}</span>
+                  {taxInclusive ? (
+                    <div className="space-y-3">
+                      {(() => {
+                        const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+                        const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+                        const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+                        
+                        if (actualDiscount > 0 || invoice.applied_promotion_name) {
+                          return (
+                            <div className="flex justify-between items-center text-sm text-rose-500 font-bold">
+                              <span>Savings / Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+                              <span className="tabular-nums">-LKR {actualDiscount.toFixed(2)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+                      <div className="flex justify-between items-center text-sm font-bold text-primary">
+                        <span>Total (Tax Inclusive)</span>
+                        <span className="tabular-nums">LKR {Number(invoice.grand_total).toFixed(2)}</span>
                       </div>
-                    ))
+                      <div className="flex justify-between items-center text-[10px] text-muted-foreground italic">
+                        <span>Includes Taxes</span>
+                        <span className="tabular-nums">LKR {(invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0).toFixed(2)}</span>
+                      </div>
+                    </div>
                   ) : (
-                    Number(invoice.tax_total) > 0 && (
-                      <div className="flex justify-between items-center text-sm text-blue-600 dark:text-cyan-400">
-                        <span className="font-medium">Tax</span>
-                        <span className="font-bold tabular-nums">+LKR {Number(invoice.tax_total).toFixed(2)}</span>
+                    <>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-muted-foreground/70 font-medium">Subtotal</span>
+                        <span className="font-bold text-foreground/90 tabular-nums">LKR {Number(invoice.subtotal).toFixed(2)}</span>
                       </div>
-                    )
+                      {(() => {
+                        const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+                        const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+                        const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+                        
+                        if (actualDiscount > 0 || invoice.applied_promotion_name) {
+                          return (
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-muted-foreground/70 font-medium">
+                                Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}
+                              </span>
+                              <span className="font-bold text-rose-500 tabular-nums">-LKR {actualDiscount.toFixed(2)}</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {invoice.applied_taxes && invoice.applied_taxes.length > 0 ? (
+                        invoice.applied_taxes.map((tax: any) => (
+                          <div key={tax.id} className="flex justify-between items-center text-sm text-blue-600 dark:text-cyan-400">
+                            <span className="font-medium">{tax.tax_code} {Number(tax.rate_percent) > 0 ? `(${Number(tax.rate_percent)}%)` : ''}</span>
+                            <span className="font-bold tabular-nums">+LKR {Number(tax.amount).toFixed(2)}</span>
+                          </div>
+                        ))
+                      ) : (
+                        Number(invoice.tax_total) > 0 && (
+                          <div className="flex justify-between items-center text-sm text-blue-600 dark:text-cyan-400">
+                            <span className="font-medium">Tax</span>
+                            <span className="font-bold tabular-nums">+LKR {Number(invoice.tax_total).toFixed(2)}</span>
+                          </div>
+                        )
+                      )}
+                    </>
                   )}
 
                   <div className="pt-4 border-t border-border flex justify-between items-baseline">

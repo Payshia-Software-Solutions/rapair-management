@@ -107,10 +107,10 @@ export default function SelectLocationPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-lg border-none shadow-xl rounded-2xl overflow-hidden">
         <CardHeader className="text-center pb-4">
-          <div className="w-14 h-14 bg-blue-50 text-primary rounded-2xl flex items-center justify-center mx-auto mb-3">
+          <div className="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-3">
             <MapPin className="w-7 h-7" />
           </div>
           <CardTitle className="text-2xl">Choose Location</CardTitle>

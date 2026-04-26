@@ -73,9 +73,11 @@ require_once '../app/core/Database.php';   // Base Database
 require_once '../app/core/Model.php';      // Base Model
 require_once '../app/helpers/InventorySchema.php'; // Schema Helper
 require_once '../app/helpers/PromotionSchema.php';
+require_once '../app/helpers/ApiClientsSchema.php';
 
 // Ensure schema is up to date on every request
 InventorySchema::ensure();
 PromotionSchema::ensure();
+ApiClientsSchema::ensure();
 
 $init = new App();

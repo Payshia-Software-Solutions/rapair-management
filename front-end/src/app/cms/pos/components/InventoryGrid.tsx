@@ -14,7 +14,8 @@ import {
   Keyboard, 
   LayoutGrid, 
   RefreshCw,
-  Filter 
+  Filter,
+  LayoutDashboard 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -101,6 +102,16 @@ export const InventoryGrid: React.FC = () => {
 
     return (
         <>
+            <Button
+              variant="outline"
+              size={isMobileMenu ? "default" : "icon"}
+              className={`${btnClass} ${!isMobileMenu ? "hover:bg-primary/10 hover:border-primary hover:text-primary" : "bg-primary/10 text-primary"}`}
+              onClick={() => window.location.href = '../../dashboard'}
+            >
+              <LayoutDashboard className="w-5 h-5" />
+              {isMobileMenu && <span className="font-black">Back to ERP</span>}
+            </Button>
+
             <Button
               variant="outline"
               size={isMobileMenu ? "default" : "icon"}

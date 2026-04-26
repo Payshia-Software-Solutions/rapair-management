@@ -51,6 +51,23 @@ class SaasHelper {
         return self::getConfig(true);
     }
 
+    public static function getPackages() {
+        try {
+            $masterApiUrl = NEXUS_PORTAL_URL . "/api/saas/packages";
+            $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+            $json = @file_get_contents($masterApiUrl, false, $ctx);
+            if ($json) {
+                $response = json_decode($json, true);
+                if (isset($response['status']) && $response['status'] === 'success') {
+                    return $response['data'];
+                }
+            }
+        } catch (Exception $e) {
+            error_log("Nexus Packages Error: " . $e->getMessage());
+        }
+        return [];
+    }
+
     private static function clearCache() {
         $file = APPROOT . '/scratch/nexus_license.json';
         if (file_exists($file)) @unlink($file);
