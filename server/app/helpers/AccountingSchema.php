@@ -207,7 +207,9 @@ class AccountingSchema {
                 ['purchase_tax', '1250', 'Purchase Input Tax Account', 'Purchases'],
                 ['retained_earnings', '3000', 'Retained Earnings Account', 'Equity'],
                 ['opening_balance_equity', '3010', 'Opening Balance Equity', 'Equity'],
-                ['production_wip', '1410', 'Work in Progress Account', 'Production']
+                ['production_wip', '1410', 'Work in Progress Account', 'Production'],
+                ['production_inventory', '1400', 'Production Inventory Account', 'Production'],
+                ['production_finished_goods', '1400', 'Finished Goods Inventory Account', 'Production']
             ];
 
             foreach ($mappings as $m) {

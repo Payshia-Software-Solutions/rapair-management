@@ -219,8 +219,9 @@ export const syncSchema = async (tableName?: string) => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const createSchemaSnapshot = async () => {
-  const res = await api('/api/report/schema_snapshot', { method: 'POST' });
+export const createSchemaSnapshot = async (tableName?: string) => {
+  const url = tableName ? `/api/report/schema_snapshot?table=${tableName}` : '/api/report/schema_snapshot';
+  const res = await api(url, { method: 'POST' });
   if (!res.ok) throw new Error('Failed to create snapshot');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;

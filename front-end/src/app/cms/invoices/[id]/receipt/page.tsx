@@ -10,6 +10,7 @@ function ReceiptContent() {
   const id = params.id as string;
   const searchParams = useSearchParams();
   const autoPrint = searchParams.get('autoprint') === '1';
+  const taxInclusive = searchParams.get('tax_inclusive') === '1';
 
   const [invoice, setInvoice] = useState<any>(null);
   const [company, setCompany] = useState<any>(null);
@@ -101,7 +102,7 @@ function ReceiptContent() {
         <div>
           <div className="preview-paper" id="receipt-preview">
             <div className="receipt">
-              <ReceiptBody invoice={invoice} company={company} balance={balance} fmt={fmt} />
+              <ReceiptBody invoice={invoice} company={company} balance={balance} fmt={fmt} taxInclusive={taxInclusive} />
             </div>
           </div>
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
@@ -124,7 +125,7 @@ function ReceiptContent() {
       {/* Print-only version (no wrapper) */}
       <div style={{ display: 'none' }} className="print-only">
         <div className="receipt">
-          <ReceiptBody invoice={invoice} company={company} balance={balance} fmt={fmt} />
+          <ReceiptBody invoice={invoice} company={company} balance={balance} fmt={fmt} taxInclusive={taxInclusive} />
         </div>
       </div>
 
@@ -138,7 +139,8 @@ function ReceiptContent() {
   );
 }
 
-function ReceiptBody({ invoice, company, balance, fmt }: any) {
+function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
+  const totalTaxPercent = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.rate_percent || 0), 0);
   return (
     <>
       {/* Store Header */}
@@ -171,9 +173,17 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       {(invoice.items || []).map((item: any, idx: number) => {
         const lineTotal = Number(item.line_total);
         const isFree = Number(item.discount) >= Number(item.unit_price) && Number(item.unit_price) > 0;
-        const unitAfterDiscount = item.discount > 0
-          ? `@ LKR ${(Number(item.unit_price) - Number(item.discount)).toFixed(2)}`
-          : `@ LKR ${Number(item.unit_price).toFixed(2)}`;
+        
+        let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
+        let displayLineTotal = lineTotal;
+        
+        if (taxInclusive && totalTaxPercent > 0) {
+          displayUnitPrice = displayUnitPrice * (1 + totalTaxPercent / 100);
+          displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
+        }
+
+        const unitDisplay = `@ LKR ${displayUnitPrice.toFixed(2)}`;
+
         return (
           <div className="row-item" key={idx}>
             <div className="item-name">
@@ -181,38 +191,65 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
               {isFree && <span style={{ marginLeft: '4px', fontSize: '8px', fontWeight: '900', background: '#000', color: '#fff', padding: '1px 3px', borderRadius: '2px', textTransform: 'uppercase' }}>Gift</span>}
             </div>
             <div className="item-detail">
-              <span>{item.quantity} × {unitAfterDiscount}</span>
-              <span className="bold">{isFree ? 'LKR 0.00' : `LKR ${fmt(lineTotal)}`}</span>
+              <span>{item.quantity} × {unitDisplay}</span>
+              <span className="bold">{isFree ? 'LKR 0.00' : `LKR ${fmt(displayLineTotal)}`}</span>
             </div>
           </div>
         );
       })}
 
       <hr className="hr" />
-
+      
       {/* Totals */}
-      <div className="row"><span>Subtotal</span><span>LKR {fmt(invoice.subtotal)}</span></div>
-      {(() => {
-        const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
-        const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
-        const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
-        
-        if (actualDiscount > 0 || invoice.applied_promotion_name) {
-          return (
-            <div className="row">
-              <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
-              <span>-LKR {fmt(actualDiscount)}</span>
+      {taxInclusive ? (
+        <>
+          {(() => {
+            const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+            const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+            const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+            
+            if (actualDiscount > 0 || invoice.applied_promotion_name) {
+              return (
+                <div className="row">
+                  <span>Savings / Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+                  <span className="bold">-LKR {fmt(actualDiscount)}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          <div className="row"><span>Total (Tax Inclusive)</span><span>LKR {fmt(invoice.grand_total)}</span></div>
+          <div className="row tag" style={{ fontSize: '9px', fontStyle: 'italic' }}>
+            <span>Includes Total Taxes:</span>
+            <span>LKR {fmt((invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0))}</span>
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="row"><span>Subtotal</span><span>LKR {fmt(invoice.subtotal)}</span></div>
+          {(() => {
+            const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+            const inferredDiscount = Number(invoice.subtotal) + taxSum - Number(invoice.grand_total);
+            const actualDiscount = Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : (inferredDiscount > 0.01 ? inferredDiscount : 0);
+            
+            if (actualDiscount > 0 || invoice.applied_promotion_name) {
+              return (
+                <div className="row">
+                  <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+                  <span>-LKR {fmt(actualDiscount)}</span>
+                </div>
+              );
+            }
+            return null;
+          })()}
+          {(invoice.applied_taxes || []).map((tax: any, idx: number) => (
+            <div className="row" key={idx}>
+              <span>{tax.tax_code || tax.tax_name}{Number(tax.rate_percent) > 0 ? ` (${tax.rate_percent}%)` : ''}</span>
+              <span>LKR {fmt(tax.amount)}</span>
             </div>
-          );
-        }
-        return null;
-      })()}
-      {(invoice.applied_taxes || []).map((tax: any, idx: number) => (
-        <div className="row" key={idx}>
-          <span>{tax.tax_code || tax.tax_name}{Number(tax.rate_percent) > 0 ? ` (${tax.rate_percent}%)` : ''}</span>
-          <span>LKR {fmt(tax.amount)}</span>
-        </div>
-      ))}
+          ))}
+        </>
+      )}
 
       <hr className="hr-solid" />
 
@@ -222,11 +259,40 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       </div>
 
       {Number(invoice.paid_amount) > 0 && (
-        <>
-          <div className="row"><span>Paid</span><span>LKR {fmt(invoice.paid_amount)}</span></div>
+        <div style={{ marginTop: '4px' }}>
+          <div className="bold" style={{ fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px', borderBottom: '1px solid #eee' }}>Payment Details</div>
+          {(invoice.payments || []).map((p: any, idx: number) => (
+            <div key={idx} style={{ marginBottom: '4px' }}>
+              <div className="row">
+                <span>{p.payment_method}</span>
+                <span className="bold">LKR {fmt(p.amount)}</span>
+              </div>
+              {(p.payment_method === 'Card' || p.card_bank_name) && (
+                <div className="tag" style={{ fontSize: '9px', textAlign: 'right', opacity: 0.8 }}>
+                  <div>{p.card_bank_name} {p.card_category ? `(${p.card_category})` : ''}</div>
+                  <div>{p.card_type} {p.card_last4 ? `**** ${p.card_last4}` : ''} {p.card_auth_code ? `| Auth: ${p.card_auth_code}` : ''}</div>
+                </div>
+              )}
+              {p.payment_method === 'Cheque' && (
+                <div className="tag" style={{ fontSize: '9px', textAlign: 'right', opacity: 0.8 }}>
+                  <div>{p.cheque_bank_name} {p.cheque_branch_name ? `(${p.cheque_branch_name})` : ''}</div>
+                  <div>No: #{p.cheque_no_last6} | Date: {p.cheque_date}</div>
+                </div>
+              )}
+              {p.reference_no && (
+                <div className="tag" style={{ fontSize: '9px', textAlign: 'right', opacity: 0.8 }}>
+                  Ref: {p.reference_no}
+                </div>
+              )}
+            </div>
+          ))}
+          <div className="row" style={{ borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+            <span>Total Paid</span>
+            <span className="bold">LKR {fmt(invoice.paid_amount)}</span>
+          </div>
           {balance > 0.005 && <div className="row bold"><span>Balance Due</span><span>LKR {fmt(balance)}</span></div>}
           {balance <= 0.005 && <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">✓ PAID</span></div>}
-        </>
+        </div>
       )}
 
       <hr className="hr" />
@@ -234,7 +300,8 @@ function ReceiptBody({ invoice, company, balance, fmt }: any) {
       {/* Footer */}
       <div className="center tag" style={{ marginTop: '8px' }}>
         <div>Thank you for your purchase!</div>
-        <div style={{ marginTop: '4px', fontSize: '10px' }}>Powered by ServiceBay</div>
+        <div style={{ marginTop: '4px', fontSize: '10px', fontWeight: 'bold' }}>BizFlow ERP System</div>
+        <div style={{ marginTop: '2px', fontSize: '8px', opacity: 0.8 }}>Developed by Nebulink.com</div>
         <div style={{ marginTop: '10px', fontSize: '9px', letterSpacing: '1px' }}>* * * * * * * * * *</div>
       </div>
     </>

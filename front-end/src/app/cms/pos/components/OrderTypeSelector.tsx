@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Utensils, ShoppingBag, Store, ArrowRight, ChevronLeft, User, LayoutGrid, Clock, FilePlus, History, FileText, Undo2, Banknote, MoreHorizontal } from "lucide-react";
+import { Utensils, ShoppingBag, Store, ArrowRight, ChevronLeft, User, LayoutGrid, Clock, FilePlus, History, FileText, Undo2, Banknote, MoreHorizontal, LayoutDashboard } from "lucide-react";
 import { usePOS } from "../context/POSContext";
 import {
     Dialog,
@@ -195,8 +195,9 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-4 gap-3">
                                     {[
+                                        { label: 'ERP Hub', icon: <LayoutDashboard className="w-5 h-5" />, color: 'indigo', action: () => { window.location.href = '../../dashboard'; } },
                                         { label: 'Summary', icon: <FileText className="w-5 h-5" />, color: 'blue', action: () => { setOrderTypeDialogOpen(false); setLedgerDialogOpen(true); } },
                                         { label: 'Return', icon: <Undo2 className="w-5 h-5" />, color: 'purple', action: () => { setOrderTypeDialogOpen(false); setReturnDialogOpen(true); } },
                                         { label: 'Refund', icon: <Banknote className="w-5 h-5" />, color: 'rose', action: () => { setOrderTypeDialogOpen(false); setRefundDialogOpen(true); } }

@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createLocation, updateLocation, ServiceLocation } from "@/lib/api";
-import { Loader2, MapPin, Store, Users, ShoppingBag, Factory, Percent, ArrowLeft } from "lucide-react";
+import { Loader2, MapPin, Store, Users, ShoppingBag, Factory, Percent, ArrowLeft, Code2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 interface LocationFormProps {
   initialData?: ServiceLocation;
@@ -37,6 +38,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
   const [isPosActive, setIsPosActive] = useState(true);
   const [allowProduction, setAllowProduction] = useState(false);
   const [allowOnline, setAllowOnline] = useState(false);
+  const [googleAnalyticsCode, setGoogleAnalyticsCode] = useState("");
+  const [facebookPixelCode, setFacebookPixelCode] = useState("");
 
   useEffect(() => {
     if (initialData) {
@@ -54,6 +57,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       setIsPosActive(Boolean(initialData.is_pos_active));
       setAllowProduction(Boolean(initialData.allow_production));
       setAllowOnline(Boolean(initialData.allow_online));
+      setGoogleAnalyticsCode(initialData.google_analytics_code || "");
+      setFacebookPixelCode(initialData.facebook_pixel_code || "");
     }
   }, [initialData]);
 
@@ -78,6 +83,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
         is_pos_active: isPosActive ? 1 : 0,
         allow_production: allowProduction ? 1 : 0,
         allow_online: allowOnline ? 1 : 0,
+        google_analytics_code: googleAnalyticsCode.trim() || undefined,
+        facebook_pixel_code: facebookPixelCode.trim() || undefined,
       };
 
       if (isEdit && initialData) {
@@ -217,6 +224,42 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                   <p className="text-xs text-slate-500 dark:text-slate-400">Allows creation of Production Orders and WIP ledger mapping.</p>
                 </div>
                 <Switch checked={allowProduction} onCheckedChange={setAllowProduction} />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-blue-100 dark:border-blue-500/20 bg-blue-50/30 dark:bg-blue-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-blue-100 dark:bg-blue-500/20 rounded-lg">
+                    <Code2 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                 </div>
+                 <div>
+                    <CardTitle className="text-blue-900 dark:text-blue-100">Web & Analytics</CardTitle>
+                    <CardDescription>Configure tracking codes for connected websites.</CardDescription>
+                 </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="ga-code">Google Analytics Code (G-XXXXXXXXXX)</Label>
+                <Textarea 
+                  id="ga-code" 
+                  placeholder="Paste your Google Analytics tracking ID or snippet here..." 
+                  value={googleAnalyticsCode}
+                  onChange={(e) => setGoogleAnalyticsCode(e.target.value)}
+                  className="font-mono text-sm min-h-[100px]"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="fb-pixel">Facebook Pixel Code</Label>
+                <Textarea 
+                  id="fb-pixel" 
+                  placeholder="Paste your Facebook Pixel ID or snippet here..." 
+                  value={facebookPixelCode}
+                  onChange={(e) => setFacebookPixelCode(e.target.value)}
+                  className="font-mono text-sm min-h-[100px]"
+                />
               </div>
             </CardContent>
           </Card>

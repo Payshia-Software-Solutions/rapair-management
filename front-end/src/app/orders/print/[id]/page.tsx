@@ -234,7 +234,7 @@ export default function OrderPrintPage() {
               <div className="my-3 border-t border-dashed" />
 
               <div className="text-center text-[11px] text-muted-foreground">
-                Powered by ServiceBay
+                BizFlow ERP System | Developed by Nebulink.com
               </div>
             </div>
           )}

@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'ServiceBay | Vehicle Repair Management',
-  description: 'Streamlined vehicle repair management for workshops.',
+  title: 'BizFlow | Business ERP System',
+  description: 'BizFlow - Modern Enterprise Resource Planning for streamlined business flow.',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
@@ -29,10 +29,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="application-name" content="ServiceBay" />
+        <meta name="application-name" content="BizFlow" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="ServiceBay" />
+        <meta name="apple-mobile-web-app-title" content="BizFlow" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -125,7 +125,7 @@ export default function RootLayout({
                       '<div class=\"card\">' +
                         '<div class=\"row\">' +
                           '<div>' +
-                            '<div class=\"title\" id=\"pwa-title\">Install ServiceBay</div>' +
+                            '<div class=\"title\" id=\"pwa-title\">Install BizFlow</div>' +
                             '<div class=\"desc\" id=\"pwa-desc\">Get faster access and offline-friendly loading.</div>' +
                           '</div>' +
                           '<button type=\"button\" id=\"pwa-close\">Close</button>' +
@@ -143,7 +143,7 @@ export default function RootLayout({
                     var t = document.getElementById('pwa-title');
                     var d = document.getElementById('pwa-desc');
                     var btn = document.getElementById('pwa-install');
-                    if (t) t.textContent = opts.title || 'Install ServiceBay';
+                    if (t) t.textContent = opts.title || 'Install BizFlow';
                     if (d) d.textContent = opts.desc || '';
                     if (btn) btn.style.display = opts.showInstall ? 'inline-block' : 'none';
                     el.style.display = 'block';
@@ -165,7 +165,7 @@ export default function RootLayout({
                   if (isIos()) {
                     window.setTimeout(function () {
                       showBanner({
-                        title: 'Add ServiceBay to Home Screen',
+                        title: 'Add BizFlow to Home Screen',
                         desc: 'On iPhone/iPad: tap Share, then \"Add to Home Screen\".',
                         showInstall: false
                       });
@@ -181,7 +181,7 @@ export default function RootLayout({
                     deferred = e;
                     window.setTimeout(function () {
                       showBanner({
-                        title: 'Install ServiceBay',
+                        title: 'Install BizFlow',
                         desc: 'Get faster access and offline-friendly loading.',
                         showInstall: true
                       });

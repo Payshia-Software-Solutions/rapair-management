@@ -29,6 +29,7 @@ class ApiClientsSchema {
                 client_name VARCHAR(100) NOT NULL,
                 domain VARCHAR(255) NOT NULL,
                 api_key VARCHAR(100) NOT NULL UNIQUE,
+                location_id INT NULL,
                 is_active TINYINT(1) DEFAULT 1,
                 created_by INT NULL,
                 updated_by INT NULL,
@@ -36,5 +37,12 @@ class ApiClientsSchema {
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         ");
+
+        try {
+            $stmt = $pdo->query("SHOW COLUMNS FROM api_clients LIKE 'location_id'");
+            if (!$stmt->fetch()) {
+                $pdo->exec("ALTER TABLE api_clients ADD COLUMN location_id INT NULL AFTER api_key");
+            }
+        } catch (Exception $e) {}
     }
 }

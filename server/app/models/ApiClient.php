@@ -12,7 +12,12 @@ class ApiClient extends Model {
     }
 
     public function list() {
-        $this->db->query("SELECT * FROM {$this->table} ORDER BY client_name ASC");
+        $this->db->query("
+            SELECT ac.*, sl.name as location_name 
+            FROM {$this->table} ac
+            LEFT JOIN service_locations sl ON ac.location_id = sl.id
+            ORDER BY ac.client_name ASC
+        ");
         return $this->db->resultSet();
     }
 
@@ -25,12 +30,13 @@ class ApiClient extends Model {
     public function create($data, $userId = null) {
         $key = bin2hex(random_bytes(32));
         $this->db->query("
-            INSERT INTO {$this->table} (client_name, domain, api_key, created_by, updated_by)
-            VALUES (:name, :domain, :key, :u, :u)
+            INSERT INTO {$this->table} (client_name, domain, api_key, location_id, created_by, updated_by)
+            VALUES (:name, :domain, :key, :loc, :u, :u)
         ");
         $this->db->bind(':name', $data['client_name']);
         $this->db->bind(':domain', $data['domain']);
         $this->db->bind(':key', $key);
+        $this->db->bind(':loc', $data['location_id'] ?? null);
         $this->db->bind(':u', $userId);
         
         if ($this->db->execute()) {
@@ -68,12 +74,7 @@ class ApiClient extends Model {
      * @param string $origin The Clean Origin (Domain) from header
      */
     public function validate($key, $origin) {
-        if (empty($key)) return false;
-
-        $this->db->query("SELECT * FROM {$this->table} WHERE api_key = :key AND is_active = 1 LIMIT 1");
-        $this->db->bind(':key', $key);
-        $client = $this->db->single();
-
+        $client = $this->getByKey($key);
         if (!$client) return false;
 
         // Domain validation
@@ -84,5 +85,12 @@ class ApiClient extends Model {
         if ($targetDomain === '*') return true;
 
         return $targetDomain === $requestOrigin;
+    }
+
+    public function getByKey($key) {
+        if (empty($key)) return null;
+        $this->db->query("SELECT * FROM {$this->table} WHERE api_key = :key AND is_active = 1 LIMIT 1");
+        $this->db->bind(':key', $key);
+        return $this->db->single();
     }
 }

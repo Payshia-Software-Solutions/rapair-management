@@ -29,16 +29,19 @@ spl_autoload_register(function ($class) {
     if (strncmp($prefix, $class, $len) !== 0) return;
     $relative_class = substr($class, $len);
     
-    // Fix for Linux: Try the exact path first, then try all-lowercase path if it fails
+    // Fix for Linux: Try the exact path first, then try lowercase directory fallback
     $path = str_replace('\\', '/', $relative_class);
-    $file = $base_dir . $path . '.php';
+    $parts = explode('/', $path);
+    $filename = array_pop($parts) . '.php';
+    $dirPath = count($parts) > 0 ? implode('/', $parts) . '/' : '';
     
+    $file = $base_dir . $dirPath . $filename;
     if (file_exists($file)) {
         require $file;
     } else {
-        // Fallback for lowercase folder names on Linux
-        $file_lower = $base_dir . strtolower($path) . '.php';
-        if (file_exists($file_lower)) require $file_lower;
+        // Fallback: many Linux deployments use lowercase folder names (app/core/Router.php)
+        $file_lower_dir = $base_dir . strtolower($dirPath) . $filename;
+        if (file_exists($file_lower_dir)) require $file_lower_dir;
     }
 });
 

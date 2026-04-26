@@ -25,8 +25,8 @@ class AccountController extends Controller {
             case 'create':
                 $this->create();
                 break;
-            case 'get_mappings':
-                $this->get_mappings();
+            case 'mappings':
+                $this->mappings();
                 break;
             case 'update_mapping':
                 $this->update_mapping();
@@ -171,7 +171,7 @@ class AccountController extends Controller {
         }
     }
 
-    public function get_mappings() {
+    public function mappings() {
         require_once '../app/models/AccountMapping.php';
         $mappingModel = new AccountMapping();
         $mappings = $mappingModel->getAll();

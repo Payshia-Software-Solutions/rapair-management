@@ -68,23 +68,6 @@ export default function ProductionOrdersPage() {
     }
   }
 
-  const handleComplete = async (id: number) => {
-    setActionLoading(id)
-    try {
-      const res = await api(`/api/productionorder/complete/${id}`, { method: 'POST' })
-      const data = await res.json()
-      if (data.status === 'success') {
-        toast({ title: "Completed", description: "Finished goods received into stock." })
-        await load()
-      } else {
-        throw new Error(data.message)
-      }
-    } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" })
-    } finally {
-      setActionLoading(null)
-    }
-  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -195,11 +178,12 @@ export default function ProductionOrdersPage() {
                               size="sm" 
                               variant="default" 
                               className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-8"
-                              onClick={() => handleComplete(order.id)}
-                              disabled={actionLoading === order.id}
+                              asChild
                             >
-                              {actionLoading === order.id ? <Loader2 className="w-3 h-3 animate-spin"/> : <CheckCircle className="w-3 h-3" />}
-                              Finish
+                              <Link href={`/production/orders/${order.id}`}>
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Finish
+                              </Link>
                             </Button>
                           )}
                           {order.status === 'Completed' && (

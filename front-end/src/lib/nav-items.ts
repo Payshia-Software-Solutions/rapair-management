@@ -23,6 +23,7 @@ import {
   History,
   ClipboardList as ClipboardListIcon,
   Shield,
+  ShieldCheck,
   Database,
   Settings,
   Percent,
@@ -141,5 +142,6 @@ export const adminNavItems: NavItem[] = [
   { icon: Settings, label: "System Settings", href: "/admin/settings/system" },
   { icon: Truck, label: "Shipping Management", href: "/admin/shipping" },
   { icon: Layers, label: "Database Schema", href: "/admin/schema" },
+  { icon: ShieldCheck, label: "Table Verification", href: "/reports/database" },
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
 ];

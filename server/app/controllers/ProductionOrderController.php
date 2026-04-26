@@ -61,9 +61,13 @@ class ProductionOrderController extends Controller {
                 $this->error('Selected location does not allow production', 400);
             }
 
-            $id = $this->orderModel->create($input, (int)$u['sub']);
-            if ($id) {
-                $this->success([$id], 'Consolidated production batch created');
+            try {
+                $id = $this->orderModel->create($input, (int)$u['sub']);
+                if ($id) {
+                    $this->success([$id], 'Consolidated production batch created');
+                }
+            } catch (Exception $e) {
+                $this->error($e->getMessage(), 400);
             }
             $this->error('Failed to create production batch', 400);
         }
@@ -81,8 +85,13 @@ class ProductionOrderController extends Controller {
                 continue;
             }
 
-            $id = $this->orderModel->create($data, (int)$u['sub']);
-            if ($id) $createdIds[] = $id;
+            try {
+                $id = $this->orderModel->create($data, (int)$u['sub']);
+                if ($id) $createdIds[] = $id;
+            } catch (Exception $e) {
+                // For bulk, we might want to log or skip. 
+                // But usually individual creates are handled one by one in UI.
+            }
         }
 
         if (count($createdIds) > 0) {

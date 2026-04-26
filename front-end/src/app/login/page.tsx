@@ -88,13 +88,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-slate-50">
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md space-y-8">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="p-3 bg-primary rounded-2xl shadow-lg shadow-primary/20">
             <Wrench className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">ServiceBay</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">BizFlow</h1>
           <p className="text-muted-foreground text-sm">Workshop Management Simplified</p>
         </div>
 
@@ -158,7 +160,7 @@ export default function LoginPage() {
         </Card>
         
         <p className="text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} ServiceBay Systems. All rights reserved.
+          &copy; {new Date().getFullYear()} BizFlow Systems. All rights reserved.
         </p>
       </div>
     </div>

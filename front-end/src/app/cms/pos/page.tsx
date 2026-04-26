@@ -12,6 +12,7 @@ import { OrderTypeSelector } from "./components/OrderTypeSelector";
 import { PromotionPromptDialog } from "./components/Dialogs/PromotionPromptDialog";
 import { VirtualKeyboard } from "./components/VirtualKeyboard";
 import { MobilePosNav } from "./components/MobilePosNav";
+import { PrintSelectionDialog } from "./components/Dialogs/PrintSelectionDialog";
 import { Loader2 } from "lucide-react";
 import { 
   Dialog, 
@@ -157,6 +158,7 @@ function POSContent() {
       <OrderTypeSelector />
       <PromotionPromptDialog />
       <VirtualKeyboard />
+      <PrintSelectionDialog />
     </div>
   );
 }
