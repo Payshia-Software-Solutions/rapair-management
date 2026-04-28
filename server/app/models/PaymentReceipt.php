@@ -23,6 +23,10 @@ class PaymentReceipt {
                 reference_no    VARCHAR(100) NULL,
                 payment_date    DATE NOT NULL,
                 notes           TEXT NULL,
+                status          ENUM('Received', 'Cancelled') NOT NULL DEFAULT 'Received',
+                cancelled_at    DATETIME NULL,
+                cancelled_by    INT NULL,
+                cancellation_reason TEXT NULL,
                 card_type       VARCHAR(20) NULL,
                 card_last4      VARCHAR(4) NULL,
                 card_auth_code  VARCHAR(50) NULL,
@@ -34,6 +38,24 @@ class PaymentReceipt {
             )
         ");
         $this->db->execute();
+
+        // Migration Check: Add Cancellation columns
+        $cols = [
+            'status' => "ENUM('Received', 'Cancelled') NOT NULL DEFAULT 'Received'",
+            'cancelled_at' => "DATETIME NULL",
+            'cancelled_by' => "INT NULL",
+            'cancellation_reason' => "TEXT NULL"
+        ];
+        foreach ($cols as $col => $def) {
+            try {
+                $this->db->query("SELECT $col FROM payment_receipts LIMIT 1");
+                $this->db->execute();
+            } catch (Exception $e) {
+                $this->db->query("ALTER TABLE payment_receipts ADD COLUMN $col $def");
+                $this->db->execute();
+            }
+        }
+// ... existing migrations ...
 
         // Migration Check: Add Card columns if they don't exist
         try {
@@ -131,6 +153,15 @@ class PaymentReceipt {
     public function create($data) {
         $receiptNo = $this->generateReceiptNo();
 
+        // Auto-fetch customer name if missing
+        $customerName = $data['customer_name'] ?? '';
+        if (empty($customerName) && !empty($data['customer_id'])) {
+            $this->db->query("SELECT name FROM customers WHERE id = :id");
+            $this->db->bind(':id', $data['customer_id']);
+            $crow = $this->db->single();
+            if ($crow) $customerName = $crow->name;
+        }
+
         $this->db->query("
             INSERT INTO payment_receipts
                 (receipt_no, invoice_id, invoice_no, customer_id, customer_name, location_id,
@@ -143,7 +174,7 @@ class PaymentReceipt {
         $this->db->bind(':invoice_id',      $data['invoice_id']);
         $this->db->bind(':invoice_no',      $data['invoice_no'] ?? '');
         $this->db->bind(':customer_id',     $data['customer_id']);
-        $this->db->bind(':customer_name',   $data['customer_name'] ?? '');
+        $this->db->bind(':customer_name',   $customerName);
         $this->db->bind(':location_id',     $data['location_id'] ?? 1);
         $this->db->bind(':amount',          $data['amount']);
         $this->db->bind(':payment_method',  $data['payment_method'] ?? 'Cash');
@@ -205,7 +236,13 @@ class PaymentReceipt {
 
     // ── Invoice Paid Status ──────────────────────────────────────────────────
     private function updatePaidStatus($invoiceId) {
-        $this->db->query("SELECT COALESCE(SUM(amount),0) as total_paid FROM payment_receipts WHERE invoice_id = :id");
+        $this->db->query("
+            SELECT COALESCE(SUM(pr.amount),0) as total_paid 
+            FROM payment_receipts pr
+            LEFT JOIN cheque_inventory ci ON pr.id = ci.receipt_id
+            WHERE pr.invoice_id = :id 
+            AND (pr.payment_method != 'Cheque' OR (ci.status IS NOT NULL AND ci.status NOT IN ('Bounced', 'Cancelled')))
+        ");
         $this->db->bind(':id', $invoiceId);
         $row = $this->db->single();
         $totalPaid = $row ? floatval($row->total_paid) : 0;
@@ -262,7 +299,7 @@ class PaymentReceipt {
 
     // ── List All Receipts ────────────────────────────────────────────────────
     public function listAll($filters = []) {
-        $where = [];
+        $where = ["pr.status != 'Cancelled'"];
         $binds = [];
 
         if (!empty($filters['method'])) {
@@ -282,23 +319,48 @@ class PaymentReceipt {
             $binds[':customer_id'] = $filters['customer_id'];
         }
 
+        if (!empty($filters['location_id'])) {
+            $where[] = "pr.location_id = :location_id";
+            $binds[':location_id'] = $filters['location_id'];
+        }
+        
         $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+        $limit = (int)($filters['limit'] ?? 50);
+        $page = (int)($filters['page'] ?? 1);
+        $offset = ($page - 1) * $limit;
 
         $this->db->query("
             SELECT pr.*, ci.cheque_no_last6, ci.bank_name, ci.status as cheque_status
             FROM payment_receipts pr
             LEFT JOIN cheque_inventory ci ON ci.receipt_id = pr.id
-            {$whereStr}
-            ORDER BY pr.created_at DESC
-            LIMIT 200
+            $whereStr
+            ORDER BY pr.id DESC
+            LIMIT $limit OFFSET $offset
         ");
         foreach ($binds as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
+    public function countAll($filters = []) {
+        $where = ["pr.status != 'Cancelled'"];
+        $binds = [];
+        if (!empty($filters['method'])) { $where[] = "pr.payment_method = :method"; $binds[':method'] = $filters['method']; }
+        if (!empty($filters['from_date'])) { $where[] = "pr.payment_date >= :from_date"; $binds[':from_date'] = $filters['from_date']; }
+        if (!empty($filters['to_date'])) { $where[] = "pr.payment_date <= :to_date"; $binds[':to_date'] = $filters['to_date']; }
+        if (!empty($filters['customer_id'])) { $where[] = "pr.customer_id = :customer_id"; $binds[':customer_id'] = $filters['customer_id']; }
+        if (!empty($filters['location_id'])) { $where[] = "pr.location_id = :location_id"; $binds[':location_id'] = $filters['location_id']; }
+        
+        $whereStr = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+        $this->db->query("SELECT COUNT(*) as total FROM payment_receipts pr $whereStr");
+        foreach ($binds as $k => $v) $this->db->bind($k, $v);
+        $row = $this->db->single();
+        return (int)($row->total ?? 0);
+    }
+
     // ── Cheque Inventory List ────────────────────────────────────────────────
     public function listCheques($status = null) {
-        $where = $status ? "WHERE ci.status = :status" : "";
+        $where = $status ? "WHERE ci.status = :status" : "WHERE ci.status != 'Cancelled'";
         $this->db->query("
             SELECT ci.*, ci.status as status, ci.amount as amount, 
                    pr.receipt_no, pr.invoice_no, pr.customer_name, pr.payment_date
@@ -311,28 +373,107 @@ class PaymentReceipt {
         return $this->db->resultSet();
     }
 
+    public function listChequesByCustomer($customerId) {
+        $this->db->query("
+            SELECT ci.*, ci.status as status, ci.amount as amount, 
+                   pr.receipt_no, pr.invoice_no, pr.customer_name, pr.payment_date
+            FROM cheque_inventory ci
+            JOIN payment_receipts pr ON pr.id = ci.receipt_id
+            WHERE pr.customer_id = :customer_id
+            ORDER BY ci.cheque_date DESC
+        ");
+        $this->db->bind(':customer_id', $customerId);
+        return $this->db->resultSet();
+    }
+
     // ── Update Cheque Status ─────────────────────────────────────────────────
     public function updateChequeStatus($chequeId, $status, $clearedDate = null) {
         $this->db->query("UPDATE cheque_inventory SET status = :status, cleared_date = :cleared WHERE id = :id");
         $this->db->bind(':status',  $status);
         $this->db->bind(':cleared', $clearedDate);
         $this->db->bind(':id',      $chequeId);
-        return $this->db->execute();
+        if (!$this->db->execute()) return false;
+
+        // Recalculate invoice balance
+        $this->db->query("SELECT pr.invoice_id FROM cheque_inventory ci JOIN payment_receipts pr ON ci.receipt_id = pr.id WHERE ci.id = :id");
+        $this->db->bind(':id', $chequeId);
+        $row = $this->db->single();
+        if ($row) $this->updatePaidStatus($row->invoice_id);
+
+        return true;
     }
 
     public function bulkUpdateChequeStatus($ids, $status, $clearedDate = null) {
         if (empty($ids)) return true;
         
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        // Identify affected invoices before status change
+        $this->db->query("SELECT DISTINCT pr.invoice_id FROM cheque_inventory ci JOIN payment_receipts pr ON ci.receipt_id = pr.id WHERE ci.id IN ($placeholders)");
+        foreach ($ids as $idx => $id) $this->db->bind($idx + 1, $id);
+        $affectedInvoices = $this->db->resultSet();
+
+        // Update statuses
         $this->db->query("UPDATE cheque_inventory SET status = ?, cleared_date = ? WHERE id IN ($placeholders)");
-        
         $this->db->bind(1, $status);
         $this->db->bind(2, $clearedDate);
-        
         foreach ($ids as $index => $id) {
             $this->db->bind($index + 3, $id);
         }
         
-        return $this->db->execute();
+        if (!$this->db->execute()) return false;
+
+        // Trigger balance update for all affected invoices
+        foreach ($affectedInvoices as $inv) {
+            $this->updatePaidStatus($inv->invoice_id);
+        }
+
+        return true;
+    }
+
+
+    public function cancel($id, $reason, $userId) {
+        $receipt = $this->getById($id);
+        if (!$receipt) return false;
+        if (isset($receipt->status) && $receipt->status === 'Cancelled') return true;
+
+        $this->db->beginTransaction();
+        try {
+            // 1. Update Receipt Status
+            $this->db->query("
+                UPDATE payment_receipts 
+                SET status = 'Cancelled',
+                    cancelled_at = NOW(),
+                    cancelled_by = :user,
+                    cancellation_reason = :reason
+                WHERE id = :id
+            ");
+            $this->db->bind(':user', $userId);
+            $this->db->bind(':reason', $reason);
+            $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // 2. If it has a cheque, cancel the cheque too
+            if ($receipt->payment_method === 'Cheque') {
+                $this->db->query("UPDATE cheque_inventory SET status = 'Cancelled' WHERE receipt_id = :id");
+                $this->db->bind(':id', $id);
+                $this->db->execute();
+            }
+
+            // 3. Reverse Accounting Entries
+            require_once 'Journal.php';
+            $journal = new Journal();
+            $journal->reverseEntries('Payment', $id, $userId);
+
+            // 4. Update Invoice Paid Amount
+            $this->updatePaidStatus($receipt->invoice_id);
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Payment receipt cancellation failed: " . $e->getMessage());
+            return false;
+        }
     }
 }

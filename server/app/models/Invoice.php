@@ -12,7 +12,7 @@ class Invoice extends Model {
     }
 
     public function ensureSchema() {
-        require_once '../app/helpers/InvoiceSchema.php';
+        require_once __DIR__ . '/../helpers/InvoiceSchema.php';
         InvoiceSchema::ensure();
         
         // Custom column check for order_type (legacy support)
@@ -23,6 +23,134 @@ class Invoice extends Model {
             $this->db->query("ALTER TABLE invoices ADD COLUMN order_type VARCHAR(20) DEFAULT 'retail' AFTER grand_total");
             $this->db->execute();
         }
+
+        // Add cancellation columns if missing
+        $cols = [
+            'cancelled_at' => "DATETIME NULL",
+            'cancelled_by' => "INT NULL",
+            'cancellation_reason' => "TEXT NULL"
+        ];
+        foreach ($cols as $col => $def) {
+            try {
+                $this->db->query("SELECT $col FROM invoices LIMIT 1");
+                $this->db->execute();
+            } catch (Exception $e) {
+                $this->db->query("ALTER TABLE invoices ADD COLUMN $col $def");
+                $this->db->execute();
+            }
+        }
+    }
+
+    public function cancel($id, $reason, $userId) {
+        $inv = $this->getById($id);
+        if (!$inv) return false;
+        if ($inv->status === 'Cancelled') return true;
+
+        $this->db->beginTransaction();
+        try {
+            // 1. Revert Stock
+            $items = $this->getItems($id);
+            require_once 'Part.php';
+            $partModel = new Part();
+
+            foreach ($items as $item) {
+                if ($item->item_type === 'Part' && !empty($item->item_id)) {
+                    // Return stock to inventory
+                    $qty = (float)$item->quantity;
+                    
+                    // Create reversal movement
+                    $this->db->query("
+                        INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                        VALUES (:loc, :part_id, :qty_change, 'SALE', 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
+                    ");
+                    $this->db->bind(':loc', $inv->location_id);
+                    $this->db->bind(':part_id', $item->item_id);
+                    $this->db->bind(':qty_change', $qty); // Positive to return stock
+                    $this->db->bind(':ref_id', $id);
+                    $this->db->bind(':unit_cost', $item->cost_price);
+                    $this->db->bind(':unit_price', $item->unit_price);
+                    $this->db->bind(':notes', 'CANCELLATION: ' . $inv->invoice_no);
+                    $this->db->bind(':created_by', $userId);
+                    $this->db->execute();
+
+                    // Update global stock
+                    $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty WHERE id = :pid");
+                    $this->db->bind(':qty', $qty);
+                    $this->db->bind(':pid', $item->item_id);
+                    $this->db->execute();
+                }
+            }
+
+            // 2. Handle Linked Documents
+            if (!empty($inv->order_id)) {
+                $this->db->query("UPDATE repair_orders SET status = 'Ready' WHERE id = :id AND status = 'Invoiced'");
+                $this->db->bind(':id', $inv->order_id);
+                $this->db->execute();
+            }
+            if (!empty($inv->online_order_id)) {
+                $this->db->query("UPDATE online_orders SET order_status = 'Pending', invoice_id = NULL WHERE id = :id");
+                $this->db->bind(':id', $inv->online_order_id);
+                $this->db->execute();
+            }
+
+            // 2.3 Handle Hotel Reservation if linked
+            if (!empty($inv->reservation_id)) {
+                $this->db->query("UPDATE hotel_reservations SET status = 'CheckedIn', invoice_id = NULL WHERE id = :id AND status = 'CheckedOut'");
+                $this->db->bind(':id', $inv->reservation_id);
+                $this->db->execute();
+            }
+
+            // 3. Update Invoice Status
+            $this->db->query("
+                UPDATE invoices 
+                SET status = 'Cancelled', 
+                    cancelled_at = NOW(), 
+                    cancelled_by = :user, 
+                    cancellation_reason = :reason 
+                WHERE id = :id
+            ");
+            $this->db->bind(':user', $userId);
+            $this->db->bind(':reason', $reason);
+            $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // 4. Update associated Payment Receipts & Cheques
+            $this->db->query("
+                UPDATE payment_receipts 
+                SET status = 'Cancelled', 
+                    cancelled_at = NOW(), 
+                    cancelled_by = :user, 
+                    cancellation_reason = :reason 
+                WHERE invoice_id = :id
+            ");
+            $this->db->bind(':user', $userId);
+            $this->db->bind(':reason', 'Auto-cancelled: Invoice ' . $inv->invoice_no . ' cancelled');
+            $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // Cancel any cheques associated with this invoice's receipts
+            $this->db->query("
+                UPDATE cheque_inventory ci
+                JOIN payment_receipts pr ON ci.receipt_id = pr.id
+                SET ci.status = 'Cancelled'
+                WHERE pr.invoice_id = :id
+            ");
+            $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // 5. Reverse Accounting Entries
+            require_once 'Journal.php';
+            $journal = new Journal();
+            $journal->reverseEntries('Invoice', $id, $userId);
+            $journal->reverseEntries('Payment', $id, $userId);
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Invoice cancellation failed: " . $e->getMessage());
+            return false;
+        }
     }
 
     public function getAll($filters = []) {
@@ -31,7 +159,7 @@ class Invoice extends Model {
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
             LEFT JOIN repair_orders ro ON i.order_id = ro.id
-            WHERE 1=1
+            WHERE i.status != 'Cancelled'
         ";
 
         if (!empty($filters['status'])) {
@@ -322,10 +450,33 @@ class Invoice extends Model {
         $this->db->bind(':payment_method', $data['payment_method'] ?? 'Cash');
         $this->db->bind(':reference_no', $data['reference_no'] ?? null);
         $this->db->bind(':notes', $data['notes'] ?? null);
-        $this->db->bind(':created_by', $data['userId']);
+        $this->db->bind(':created_by', $data['userId'] ?? null);
 
         if ($this->db->execute()) {
             $this->updatePaidStatus($invoiceId);
+            
+            // Also Record in PaymentReceipts for centralized tracking
+            try {
+                require_once 'PaymentReceipt.php';
+                $receiptModel = new PaymentReceipt();
+                $inv = $this->getById($invoiceId);
+                if ($inv) {
+                    $receiptModel->create([
+                        'invoice_id' => $invoiceId,
+                        'invoice_no' => $inv->invoice_no,
+                        'customer_id' => $inv->customer_id,
+                        'customer_name' => $inv->customer_name,
+                        'location_id' => $inv->location_id,
+                        'amount' => $data['amount'],
+                        'payment_method' => $data['payment_method'] ?? 'Cash',
+                        'payment_date' => $data['payment_date'],
+                        'reference_no' => $data['reference_no'] ?? null,
+                        'notes' => $data['notes'] ?? null,
+                        'created_by' => $data['userId'] ?? null
+                    ]);
+                }
+            } catch (Exception $e) {}
+
             // Automated Accounting
             try {
                 AccountingHelper::postPayment($invoiceId, $data);

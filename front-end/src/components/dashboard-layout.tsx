@@ -42,7 +42,8 @@ import {
   LayoutGrid,
   Factory,
   TrendingUp,
-  Gift
+  Gift,
+  Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -84,7 +85,9 @@ import {
   serviceCenterItems,
   vendorItems,
   productionItems,
-  hrmItems
+  hrmItems,
+  frontOfficeItems,
+  marketingItems
 } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
@@ -103,7 +106,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isProductionOpen, setIsProductionOpen] = useState(false);
   const [isMarketingOpen, setIsMarketingOpen] = useState(false);
   const [isHrmOpen, setIsHrmOpen] = useState(false);
-	  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isFrontOfficeOpen, setIsFrontOfficeOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
 	  const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
@@ -352,7 +356,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   });
   const canSeeInventory = visibleInventoryItems.length > 0;
 
-  const visibleMarketingItems = inventoryItems.filter((it) => it.label === 'Promotions' && hasPerm(it.perm));
+  const visibleMarketingItems = marketingItems.filter((it) => hasPerm(it.perm));
   const canSeeMarketing = isModuleAllowed('promotions') && visibleMarketingItems.length > 0;
 
   const visibleCrmItems = crmItems.filter((it) => hasPerm((it as any).perm));
@@ -373,6 +377,9 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const visibleHrmItems = hrmItems.filter((it) => hasPerm((it as any).perm));
   const canSeeHrm = isModuleAllowed('hrm') && visibleHrmItems.length > 0;
 
+  const visibleFrontOfficeItems = frontOfficeItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeFrontOffice = isModuleAllowed('frontOffice') && visibleFrontOfficeItems.length > 0;
+
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
@@ -380,7 +387,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...adminItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...adminItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -411,6 +418,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     if (pathname.startsWith('/accounting')) setIsAccountingOpen(true);
     if (pathname.startsWith('/production')) setIsProductionOpen(true);
     if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
+    if (pathname.startsWith('/front-office')) setIsFrontOfficeOpen(true);
     if (pathname.startsWith('/admin')) setIsAdminOpen(true);
   }, [pathname, permissionKeys, userRole]);
 
@@ -425,6 +433,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const productionOpen = isProductionOpen;
   const marketingOpen = isMarketingOpen;
   const hrmOpen = isHrmOpen;
+  const frontOfficeOpen = isFrontOfficeOpen;
   const adminOpen = isAdminOpen;
 
   return (
@@ -880,6 +889,51 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                       {hrmOpen ? (
                         <SidebarMenuSub>
                           {visibleHrmItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeFrontOffice ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsFrontOfficeOpen((v) => !v)}
+                        isActive={pathname.startsWith('/front-office')}
+                        tooltip="Front Office"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/front-office') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <Building2 className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Front Office</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            frontOfficeOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {frontOfficeOpen ? (
+                        <SidebarMenuSub>
+                          {visibleFrontOfficeItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>

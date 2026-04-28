@@ -162,4 +162,47 @@ class SupplierController extends Controller {
         $summary = $this->supplierModel->getPayableSummary($id);
         $this->success($summary);
     }
+
+    // GET /api/supplier/payment_details/:id
+    public function payment_details($id = null) {
+        $this->requirePermission('suppliers.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
+        if (!$id) $this->error('Payment ID required', 400);
+        
+        require_once '../app/models/SupplierPayment.php';
+        $paymentModel = new SupplierPayment();
+        $row = $paymentModel->getById($id);
+        
+        if (!$row) $this->error('Payment not found', 404);
+        $this->success($row);
+    }
+    // POST /api/supplier/cancel_payment/:id
+    public function cancel_payment($id = null) {
+        $u = $this->requirePermission('suppliers.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        if (!$id) $this->error('Payment ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $reason = $data['reason'] ?? 'Cancelled by user';
+
+        require_once '../app/models/SupplierPayment.php';
+        $paymentModel = new SupplierPayment();
+
+        if ($paymentModel->cancel($id, $reason, (int)$u['sub'])) {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'location_id' => $this->currentLocationId($u),
+                'action' => 'cancel',
+                'entity' => 'supplier_payment',
+                'entity_id' => (int)$id,
+                'method' => 'POST',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['reason' => $reason]),
+            ]);
+            $this->success(null, 'Payment cancelled');
+        }
+        $this->error('Failed to cancel payment', 500);
+    }
 }

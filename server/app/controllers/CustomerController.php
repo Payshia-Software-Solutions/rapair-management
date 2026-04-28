@@ -88,4 +88,13 @@ class CustomerController extends Controller {
         $vehicles = $vehicleModel->getByCustomer($id);
         $this->success($vehicles);
     }
+    public function summary($id) {
+        $this->requirePermission('customers.read');
+        $summary = $this->customerModel->getSummary($id);
+        if ($summary) {
+            $this->success($summary);
+        } else {
+            $this->error('Customer not found', 404);
+        }
+    }
 }

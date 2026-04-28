@@ -72,6 +72,18 @@ export const addInvoicePayment = async (id: string | number, payload: any) => {
   return res.json();
 };
 
+export const cancelInvoice = async (id: number, reason: string) => {
+  const res = await api(`/api/invoice/cancel/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to cancel invoice');
+  }
+  return res.json();
+};
+
 // Payment Receipts
 export const createPaymentReceipt = async (payload: any) => {
   const res = await api('/api/paymentreceipt/create', { method: 'POST', body: JSON.stringify(payload) });
@@ -80,7 +92,12 @@ export const createPaymentReceipt = async (payload: any) => {
 };
 
 export const fetchPaymentReceipts = async (filters: any = {}) => {
-  const params = new URLSearchParams(filters);
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== "" && value !== null) {
+      params.append(key, String(value));
+    }
+  });
   const res = await api(`/api/paymentreceipt/list?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to load payment receipts');
   const data = await res.json();
@@ -92,6 +109,18 @@ export const fetchPaymentReceiptDetails = async (id: string | number) => {
   if (!res.ok) throw new Error('Failed to load receipt details');
   const data = await res.json();
   return data.status === 'success' ? data.data : null;
+};
+
+export const cancelPaymentReceipt = async (id: number, reason: string) => {
+  const res = await api(`/api/paymentreceipt/cancel/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to cancel payment receipt');
+  }
+  return res.json();
 };
 
 export const fetchChequeInventory = async (status?: string) => {
@@ -118,6 +147,13 @@ export const bulkUpdateChequeStatus = async (ids: number[], status: string, clea
   });
   if (!res.ok) throw new Error('Failed to update cheques (bulk)');
   return res.json();
+};
+
+export const fetchCustomerCheques = async (customerId: string | number) => {
+  const res = await api(`/api/paymentreceipt/customercheques/${customerId}`);
+  if (!res.ok) throw new Error('Failed to load customer cheques');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
 };
 
 
@@ -160,6 +196,12 @@ export const updateBank = async (id: string | number, data: any) => {
 export const deleteBank = async (id: string | number) => {
   const res = await api('/api/bank/delete/' + id, { method: 'DELETE' });
   if (!res.ok) throw new Error('Failed to delete bank');
+  return res.json();
+};
+
+export const syncBanksFromInternet = async () => {
+  const res = await api('/api/bank/sync', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to sync bank data');
   return res.json();
 };
 
@@ -272,16 +314,26 @@ export const postPurchaseReturn = async (payload: any) => {
 };
 
 export const fetchSupplierPayments = async (filters: any = {}) => {
-  const q = new URLSearchParams(filters).toString();
-  const res = await api(`/api/supplier/payments?${q}`);
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.append(key, String(value));
+    }
+  });
+  const res = await api(`/api/supplier/payments?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch supplier payments');
   const json = await res.json();
   return json.data;
 };
 
 export const fetchSupplierReturns = async (filters: any = {}) => {
-  const q = new URLSearchParams(filters).toString();
-  const res = await api(`/api/supplier/returns?${q}`);
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.append(key, String(value));
+    }
+  });
+  const res = await api(`/api/supplier/returns?${params.toString()}`);
   if (!res.ok) throw new Error('Failed to fetch supplier returns');
   const json = await res.json();
   return json.data;
@@ -290,6 +342,13 @@ export const fetchSupplierReturns = async (filters: any = {}) => {
 export const fetchSupplierSummary = async (supplierId: number | string) => {
   const res = await api(`/api/supplier/summary/${supplierId}`);
   if (!res.ok) throw new Error('Failed to fetch supplier summary');
+  const json = await res.json();
+  return json.data;
+};
+
+export const fetchSupplierPaymentDetails = async (id: number | string) => {
+  const res = await api(`/api/supplier/payment_details/${id}`);
+  if (!res.ok) throw new Error('Failed to fetch payment details');
   const json = await res.json();
   return json.data;
 };
@@ -345,4 +404,57 @@ export const fetchReconciliationHistory = async (accountId: number) => {
   if (!res.ok) throw new Error('Failed to load reconciliation history');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+// Quotations
+export const fetchQuotations = async (filters: any = {}) => {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.append(key, String(value));
+    }
+  });
+  const res = await api(`/api/quotation/list?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to load quotations');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const fetchQuotationDetails = async (id: string | number) => {
+  const res = await api(`/api/quotation/details/${id}`);
+  if (!res.ok) throw new Error('Failed to load quotation details');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : null;
+};
+
+export const createQuotation = async (payload: any) => {
+  const res = await api('/api/quotation/create', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create quotation');
+  }
+  return res.json();
+};
+
+export const updateQuotationStatus = async (id: string | number, status: string) => {
+  const res = await api(`/api/quotation/set_status/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ status })
+  });
+  if (!res.ok) throw new Error('Failed to update quotation status');
+  return res.json();
+};
+
+export const convertQuotationToInvoice = async (id: string | number) => {
+  const res = await api(`/api/quotation/convert_to_invoice/${id}`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to convert to invoice');
+  }
+  return res.json();
 };

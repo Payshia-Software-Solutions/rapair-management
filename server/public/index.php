@@ -6,6 +6,11 @@
 // Load Configuration
 require_once '../config/config.php';
 
+// Load Composer Autoloader
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+}
+
 // Enable CORS
 // NOTE: When the frontend sends cookies (`credentials: 'include'`), we cannot use `*` for Allow-Origin.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
@@ -74,10 +79,18 @@ require_once '../app/core/Model.php';      // Base Model
 require_once '../app/helpers/InventorySchema.php'; // Schema Helper
 require_once '../app/helpers/PromotionSchema.php';
 require_once '../app/helpers/ApiClientsSchema.php';
+require_once '../app/helpers/HotelSchema.php';
+require_once '../app/helpers/SystemSchema.php';
+require_once '../app/helpers/QuotationSchema.php';
+require_once '../app/helpers/AccountingSchema.php';
 
 // Ensure schema is up to date on every request
 InventorySchema::ensure();
 PromotionSchema::ensure();
 ApiClientsSchema::ensure();
+HotelSchema::ensure();
+SystemSchema::ensure();
+QuotationSchema::ensure();
+AccountingSchema::ensure();
 
 $init = new App();

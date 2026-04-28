@@ -25,6 +25,7 @@ export function SearchableSelect({
   triggerClassName,
   contentClassName,
   emptyText = "No results",
+  onSearchChange,
 }: {
   value: string | null | undefined;
   onValueChange: (value: string) => void;
@@ -36,6 +37,7 @@ export function SearchableSelect({
   triggerClassName?: string;
   contentClassName?: string;
   emptyText?: string;
+  onSearchChange?: (query: string) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -97,7 +99,11 @@ export function SearchableSelect({
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQuery(val);
+                  onSearchChange?.(val);
+                }}
                 onKeyDown={(e) => e.stopPropagation()}
                 onKeyDownCapture={(e) => e.stopPropagation()}
                 placeholder={searchPlaceholder}

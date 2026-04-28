@@ -21,6 +21,7 @@ import {
   accountingItems,
   productionItems,
   hrmItems,
+  frontOfficeItems,
   type NavItem 
 } from "@/lib/nav-items";
 
@@ -109,6 +110,7 @@ export default function MenuPage() {
     const acc = isModuleAllowed('accounting') ? accountingItems.filter(it => hasPerm(it.perm)) : [];
     const prod = isModuleAllowed('production') ? productionItems.filter(it => hasPerm(it.perm)) : [];
     const hrm = isModuleAllowed('hrm') ? hrmItems.filter(it => hasPerm(it.perm)) : [];
+    const front = isModuleAllowed('frontOffice') ? frontOfficeItems.filter(it => hasPerm(it.perm)) : [];
     const master = isModuleAllowed('masterData') ? masterDataItems.filter((it) => hasPerm(it.perm)) : [];
     const admin = userRole.toLowerCase() === "admin" ? adminNavItems : [];
 
@@ -123,6 +125,7 @@ export default function MenuPage() {
       { title: "Accounting", tone: "bg-amber-600", items: acc },
       { title: "Production", tone: "bg-indigo-600", items: prod },
       { title: "HRM", tone: "bg-rose-600", items: hrm },
+      { title: "Front Office", tone: "bg-violet-600", items: front },
       { title: "Master Data", tone: "bg-zinc-600", items: master },
       { title: "Administration", tone: "bg-slate-700", items: admin },
     ].filter((s) => s.items.length > 0);

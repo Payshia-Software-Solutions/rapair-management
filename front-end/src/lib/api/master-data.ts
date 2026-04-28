@@ -113,6 +113,13 @@ export const fetchCustomerVehicles = async (customerId: string | number) => {
   return data.status === 'success' ? data.data : data;
 };
 
+export const fetchCustomerSummary = async (id: string | number) => {
+  const res = await api(`/api/customer/summary/${id}`);
+  if (!res.ok) throw new Error('Failed to load customer summary');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
 // Categories & Checklists
 export const fetchCategories = async () => {
   const res = await api('/api/category/list');

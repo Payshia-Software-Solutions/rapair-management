@@ -258,12 +258,29 @@ class AccountingSchema {
                         payment_method VARCHAR(50) DEFAULT 'Bank Transfer',
                         reference_no VARCHAR(100) NULL,
                         notes TEXT NULL,
+                        status ENUM('Paid', 'Cancelled') NOT NULL DEFAULT 'Paid',
+                        cancelled_at DATETIME NULL,
+                        cancelled_by INT NULL,
+                        cancellation_reason TEXT NULL,
                         created_by INT NULL,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
                         FOREIGN KEY (grn_id) REFERENCES goods_receive_notes(id) ON DELETE SET NULL
                     )
                 ");
+            } else {
+                // Add status column if missing
+                $stmt = $pdo->query("SHOW COLUMNS FROM acc_supplier_payments LIKE 'status'");
+                if (!$stmt->fetch()) {
+                    $pdo->exec("ALTER TABLE acc_supplier_payments ADD COLUMN status ENUM('Paid', 'Cancelled') NOT NULL DEFAULT 'Paid' AFTER notes");
+                }
+                // Add cancellation columns
+                foreach (['cancelled_at' => "DATETIME NULL", 'cancelled_by' => "INT NULL", 'cancellation_reason' => "TEXT NULL"] as $col => $def) {
+                    $stmt = $pdo->query("SHOW COLUMNS FROM acc_supplier_payments LIKE '$col'");
+                    if (!$stmt->fetch()) {
+                        $pdo->exec("ALTER TABLE acc_supplier_payments ADD COLUMN $col $def");
+                    }
+                }
             }
 
             // Supplier Payment Allocations (Multi-GRN settlement)

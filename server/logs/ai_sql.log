@@ -1,0 +1,1334 @@
+[2026-04-28 22:00:29] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status, 
+  c.name AS customer_name, 
+  p.part_name AS part_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+  JOIN `parts` p ON ii.item_id = p.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status, 
+  c.name, 
+  p.part_name
+ORDER BY 
+  i.issue_date DESC;
+
+Note: The `CURDATE()` function returns the current date, and the `INTERVAL 1 DAY` expression subtracts one day from the current date to get yesterday's date.
+[2026-04-28 22:00:30] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status, 
+  c.name AS customer_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status, 
+  c.name
+ORDER BY 
+  i.issue_date DESC;
+
+Note: I corrected the SQL query to use the correct column names from the schema provided earlier.
+[2026-04-28 22:00:31] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.status
+ORDER BY 
+  i.issue_date DESC;
+
+Note: I corrected the SQL query to use the correct column names from the schema provided earlier. I also removed the `customers` table from the join as it is not necessary to get the sales data for yesterday.
+[2026-04-28 22:00:57] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name AS customer_name, 
+  p.part_name AS part_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+  JOIN `parts` p ON ii.item_id = p.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name, 
+  p.part_name
+ORDER BY 
+  i.issue_date DESC;
+
+Note: The `CURDATE()` function returns the current date, and the `INTERVAL 1 DAY` expression subtracts one day from the current date to get yesterday's date.
+[2026-04-28 22:00:59] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name AS customer_name, 
+  p.part_name AS part_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+  JOIN `parts` p ON ii.item_id = p.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name, 
+  p.part_name
+ORDER BY 
+  i.issue_date DESC;
+
+However, this query may return incorrect results because it's grouping by `i.grand_total`, which is not a column that we want to group by. We should group by the columns that we want to display in the result.
+
+Here's the corrected query:
+
+SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name AS customer_name, 
+  p.part_name AS part_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+  JOIN `parts` p ON ii.item_id = p.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  c.name, 
+  p.part_name
+ORDER BY 
+  i.issue_date DESC;
+
+This query should return the correct results. If it still returns an empty result, it means that there are no invoices issued yesterday.
+[2026-04-28 22:01:33] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name AS customer_name, 
+  p.part_name AS part_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+  JOIN `parts` p ON ii.item_id = p.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name, 
+  p.part_name
+ORDER BY 
+  i.issue_date DESC;
+
+Note: The `CURDATE()` function returns the current date, and the `INTERVAL 1 DAY` expression subtracts one day from the current date to get yesterday's date.
+[2026-04-28 22:01:34] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name AS customer_name, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  c.name
+ORDER BY 
+  i.issue_date DESC;
+
+Note: I removed the `parts` table from the query because it's not necessary to get the sales data for yesterday. Also, I corrected the column names to match the schema provided earlier.
+[2026-04-28 22:01:47] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name AS customer_name, 
+  c.email, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email
+ORDER BY 
+  i.issue_date DESC;
+
+Note: The `CURDATE()` function returns the current date, and the `INTERVAL 1 DAY` expression subtracts one day from the current date to get yesterday's date.
+[2026-04-28 22:01:48] RECEIVED SQL: SELECT 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name AS customer_name, 
+  c.email, 
+  SUM(ii.line_total) AS total_sales
+FROM 
+  `invoices` i
+  JOIN `invoice_items` ii ON i.id = ii.invoice_id
+  JOIN `customers` c ON i.customer_id = c.id
+WHERE 
+  i.issue_date = CURDATE() - INTERVAL 1 DAY
+GROUP BY 
+  i.id, 
+  i.invoice_no, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email
+ORDER BY 
+  i.issue_date DESC;
+
+However, the query may return an empty result if there are no invoices issued yesterday. To verify this, let's try to verify the data by checking the `issue_date` column in the `invoices` table.
+
+
+SELECT 
+  issue_date
+FROM 
+  `invoices`
+WHERE 
+  issue_date = CURDATE() - INTERVAL 1 DAY;
+
+
+If this query returns no results, it means there are no invoices issued yesterday. If it returns results, then the previous query should return the sales data for yesterday.
+
+Please try the above query to verify the data. If you still get an empty result, please let me know and I'll be happy to help further.
+[2026-04-28 22:02:17] RECEIVED SQL: I'll need a bit more information from you to provide a helpful response. Please provide the actual question you'd like to answer, and I'll follow the protocol to provide a well-structured response.
+
+However, I'll provide a general outline of what I'll need to do:
+
+1. Identify the tables needed for the question.
+2. List every column I intend to use from the schema.
+3. Explain my join logic if multiple tables are used.
+4. Write the final MySQL query.
+
+Please provide the question, and I'll get started!
+[2026-04-28 22:02:41] RECEIVED SQL: SELECT 
+  i.id, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email, 
+  pr.amount, 
+  pr.payment_date
+FROM 
+  invoices i
+  JOIN customers c ON i.customer_id = c.id
+  JOIN payment_receipts pr ON i.id = pr.invoice_id
+WHERE 
+  i.status = 'paid';
+[2026-04-28 22:02:42] RECEIVED SQL: SELECT 
+  i.id, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email, 
+  pr.amount, 
+  pr.payment_date
+FROM 
+  invoices i
+  JOIN customers c ON i.customer_id = c.id
+  LEFT JOIN payment_receipts pr ON i.id = pr.invoice_id
+WHERE 
+  i.status = 'paid' AND pr.invoice_id IS NOT NULL;
+
+I made the following changes:
+- Changed the join type from `JOIN` to `LEFT JOIN` to include invoices that do not have a matching payment receipt.
+- Added a condition to the `WHERE` clause to only include invoices that have a matching payment receipt (`pr.invoice_id IS NOT NULL`).
+[2026-04-28 22:02:44] RECEIVED SQL: SELECT 
+  i.id, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email, 
+  pr.amount, 
+  pr.payment_date
+FROM 
+  invoices i
+  JOIN customers c ON i.customer_id = c.id
+  LEFT JOIN payment_receipts pr ON i.id = pr.invoice_id
+WHERE 
+  i.status = 'paid' AND pr.invoice_id IS NOT NULL;
+
+However, I noticed that the `status` column in the `invoices` table is not necessarily related to the payment status. It might be related to the invoice status (e.g., "pending", "paid", "cancelled"). To get the correct results, we need to join the `payment_receipts` table with the `invoices` table based on the `invoice_id` column.
+
+SQL:
+
+SELECT 
+  i.id, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email, 
+  pr.amount, 
+  pr.payment_date
+FROM 
+  invoices i
+  JOIN customers c ON i.customer_id = c.id
+  JOIN payment_receipts pr ON i.id = pr.invoice_id
+WHERE 
+  pr.invoice_id IS NOT NULL;
+
+This query will return all invoices that have a matching payment receipt. If you want to filter the results to only include invoices that have been paid, you can add a condition to the `WHERE` clause:
+
+SELECT 
+  i.id, 
+  i.issue_date, 
+  i.grand_total, 
+  i.paid_amount, 
+  i.status, 
+  c.name, 
+  c.email, 
+  pr.amount, 
+  pr.payment_date
+FROM 
+  invoices i
+  JOIN customers c ON i.customer_id = c.id
+  JOIN payment_receipts pr ON i.id = pr.invoice_id
+WHERE 
+  pr.invoice_id IS NOT NULL AND pr.amount = i.grand_total;
+[2026-04-28 22:14:56] RECEIVED SQL: **  
+
+SELECT 
+    i.`invoice_no`,
+    DATE(i.`issue_date`) AS `issue_date`,
+    c.`name`          AS `customer_name`,
+    i.`grand_total`
+FROM `invoices` AS i
+LEFT JOIN `customers` AS c
+       ON i.`customer_id` = c.`id`
+WHERE DATE(i.`issue_date`) = CURDATE() - INTERVAL 1 DAY
+ORDER BY i.`issue_date`;
+[2026-04-28 22:27:39] RECEIVED SQL: SELECT 
+    i.invoice_no,
+    DATE(i.issue_date) AS issue_date,
+    i.grand_total,
+    c.name AS customer_name
+FROM 
+    `invoices` AS i
+LEFT JOIN 
+    `customers` AS c
+    ON i.customer_id = c.id
+WHERE 
+    DATE(i.issue_date) = CURDATE() - INTERVAL 1 DAY;
+[2026-04-28 22:27:47] RECEIVED SQL: SELECT 
+    i.invoice_no,
+    DATE(i.created_at) AS invoice_date,
+    i.grand_total,
+    c.name AS customer_name
+FROM 
+    `invoices` AS i
+LEFT JOIN 
+    `customers` AS c
+    ON i.customer_id = c.id
+WHERE 
+    DATE(i.created_at) = CURDATE() - INTERVAL 1 DAY;
+[2026-04-28 22:28:06] RECEIVED SQL: SELECT 
+    DATE(COALESCE(i.issue_date, i.created_at)) AS sale_date,
+    COUNT(*)                                 AS invoice_count,
+    SUM(i.grand_total)                       AS total_sales_amount
+FROM 
+    `invoices` AS i
+WHERE 
+    COALESCE(i.issue_date, i.created_at) >= CURDATE() - INTERVAL 1 DAY
+    AND COALESCE(i.issue_date, i.created_at) < CURDATE()
+GROUP BY 
+    DATE(COALESCE(i.issue_date, i.created_at));
+[2026-04-28 22:28:15] RECEIVED SQL: SELECT 
+    DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+    /* Number of invoices for yesterday */
+    (SELECT COUNT(*)
+     FROM `invoices`
+     WHERE DATE(COALESCE(issue_date, created_at)) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    ) AS invoice_count,
+    /* Total sales amount for yesterday */
+    IFNULL(
+        (SELECT SUM(grand_total)
+         FROM `invoices`
+         WHERE DATE(COALESCE(issue_date, created_at)) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        ), 0
+    ) AS total_sales_amount;
+[2026-04-28 22:28:49] RECEIVED SQL: SELECT 
+    DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+    /* Number of payment receipts (sales) for yesterday */
+    (SELECT COUNT(*)
+     FROM `payment_receipts`
+     WHERE DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    ) AS receipt_count,
+    /* Total sales amount for yesterday */
+    IFNULL(
+        (SELECT SUM(`amount`)
+         FROM `payment_receipts`
+         WHERE DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        ), 0
+    ) AS total_sales_amount;
+[2026-04-28 22:29:00] RECEIVED SQL: SELECT 
+    DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+    /* Number of payment receipts (sales) for yesterday */
+    (SELECT COUNT(*)
+     FROM `payment_receipts`
+     WHERE DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    ) AS receipt_count,
+    /* Total sales amount for yesterday */
+    IFNULL(
+        (SELECT SUM(`amount`)
+         FROM `payment_receipts`
+         WHERE DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+        ), 0
+    ) AS total_sales_amount
+FROM (SELECT 1) AS dummy;
+[2026-04-28 22:29:30] RECEIVED SQL: SELECT 
+    DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+    COUNT(*)                               AS receipt_count,
+    IFNULL(SUM(`amount`), 0)               AS total_sales_amount
+FROM 
+    `payment_receipts`
+WHERE 
+    DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+
+UNION ALL
+
+SELECT 
+    DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+    0                                   AS receipt_count,
+    0                                   AS total_sales_amount
+FROM 
+    DUAL
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM `payment_receipts`
+    WHERE DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+);
+[2026-04-28 22:30:13] RECEIVED SQL: SELECT 
+    sale_date,
+    SUM(receipt_count)   AS receipt_count,
+    SUM(total_sales)     AS total_sales_amount
+FROM (
+    /* Real sales for yesterday, if any */
+    SELECT 
+        DATE(`payment_date`) AS sale_date,
+        COUNT(*)            AS receipt_count,
+        IFNULL(SUM(`amount`), 0) AS total_sales
+    FROM 
+        `payment_receipts`
+    WHERE 
+        DATE(`payment_date`) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)
+    GROUP BY 
+        DATE(`payment_date`)
+
+    UNION ALL
+
+    /* Fallback row – guarantees a result */
+    SELECT 
+        DATE_SUB(CURDATE(), INTERVAL 1 DAY) AS sale_date,
+        0                                   AS receipt_count,
+        0                                   AS total_sales
+) AS combined
+GROUP BY 
+    sale_date;
+[2026-04-28 22:31:16] RECEIVED SQL: SELECT 
+    SUM(`grand_total`) AS revenue_last_month
+FROM 
+    `invoices`
+WHERE 
+    YEAR(`issue_date`) = YEAR(CURRENT_DATE - INTERVAL 1 MONTH)
+    AND MONTH(`issue_date`) = MONTH(CURRENT_DATE - INTERVAL 1 MONTH);
+[2026-04-28 22:31:37] RECEIVED SQL: SELECT 
+    SUM(`amount`) AS revenue_last_month
+FROM 
+    `payment_receipts`
+WHERE 
+    YEAR(`payment_date`) = YEAR(CURRENT_DATE - INTERVAL 1 MONTH)
+    AND MONTH(`payment_date`) = MONTH(CURRENT_DATE - INTERVAL 1 MONTH);
+[2026-04-28 22:31:58] RECEIVED SQL: SELECT 
+    SUM(`paid_amount`) AS revenue_last_month
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_FORMAT(CURRENT_DATE - INTERVAL 1 MONTH, '%Y-%m-01')
+    AND `issue_date` < DATE_FORMAT(CURRENT_DATE, '%Y-%m-01');
+[2026-04-28 22:32:16] RECEIVED SQL: SELECT 
+    SUM(`grand_total`) AS revenue_last_month
+FROM 
+    `invoices`
+WHERE 
+    `created_at` >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 1 MONTH)
+    AND `created_at` < DATE_FORMAT(CURRENT_DATE, '%Y-%m-01');
+[2026-04-28 22:32:47] RECEIVED SQL: SELECT 
+    COALESCE(SUM(`paid_amount`), 0) AS revenue_last_month
+FROM 
+    `invoices`
+WHERE 
+    `paid_amount` > 0
+    AND (`status` = 'paid' OR `status` = 'completed' OR `status` = 'settled')
+    AND `issue_date` >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 1 MONTH)
+    AND `issue_date` <  DATE_FORMAT(CURRENT_DATE, '%Y-%m-01');
+[2026-04-28 22:32:59] RECEIVED SQL: SELECT 
+    COALESCE(SUM(`amount`), 0) AS revenue_last_month
+FROM 
+    `payment_receipts`
+WHERE 
+    `created_at` >= DATE_SUB(DATE_FORMAT(CURRENT_DATE, '%Y-%m-01'), INTERVAL 1 MONTH)
+    AND `created_at` <  DATE_FORMAT(CURRENT_DATE, '%Y-%m-01');
+[2026-04-28 22:33:45] RECEIVED SQL: SELECT 
+    COALESCE(SUM(`amount`), 0) AS revenue_last_month
+FROM 
+    `payment_receipts`
+WHERE 
+    `payment_date` >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+    AND `payment_date` <  DATE_FORMAT(CURDATE(), '%Y-%m-01');
+[2026-04-28 22:34:22] RECEIVED SQL: SELECT 
+    IFNULL(SUM(`amount`), 0) AS revenue_last_month
+FROM 
+    `payment_receipts`
+WHERE 
+    DATE(`payment_date`) BETWEEN DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+                            AND LAST_DAY(CURDATE() - INTERVAL 1 MONTH);
+[2026-04-28 22:34:32] RECEIVED SQL: SELECT 
+    IFNULL(
+        (
+            SELECT SUM(`amount`)
+            FROM `payment_receipts`
+            WHERE `created_at` >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+              AND `created_at` <  DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        ),
+        0
+    ) AS revenue_last_month;
+[2026-04-28 22:35:12] RECEIVED SQL: SELECT 
+    IFNULL(
+        (
+            SELECT SUM(`amount`)
+            FROM `payment_receipts`
+            WHERE DATE(`payment_date`) >= DATE_FORMAT(CURDATE() - INTERVAL 1 MONTH, '%Y-%m-01')
+              AND DATE(`payment_date`) <  DATE_FORMAT(CURDATE(), '%Y-%m-01')
+        ),
+        0
+    ) AS revenue_last_month;
+[2026-04-28 22:35:48] RECEIVED SQL: SELECT 
+    COALESCE(SUM(`amount`), 0) AS revenue_last_month
+FROM 
+    `payment_receipts`
+WHERE 
+    `created_at` >= DATE_SUB(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 1 MONTH)
+    AND `created_at` <  DATE_FORMAT(CURDATE(), '%Y-%m-01');
+[2026-04-28 22:37:40] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `price`,
+    `stock_quantity`
+FROM 
+    `parts`
+WHERE 
+    `stock_quantity` > 0
+ORDER BY 
+    `price` DESC
+LIMIT 5;
+[2026-04-28 22:37:59] RECEIVED SQL: SELECT 
+    p.`id`,
+    p.`part_name`,
+    p.`price`,
+    SUM(b.`quantity_on_hand`) AS total_stock
+FROM 
+    `parts` AS p
+JOIN 
+    `inventory_batches` AS b
+    ON p.`id` = b.`part_id`
+WHERE 
+    b.`quantity_on_hand` > 0
+GROUP BY 
+    p.`id`,
+    p.`part_name`,
+    p.`price`
+HAVING 
+    total_stock > 0
+ORDER BY 
+    p.`price` DESC
+LIMIT 5;
+[2026-04-28 22:38:14] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `price`
+FROM 
+    `parts`
+WHERE 
+    `is_active` = 1
+ORDER BY 
+    `price` DESC
+LIMIT 5;
+[2026-04-28 22:38:31] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `price`
+FROM 
+    `parts`
+WHERE 
+    `is_active` = 1          -- optional, ensures the part is active
+ORDER BY 
+    `price` DESC
+LIMIT 5;
+[2026-04-28 22:39:25] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `sku`,
+    `stock_quantity`,
+    `price`,
+    `unit`,
+    `brand_id`,
+    `is_active`
+FROM `parts`
+LIMIT 5;
+[2026-04-28 22:39:45] RECEIVED SQL: SELECT 
+    ib.`id`               AS batch_id,
+    p.`part_name`,
+    p.`sku`,
+    p.`unit`,
+    p.`price`,
+    ib.`batch_number`,
+    ib.`quantity_on_hand`,
+    ib.`location_id`,
+    ib.`expiry_date`,
+    ib.`is_exhausted`
+FROM `inventory_batches` AS ib
+JOIN `parts` AS p
+  ON p.`id` = ib.`part_id`
+WHERE p.`is_active` = 1
+LIMIT 5;
+[2026-04-28 22:39:58] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `sku`,
+    `stock_quantity`,
+    `price`,
+    `unit`,
+    `is_active`
+FROM `parts`
+LIMIT 5;
+[2026-04-28 22:40:17] RECEIVED SQL: SELECT 
+    p.`id`            AS part_id,
+    p.`part_name`,
+    p.`sku`,
+    p.`unit`,
+    p.`price`,
+    SUM(sm.`qty_change`) AS quantity_on_hand,
+    sm.`location_id`
+FROM `stock_movements` AS sm
+JOIN `parts` AS p
+      ON p.`id` = sm.`part_id`
+WHERE p.`is_active` = 1
+GROUP BY p.`id`, p.`part_name`, p.`sku`, p.`unit`, p.`price`, sm.`location_id`
+ORDER BY quantity_on_hand DESC
+LIMIT 5;
+[2026-04-28 22:40:40] RECEIVED SQL: SELECT 
+    `id`,
+    `part_name`,
+    `stock_quantity`,
+    `price`
+FROM 
+    `parts`
+LIMIT 5;
+[2026-04-28 22:40:56] RECEIVED SQL: SELECT 
+    p.`id`,
+    p.`part_name`,
+    b.`quantity_on_hand`,
+    p.`price`
+FROM 
+    `parts` AS p
+JOIN 
+    `inventory_batches` AS b
+    ON p.`id` = b.`part_id`
+WHERE 
+    b.`quantity_on_hand` > 0
+LIMIT 5;
+[2026-04-28 22:41:12] RECEIVED SQL: SELECT 
+    ib.`id`               AS batch_id,
+    ib.`batch_number`,
+    ib.`quantity_on_hand`,
+    p.`part_name`
+FROM 
+    `inventory_batches` AS ib
+LEFT JOIN 
+    `parts` AS p
+    ON ib.`part_id` = p.`id`
+LIMIT 5;
+[2026-04-28 22:41:33] RECEIVED SQL: SELECT 
+    p.`id`            AS part_id,
+    p.`part_name`,
+    p.`price`,
+    SUM(sm.`qty_change`) AS total_quantity
+FROM 
+    `stock_movements` AS sm
+JOIN 
+    `parts` AS p
+    ON sm.`part_id` = p.`id`
+GROUP BY 
+    p.`id`, p.`part_name`, p.`price`
+ORDER BY 
+    total_quantity DESC
+LIMIT 5;
+[2026-04-28 22:45:59] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    c.id,
+    c.name,
+    SUM(i.grand_total) AS total_spent
+FROM `invoices` AS i
+JOIN `customers` AS c
+    ON i.customer_id = c.id
+GROUP BY c.id, c.name
+ORDER BY total_spent DESC;
+[2026-04-28 22:45:59] STEP 2: PREPARING
+[2026-04-28 22:45:59] STEP 3: EXECUTING
+[2026-04-28 22:45:59] STEP 4: SUCCESS, RETURNING 2 ROWS
+[2026-04-28 22:46:46] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    i.customer_id AS customer_id,
+    COALESCE(c.name, 'Unknown Customer') AS customer_name,
+    SUM(i.grand_total) AS total_spent
+FROM `invoices` AS i
+LEFT JOIN `customers` AS c
+    ON i.customer_id = c.id
+WHERE i.customer_id IS NOT NULL
+GROUP BY i.customer_id, c.name
+ORDER BY total_spent DESC;
+[2026-04-28 22:46:46] STEP 2: PREPARING
+[2026-04-28 22:46:46] STEP 3: EXECUTING
+[2026-04-28 22:46:46] STEP 4: SUCCESS, RETURNING 2 ROWS
+[2026-04-28 22:46:51] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    COALESCE(c.id, i.customer_id)        AS customer_id,
+    COALESCE(c.name, 'Unknown Customer') AS customer_name,
+    SUM(i.grand_total)                   AS total_spent
+FROM `invoices` AS i
+LEFT JOIN `customers` AS c
+       ON i.customer_id = c.id
+GROUP BY customer_id, customer_name
+ORDER BY total_spent DESC;
+[2026-04-28 22:46:51] STEP 2: PREPARING
+[2026-04-28 22:46:51] STEP 3: EXECUTING
+[2026-04-28 22:46:51] STEP 4: SUCCESS, RETURNING 2 ROWS
+[2026-04-28 22:47:19] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    COALESCE(c.id, pr.customer_id)        AS customer_id,
+    COALESCE(c.name, pr.customer_name, 'Unknown Customer') AS customer_name,
+    SUM(pr.amount)                         AS total_paid
+FROM `payment_receipts` AS pr
+LEFT JOIN `customers` AS c
+       ON pr.customer_id = c.id
+WHERE pr.amount IS NOT NULL
+GROUP BY customer_id, customer_name
+ORDER BY total_paid DESC;
+[2026-04-28 22:47:19] STEP 2: PREPARING
+[2026-04-28 22:47:19] STEP 3: EXECUTING
+[2026-04-28 22:47:19] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:47:27] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `part_name`,
+    `sku`,
+    `price`,
+    `stock_quantity`
+FROM `parts`
+LIMIT 5;
+[2026-04-28 22:47:27] STEP 2: PREPARING
+[2026-04-28 22:47:27] STEP 3: EXECUTING
+[2026-04-28 22:47:27] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:47:55] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    ib.`id`,
+    ib.`batch_number`,
+    p.`part_name`,
+    p.`sku`,
+    ib.`location_id`,
+    ib.`quantity_on_hand`,
+    ib.`unit_cost`
+FROM `inventory_batches` AS ib
+JOIN `parts` AS p
+  ON ib.`part_id` = p.`id`
+WHERE ib.`quantity_on_hand` > 0
+LIMIT 5;
+[2026-04-28 22:47:55] STEP 2: PREPARING
+[2026-04-28 22:47:55] STEP 3: EXECUTING
+[2026-04-28 22:47:55] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 22:48:32] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `part_name`,
+    `sku`,
+    `price`,
+    `stock_quantity`
+FROM `parts`
+LIMIT 5;
+[2026-04-28 22:48:32] STEP 2: PREPARING
+[2026-04-28 22:48:32] STEP 3: EXECUTING
+[2026-04-28 22:48:32] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:48:41] STEP 1: RECEIVED SQL
+SQL: SELECT
+    `id`,
+    `invoice_id`,
+    `item_id`,
+    `description`,
+    `item_type`,
+    `quantity`,
+    `unit_price`,
+    `line_total`
+FROM `invoice_items`
+LIMIT 5;
+[2026-04-28 22:48:41] STEP 2: PREPARING
+[2026-04-28 22:48:41] STEP 3: EXECUTING
+[2026-04-28 22:48:41] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 22:50:26] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `part_name`,
+    `stock_quantity`,
+    `price`,
+    `sku`,
+    `unit`
+FROM 
+    `parts`
+LIMIT 5;
+[2026-04-28 22:50:26] STEP 2: PREPARING
+[2026-04-28 22:50:26] STEP 3: EXECUTING
+[2026-04-28 22:50:26] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:50:40] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    p.`id`            AS part_id,
+    p.`part_name`,
+    ib.`quantity_on_hand`,
+    p.`price`,
+    p.`sku`,
+    p.`unit`
+FROM 
+    `parts` AS p
+JOIN 
+    `inventory_batches` AS ib
+    ON p.`id` = ib.`part_id`
+WHERE 
+    ib.`quantity_on_hand` > 0
+LIMIT 5;
+[2026-04-28 22:50:40] STEP 2: PREPARING
+[2026-04-28 22:50:40] STEP 3: EXECUTING
+[2026-04-28 22:50:40] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 22:50:52] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    p.`id`   AS part_id,
+    p.`part_name`,
+    SUM(COALESCE(ib.`quantity_on_hand`, 0)) AS total_quantity_on_hand,
+    p.`price`,
+    p.`sku`,
+    p.`unit`
+FROM 
+    `parts` AS p
+LEFT JOIN 
+    `inventory_batches` AS ib
+    ON p.`id` = ib.`part_id`
+GROUP BY 
+    p.`id`,
+    p.`part_name`,
+    p.`price`,
+    p.`sku`,
+    p.`unit`
+LIMIT 5;
+[2026-04-28 22:50:52] STEP 2: PREPARING
+[2026-04-28 22:50:52] STEP 3: EXECUTING
+[2026-04-28 22:50:52] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:51:01] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `part_id`,
+    `quantity_on_hand`,
+    `location_id`,
+    `batch_number`
+FROM 
+    `inventory_batches`
+LIMIT 5;
+[2026-04-28 22:51:01] STEP 2: PREPARING
+[2026-04-28 22:51:01] STEP 3: EXECUTING
+[2026-04-28 22:51:01] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 22:52:32] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `part_name`,
+    `sku`,
+    `stock_quantity`,
+    `price`,
+    `unit`
+FROM `parts`
+LIMIT 5;
+[2026-04-28 22:52:32] STEP 2: PREPARING
+[2026-04-28 22:52:32] STEP 3: EXECUTING
+[2026-04-28 22:52:32] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 22:57:09] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    c.id,
+    c.name,
+    SUM(i.grand_total) AS total_sales
+FROM 
+    `invoices` AS i
+JOIN 
+    `customers` AS c
+    ON i.customer_id = c.id
+GROUP BY 
+    c.id,
+    c.name
+ORDER BY 
+    total_sales DESC
+LIMIT 5;
+[2026-04-28 22:57:09] STEP 2: PREPARING
+[2026-04-28 22:57:09] STEP 3: EXECUTING
+[2026-04-28 22:57:09] STEP 4: SUCCESS, RETURNING 2 ROWS
+[2026-04-28 22:58:00] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    DATE_FORMAT(issue_date, '%Y-%m') AS month,
+    SUM(grand_total) AS revenue
+FROM 
+    `invoices`
+WHERE 
+    status = 'paid'               -- consider only paid invoices (adjust as needed)
+    AND issue_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)   -- last 12 months
+GROUP BY 
+    DATE_FORMAT(issue_date, '%Y-%m')
+ORDER BY 
+    month;
+
+
+**Explanation / Next Steps:**  
+1. **Tables Needed:** `invoices`.  
+2. **Columns Used:** `issue_date`, `grand_total`, `status`.  
+3. The query aggregates the `grand_total` of all *paid* invoices by month for the last year.  
+4. Export the result set (e.g., to CSV) and apply a forecasting technique (simple moving average, linear regression, ARIMA, etc.) in a statistical environment to predict the revenue for the upcoming month.  
+
+*SQL alone cannot generate a reliable forecast; you’ll need to apply a predictive model to the historical revenue data obtained from the query above.*
+[2026-04-28 22:58:00] STEP 2: PREPARING
+[2026-04-28 22:58:00] STEP 3: EXECUTING
+[2026-04-28 22:58:00] STEP 4: SUCCESS, RETURNING 1 ROWS
+[2026-04-28 22:58:24] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `invoice_no`,
+    `issue_date`,
+    `customer_id`,
+    `grand_total`,
+    `paid_amount`,
+    `status`
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND `issue_date` < CURDATE()
+    AND (`paid_amount` < `grand_total` OR `status` <> 'paid');
+[2026-04-28 22:58:24] STEP 2: PREPARING
+[2026-04-28 22:58:24] STEP 3: EXECUTING
+[2026-04-28 22:58:24] STEP 4: SUCCESS, RETURNING 8 ROWS
+[2026-04-28 22:59:46] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    p.part_name,
+    p.stock_quantity,
+    p.reorder_level,
+    SUM(CASE 
+            WHEN sm.qty_change < 0 THEN -sm.qty_change   -- outbound (sale) movement
+            ELSE 0
+        END) AS units_sold_last_30d
+FROM `parts` AS p
+JOIN `stock_movements` AS sm
+    ON p.id = sm.part_id
+WHERE p.is_active = 1
+  AND p.stock_quantity <= p.reorder_level
+  AND sm.created_at >= CURDATE() - INTERVAL 30 DAY
+GROUP BY p.id, p.part_name, p.stock_quantity, p.reorder_level
+HAVING units_sold_last_30d > 0
+ORDER BY units_sold_last_30d DESC;
+[2026-04-28 22:59:46] STEP 2: PREPARING
+[2026-04-28 22:59:46] STEP 3: EXECUTING
+[2026-04-28 22:59:46] STEP 4: SUCCESS, RETURNING 0 ROWS
+[2026-04-28 23:01:06] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    p.`id`,
+    p.`part_name`,
+    p.`stock_quantity`,
+    p.`reorder_level`,
+    SUM(ABS(sm.`qty_change`)) AS recent_movement_qty
+FROM 
+    `parts` AS p
+JOIN 
+    `stock_movements` AS sm
+    ON p.`id` = sm.`part_id`
+WHERE 
+    sm.`created_at` >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)   -- recent period (last 30 days)
+GROUP BY 
+    p.`id`,
+    p.`part_name`,
+    p.`stock_quantity`,
+    p.`reorder_level`
+HAVING 
+    p.`stock_quantity` <= p.`reorder_level`      -- low in stock
+    AND SUM(ABS(sm.`qty_change`)) > 0            -- has movement
+ORDER BY 
+    recent_movement_qty DESC;
+[2026-04-28 23:01:06] STEP 2: PREPARING
+[2026-04-28 23:01:06] STEP 3: EXECUTING
+[2026-04-28 23:01:06] STEP 4: SUCCESS, RETURNING 0 ROWS
+[2026-04-28 23:01:31] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    c.id AS customer_id,
+    c.name AS customer_name,
+    SUM(i.grand_total) AS total_sales
+FROM `invoices` i
+JOIN `customers` c
+    ON i.customer_id = c.id
+GROUP BY c.id, c.name
+ORDER BY total_sales DESC
+LIMIT 5;
+[2026-04-28 23:01:31] STEP 2: PREPARING
+[2026-04-28 23:01:31] STEP 3: EXECUTING
+[2026-04-28 23:01:31] STEP 4: SUCCESS, RETURNING 2 ROWS
+[2026-04-28 23:02:22] STEP 1: RECEIVED SQL
+SQL: Hello! I’m a Senior SQL Analyst — here to help you work with your database. I can:
+
+* **Understand your data needs** – figure out which tables and columns are relevant for a given question.
+* **Write and explain MySQL queries** – including joins, aggregations, window functions, sub‑queries, CTEs, etc.
+* **Translate business questions into SQL** – e.g., “What were total sales per month?” or “Which customers have overdue invoices?”
+* **Optimize queries** – suggest indexes, rewrite queries for better performance, and explain execution plans.
+* **Provide data insights** – calculate KPIs, trends, and summaries directly from the schema you provided.
+* **Help with data modeling** – advise on table design, relationships, and normalization.
+* **Answer questions about the schema** – list columns, describe relationships, and clarify data types.
+
+Just let me know what information you’d like to retrieve or analyze, and I’ll craft the appropriate SQL query for you!
+[2026-04-28 23:03:14] STEP 1: RECEIVED SQL
+SQL: SELECT *
+FROM `invoices`
+ORDER BY `issue_date` DESC
+LIMIT 1;
+[2026-04-28 23:03:14] STEP 2: PREPARING
+[2026-04-28 23:03:14] STEP 3: EXECUTING
+[2026-04-28 23:03:14] STEP 4: SUCCESS, RETURNING 1 ROWS
+[2026-04-28 23:08:44] STEP 1: RECEIVED SQL
+SQL: **
+
+SELECT 
+    c.id            AS customer_id,
+    c.name          AS customer_name,
+    SUM(i.grand_total) AS total_sales
+FROM invoices AS i
+JOIN customers AS c
+    ON i.customer_id = c.id
+GROUP BY c.id, c.name
+ORDER BY total_sales DESC
+LIMIT 5;
+[2026-04-28 23:10:54] STEP 1: RECEIVED SQL
+SQL: **
+
+SELECT
+    id,
+    part_name,
+    sku,
+    price,
+    stock_quantity
+FROM
+    parts
+WHERE
+    is_active = 1               -- only active items
+ORDER BY
+    created_at DESC             -- newest items first
+LIMIT 5;
+[2026-04-28 23:11:48] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    COALESCE(SUM(`grand_total`), 0) AS revenue_last_month
+FROM 
+    `invoices`
+WHERE 
+    YEAR(`issue_date`) = YEAR(CURRENT_DATE - INTERVAL 1 MONTH)
+    AND MONTH(`issue_date`) = MONTH(CURRENT_DATE - INTERVAL 1 MONTH);
+[2026-04-28 23:11:48] STEP 2: PREPARING
+[2026-04-28 23:11:48] STEP 3: EXECUTING
+[2026-04-28 23:11:48] STEP 4: SUCCESS, RETURNING 1 ROWS
+[2026-04-28 23:12:39] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `invoice_no`,
+    `issue_date`,
+    `status`,
+    `paid_amount`,
+    `grand_total`
+FROM `invoices`
+WHERE `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+  AND `issue_date` < CURDATE()
+  AND ( `status` <> 'paid' OR `paid_amount` < `grand_total` );
+[2026-04-28 23:12:39] STEP 2: PREPARING
+[2026-04-28 23:12:39] STEP 3: EXECUTING
+[2026-04-28 23:12:39] STEP 4: SUCCESS, RETURNING 8 ROWS
+[2026-04-28 23:13:31] STEP 1: RECEIVED SQL
+SQL: Hello! How can I assist you with your data today?
+[2026-04-28 23:14:08] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    SUM(`grand_total`) AS forecast_revenue
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_FORMAT(CURRENT_DATE + INTERVAL 1 MONTH, '%Y-%m-01')
+    AND `issue_date` <= LAST_DAY(CURRENT_DATE + INTERVAL 1 MONTH);
+[2026-04-28 23:14:08] STEP 2: PREPARING
+[2026-04-28 23:14:08] STEP 3: EXECUTING
+[2026-04-28 23:14:08] STEP 4: SUCCESS, RETURNING 1 ROWS
+[2026-04-28 23:18:22] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `part_name` AS `Part Name`,
+    `stock_quantity` AS `Stock Level`
+FROM 
+    `parts`
+ORDER BY 
+    `part_name`;
+[2026-04-28 23:18:22] STEP 2: PREPARING
+[2026-04-28 23:18:22] STEP 3: EXECUTING
+[2026-04-28 23:18:22] STEP 4: SUCCESS, RETURNING 4 ROWS
+[2026-04-28 23:28:36] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `invoice_no`,
+    `issue_date`,
+    `grand_total`,
+    `paid_amount`,
+    `status`
+FROM `invoices`
+WHERE `issue_date` >= CURDATE() - INTERVAL 7 DAY
+  AND `issue_date` < CURDATE()
+  AND `paid_amount` < `grand_total`;
+[2026-04-28 23:28:36] STEP 2: PREPARING
+[2026-04-28 23:28:36] STEP 3: EXECUTING
+[2026-04-28 23:28:36] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 23:30:44] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `invoice_no`,
+    `issue_date`,
+    `paid_amount`,
+    `grand_total`,
+    `status`
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND (
+        `paid_amount` < `grand_total`
+        OR `status` <> 'paid'
+    );
+[2026-04-28 23:30:44] STEP 2: PREPARING
+[2026-04-28 23:30:44] STEP 3: EXECUTING
+[2026-04-28 23:30:44] STEP 4: SUCCESS, RETURNING 8 ROWS
+[2026-04-28 23:31:44] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `invoice_no`,
+    `issue_date`,
+    `paid_amount`,
+    `grand_total`,
+    (`grand_total` - `paid_amount`) AS `amount_outstanding`
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND `issue_date` < CURDATE()
+    AND `paid_amount` < `grand_total`;
+[2026-04-28 23:31:44] STEP 2: PREPARING
+[2026-04-28 23:31:44] STEP 3: EXECUTING
+[2026-04-28 23:31:44] STEP 4: SUCCESS, RETURNING 5 ROWS
+[2026-04-28 23:34:50] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `invoice_no`,
+    `issue_date`,
+    `status`,
+    `paid_amount`,
+    `grand_total`
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND `issue_date` < CURDATE()
+    AND (
+        `status` <> 'paid'
+        OR `paid_amount` < `grand_total`
+    );
+[2026-04-28 23:34:50] STEP 2: PREPARING
+[2026-04-28 23:34:50] STEP 3: EXECUTING
+[2026-04-28 23:34:50] STEP 4: SUCCESS, RETURNING 8 ROWS
+[2026-04-28 23:38:35] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    DATE_FORMAT(issue_date, '%Y-%m') AS revenue_month,
+    SUM(grand_total) AS total_revenue
+FROM 
+    `invoices`
+WHERE 
+    issue_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
+GROUP BY 
+    DATE_FORMAT(issue_date, '%Y-%m')
+ORDER BY 
+    revenue_month;
+[2026-04-28 23:38:35] STEP 2: PREPARING
+[2026-04-28 23:38:35] STEP 3: EXECUTING
+[2026-04-28 23:38:35] STEP 4: SUCCESS, RETURNING 1 ROWS
+[2026-04-28 23:40:24] STEP 1: RECEIVED SQL
+SQL: THOUGHTS:**  
+- **Tables Needed:** `invoices`  
+- **Column Lookup Checklist:** `issue_date`, `grand_total` (both exist in `invoices`)  
+- **Reasoning:** Daily sales are derived from the total amount of each invoice (`grand_total`). We group invoices by the calendar date of `issue_date` for the month of April (using the current year 2026). To show the day‑over‑day growth, we calculate the percentage change between each day’s total and the previous day’s total with the `LAG` window function.
+
+**SQL**
+
+WITH daily_sales AS (
+    SELECT 
+        DATE(`issue_date`) AS `sale_date`,
+        SUM(`grand_total`)   AS `daily_total`
+    FROM `invoices`
+    WHERE MONTH(`issue_date`) = 4
+      AND YEAR(`issue_date`)  = 2026
+    GROUP BY DATE(`issue_date`)
+)
+
+SELECT 
+    `sale_date`,
+    `daily_total`,
+    ROUND(
+        ( `daily_total` - LAG(`daily_total`) OVER (ORDER BY `sale_date`) )
+        / NULLIF( LAG(`daily_total`) OVER (ORDER BY `sale_date`), 0 ) * 100,
+        2
+    ) AS `growth_percent`
+FROM daily_sales
+ORDER BY `sale_date`;
+[2026-04-28 23:41:35] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    DATE(`issue_date`) AS `invoice_date`,
+    COUNT(*)               AS `invoice_count`,
+    SUM(`subtotal`)        AS `total_subtotal`,
+    SUM(`tax_total`)       AS `total_tax`,
+    SUM(`discount_total`) AS `total_discount`,
+    SUM(`grand_total`)     AS `total_grand`,
+    SUM(`paid_amount`)     AS `total_paid`
+FROM `invoices`
+WHERE MONTH(`issue_date`) = 4
+GROUP BY DATE(`issue_date`)
+ORDER BY `invoice_date`;
+[2026-04-28 23:41:35] STEP 2: PREPARING
+[2026-04-28 23:41:35] STEP 3: EXECUTING
+[2026-04-28 23:41:35] STEP 4: SUCCESS, RETURNING 9 ROWS
+[2026-04-28 23:43:25] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `applied_promotion_id`,
+    `applied_promotion_name`,
+    COUNT(*) AS `invoice_count`,
+    SUM(`discount_total`) AS `total_discount`,
+    SUM(`grand_total`) AS `total_sales`
+FROM `invoices`
+WHERE `applied_promotion_id` IS NOT NULL
+GROUP BY 
+    `applied_promotion_id`,
+    `applied_promotion_name`
+ORDER BY `invoice_count` DESC;
+[2026-04-28 23:43:25] STEP 2: PREPARING
+[2026-04-28 23:43:25] STEP 3: EXECUTING
+[2026-04-28 23:43:25] STEP 4: SUCCESS, RETURNING 3 ROWS
+[2026-04-28 23:53:22] STEP 1: RECEIVED SQL
+SQL: SELECT 
+    `id`,
+    `invoice_no`,
+    `issue_date`,
+    `grand_total`,
+    `paid_amount`,
+    `status`
+FROM 
+    `invoices`
+WHERE 
+    `issue_date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+    AND `issue_date` < CURDATE()
+    AND (
+        `paid_amount` < `grand_total`
+        OR LOWER(`status`) <> 'paid'
+    );
+[2026-04-28 23:53:22] STEP 2: PREPARING
+[2026-04-28 23:53:22] STEP 3: EXECUTING
+[2026-04-28 23:53:22] STEP 4: SUCCESS, RETURNING 8 ROWS

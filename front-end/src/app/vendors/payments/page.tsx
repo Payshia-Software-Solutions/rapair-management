@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { fetchSupplierPayments, postSupplierPayment, fetchSuppliers } from "@/lib/api";
+import { fetchSupplierPayments, postSupplierPayment, fetchSuppliers, cancelSupplierPayment } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -10,8 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Receipt, Plus, Loader2, Banknote, CreditCard, Building2, Calendar, ArrowRight } from "lucide-react";
+import { Search, Receipt, Plus, Loader2, Banknote, CreditCard, Building2, Calendar, ArrowRight, ArrowUpRight, Printer, MoreVertical, FileText, XCircle, AlertCircle } from "lucide-react";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
+} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { DataTablePagination } from "@/components/data-table-pagination";
 
 const METHOD_ICON: Record<string, React.ReactNode> = {
   Cash: <Banknote className="w-3 h-3" />,
@@ -27,6 +36,14 @@ export default function VendorPaymentsPage() {
   const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Cancellation State
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancellingPayment, setCancellingPayment] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -40,6 +57,27 @@ export default function VendorPaymentsPage() {
     }
   };
 
+  const handleCancelPayment = async () => {
+    if (!cancellingPayment || !cancelReason.trim()) {
+        toast({ title: "Reason Required", description: "Please provide a reason for cancellation", variant: "destructive" });
+        return;
+    }
+
+    setIsCancelling(true);
+    try {
+        await cancelSupplierPayment(cancellingPayment.id, cancelReason);
+        toast({ title: "Cancelled", description: `Payment to ${cancellingPayment.supplier_name} has been cancelled.` });
+        setIsCancelDialogOpen(false);
+        setCancelReason("");
+        setCancellingPayment(null);
+        await load();
+    } catch (e: any) {
+        toast({ title: "Cancellation Failed", description: e.message, variant: "destructive" });
+    } finally {
+        setIsCancelling(false);
+    }
+  };
+
   useEffect(() => { load(); }, [fromDate, toDate]);
 
   const filtered = payments.filter(p =>
@@ -48,9 +86,16 @@ export default function VendorPaymentsPage() {
     p.reference_no?.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search]);
+
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 w-full">
+      <div className="p-4 sm:p-6 space-y-4 w-full">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -104,10 +149,11 @@ export default function VendorPaymentsPage() {
                     <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Method</th>
                     <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Reference</th>
                     <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Amount (LKR)</th>
+                    <th className="w-10 px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((p, idx) => (
+                  {paginated.map((p, idx) => (
                     <tr key={p.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
                       <td className="px-4 py-3 text-muted-foreground">{new Date(p.payment_date).toLocaleDateString('en-GB')}</td>
                       <td className="px-4 py-3 font-bold text-primary">{p.supplier_name}</td>
@@ -119,11 +165,44 @@ export default function VendorPaymentsPage() {
                       </td>
                       <td className="px-4 py-3 font-mono text-xs">{p.reference_no || '-'}</td>
                       <td className="px-4 py-3 text-right font-black tabular-nums">{Number(p.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg opacity-60 hover:opacity-100">
+                              <Printer className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Print Options</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem className="gap-2 font-bold text-xs" onClick={() => window.open(`/vendors/payments/print/${p.id}?format=voucher`, '_blank')}>
+                              <FileText className="w-4 h-4 text-primary" /> Payment Voucher
+                            </DropdownMenuItem>
+                            {p.payment_method === 'Cheque' && (
+                              <DropdownMenuItem className="gap-2 font-bold text-xs" onClick={() => window.open(`/vendors/payments/print/${p.id}?format=cheque`, '_blank')}>
+                                <CreditCard className="w-4 h-4 text-rose-500" /> Bank Cheque
+                              </DropdownMenuItem>
+                            )}
+                            {p.payment_method === 'TT' && (
+                              <DropdownMenuItem className="gap-2 font-bold text-xs" onClick={() => window.open(`/vendors/payments/print/${p.id}?format=tt`, '_blank')}>
+                                <ArrowUpRight className="w-4 h-4 text-blue-500" /> TT Instruction Letter
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+            <DataTablePagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
       </div>

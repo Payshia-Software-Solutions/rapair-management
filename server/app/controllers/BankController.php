@@ -68,4 +68,17 @@ class BankController extends Controller {
             $this->json(['status' => 'error', 'message' => 'Failed to delete bank'], 500);
         }
     }
+
+    // POST /api/bank/sync
+    public function sync() {
+        try {
+            $newBranchesCount = $this->model->syncFromInternet();
+            $this->json([
+                'status' => 'success', 
+                'message' => "Synchronization complete. Imported $newBranchesCount new branch records."
+            ]);
+        } catch (Exception $e) {
+            $this->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }

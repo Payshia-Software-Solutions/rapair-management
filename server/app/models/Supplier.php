@@ -169,8 +169,19 @@ class Supplier extends Model {
         $this->db->bind(':sid', $sid);
         $grns = $this->db->resultSet();
 
+        // 3. Get Unallocated Payments (Advances)
+        $this->db->query("
+            SELECT SUM(p.amount - COALESCE((SELECT SUM(amount) FROM acc_supplier_payment_allocations WHERE payment_id = p.id), 0)) as advance_balance
+            FROM acc_supplier_payments p
+            WHERE p.supplier_id = :sid
+        ");
+        $this->db->bind(':sid', $sid);
+        $advRes = $this->db->single();
+        $advanceBalance = (float)($advRes->advance_balance ?? 0);
+
         return (object)[
             'total_payable' => $totalBalance,
+            'advance_balance' => $advanceBalance,
             'outstanding_grns' => $grns
         ];
     }

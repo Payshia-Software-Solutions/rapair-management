@@ -8,15 +8,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { fetchGrns, type GrnRow } from "@/lib/api";
-import { AlertCircle, Loader2, PackageCheck, Plus, Search, Printer } from "lucide-react";
+import { fetchGrns, type GrnRow, cancelGrn } from "@/lib/api";
+import { 
+    AlertCircle, 
+    Loader2, 
+    PackageCheck, 
+    Plus, 
+    Search, 
+    Printer, 
+    XCircle, 
+    MoreVertical 
+} from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+    Dialog, 
+    DialogContent, 
+    DialogDescription, 
+    DialogFooter, 
+    DialogHeader, 
+    DialogTitle 
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { 
+    DropdownMenu, 
+    DropdownMenuContent, 
+    DropdownMenuItem, 
+    DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 
 export default function GrnPage() {
   const { toast } = useToast();
   const [rows, setRows] = useState<GrnRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+
+  // Cancellation State
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancellingGrn, setCancellingGrn] = useState<GrnRow | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -50,6 +80,27 @@ export default function GrnPage() {
   const onPrint = (id: number) => {
     const url = `/inventory/grn/print/${encodeURIComponent(String(id))}?autoprint=1`;
     window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const handleCancelGrn = async () => {
+    if (!cancellingGrn || !cancelReason.trim()) {
+        toast({ title: "Reason Required", description: "Please provide a reason for cancellation", variant: "destructive" });
+        return;
+    }
+
+    setIsCancelling(true);
+    try {
+        await cancelGrn(cancellingGrn.id, cancelReason);
+        toast({ title: "Cancelled", description: `GRN ${cancellingGrn.grn_number} has been cancelled.` });
+        setIsCancelDialogOpen(false);
+        setCancelReason("");
+        setCancellingGrn(null);
+        await load();
+    } catch (e: any) {
+        toast({ title: "Cancellation Failed", description: e.message, variant: "destructive" });
+    } finally {
+        setIsCancelling(false);
+    }
   };
 
   return (
@@ -142,9 +193,11 @@ export default function GrnPage() {
                         {g.received_at ? new Date(String(g.received_at).replace(" ", "T")).toLocaleString() : "-"}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => onPrint(g.id)} title="Print">
-                          <Printer className="w-4 h-4" />
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary" onClick={() => onPrint(g.id)} title="Print">
+                                <Printer className="w-4 h-4" />
+                            </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
