@@ -1,31 +1,60 @@
 <?php
-require 'app/helpers/InventorySchema.php';
-require 'app/core/Database.php';
+require_once dirname(__FILE__) . '/../config/config.php';
+require_once dirname(__FILE__) . '/../app/core/Database.php';
 
-// Define DB constants (adjust if needed, but these are typical for XAMPP)
-if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
-if (!defined('DB_NAME')) define('DB_NAME', 'repair_management_db');
-if (!defined('DB_USER')) define('DB_USER', 'root');
-if (!defined('DB_PASS')) define('DB_PASS', '');
+$db = new Database();
+$res = $db->rawQuery("SHOW TABLES");
+$tables = $res->fetchAll(PDO::FETCH_COLUMN);
 
-try {
-    $dsn = 'mysql:host=' . DB_HOST . ';dbname=' . DB_NAME;
-    $pdo = new PDO($dsn, DB_USER, DB_PASS);
-    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
-    echo "Checking stock_transfer_items table...\n";
-    
-    // Explicitly add batch_id if missing
-    $stmt = $pdo->prepare("SHOW COLUMNS FROM stock_transfer_items LIKE 'batch_id'");
-    $stmt->execute();
-    if (!$stmt->fetch()) {
-        echo "Adding batch_id column...\n";
-        $pdo->exec("ALTER TABLE stock_transfer_items ADD COLUMN batch_id INT NULL AFTER part_id");
-        $pdo->exec("ALTER TABLE stock_transfer_items ADD INDEX idx_sti_batch (batch_id)");
-        echo "Success!\n";
-    } else {
-        echo "batch_id column already exists.\n";
+$newSchema = [];
+foreach ($tables as $table) {
+    $tableInfo = [
+        'name' => $table,
+        'columns' => [],
+        'indexes' => []
+    ];
+    // Columns
+    $resCol = $db->rawQuery("DESCRIBE `$table` ");
+    while ($c = $resCol->fetch(PDO::FETCH_ASSOC)) {
+        $tableInfo['columns'][$c['Field']] = $c;
     }
-} catch (Exception $e) {
-    echo "ERROR: " . $e->getMessage() . "\n";
+    // Indexes
+    try {
+        $resIdx = $db->rawQuery("SHOW INDEX FROM `$table` ");
+        while ($i = $resIdx->fetch(PDO::FETCH_ASSOC)) {
+            $key = $i['Key_name'];
+            if (!isset($tableInfo['indexes'][$key])) {
+                $tableInfo['indexes'][$key] = [
+                    'Key_name' => $key,
+                    'Non_unique' => $i['Non_unique'],
+                    'Columns' => []
+                ];
+            }
+            $tableInfo['indexes'][$key]['Columns'][] = $i['Column_name'];
+        }
+    } catch (Exception $e) {
+        // Some views might not have indexes
+    }
+    $newSchema[$table] = $tableInfo;
+}
+
+ksort($newSchema);
+
+$code = "<?php\n\nclass SchemaDefinition {\n    public static function get() {\n        return " . var_export($newSchema, true) . ";\n    }\n}\n";
+$filePath = dirname(__FILE__) . '/../app/core/SchemaDefinition.php';
+$jsonPath = dirname(__FILE__) . '/../app/core/schema_snapshot.json';
+
+$success = true;
+if (file_put_contents($filePath, $code)) {
+    echo "SUCCESS: Updated SchemaDefinition.php with " . count($newSchema) . " tables.\n";
+} else {
+    echo "ERROR: Failed to write SchemaDefinition.php\n";
+    $success = false;
+}
+
+if (file_put_contents($jsonPath, json_encode($newSchema, JSON_PRETTY_PRINT))) {
+    echo "SUCCESS: Updated schema_snapshot.json with " . count($newSchema) . " tables.\n";
+} else {
+    echo "ERROR: Failed to write schema_snapshot.json\n";
+    $success = false;
 }

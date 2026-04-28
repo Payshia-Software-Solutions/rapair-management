@@ -49,5 +49,125 @@ class SystemSchema {
             $stmt = $pdo->prepare("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES (:k, :v)");
             $stmt->execute([':k' => $key, ':v' => $val]);
         }
+
+        // 3. SMS Marketing Tables
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS sms_campaigns (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                message TEXT NOT NULL,
+                target_segment VARCHAR(50) DEFAULT 'all',
+                status ENUM('Draft', 'Sent', 'Cancelled') DEFAULT 'Draft',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                sent_at TIMESTAMP NULL
+            )
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS sms_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                campaign_id INT NULL,
+                customer_id INT NULL,
+                recipient VARCHAR(20) NOT NULL,
+                message TEXT NOT NULL,
+                status ENUM('Success', 'Failed') DEFAULT 'Success',
+                error_message TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        // 4. Segmentation Tables
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS customer_segments (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(100) NOT NULL,
+                description TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS segment_contacts (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                segment_id INT NOT NULL,
+                name VARCHAR(100),
+                phone VARCHAR(20) NOT NULL,
+                email VARCHAR(100),
+                FOREIGN KEY (segment_id) REFERENCES customer_segments(id) ON DELETE CASCADE
+            )
+        ");
+
+        // 5. Email Marketing Tables
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS email_campaigns (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                subject VARCHAR(255) NOT NULL,
+                content LONGTEXT NOT NULL,
+                target_segment VARCHAR(50) DEFAULT 'all',
+                status ENUM('Draft', 'Queued', 'Processing', 'Sent', 'Failed') DEFAULT 'Draft',
+                sent_at DATETIME NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        // Ensure status column includes 'Queued' and 'Processing' for background tasks
+        try {
+            $pdo->exec("ALTER TABLE email_campaigns MODIFY COLUMN status ENUM('Draft', 'Queued', 'Processing', 'Sent', 'Failed') DEFAULT 'Draft'");
+        } catch (Exception $e) {
+            // Might fail if column doesn't exist yet, which is fine since CREATE TABLE handles it
+        }
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS email_queue (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                campaign_id INT NOT NULL,
+                customer_id INT NULL,
+                recipient_email VARCHAR(255) NOT NULL,
+                recipient_name VARCHAR(255),
+                subject VARCHAR(255) NOT NULL,
+                content LONGTEXT NOT NULL,
+                status ENUM('Pending', 'Processing', 'Sent', 'Failed') DEFAULT 'Pending',
+                error_message TEXT,
+                attempts INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                processed_at TIMESTAMP NULL,
+                FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS email_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                subject VARCHAR(255),
+                content LONGTEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS email_logs (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                campaign_id INT,
+                customer_id INT,
+                recipient VARCHAR(255) NOT NULL,
+                subject VARCHAR(255),
+                status ENUM('Success', 'Failed') DEFAULT 'Success',
+                error_message TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+
+        // 6. Marketing Media
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS marketing_media (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                filename VARCHAR(255) NOT NULL,
+                url VARCHAR(500) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
     }
 }

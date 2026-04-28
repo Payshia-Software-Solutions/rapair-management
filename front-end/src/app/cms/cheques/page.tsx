@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Search, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, Building2, Layers } from "lucide-react";
+import { DataTablePagination } from "@/components/data-table-pagination";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   Pending:   { label: "Pending",   color: "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400",   icon: <Clock className="w-3 h-3" /> },
@@ -27,6 +28,8 @@ export default function ChequesPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   // Selection
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -60,6 +63,13 @@ export default function ChequesPage() {
     c.customer_name?.toLowerCase().includes(search.toLowerCase()) ||
     c.receipt_no?.toLowerCase().includes(search.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  const paginated = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, statusFilter]);
 
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -97,7 +107,7 @@ export default function ChequesPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-6 space-y-6 w-full relative min-h-[calc(100vh-4rem)]">
+      <div className="p-4 sm:p-6 space-y-4 w-full relative min-h-[calc(100vh-4rem)]">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
@@ -174,7 +184,7 @@ export default function ChequesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((c, idx) => {
+                  {paginated.map((c, idx) => {
                     const currentStatus = c.status || 'Pending';
                     const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['Pending'];
                     const isSelected = selectedIds.includes(c.id);
@@ -219,6 +229,13 @@ export default function ChequesPage() {
                 </tbody>
               </table>
             )}
+            <DataTablePagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filtered.length}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
 

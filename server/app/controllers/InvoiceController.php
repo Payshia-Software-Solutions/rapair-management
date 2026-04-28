@@ -279,6 +279,40 @@ class InvoiceController extends Controller {
         }
     }
 
+    public function cancel($id = null) {
+        $u = $this->requirePermission('invoices.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        if (!$id) {
+            $this->error('Invoice ID required', 400);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $reason = $data['reason'] ?? 'Cancelled by user';
+
+        if ($this->invoiceModel->cancel($id, $reason, $u['sub'])) {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'action' => 'cancel',
+                'entity' => 'invoice',
+                'entity_id' => (int)$id,
+                'method' => 'POST',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['reason' => $reason]),
+            ]);
+            $this->success(null, 'Invoice cancelled successfully');
+        } else {
+            $this->error('Failed to cancel invoice');
+        }
+    }
+
     private function generateInvoiceNo() {
         $db = new Database();
         $db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = 'INV' FOR UPDATE");

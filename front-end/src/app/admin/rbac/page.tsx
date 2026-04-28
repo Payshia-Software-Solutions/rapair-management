@@ -26,44 +26,101 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 type RoleRow = { id: number; name: string; created_at: string };
 type PermRow = { id: number; perm_key: string; description: string | null };
 
-const basePagePermissionMatrix: Array<{ page: string; read: string; write?: string }> = [
-  // Core workflow
-  { page: "Orders (Queue / Active / Completed)", read: "orders.read", write: "orders.write" },
-  { page: "Create Order", read: "orders.write" },
+type PermMatrixRow = { module: string; page: string; read: string; write?: string };
 
-  // Master data
-  { page: "Vehicles", read: "vehicles.read", write: "vehicles.write" },
-  { page: "Vehicle Makes", read: "makes.read", write: "makes.write" },
-  { page: "Vehicle Models", read: "models.read", write: "models.write" },
-  { page: "Service Bays", read: "bays.read", write: "bays.write" },
-  { page: "Bays Board", read: "bays.read" },
-  { page: "Technicians", read: "technicians.read", write: "technicians.write" },
-  { page: "Repair Categories", read: "categories.read", write: "categories.write" },
-  { page: "Checklist Items", read: "checklists.read", write: "checklists.write" },
-  { page: "Units", read: "units.read", write: "units.write" },
-  { page: "Brands", read: "brands.read", write: "brands.write" },
-  { page: "Taxes", read: "taxes.read", write: "taxes.write" },
-  { page: "Departments", read: "departments.read", write: "departments.write" },
+const basePagePermissionMatrix: PermMatrixRow[] = [
+  // Service Center
+  { module: "Service Center", page: "Orders (Queue / Dashboard)", read: "orders.read", write: "orders.write" },
+  { module: "Service Center", page: "Active Jobs & Completed", read: "orders.read", write: "orders.write" },
+  { module: "Service Center", page: "Service Bays & Board", read: "bays.read", write: "bays.write" },
+  { module: "Service Center", page: "Technicians Management", read: "technicians.read", write: "technicians.write" },
+  { module: "Service Center", page: "Vehicles List & History", read: "vehicles.read", write: "vehicles.write" },
+  { module: "Service Center", page: "Repair Categories", read: "categories.read", write: "categories.write" },
+  { module: "Service Center", page: "Checklist Repository", read: "checklists.read", write: "checklists.write" },
 
-  // Locations / company
-  { page: "Locations", read: "locations.read", write: "locations.write" },
-  { page: "Company Details", read: "company.write" }, // view is open to authenticated users; edit is controlled by company.write
+  // Inventory & Vendors
+  { module: "Inventory", page: "Item Master (Parts/Products)", read: "parts.read", write: "parts.write" },
+  { module: "Inventory", page: "Stock Balance & Movements", read: "stock.read", write: "stock.adjust" },
+  { module: "Inventory", page: "Stock Adjustments", read: "stock.read", write: "stock.adjust" },
+  { module: "Inventory", page: "Purchase Orders", read: "purchase.read", write: "purchase.write" },
+  { module: "Inventory", page: "Goods Receive Note (GRN)", read: "grn.read", write: "grn.write" },
+  { module: "Inventory", page: "Supplier Management", read: "suppliers.read", write: "suppliers.write" },
+  { module: "Inventory", page: "Vendor Payments & Vouchers", read: "suppliers.read", write: "accounting.write" },
+  { module: "Inventory", page: "Supplier Returns", read: "suppliers.read", write: "suppliers.write" },
+  { module: "Inventory", page: "Stock Requisitions & Transfers", read: "transfer.read", write: "transfer.write" },
 
-  // Inventory
-  { page: "Items (Parts)", read: "parts.read", write: "parts.write" },
-  { page: "Suppliers", read: "suppliers.read", write: "suppliers.write" },
-  { page: "Purchase Orders", read: "purchase.read", write: "purchase.write" },
-  { page: "Goods Receive Notes (GRN)", read: "grn.read", write: "grn.write" },
-  { page: "Banks & Branches", read: "banks.read", write: "banks.write" },
-  { page: "Stock (Balances / Movements)", read: "stock.read", write: "stock.adjust" },
-  { page: "Stock Requests / Transfers", read: "transfer.read", write: "transfer.write" },
+  // Sales & CRM
+  { module: "Sales & CRM", page: "Customer 360 (Profiles)", read: "customers.read", write: "customers.write" },
+  { module: "Sales & CRM", page: "Customer Vehicles", read: "vehicles.read", write: "vehicles.write" },
+  { module: "Sales & CRM", page: "Quotations (Create / Manage)", read: "sales.read", write: "sales.create" },
+  { module: "Sales & CRM", page: "Quotations (Update Status)", read: "sales.read", write: "sales.update" },
+  { module: "Sales & CRM", page: "Invoices & Online Orders", read: "invoices.read", write: "invoices.write" },
+  { module: "Sales & CRM", page: "POS (Point of Sale)", read: "pos.read", write: "pos.write" },
+  { module: "Sales & CRM", page: "Online Orders Dashboard", read: "invoices.read", write: "invoices.write" },
+  { module: "Sales & CRM", page: "Payment Receipts History", read: "payments.read", write: "payments.write" },
+  { module: "Sales & CRM", page: "Cheque Inventory Tracking", read: "payments.read", write: "payments.write" },
+  { module: "Sales & CRM", page: "Sales Returns & Refunds", read: "sales.read", write: "sales.write" },
 
-  // Reports
-  { page: "Reports", read: "reports.read" },
+  // Accounting
+  { module: "Accounting", page: "Financial Dashboard", read: "accounting.read" },
+  { module: "Accounting", page: "Chart of Accounts", read: "accounting.read", write: "accounting.write" },
+  { module: "Accounting", page: "Journal Entries", read: "accounting.read", write: "accounting.write" },
+  { module: "Accounting", page: "Expense Management", read: "accounting.read", write: "accounting.write" },
+  { module: "Accounting", page: "Bank Reconciliation", read: "accounting.reconcile", write: "accounting.write" },
+  { module: "Accounting", page: "Trial Balance & Trial Balance", read: "accounting.read" },
+  { module: "Accounting", page: "Balance Sheet & P&L", read: "accounting.read" },
+  { module: "Accounting", page: "Fiscal Years & Periods", read: "fiscal.read", write: "fiscal.write" },
+
+  // HRM
+  { module: "HRM", page: "Employee Management", read: "hrm.read", write: "hrm.write" },
+  { module: "HRM", page: "Attendance Tracking", read: "hrm.read", write: "attendance.write" },
+  { module: "HRM", page: "Leave Management", read: "hrm.read", write: "leave.write" },
+  { module: "HRM", page: "Payroll Processing", read: "hrm.read", write: "payroll.write" },
+  { module: "HRM", page: "HR Document Management", read: "hrm.read", write: "hrm.write" },
+  { module: "HRM", page: "Staff Groups & Schemes", read: "hrm.read", write: "hrm.write" },
+
+  // Production
+  { module: "Production", page: "Bill of Materials (BOM)", read: "production.read", write: "production.write" },
+  { module: "Production", page: "Production Orders Workflow", read: "production.read", write: "production.write" },
+
+  // Marketing
+  { module: "Marketing", page: "SMS & Email Marketing", read: "promotions.read", write: "promotions.write" },
+  { module: "Marketing", page: "Audience Segments", read: "promotions.read", write: "promotions.write" },
+  { module: "Marketing", page: "Promotions & Campaigns", read: "promotions.read", write: "promotions.write" },
+
+  // Front Office
+  { module: "Front Office", page: "Room Rack & Occupancy", read: "orders.read", write: "orders.write" },
+  { module: "Front Office", page: "Reservations Management", read: "orders.read", write: "orders.write" },
+  { module: "Front Office", page: "Room Rates & Types", read: "parts.read", write: "parts.write" },
+
+  // Master Data
+  { module: "Master Data", page: "Brands Master", read: "brands.read", write: "brands.write" },
+  { module: "Master Data", page: "Vehicle Makes", read: "makes.read", write: "makes.write" },
+  { module: "Master Data", page: "Vehicle Models", read: "models.read", write: "models.write" },
+  { module: "Master Data", page: "Units of Measure", read: "units.read", write: "units.write" },
+  { module: "Master Data", page: "Tax Configurations", read: "taxes.read", write: "taxes.write" },
+  { module: "Master Data", page: "Department Master", read: "departments.read", write: "departments.write" },
+  { module: "Master Data", page: "Bank Master Data", read: "banks.read", write: "banks.write" },
+  { module: "Master Data", page: "Product Collections", read: "parts.read", write: "parts.write" },
+  { module: "Master Data", page: "Restaurant Tables", read: "bays.read", write: "bays.write" },
+
+  // Admin & Settings
+  { module: "Admin & Settings", page: "Locations Management", read: "locations.read", write: "locations.write" },
+  { module: "Admin & Settings", page: "Company & System Config", read: "company.write", write: "settings.write" },
+  { module: "Admin & Settings", page: "Shipping & Logistics", read: "locations.read", write: "locations.write" },
+  { module: "Admin & Settings", page: "User Management", read: "users.read", write: "users.write" },
+  { module: "Admin & Settings", page: "RBAC Roles & Permissions", read: "rbac.read", write: "rbac.write" },
+  { module: "Admin & Settings", page: "Reports & Analytics", read: "reports.read" },
 ];
 
 export default function RbacPage() {
@@ -93,11 +150,20 @@ export default function RbacPage() {
     return s;
   }, []);
 
-  const pagePermissionMatrix = useMemo<Array<{ page: string; read: string; write?: string }>>(() => {
+  const pagePermissionMatrix = useMemo<PermMatrixRow[]>(() => {
     // Bring any "advanced" permission keys into the same table automatically.
     const extras = perms
       .filter((p) => !matrixKeys.has(p.perm_key))
-      .map((p) => ({ page: p.perm_key, read: p.perm_key as string, write: undefined }));
+      .map((p) => {
+        // Simple heuristic: if key contains .write/create/update, it's a write permission
+        const isWriteKey = p.perm_key.includes('.write') || p.perm_key.includes('.create') || p.perm_key.includes('.update');
+        return { 
+          module: "Other / Advanced", 
+          page: p.perm_key, 
+          read: isWriteKey ? (p.perm_key.split('.')[0] + '.read') : p.perm_key, 
+          write: isWriteKey ? p.perm_key : undefined 
+        };
+      });
     return [...basePagePermissionMatrix, ...extras];
   }, [perms, matrixKeys]);
 
@@ -105,10 +171,44 @@ export default function RbacPage() {
     const q = filter.trim().toLowerCase();
     if (!q) return pagePermissionMatrix;
     return pagePermissionMatrix.filter((row) => {
-      const hay = `${row.page} ${row.read} ${row.write ?? ""}`.toLowerCase();
+      const hay = `${row.module} ${row.page} ${row.read} ${row.write ?? ""}`.toLowerCase();
       return hay.includes(q);
     });
   }, [pagePermissionMatrix, filter]);
+
+  const groupedMatrix = useMemo(() => {
+    const groups: Record<string, PermMatrixRow[]> = {};
+    filteredMatrix.forEach(row => {
+      if (!groups[row.module]) groups[row.module] = [];
+      groups[row.module].push(row);
+    });
+    return groups;
+  }, [filteredMatrix]);
+
+  const toggleModule = (moduleName: string, checked: boolean) => {
+    const rows = groupedMatrix[moduleName];
+    if (!rows) return;
+    
+    setRoleKeys(prev => {
+      const next = new Set(prev);
+      rows.forEach(row => {
+        if (checked) {
+          next.add(row.read);
+          if (row.write) next.add(row.write);
+        } else {
+          next.delete(row.read);
+          if (row.write) next.delete(row.write);
+        }
+      });
+      return next;
+    });
+  };
+
+  const isModuleSelected = (moduleName: string) => {
+    const rows = groupedMatrix[moduleName];
+    if (!rows || rows.length === 0) return false;
+    return rows.every(row => roleKeys.has(row.read) && (!row.write || roleKeys.has(row.write)));
+  };
 
   const load = async () => {
     setLoading(true);
@@ -145,15 +245,6 @@ export default function RbacPage() {
   useEffect(() => {
     if (selectedRoleId) void loadRolePerms(selectedRoleId);
   }, [selectedRoleId]);
-
-  const toggle = (key: string, checked: boolean) => {
-    setRoleKeys((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(key);
-      else next.delete(key);
-      return next;
-    });
-  };
 
   const setReadWrite = (readKey: string, writeKey: string | undefined, mode: "read" | "write", checked: boolean) => {
     setRoleKeys((prev) => {
@@ -290,74 +381,117 @@ export default function RbacPage() {
 
           <Card className="border-none shadow-md lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-lg">
-                Permissions {selectedRole ? <span className="text-muted-foreground font-normal">for {selectedRole.name}</span> : null}
-              </CardTitle>
-              <CardDescription>
-                Admin role is implicit and cannot be edited.
-              </CardDescription>
+              <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
+                <div>
+                  <CardTitle className="text-lg">
+                    Permissions {selectedRole ? <span className="text-muted-foreground font-normal">for {selectedRole.name}</span> : null}
+                  </CardTitle>
+                  <CardDescription>
+                    Admin role is implicit and cannot be edited.
+                  </CardDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    placeholder="Search permissions..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                    className="w-full sm:w-[200px]"
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (confirm("Clear all permissions for this role?")) setRoleKeys(new Set());
+                    }}
+                    disabled={!selectedRoleId || selectedRole?.name === "Admin" || saving || loadingRolePerms || roleKeys.size === 0}
+                  >
+                    Clear All
+                  </Button>
+                  <Button
+                    onClick={() => void save()}
+                    disabled={!selectedRoleId || selectedRole?.name === "Admin" || saving || loadingRolePerms}
+                  >
+                    {(saving || loadingRolePerms) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Choose read/write access for each page. Write implies read.
-                </div>
-                <Button
-                  onClick={() => void save()}
-                  disabled={!selectedRoleId || selectedRole?.name === "Admin" || saving || loadingRolePerms}
-                >
-                  {(saving || loadingRolePerms) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Save Changes
-                </Button>
-              </div>
-
-              <div className="rounded-md border overflow-hidden">
-                <div className="grid grid-cols-1 sm:grid-cols-3 bg-muted/30 px-4 py-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  <div>Page</div>
-                  <div>Read</div>
-                  <div>Write</div>
-                </div>
-                <div className="divide-y">
-                  {filteredMatrix.map((row) => {
-                    const readChecked = roleKeys.has(row.read);
-                    const writeChecked = row.write ? roleKeys.has(row.write) : false;
-                    const disabled = selectedRole?.name === "Admin" || !selectedRoleId || loadingRolePerms || saving;
-                    return (
-                      <div key={row.page} className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 items-center">
-                        <div className="font-semibold">{row.page}</div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={readChecked}
-                            disabled={disabled || writeChecked}
-                            onCheckedChange={(v) => setReadWrite(row.read, row.write, "read", Boolean(v))}
+              <Accordion type="multiple" defaultValue={Object.keys(groupedMatrix)} className="w-full border rounded-lg overflow-hidden divide-y">
+                {Object.entries(groupedMatrix).map(([moduleName, rows]) => {
+                  const moduleSelected = isModuleSelected(moduleName);
+                  return (
+                    <AccordionItem key={moduleName} value={moduleName} className="border-none">
+                      <div className="flex items-center pr-4 bg-muted/20 hover:bg-muted/40 transition-colors">
+                        <AccordionTrigger className="px-4 py-3 hover:no-underline flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-sm uppercase tracking-wider">{moduleName}</span>
+                            <Badge variant="secondary" className="font-mono text-[10px]">
+                              {rows.length} {rows.length === 1 ? 'perm' : 'perms'}
+                            </Badge>
+                          </div>
+                        </AccordionTrigger>
+                        <div 
+                          className="flex items-center gap-2 px-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox 
+                            id={`select-all-${moduleName}`}
+                            checked={moduleSelected}
+                            disabled={selectedRole?.name === "Admin" || !selectedRoleId || loadingRolePerms || saving}
+                            onCheckedChange={(v) => toggleModule(moduleName, Boolean(v))}
                           />
-                          <span className="text-sm text-muted-foreground">Read</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            checked={writeChecked}
-                            disabled={disabled || !row.write}
-                            onCheckedChange={(v) => setReadWrite(row.read, row.write, "write", Boolean(v))}
-                          />
-                          <span className="text-sm text-muted-foreground">{row.write ? "Write" : "Read only"}</span>
+                          <Label 
+                            htmlFor={`select-all-${moduleName}`}
+                            className="text-[10px] font-bold uppercase tracking-tighter cursor-pointer text-muted-foreground whitespace-nowrap"
+                          >
+                            {moduleSelected ? "Unselect All" : "Select All"}
+                          </Label>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                <div className="text-xs text-muted-foreground">
-                  Tip: use search to find a permission key quickly (e.g., <span className="font-mono">transfer</span>, <span className="font-mono">stock</span>).
-                </div>
-                <Input
-                  placeholder="Search pages / permission keys..."
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value)}
-                  className="sm:max-w-sm"
-                />
-              </div>
+                    <AccordionContent className="p-0">
+                      <div className="divide-y bg-background">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 bg-muted/5 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b">
+                          <div>Page / Resource</div>
+                          <div>Read Access</div>
+                          <div>Write Access</div>
+                        </div>
+                        {rows.map((row) => {
+                          const readChecked = roleKeys.has(row.read);
+                          const writeChecked = row.write ? roleKeys.has(row.write) : false;
+                          const disabled = selectedRole?.name === "Admin" || !selectedRoleId || loadingRolePerms || saving;
+                          return (
+                            <div key={`${row.module}-${row.page}`} className="grid grid-cols-1 sm:grid-cols-3 gap-2 px-4 py-3 items-center hover:bg-muted/5 transition-colors">
+                              <div className="text-sm font-medium">{row.page}</div>
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`read-${row.read}`}
+                                  checked={readChecked}
+                                  disabled={disabled || writeChecked}
+                                  onCheckedChange={(v) => setReadWrite(row.read, row.write, "read", Boolean(v))}
+                                />
+                                <Label htmlFor={`read-${row.read}`} className="text-xs cursor-pointer text-muted-foreground">Allow View</Label>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`write-${row.write}`}
+                                  checked={writeChecked}
+                                  disabled={disabled || !row.write}
+                                  onCheckedChange={(v) => setReadWrite(row.read, row.write, "write", Boolean(v))}
+                                />
+                                <Label htmlFor={`write-${row.write}`} className="text-xs cursor-pointer text-muted-foreground">
+                                  {row.write ? "Allow Edit" : "N/A"}
+                                </Label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                );
+              })}
+              </Accordion>
             </CardContent>
           </Card>
         </div>

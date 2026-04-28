@@ -217,4 +217,57 @@ class Journal extends Model {
         $row = $this->db->single();
         return (int)($row->total ?? 0);
     }
+
+    /**
+     * Reverses all journal entries associated with a reference.
+     * Creates new entries with Debits and Credits swapped.
+     */
+    public function reverseEntries($refType, $refId, $userId) {
+        $entries = $this->getEntries([
+            'ref_type' => $refType,
+            'ref_id' => $refId
+        ]);
+
+        if (empty($entries)) return true;
+
+        $success = true;
+        foreach ($entries as $entry) {
+            // Skip if already reversed (to avoid loops, though UI should prevent this)
+            if (strpos($entry->description, 'REVERSAL:') === 0) continue;
+
+            // Check if this entry has already been reversed by another entry
+            $this->db->query("SELECT id FROM {$this->table_entries} WHERE description = :desc AND ref_type = :rt AND ref_id = :ri");
+            $this->db->bind(':desc', 'REVERSAL: ' . $entry->description);
+            $this->db->bind(':rt', $refType);
+            $this->db->bind(':ri', $refId);
+            if ($this->db->single()) continue;
+
+            $items = $this->getEntryItems($entry->id);
+            $reversalItems = [];
+
+            foreach ($items as $item) {
+                $reversalItems[] = [
+                    'account_id' => $item->account_id,
+                    'debit' => $item->credit, // Swap
+                    'credit' => $item->debit, // Swap
+                    'partner_type' => $item->partner_type,
+                    'partner_id' => $item->partner_id,
+                    'notes' => 'Reversal of entry #' . $entry->id
+                ];
+            }
+
+            $ok = $this->post([
+                'entry_date' => date('Y-m-d'),
+                'description' => 'REVERSAL: ' . $entry->description,
+                'ref_type' => $refType,
+                'ref_id' => $refId,
+                'userId' => $userId,
+                'items' => $reversalItems
+            ]);
+
+            if (!$ok) $success = false;
+        }
+
+        return $success;
+    }
 }

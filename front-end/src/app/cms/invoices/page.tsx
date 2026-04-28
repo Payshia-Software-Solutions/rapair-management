@@ -12,7 +12,9 @@ import {
   Loader2,
   Calendar,
   DollarSign,
-  Printer
+  Printer,
+  XCircle,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +36,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { fetchInvoices, fetchCustomers } from "@/lib/api";
+import { fetchInvoices, fetchCustomers, cancelInvoice } from "@/lib/api";
 import { Card, CardContent } from "@/components/ui/card";
+import { DataTablePagination } from "@/components/data-table-pagination";
 
 export default function InvoicesPage() {
   const router = useRouter();
@@ -44,6 +47,14 @@ export default function InvoicesPage() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Cancellation State
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [cancellingInvoice, setCancellingInvoice] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     loadInvoices();
@@ -65,6 +76,27 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleCancelInvoice = async () => {
+    if (!cancellingInvoice || !cancelReason.trim()) {
+        toast({ title: "Reason Required", description: "Please provide a reason for cancellation", variant: "destructive" });
+        return;
+    }
+
+    setIsCancelling(true);
+    try {
+        await cancelInvoice(cancellingInvoice.id, cancelReason);
+        toast({ title: "Cancelled", description: `Invoice ${cancellingInvoice.invoice_no} has been cancelled.` });
+        setIsCancelDialogOpen(false);
+        setCancelReason("");
+        setCancellingInvoice(null);
+        await loadInvoices();
+    } catch (e: any) {
+        toast({ title: "Cancellation Failed", description: e.message, variant: "destructive" });
+    } finally {
+        setIsCancelling(false);
+    }
+  };
+
   const filteredInvoices = invoices.filter((inv) => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -74,6 +106,13 @@ export default function InvoicesPage() {
       inv.order_customer_name?.toLowerCase().includes(query)
     );
   });
+
+  const totalPages = Math.ceil(filteredInvoices.length / pageSize);
+  const paginatedInvoices = filteredInvoices.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -158,7 +197,7 @@ export default function InvoicesPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredInvoices.map((invoice) => (
+                    paginatedInvoices.map((invoice) => (
                       <TableRow key={invoice.id} className="hover:bg-muted/30">
                         <TableCell>
                           <div className="font-medium">{invoice.invoice_no}</div>
@@ -235,6 +274,13 @@ export default function InvoicesPage() {
                 </TableBody>
               </Table>
             </div>
+            <DataTablePagination 
+              currentPage={currentPage}
+              totalPages={totalPages}
+              pageSize={pageSize}
+              totalItems={filteredInvoices.length}
+              onPageChange={setCurrentPage}
+            />
           </CardContent>
         </Card>
       </div>

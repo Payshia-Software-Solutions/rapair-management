@@ -169,4 +169,61 @@ class UploadController extends Controller {
             'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_ITEMS_DIR, '/') . '/' . $filename,
         ], 'Uploaded');
     }
+
+    // POST /api/upload/marketing_image
+    public function marketing_image() {
+        // We only require basic authenticated access for marketing, or a specific permission
+        $u = $this->requireAuth();
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+
+        $f = $this->requireFile('image');
+        $allowed = ['jpg','jpeg','png','webp','gif'];
+        $ext = strtolower($this->extFromName($f['name'] ?? ''));
+        if ($ext && !in_array($ext, $allowed, true)) {
+            $this->error('Unsupported image type', 400);
+        }
+
+        $filename = $this->safeFilename('mkt', $f['name'] ?? 'image');
+        $dir = 'marketing'; // Hardcoded directory for marketing assets
+
+        try {
+            $ftp = new FtpStorage();
+            $ftp->upload($f['tmp_name'], $dir, $filename);
+        } catch (Exception $e) {
+            $this->error('FTP upload failed: ' . $e->getMessage(), 500);
+        }
+
+        $url = rtrim(CONTENT_BASE_URL ?? 'https://content-provider.payshia.com', '/') . '/' . $dir . '/' . $filename;
+
+        // Insert into marketing_media table
+        try {
+            $pdo = new PDO('mysql:host=' . DB_HOST . ';dbname=' . DB_NAME, DB_USER, DB_PASS);
+            $stmt = $pdo->prepare("INSERT INTO marketing_media (filename, url) VALUES (:f, :u)");
+            $stmt->execute([':f' => $filename, ':u' => $url]);
+            $media_id = $pdo->lastInsertId();
+        } catch (Exception $e) {
+            // Non-fatal if DB insert fails, but log it
+            error_log("Failed to insert marketing media: " . $e->getMessage());
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'action' => 'upload',
+            'entity' => 'marketing_image',
+            'entity_id' => $media_id ?? null,
+            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['filename' => $filename, 'url' => $url]),
+        ]);
+
+        $this->success([
+            'id' => $media_id ?? null,
+            'filename' => $filename,
+            'url' => $url,
+        ], 'Uploaded successfully');
+    }
 }

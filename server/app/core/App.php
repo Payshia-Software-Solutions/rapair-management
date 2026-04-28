@@ -34,8 +34,9 @@ class App {
 
         // 2. Look for Method
         if (!empty($url)) {
-            if (method_exists($this->currentController, $url[0])) {
-                $this->currentMethod = $url[0];
+            $methodName = str_replace('-', '_', $url[0]);
+            if (method_exists($this->currentController, $methodName)) {
+                $this->currentMethod = $methodName;
                 array_shift($url);
             } else {
                 // Method was provided but doesn't exist - return 404 instead of falling back to index
@@ -43,7 +44,7 @@ class App {
                 header('Content-Type: application/json');
                 echo json_encode([
                     'success' => false,
-                    'error' => 'Method ' . $url[0] . ' not found in controller ' . get_class($this->currentController)
+                    'error' => 'Method ' . $url[0] . ' (normalized to ' . $methodName . ') not found in controller ' . get_class($this->currentController)
                 ]);
                 exit;
             }

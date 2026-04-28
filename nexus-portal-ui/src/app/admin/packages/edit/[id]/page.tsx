@@ -20,7 +20,8 @@ import {
   Wallet,
   BarChart,
   Sparkles,
-  Factory
+  Factory,
+  Building2
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -100,6 +101,7 @@ export default function PackageEditPage() {
     { id: 'masterData', label: 'Master Data', icon: BarChart },
     { id: 'promotions', label: 'Marketing & Promotions', icon: Sparkles },
     { id: 'production', label: 'Manufacturing & Production', icon: Factory },
+    { id: 'frontOffice', label: 'Hotel Front Office', icon: Building2 },
   ];
 
   const toggleModule = (modId: string) => {

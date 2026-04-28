@@ -1,0 +1,1 @@
+[2026-04-28 21:54:42] SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'This query should return the sales data for yesterday, including the total sa...' at line 27

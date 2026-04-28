@@ -136,12 +136,15 @@ class AccountController extends Controller {
     }
 
     public function post_supplier_payment() {
+        $u = $this->requirePermission('accounting.transactions');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->json(['status' => 'error', 'message' => 'Method not allowed'], 405);
             return;
         }
 
         $input = json_decode(file_get_contents('php://input'), true);
+        $input['userId'] = $u['sub'];
+        
         require_once '../app/models/SupplierPayment.php';
         $paymentModel = new SupplierPayment();
         $id = $paymentModel->create($input);
