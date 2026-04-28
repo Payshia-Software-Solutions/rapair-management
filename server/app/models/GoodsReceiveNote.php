@@ -5,11 +5,147 @@
 class GoodsReceiveNote extends Model {
     private $table = 'goods_receive_notes';
 
-    private function ensureSchema() {
+    public function ensureSchema() {
         InventorySchema::ensure();
+        // Add cancellation columns if missing
+        $cols = [
+            'status' => "ENUM('Received', 'Cancelled') NOT NULL DEFAULT 'Received'",
+            'cancelled_at' => "DATETIME NULL",
+            'cancelled_by' => "INT NULL",
+            'cancellation_reason' => "TEXT NULL"
+        ];
+        foreach ($cols as $col => $def) {
+            try {
+                $this->db->query("SELECT $col FROM goods_receive_notes LIMIT 1");
+                $this->db->execute();
+            } catch (Exception $e) {
+                $this->db->query("ALTER TABLE goods_receive_notes ADD COLUMN $col $def");
+                $this->db->execute();
+            }
+        }
+    }
+
+    public function cancel($id, $reason, $userId, $locationId = 1) {
+        $data = $this->getById($id, $locationId);
+        if (!$data) return false;
+        $grn = $data->grn;
+        if ($grn->status === 'Cancelled') return true;
+
+        $this->db->beginTransaction();
+        try {
+            $items = $data->items;
+            require_once 'Part.php';
+            $partModel = new Part();
+
+            foreach ($items as $item) {
+                $partId = (int)$item->part_id;
+                $qty = (float)$item->qty_received;
+                $unitCost = (float)$item->unit_cost;
+
+                // 1. Reverse Stock Movement
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                    VALUES (:loc, :part_id, :batch_id, :qty_change, 'PURCHASE_RETURN', 'goods_receive_notes', :ref_id, :unit_cost, :notes, :created_by)
+                ");
+                $this->db->bind(':loc', $locationId);
+                $this->db->bind(':part_id', $partId);
+                $this->db->bind(':batch_id', null); // Reversing the whole line, not specific batch for simplicity, or we could find the batch
+                $this->db->bind(':qty_change', -1 * $qty);
+                $this->db->bind(':ref_id', $id);
+                $this->db->bind(':unit_cost', $unitCost);
+                $this->db->bind(':notes', 'CANCELLATION: ' . $grn->grn_number);
+                $this->db->bind(':created_by', $userId);
+                $this->db->execute();
+
+                // 2. Update Global Stock
+                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity - :qty WHERE id = :pid");
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':pid', $partId);
+                $this->db->execute();
+
+                // 3. Update Inventory Batch (decrement)
+                if (!empty($item->batch_number)) {
+                    $this->db->query("
+                        UPDATE inventory_batches 
+                        SET quantity_received = quantity_received - :qty,
+                            quantity_on_hand = quantity_on_hand - :qty,
+                            is_exhausted = (quantity_on_hand <= 0)
+                        WHERE grn_id = :grn_id AND part_id = :pid AND batch_number = :bn
+                    ");
+                    $this->db->bind(':qty', $qty);
+                    $this->db->bind(':grn_id', $id);
+                    $this->db->bind(':pid', $partId);
+                    $this->db->bind(':bn', $item->batch_number);
+                    $this->db->execute();
+                }
+
+                // 4. Update PO Received Qty (decrement)
+                if (!empty($grn->purchase_order_id)) {
+                    $this->db->query("
+                        UPDATE purchase_order_items
+                        SET received_qty = GREATEST(0, received_qty - :qty)
+                        WHERE purchase_order_id = :po_id AND part_id = :part_id
+                    ");
+                    $this->db->bind(':qty', $qty);
+                    $this->db->bind(':po_id', $grn->purchase_order_id);
+                    $this->db->bind(':part_id', $partId);
+                    $this->db->execute();
+                }
+            }
+
+            // 5. Update PO Status
+            if (!empty($grn->purchase_order_id)) {
+                $this->db->query("
+                    SELECT SUM(received_qty) as total_received, SUM(qty_ordered) as total_ordered
+                    FROM purchase_order_items
+                    WHERE purchase_order_id = :id
+                ");
+                $this->db->bind(':id', $grn->purchase_order_id);
+                $poStatusRow = $this->db->single();
+                
+                $newStatus = 'Sent';
+                if ($poStatusRow->total_received >= $poStatusRow->total_ordered && $poStatusRow->total_ordered > 0) {
+                    $newStatus = 'Received';
+                } elseif ($poStatusRow->total_received > 0) {
+                    $newStatus = 'Partially Received';
+                }
+
+                $this->db->query("UPDATE purchase_orders SET status = :s WHERE id = :id");
+                $this->db->bind(':s', $newStatus);
+                $this->db->bind(':id', $grn->purchase_order_id);
+                $this->db->execute();
+            }
+
+            // 6. Update GRN Status
+            $this->db->query("
+                UPDATE goods_receive_notes 
+                SET status = 'Cancelled',
+                    cancelled_at = NOW(),
+                    cancelled_by = :user,
+                    cancellation_reason = :reason
+                WHERE id = :id
+            ");
+            $this->db->bind(':user', $userId);
+            $this->db->bind(':reason', $reason);
+            $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // 7. Reverse Accounting Entries
+            require_once 'Journal.php';
+            $journal = new Journal();
+            $journal->reverseEntries('GRN', $id, $userId);
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("GRN cancellation failed: " . $e->getMessage());
+            return false;
+        }
     }
 
     private function nextDocNumber($docType) {
+
         // Short sequential number allocation using document_sequences (safe under concurrency).
         $this->ensureSchema();
         $type = strtoupper(trim((string)$docType));
@@ -60,7 +196,7 @@ class GoodsReceiveNote extends Model {
                 LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
                 LEFT JOIN users u ON u.id = g.created_by
                 LEFT JOIN service_locations sl ON sl.id = g.location_id
-                WHERE g.location_id = :loc AND (g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q OR sl.name LIKE :q)
+                WHERE g.location_id = :loc AND g.status != 'Cancelled' AND (g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q OR sl.name LIKE :q)
                 ORDER BY g.id DESC
             ");
             $this->db->bind(':loc', $locId);
@@ -75,7 +211,7 @@ class GoodsReceiveNote extends Model {
             LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
             LEFT JOIN users u ON u.id = g.created_by
             LEFT JOIN service_locations sl ON sl.id = g.location_id
-            WHERE g.location_id = :loc
+            WHERE g.location_id = :loc AND g.status != 'Cancelled'
             ORDER BY g.id DESC
         ");
         $this->db->bind(':loc', $locId);

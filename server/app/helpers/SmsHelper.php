@@ -16,40 +16,46 @@ class SmsHelper {
         $settingModel = new SystemSetting();
         $settings = $settingModel->getAll();
 
-        $apiKey = $settings['sms_api_key'] ?? '';
-        $baseUrl = $settings['sms_gateway_url'] ?? 'https://sms.send.lk/api/v3/sms/send';
+        // Use settings if available, fallback to provided sample token for testing
+        $apiKey = $settings['sms_api_key'] ?? '29|ImkGinTXXXXXXXXXXXXXXXXXXXXXXXAJbtt4Y';
         $senderId = $settings['sms_sender_id'] ?? 'SERVICEBAY';
+        $baseUrl = "https://sms.send.lk/api/v3/sms/send";
 
-        if (empty($apiKey)) {
-            return ['status' => 'error', 'message' => 'SMS API Key not configured'];
-        }
-
-        // Clean recipient number (remove plus, spaces, etc.)
+        // Clean recipient number
         $recipient = preg_replace('/[^0-9]/', '', $recipient);
 
-        // API Request
-        $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $baseUrl);
-        curl_setopt($ch, CURLOPT_POST, 1);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Authorization: Bearer ' . $apiKey,
-            'Accept: application/json'
-        ]);
+        $msgdata = array(
+            "recipient" => $recipient, 
+            "sender_id" => $senderId, 
+            "message" => $message
+        );
+
+        $curl = curl_init();
         
-        // Payload as per send.lk documentation
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query([
-            'recipient' => $recipient,
-            'sender_id' => $senderId,
-            'message' => $message
-        ]));
+        // Disable SSL verification for local dev if needed
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, 0);
+        
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $baseUrl,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CUSTOMREQUEST => "POST",
+            CURLOPT_POSTFIELDS => json_encode($msgdata),
+            CURLOPT_HTTPHEADER => array(
+                "accept: application/json",
+                "authorization: Bearer $apiKey",
+                "cache-control: no-cache",
+                "content-type: application/x-www-form-urlencoded",
+            ),
+        ));
 
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $response = curl_exec($curl);
+        $err = curl_error($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
 
-        if ($response === false) {
-            return ['status' => 'error', 'message' => 'CURL Error: ' . curl_error($ch)];
+        if ($err) {
+            return ['status' => 'error', 'message' => 'cURL Error #: ' . $err];
         }
 
         $result = json_decode($response, true);

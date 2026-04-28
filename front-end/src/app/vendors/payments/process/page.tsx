@@ -18,12 +18,16 @@ import {
   AlertCircle, 
   CheckCircle2, 
   ArrowRight,
+  ArrowUpRight,
   Wallet,
   History,
   Info,
-  Check
+  Check,
+  Printer,
+  FileText
 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import Link from "next/link";
 
 export default function ProcessPaymentPage() {
@@ -41,8 +45,14 @@ export default function ProcessPaymentPage() {
   const [paymentMethod, setPaymentMethod] = useState("Bank Transfer");
   const [referenceNo, setReferenceNo] = useState("");
   const [notes, setNotes] = useState("");
+  const [lastCreatedId, setLastCreatedId] = useState<number | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [onAccountAmount, setOnAccountAmount] = useState<string>("0");
 
-  const paymentAmount = Object.values(allocations).reduce((sum, val) => sum + Number(val || 0), 0);
+  const paymentAmount = Object.entries(allocations).reduce((sum, [id, val]) => {
+      if (id === 'on_account') return sum;
+      return sum + Number(val || 0);
+  }, 0) + Number(onAccountAmount || 0);
 
   useEffect(() => {
     fetchSuppliers().then(setSuppliers).finally(() => setLoadingSuppliers(false));
@@ -88,14 +98,24 @@ export default function ProcessPaymentPage() {
     setSaving(true);
     try {
       // Prepare backend allocations
-      const backendAllocations = Object.entries(allocations).map(([id, amt]) => ({
-        grn_id: id,
-        amount: amt
-      }));
+      const backendAllocations = Object.entries(allocations)
+        .filter(([id]) => id !== 'on_account')
+        .map(([id, amt]) => ({
+          grn_id: id,
+          amount: amt
+        }));
 
-      await postSupplierPayment({
+      // Add on-account amount if any
+      if (Number(onAccountAmount) > 0) {
+        backendAllocations.push({
+          grn_id: null,
+          amount: onAccountAmount
+        });
+      }
+
+      const res = await postSupplierPayment({
         supplier_id: selectedSupplierId,
-        amount: paymentAmount,
+        amount: paymentMethod === 'Advance Settlement' ? 0 : paymentAmount,
         allocations: backendAllocations,
         payment_date: paymentDate,
         payment_method: paymentMethod,
@@ -105,6 +125,12 @@ export default function ProcessPaymentPage() {
 
       toast({ title: "Success", description: "Payment recorded successfully" });
       
+      // Setup print options
+      if (res && res.id) {
+        setLastCreatedId(res.id);
+        setShowPrintModal(true);
+      }
+
       // Refresh summary
       handleSupplierChange(selectedSupplierId);
       
@@ -151,10 +177,18 @@ export default function ProcessPaymentPage() {
                 </Select>
               </div>
               {summary && (
-                <div className="flex gap-4">
+                <div className="flex gap-6">
+                  {summary.advance_balance > 0 && (
+                    <div className="text-right border-r border-primary/20 pr-6">
+                      <div className="text-[10px] text-primary/60 uppercase font-black tracking-widest mb-1">Available Advance</div>
+                      <div className="text-2xl font-black text-primary">
+                        LKR {Number(summary.advance_balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                  )}
                   <div className="text-right">
-                    <div className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Payable</div>
-                    <div className={summary.total_payable > 0 ? "text-3xl font-black text-destructive" : "text-3xl font-black text-green-500"}>
+                    <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mb-1">Net Payable</div>
+                    <div className={summary.total_payable > 0 ? "text-2xl font-black text-destructive" : "text-2xl font-black text-green-500"}>
                       LKR {Number(summary.total_payable).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </div>
                   </div>
@@ -287,20 +321,23 @@ export default function ProcessPaymentPage() {
                   </div>
  
                   <div className="space-y-1.5">
-                    <Label className="text-white/80 font-bold uppercase text-[10px] tracking-widest">Total Payment Amount (LKR)</Label>
+                    <Label className="text-white/80 font-bold uppercase text-[10px] tracking-widest">On-Account / Advance Amount (LKR)</Label>
                     <Input 
                       type="number" 
-                      className="h-14 text-2xl font-black bg-white/20 border-white/30 text-white placeholder:text-white/40 focus:ring-white/50" 
+                      className="h-10 font-bold bg-white/20 border-white/30 text-white placeholder:text-white/40 focus:ring-white/50" 
                       placeholder="0.00"
-                      value={paymentAmount || ""}
-                      onChange={e => {
-                          if (Object.keys(allocations).length === 0) {
-                              setAllocations({ "on_account": e.target.value });
-                          }
-                      }}
-                      readOnly={Object.keys(allocations).length > 0 && !allocations["on_account"]}
+                      value={onAccountAmount}
+                      onChange={e => setOnAccountAmount(e.target.value)}
                     />
-                    <p className="text-[10px] text-white/40 italic">Calculated from individual allocations above.</p>
+                    <p className="text-[10px] text-white/40 italic">Additional amount to be kept as supplier credit.</p>
+                  </div>
+
+                  <div className="space-y-1.5 pt-2 border-t border-white/10">
+                    <Label className="text-white/80 font-bold uppercase text-[10px] tracking-widest">Total Payment Amount (LKR)</Label>
+                    <div className="h-14 text-3xl font-black flex items-center">
+                        {paymentAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </div>
+                    <p className="text-[10px] text-white/40 italic">Allocated to GRNs + Advance Amount.</p>
                   </div>
  
                   <div className="grid grid-cols-2 gap-4">
@@ -320,10 +357,12 @@ export default function ProcessPaymentPage() {
                         value={paymentMethod}
                         onChange={e => setPaymentMethod(e.target.value)}
                       >
-                        <option className="bg-primary text-white">Bank Transfer</option>
-                        <option className="bg-primary text-white">Cash</option>
-                        <option className="bg-primary text-white">Cheque</option>
-                        <option className="bg-primary text-white">Card</option>
+                        <option className="bg-primary text-white" value="Bank Transfer">Bank Transfer</option>
+                        <option className="bg-primary text-white" value="Cash">Cash</option>
+                        <option className="bg-primary text-white" value="Cheque">Cheque</option>
+                        <option className="bg-primary text-white" value="TT">TT (Telegraphic Transfer)</option>
+                        <option className="bg-primary text-white" value="Advance Settlement">Advance Settlement (Link existing credits)</option>
+                        <option className="bg-primary text-white" value="Card">Card</option>
                       </select>
                     </div>
                   </div>
@@ -359,6 +398,71 @@ export default function ProcessPaymentPage() {
           </div>
         )}
       </div>
+      {/* Post-Creation Print Options Modal */}
+      <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
+        <DialogContent className="sm:max-w-[450px] rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+            <div className="bg-emerald-600 p-8 text-white text-center">
+                <CheckCircle2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <h2 className="text-2xl font-black uppercase italic tracking-tighter">Payment Posted!</h2>
+                <p className="text-emerald-50 font-medium mt-1">Vendor settlement recorded successfully.</p>
+            </div>
+            <div className="p-8 space-y-4">
+                <p className="text-sm font-bold text-slate-500 text-center mb-4 italic">What would you like to print now?</p>
+                <div className="grid grid-cols-1 gap-3">
+                    <Button 
+                        variant="outline" 
+                        className="h-14 justify-start px-6 gap-4 border-slate-200 rounded-xl hover:bg-slate-50 text-slate-900"
+                        onClick={() => {
+                            window.open(`/vendors/payments/print/${lastCreatedId}?format=voucher&autoprint=1`, '_blank');
+                        }}
+                    >
+                        <FileText className="w-5 h-5 text-primary" />
+                        <div className="text-left">
+                            <p className="font-black uppercase text-xs tracking-widest">Payment Voucher</p>
+                            <p className="text-[10px] text-muted-foreground font-medium">Standard office copy for filing</p>
+                        </div>
+                    </Button>
+
+                    {paymentMethod === 'Cheque' && (
+                        <Button 
+                            variant="outline" 
+                            className="h-14 justify-start px-6 gap-4 border-rose-200 rounded-xl hover:bg-rose-50 text-slate-900"
+                            onClick={() => {
+                                window.open(`/vendors/payments/print/${lastCreatedId}?format=cheque&autoprint=1`, '_blank');
+                            }}
+                        >
+                            <CreditCard className="w-5 h-5 text-rose-500" />
+                            <div className="text-left">
+                                <p className="font-black uppercase text-xs tracking-widest">Bank Cheque</p>
+                                <p className="text-[10px] text-muted-foreground font-medium">Print directly on cheque leaf</p>
+                            </div>
+                        </Button>
+                    )}
+
+                    {paymentMethod === 'TT' && (
+                        <Button 
+                            variant="outline" 
+                            className="h-14 justify-start px-6 gap-4 border-blue-200 rounded-xl hover:bg-blue-50 text-slate-900"
+                            onClick={() => {
+                                window.open(`/vendors/payments/print/${lastCreatedId}?format=tt&autoprint=1`, '_blank');
+                            }}
+                        >
+                            <ArrowUpRight className="w-5 h-5 text-blue-500" />
+                            <div className="text-left">
+                                <p className="font-black uppercase text-xs tracking-widest">TT Instruction Letter</p>
+                                <p className="text-[10px] text-muted-foreground font-medium">Bank letter for telegraphic transfer</p>
+                            </div>
+                        </Button>
+                    )}
+                </div>
+            </div>
+            <DialogFooter className="p-6 bg-slate-50 border-t">
+                <Button variant="ghost" onClick={() => setShowPrintModal(false)} className="w-full font-black uppercase text-[10px] tracking-widest">
+                    Done / Close
+                </Button>
+            </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

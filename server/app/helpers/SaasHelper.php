@@ -31,7 +31,7 @@ class SaasHelper {
             if (!self::$config) {
                 self::$config = [
                     'name' => 'Restricted', 
-                    'modules' => ['serviceCenter', 'promotions'],
+                    'modules' => ['serviceCenter', 'promotions', 'frontOffice'],
                     'api_connected' => false
                 ];
             }
@@ -39,7 +39,7 @@ class SaasHelper {
             error_log("Nexus Connection Error: " . $e->getMessage());
             self::$config = [
                 'name' => 'Restricted', 
-                'modules' => ['serviceCenter', 'promotions'],
+                'modules' => ['serviceCenter', 'promotions', 'frontOffice'],
                 'api_connected' => false
             ];
         }

@@ -11,9 +11,10 @@ import {
     fetchBanks, 
     createBank, 
     updateBank, 
-    deleteBank 
+    deleteBank,
+    syncBanksFromInternet
 } from "@/lib/api";
-import { Plus, Search, Trash2, Pencil, Loader2, AlertCircle, Landmark, Building2, ChevronRight, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Search, Trash2, Pencil, Loader2, AlertCircle, Landmark, Building2, ChevronRight, CheckCircle2, XCircle, Globe } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -42,6 +43,8 @@ export default function BanksPage() {
     code: "",
     is_active: 1
   });
+
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -116,6 +119,26 @@ export default function BanksPage() {
     }
   };
 
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const res = await syncBanksFromInternet();
+      toast({ 
+        title: "Sync Success", 
+        description: res.message || "Bank and branch list updated from the internet.",
+      });
+      await load();
+    } catch (e: any) {
+      toast({ 
+        title: "Sync Error", 
+        description: e?.message || "Failed to update from internet", 
+        variant: "destructive" 
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
@@ -127,6 +150,10 @@ export default function BanksPage() {
           <Badge variant="outline" className="hidden sm:flex px-3 py-1 bg-primary/10 text-primary border-primary/20 font-bold">
             {items.length} Banks
           </Badge>
+          <Button variant="outline" className="gap-2 font-bold border-slate-200 dark:border-slate-800" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
+            Sync from Cloud
+          </Button>
           <Button className="gap-2 bg-primary font-bold shadow-lg shadow-primary/20" onClick={openAdd}>
             <Plus className="w-4 h-4" />
             Add Bank

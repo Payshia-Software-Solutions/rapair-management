@@ -307,7 +307,11 @@ class InstallController extends Controller {
             ('company.write', 'Update company details'),
             ('reports.read', 'View reports'),
             ('units.read', 'View units'),
-            ('units.write', 'Create/update/delete units')
+            ('units.write', 'Create/update/delete units'),
+            ('payments.read', 'View payments and cheques'),
+            ('payments.write', 'Record payments and update cheque status'),
+            ('accounting.read', 'View financial accounts and expenses'),
+            ('accounting.write', 'Manage chart of accounts and record expenses')
         ");
 
         // Seed role permissions (Admin is superuser; mappings below are for non-admin roles)
@@ -337,7 +341,7 @@ class InstallController extends Controller {
         foreach (['makes.read','models.read'] as $p) {
             $grant('Workshop Officer', $p);
         }
-        foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read','transfer.read','transfer.write'] as $p) {
+        foreach (['parts.read','parts.write','suppliers.read','purchase.read','purchase.write','grn.read','grn.write','stock.read','transfer.read','transfer.write','payments.read','payments.write','accounting.read','accounting.write'] as $p) {
             $grant('Workshop Officer', $p);
         }
         foreach (['units.read'] as $p) {
@@ -348,7 +352,7 @@ class InstallController extends Controller {
         foreach (['orders.read','orders.write','vehicles.read','bays.read','technicians.read','makes.read','models.read','categories.read','checklists.read','reports.read'] as $p) {
             $grant('Factory Officer', $p);
         }
-        foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read','transfer.read'] as $p) {
+        foreach (['parts.read','suppliers.read','purchase.read','grn.read','stock.read','transfer.read','payments.read'] as $p) {
             $grant('Factory Officer', $p);
         }
         foreach (['units.read'] as $p) {

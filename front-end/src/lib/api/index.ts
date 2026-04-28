@@ -6,6 +6,7 @@ export * from './client';
 export * from './orders';
 export * from './inventory';
 export * from './finance';
+export * from './cancellation';
 export * from './admin';
 export * from './hrm';
 export * from './reports';
@@ -13,6 +14,11 @@ export * from './dashboard';
 export * from './master-data';
 export * from './promotions';
 export * from './production';
+export * from './marketing';
+export * from './email-marketing';
+export * from './expense';
+export * from './payee';
+export * from './intelligence';
 
 // Helper for content URLs (preserving legacy function)
 export const CONTENT_BASE_URL =

@@ -15,7 +15,8 @@ import {
   Filter,
   CheckCircle,
   XCircle,
-  Hash
+  Hash,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ import {
   deleteCustomer 
 } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 type CustomerRow = {
   id: number;
@@ -328,7 +330,16 @@ export default function CustomersPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex justify-end gap-2 text-primary">
+                        <Link href={`/cms/customers/${customer.id}/profile`}>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </Link>
                         <Button
                           variant="ghost"
                           size="icon"

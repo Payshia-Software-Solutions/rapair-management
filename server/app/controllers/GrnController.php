@@ -80,4 +80,31 @@ class GrnController extends Controller {
         }
         $this->error('Failed to create GRN', 400);
     }
+    // POST /api/grn/cancel/1
+    public function cancel($id = null) {
+        $u = $this->requirePermission('grn.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        if (!$id) $this->error('GRN ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $reason = $data['reason'] ?? 'Cancelled by user';
+        $locId = $this->currentLocationId($u);
+
+        if ($this->grnModel->cancel($id, $reason, (int)$u['sub'], $locId)) {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'location_id' => $locId,
+                'action' => 'cancel',
+                'entity' => 'grn',
+                'entity_id' => (int)$id,
+                'method' => 'POST',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['reason' => $reason]),
+            ]);
+            $this->success(null, 'GRN cancelled');
+        }
+        $this->error('Failed to cancel GRN', 400);
+    }
 }

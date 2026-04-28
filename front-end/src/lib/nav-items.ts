@@ -20,6 +20,7 @@ import {
   FileText,
   PackageCheck,
   ArrowLeftRight,
+  FileX,
   History,
   ClipboardList as ClipboardListIcon,
   Shield,
@@ -35,7 +36,10 @@ import {
   Factory,
   Building2,
   Banknote,
-  ShoppingCart
+  ShoppingCart,
+  MessageSquare,
+  Mail,
+  Calendar as CalendarIcon
 } from "lucide-react";
 
 export type NavItem = {
@@ -48,6 +52,7 @@ export type NavItem = {
 
 export const mainNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard" },
+  { icon: MessageSquare, label: "AI Business Intelligence", href: "/ai/insights", perm: "reports.read" },
   { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },
   { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write" },
   { icon: BarChart3, label: "Reports", href: "/reports", perm: "reports.read" },
@@ -83,7 +88,6 @@ export const inventoryItems: NavItem[] = [
   { icon: FileText, label: "Purchase Orders", href: "/inventory/purchase-orders", perm: "purchase.read" },
   { icon: PackageCheck, label: "GRN", href: "/inventory/grn", perm: "grn.read" },
   { icon: ClipboardListIcon, label: "Stock Requests", href: "/inventory/stock-requests", perm: "transfer.read" },
-  { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
 ];
 
 export const crmItems: NavItem[] = [
@@ -91,11 +95,19 @@ export const crmItems: NavItem[] = [
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
 ];
 
+export const marketingItems: NavItem[] = [
+  { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
+  { icon: MessageSquare, label: "SMS Marketing", href: "/cms/marketing/sms", perm: "promotions.write" },
+  { icon: Mail, label: "Email Marketing", href: "/cms/marketing/email", perm: "promotions.write" },
+  { icon: Users, label: "Audience Segments", href: "/cms/marketing/segments", perm: "promotions.write" },
+];
+
 export const salesItems: NavItem[] = [
+  { icon: FileText, label: "Quotations", href: "/sales/quotations", perm: "sales.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
   { icon: ShoppingCart, label: "Online Orders", href: "/sales/online-orders", perm: "invoices.read" },
-  { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "invoices.read" },
-  { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "invoices.read" },
+  { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
+  { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },
 ];
 
 export const masterDataItems: NavItem[] = [
@@ -110,7 +122,9 @@ export const masterDataItems: NavItem[] = [
 export const accountingItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Financial Overview", href: "/accounting" },
   { icon: History, label: "Journal Entries", href: "/accounting/journal" },
+  { icon: Users, label: "Expense Payees", href: "/accounting/payees" },
   { icon: LayoutGrid, label: "Chart of Accounts", href: "/accounting/accounts" },
+  { icon: Receipt, label: "Expenses & Vouchers", href: "/accounting/expenses" },
   { icon: CheckCircle2, label: "Bank Reconciliation", href: "/accounting/reconciliation", perm: "accounting.reconcile" },
   { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
   { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
@@ -134,6 +148,13 @@ export const hrmItems: NavItem[] = [
   { icon: Banknote, label: "Salary Schemes", href: "/hrm/settings/salary-schemes", perm: "hrm.write" },
 ];
 
+export const frontOfficeItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Room Rack", href: "/front-office/dashboard", perm: "orders.read" },
+  { icon: CalendarIcon, label: "Calendar View", href: "/front-office/calendar", perm: "orders.read" },
+  { icon: ClipboardList, label: "Reservations", href: "/front-office/reservations", perm: "orders.read" },
+  { icon: Building2, label: "Rooms & Rates", href: "/front-office/rooms", perm: "parts.read" },
+];
+
 export const adminNavItems: NavItem[] = [
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: Shield, label: "RBAC Roles", href: "/admin/rbac" },
@@ -144,4 +165,5 @@ export const adminNavItems: NavItem[] = [
   { icon: Layers, label: "Database Schema", href: "/admin/schema" },
   { icon: ShieldCheck, label: "Table Verification", href: "/reports/database" },
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
+  { icon: FileX, label: "Document Cancellations", href: "/accounting/cancellations", perm: "accounting.write" },
 ];

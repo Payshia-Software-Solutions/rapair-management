@@ -4,6 +4,10 @@
  * Maps business events to automated journal entries.
  */
 class AccountingHelper {
+    public function __construct() {
+        require_once '../app/models/Journal.php';
+        require_once '../app/models/Account.php';
+    }
     
     /**
      * Post Accounting for a New Invoice
@@ -311,6 +315,36 @@ class AccountingHelper {
             'entry_date' => $data['return_date'] ?? date('Y-m-d'),
             'description' => "Purchase Return #{$returnId}",
             'ref_type' => 'PurchaseReturn', 'ref_id' => $returnId, 'userId' => $data['userId'], 'items' => $items
+        ]);
+    }
+
+    public static function postExpenseVoucher($expenseId, $data) {
+        require_once '../app/models/Journal.php';
+        require_once '../app/models/Account.php';
+        $journalModel = new Journal();
+        
+        $items = [
+            [
+                'account_id' => $data['expense_account_id'],
+                'debit' => $data['amount'],
+                'credit' => 0,
+                'notes' => ($data['payee_name'] ?? '') . ' - ' . ($data['notes'] ?? 'Expense payment')
+            ],
+            [
+                'account_id' => $data['payment_account_id'],
+                'debit' => 0,
+                'credit' => $data['amount'],
+                'notes' => 'Voucher payment'
+            ]
+        ];
+
+        return $journalModel->post([
+            'entry_date' => $data['payment_date'] ?? date('Y-m-d'),
+            'description' => "Expense Voucher #{$expenseId}",
+            'ref_type' => 'Expense',
+            'ref_id' => $expenseId,
+            'userId' => $data['userId'],
+            'items' => $items
         ]);
     }
 }

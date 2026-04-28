@@ -56,6 +56,12 @@ class Controller {
                 if (isset($headers['Authorization'])) $hdr = $headers['Authorization'];
             }
         }
+
+        // Final fallback for browser window.open (Print pages)
+        if (!$hdr && !empty($_GET['token'])) {
+            return $_GET['token'];
+        }
+
         if (!$hdr) return null;
         if (stripos($hdr, 'Bearer ') !== 0) return null;
         return trim(substr($hdr, 7));

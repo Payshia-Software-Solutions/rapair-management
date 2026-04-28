@@ -107,6 +107,214 @@
             }
         }
     },
+    "acc_expenses": {
+        "name": "acc_expenses",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "voucher_no": {
+                "Field": "voucher_no",
+                "Type": "varchar(30)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "payee_id": {
+                "Field": "payee_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "expense_account_id": {
+                "Field": "expense_account_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "payment_account_id": {
+                "Field": "payment_account_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "amount": {
+                "Field": "amount",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "payment_date": {
+                "Field": "payment_date",
+                "Type": "date",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "payee_name": {
+                "Field": "payee_name",
+                "Type": "varchar(150)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "payment_method": {
+                "Field": "payment_method",
+                "Type": "enum('Cash','Cheque','TT','Bank Transfer')",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": "Cash",
+                "Extra": ""
+            },
+            "cheque_no": {
+                "Field": "cheque_no",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "tt_ref_no": {
+                "Field": "tt_ref_no",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "reference_no": {
+                "Field": "reference_no",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Paid','Pending','Cancelled')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Paid",
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "voucher_no": {
+                "Key_name": "voucher_no",
+                "Non_unique": 0,
+                "Columns": [
+                    "voucher_no"
+                ]
+            },
+            "idx_exp_account": {
+                "Key_name": "idx_exp_account",
+                "Non_unique": 1,
+                "Columns": [
+                    "expense_account_id"
+                ]
+            },
+            "idx_exp_payment": {
+                "Key_name": "idx_exp_payment",
+                "Non_unique": 1,
+                "Columns": [
+                    "payment_account_id"
+                ]
+            },
+            "idx_exp_date": {
+                "Key_name": "idx_exp_date",
+                "Non_unique": 1,
+                "Columns": [
+                    "payment_date"
+                ]
+            },
+            "idx_exp_payee": {
+                "Key_name": "idx_exp_payee",
+                "Non_unique": 1,
+                "Columns": [
+                    "payee_id"
+                ]
+            },
+            "idx_exp_method": {
+                "Key_name": "idx_exp_method",
+                "Non_unique": 1,
+                "Columns": [
+                    "payment_method"
+                ]
+            }
+        }
+    },
     "acc_fiscal_periods": {
         "name": "acc_fiscal_periods",
         "columns": {
@@ -465,6 +673,82 @@
                 "Non_unique": 1,
                 "Columns": [
                     "account_id"
+                ]
+            }
+        }
+    },
+    "acc_payees": {
+        "name": "acc_payees",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(150)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "contact_no": {
+                "Field": "contact_no",
+                "Type": "varchar(20)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "address": {
+                "Field": "address",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "type": {
+                "Field": "type",
+                "Type": "enum('Utility','Service','Other')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Other",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "name": {
+                "Key_name": "name",
+                "Non_unique": 0,
+                "Columns": [
+                    "name"
+                ]
+            },
+            "idx_payee_name": {
+                "Key_name": "idx_payee_name",
+                "Non_unique": 1,
+                "Columns": [
+                    "name"
                 ]
             }
         }
@@ -942,6 +1226,14 @@
                 "Default": null,
                 "Extra": ""
             },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Paid','Cancelled')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Paid",
+                "Extra": ""
+            },
             "created_by": {
                 "Field": "created_by",
                 "Type": "int(11)",
@@ -956,6 +1248,30 @@
                 "Null": "NO",
                 "Key": "",
                 "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
                 "Extra": ""
             }
         },
@@ -1015,6 +1331,14 @@
                 "Type": "varchar(100)",
                 "Null": "NO",
                 "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "location_id": {
+                "Field": "location_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
                 "Default": null,
                 "Extra": ""
             },
@@ -2063,6 +2387,52 @@
             }
         }
     },
+    "customer_segments": {
+        "name": "customer_segments",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
     "customers": {
         "name": "customers",
         "columns": {
@@ -2224,6 +2594,14 @@
                 "Null": "YES",
                 "Key": "",
                 "Default": null,
+                "Extra": ""
+            },
+            "is_unsubscribed": {
+                "Field": "is_unsubscribed",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
                 "Extra": ""
             }
         },
@@ -2418,6 +2796,340 @@
                 "Non_unique": 0,
                 "Columns": [
                     "doc_type"
+                ]
+            }
+        }
+    },
+    "email_campaigns": {
+        "name": "email_campaigns",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "subject": {
+                "Field": "subject",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "content": {
+                "Field": "content",
+                "Type": "longtext",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "target_segment": {
+                "Field": "target_segment",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "all",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Draft','Queued','Processing','Sent','Failed')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Draft",
+                "Extra": ""
+            },
+            "sent_at": {
+                "Field": "sent_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "email_logs": {
+        "name": "email_logs",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "campaign_id": {
+                "Field": "campaign_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "recipient": {
+                "Field": "recipient",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "subject": {
+                "Field": "subject",
+                "Type": "varchar(255)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Success','Failed')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Success",
+                "Extra": ""
+            },
+            "error_message": {
+                "Field": "error_message",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "sent_at": {
+                "Field": "sent_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "campaign_id": {
+                "Key_name": "campaign_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "campaign_id"
+                ]
+            }
+        }
+    },
+    "email_queue": {
+        "name": "email_queue",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "campaign_id": {
+                "Field": "campaign_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "recipient_email": {
+                "Field": "recipient_email",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "recipient_name": {
+                "Field": "recipient_name",
+                "Type": "varchar(255)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "subject": {
+                "Field": "subject",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "content": {
+                "Field": "content",
+                "Type": "longtext",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Pending','Processing','Sent','Failed')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Pending",
+                "Extra": ""
+            },
+            "error_message": {
+                "Field": "error_message",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "attempts": {
+                "Field": "attempts",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "processed_at": {
+                "Field": "processed_at",
+                "Type": "timestamp",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "campaign_id": {
+                "Key_name": "campaign_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "campaign_id"
+                ]
+            }
+        }
+    },
+    "email_templates": {
+        "name": "email_templates",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "subject": {
+                "Field": "subject",
+                "Type": "varchar(255)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "content": {
+                "Field": "content",
+                "Type": "longtext",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
                 ]
             }
         }
@@ -2889,6 +3601,38 @@
                 "Key": "MUL",
                 "Default": "1",
                 "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Received','Cancelled')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Received",
+                "Extra": ""
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -3041,6 +3785,510 @@
                 "Non_unique": 1,
                 "Columns": [
                     "part_id"
+                ]
+            }
+        }
+    },
+    "hotel_reservation_items": {
+        "name": "hotel_reservation_items",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "reservation_id": {
+                "Field": "reservation_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "item_id": {
+                "Field": "item_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "quantity": {
+                "Field": "quantity",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1.00",
+                "Extra": ""
+            },
+            "unit_price": {
+                "Field": "unit_price",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "total_price": {
+                "Field": "total_price",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "reservation_id": {
+                "Key_name": "reservation_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "reservation_id"
+                ]
+            }
+        }
+    },
+    "hotel_reservations": {
+        "name": "hotel_reservations",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "reservation_no": {
+                "Field": "reservation_no",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "room_id": {
+                "Field": "room_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "check_in": {
+                "Field": "check_in",
+                "Type": "datetime",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "check_out": {
+                "Field": "check_out",
+                "Type": "datetime",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "adults": {
+                "Field": "adults",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "children": {
+                "Field": "children",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Confirmed','CheckedIn','CheckedOut','Cancelled')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Confirmed",
+                "Extra": ""
+            },
+            "meal_plan": {
+                "Field": "meal_plan",
+                "Type": "enum('RO','BB','HB','FB','AI')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "BB",
+                "Extra": ""
+            },
+            "total_amount": {
+                "Field": "total_amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "paid_amount": {
+                "Field": "paid_amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "invoice_id": {
+                "Field": "invoice_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "reservation_no": {
+                "Key_name": "reservation_no",
+                "Non_unique": 0,
+                "Columns": [
+                    "reservation_no"
+                ]
+            },
+            "customer_id": {
+                "Key_name": "customer_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "customer_id"
+                ]
+            },
+            "room_id": {
+                "Key_name": "room_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "room_id"
+                ]
+            }
+        }
+    },
+    "hotel_room_rates": {
+        "name": "hotel_room_rates",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "type_id": {
+                "Field": "type_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "meal_plan": {
+                "Field": "meal_plan",
+                "Type": "enum('RO','BB','HB','FB','AI')",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "rate": {
+                "Field": "rate",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "type_meal": {
+                "Key_name": "type_meal",
+                "Non_unique": 0,
+                "Columns": [
+                    "type_id",
+                    "meal_plan"
+                ]
+            }
+        }
+    },
+    "hotel_room_types": {
+        "name": "hotel_room_types",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "item_id": {
+                "Field": "item_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "base_rate": {
+                "Field": "base_rate",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_occupancy": {
+                "Field": "max_occupancy",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "2",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "hotel_rooms": {
+        "name": "hotel_rooms",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "room_number": {
+                "Field": "room_number",
+                "Type": "varchar(20)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "type_id": {
+                "Field": "type_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "location_id": {
+                "Field": "location_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Available','Occupied','Dirty','Maintenance')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Available",
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "room_number": {
+                "Key_name": "room_number",
+                "Non_unique": 0,
+                "Columns": [
+                    "room_number"
+                ]
+            },
+            "type_id": {
+                "Key_name": "type_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "type_id"
                 ]
             }
         }
@@ -3945,6 +5193,14 @@
                 "Default": null,
                 "Extra": ""
             },
+            "reservation_id": {
+                "Field": "reservation_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
             "location_id": {
                 "Field": "location_id",
                 "Type": "int(11)",
@@ -4128,6 +5384,30 @@
                 "Key": "",
                 "Default": "current_timestamp()",
                 "Extra": "on update current_timestamp()"
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -4348,6 +5628,52 @@
                 "Non_unique": 0,
                 "Columns": [
                     "name"
+                ]
+            }
+        }
+    },
+    "marketing_media": {
+        "name": "marketing_media",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "filename": {
+                "Field": "filename",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "url": {
+                "Field": "url",
+                "Type": "varchar(500)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
                 ]
             }
         }
@@ -5294,6 +6620,38 @@
                 "Key": "",
                 "Default": "current_timestamp()",
                 "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Received','Cancelled')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Received",
+                "Extra": ""
+            },
+            "cancelled_at": {
+                "Field": "cancelled_at",
+                "Type": "datetime",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancelled_by": {
+                "Field": "cancelled_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cancellation_reason": {
+                "Field": "cancellation_reason",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -6113,6 +7471,22 @@
                 "Default": null,
                 "Extra": ""
             },
+            "batch_number": {
+                "Field": "batch_number",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "expiry_date": {
+                "Field": "expiry_date",
+                "Type": "date",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
             "waste_reason": {
                 "Field": "waste_reason",
                 "Type": "varchar(255)",
@@ -6847,6 +8221,332 @@
                 "Non_unique": 1,
                 "Columns": [
                     "location_id"
+                ]
+            }
+        }
+    },
+    "quotation_items": {
+        "name": "quotation_items",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "quotation_id": {
+                "Field": "quotation_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "item_id": {
+                "Field": "item_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "item_type": {
+                "Field": "item_type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Part",
+                "Extra": ""
+            },
+            "quantity": {
+                "Field": "quantity",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "1.00",
+                "Extra": ""
+            },
+            "unit_price": {
+                "Field": "unit_price",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "discount": {
+                "Field": "discount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "line_total": {
+                "Field": "line_total",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "quotation_id": {
+                "Key_name": "quotation_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "quotation_id"
+                ]
+            }
+        }
+    },
+    "quotation_taxes": {
+        "name": "quotation_taxes",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "quotation_id": {
+                "Field": "quotation_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "tax_name": {
+                "Field": "tax_name",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "tax_code": {
+                "Field": "tax_code",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "rate_percent": {
+                "Field": "rate_percent",
+                "Type": "decimal(5,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "amount": {
+                "Field": "amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "quotation_id": {
+                "Key_name": "quotation_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "quotation_id"
+                ]
+            }
+        }
+    },
+    "quotations": {
+        "name": "quotations",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "quotation_no": {
+                "Field": "quotation_no",
+                "Type": "varchar(50)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "location_id": {
+                "Field": "location_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "issue_date": {
+                "Field": "issue_date",
+                "Type": "date",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "expiry_date": {
+                "Field": "expiry_date",
+                "Type": "date",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Draft','Sent','Accepted','Rejected','Expired','Converted')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Draft",
+                "Extra": ""
+            },
+            "subtotal": {
+                "Field": "subtotal",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "tax_total": {
+                "Field": "tax_total",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "discount_total": {
+                "Field": "discount_total",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "grand_total": {
+                "Field": "grand_total",
+                "Type": "decimal(15,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "converted_invoice_id": {
+                "Field": "converted_invoice_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "updated_by": {
+                "Field": "updated_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "quotation_no": {
+                "Key_name": "quotation_no",
+                "Non_unique": 0,
+                "Columns": [
+                    "quotation_no"
+                ]
+            },
+            "customer_id": {
+                "Key_name": "customer_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "customer_id"
                 ]
             }
         }
@@ -7715,6 +9415,67 @@
             }
         }
     },
+    "segment_contacts": {
+        "name": "segment_contacts",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "segment_id": {
+                "Field": "segment_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "phone": {
+                "Field": "phone",
+                "Type": "varchar(20)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "email": {
+                "Field": "email",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "segment_id": {
+                "Key_name": "segment_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "segment_id"
+                ]
+            }
+        }
+    },
     "service_bays": {
         "name": "service_bays",
         "columns": {
@@ -7946,6 +9707,22 @@
                 "Key": "",
                 "Default": "0",
                 "Extra": ""
+            },
+            "google_analytics_code": {
+                "Field": "google_analytics_code",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "facebook_pixel_code": {
+                "Field": "facebook_pixel_code",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -8023,6 +9800,154 @@
                 "Key": "",
                 "Default": "current_timestamp()",
                 "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "sms_campaigns": {
+        "name": "sms_campaigns",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "message": {
+                "Field": "message",
+                "Type": "text",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "target_segment": {
+                "Field": "target_segment",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "all",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Draft','Sent','Cancelled')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Draft",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "sent_at": {
+                "Field": "sent_at",
+                "Type": "timestamp",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "sms_logs": {
+        "name": "sms_logs",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "campaign_id": {
+                "Field": "campaign_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "recipient": {
+                "Field": "recipient",
+                "Type": "varchar(20)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "message": {
+                "Field": "message",
+                "Type": "text",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Success','Failed')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Success",
+                "Extra": ""
+            },
+            "error_message": {
+                "Field": "error_message",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "sent_at": {
+                "Field": "sent_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
             }
         },
         "indexes": {

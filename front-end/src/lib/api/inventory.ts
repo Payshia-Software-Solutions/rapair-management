@@ -463,6 +463,28 @@ export const createGrn = async (payload: any, locationIdOverride?: number | null
   }
   return res.json() as Promise<ApiSuccess<{ id: number }>>;
 };
+export const cancelGrn = async (id: number, reason: string) => {
+  const res = await api(`/api/grn/cancel/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to cancel GRN');
+  }
+  return res.json();
+};
+export const cancelSupplierPayment = async (id: number, reason: string) => {
+  const res = await api(`/api/supplier/cancel_payment/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ reason })
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to cancel supplier payment');
+  }
+  return res.json();
+};
 
 // Transfers & Requisitions
 export const fetchTransfers = async () => {
