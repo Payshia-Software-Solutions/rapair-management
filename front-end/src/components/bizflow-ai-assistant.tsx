@@ -133,31 +133,31 @@ export function BizFlowAiAssistant() {
     };
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end">
+        <div className="z-50">
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
-                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        initial={{ opacity: 0, scale: 0.95, y: 20 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.9, y: 20 }}
-                        className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[95vw] sm:w-[380px] max-w-[420px] h-[85vh] sm:h-[580px] z-[60] shadow-2xl rounded-t-3xl sm:rounded-3xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800"
+                        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                        className="fixed inset-0 sm:inset-auto sm:bottom-24 sm:right-6 w-full h-full sm:w-[400px] sm:h-[650px] z-[60] shadow-2xl sm:rounded-3xl overflow-hidden flex flex-col bg-white dark:bg-slate-900 border-none sm:border border-slate-200 dark:border-slate-800"
                     >
                         {/* Header */}
-                        <div className="bg-slate-900 p-6 text-white flex items-center justify-between">
+                        <div className="bg-slate-900 p-6 sm:p-5 text-white flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
                                     <Bot className="w-6 h-6 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-sm">BizFlow Assistant</h3>
+                                    <h3 className="font-bold text-base sm:text-sm">BizFlow Assistant</h3>
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Online</span>
+                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Online Intelligence</span>
                                     </div>
                                 </div>
                             </div>
-                            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white" onClick={() => setIsOpen(false)}>
-                                <X className="w-5 h-5" />
+                            <Button variant="ghost" size="icon" className="text-slate-400 hover:text-white h-10 w-10 sm:h-8 sm:w-8" onClick={() => setIsOpen(false)}>
+                                <X className="w-6 h-6 sm:w-5 sm:h-5" />
                             </Button>
                         </div>
 
@@ -259,7 +259,7 @@ export function BizFlowAiAssistant() {
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+                        <div className="p-4 sm:p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20 pb-8 sm:pb-3">
                             {/* Quick Actions */}
                             <div className="flex gap-1 overflow-x-auto no-scrollbar mb-2 pb-1">
                                 {QUICK_ACTIONS.map((action, i) => (
@@ -298,10 +298,10 @@ export function BizFlowAiAssistant() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={() => setIsOpen(!isOpen)}
-                className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl shadow-2xl flex items-center justify-center transition-all ${
+                className={`fixed z-50 shadow-2xl flex items-center justify-center transition-all ${
                     isOpen 
-                    ? "bg-slate-900 text-white rotate-90 hidden sm:flex" 
-                    : "bg-primary text-white shadow-primary/30"
+                    ? "bg-slate-900 text-white rotate-90 hidden sm:flex bottom-6 right-6 w-14 h-14 rounded-2xl" 
+                    : "bg-primary text-white shadow-primary/30 right-0 top-1/2 -translate-y-1/2 w-10 h-24 rounded-l-2xl sm:bottom-6 sm:right-6 sm:top-auto sm:translate-y-0 sm:w-14 sm:h-14 sm:rounded-2xl"
                 }`}
             >
                 {isOpen ? <X className="w-6 h-6" /> : <Bot className="w-7 h-7" />}
