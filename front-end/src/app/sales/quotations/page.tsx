@@ -241,7 +241,8 @@ export default function QuotationsPage() {
                   </CardContent>
                 </Card>
               );
-            })}
+            })
+          }
           </div>
 
           {/* Pagination Controls */}
@@ -300,9 +301,11 @@ export default function QuotationsPage() {
                 </Button>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-    </DashboardLayout>
-  );
+            )}
+          </div>
+        )
+      }
+    </div>
+  </DashboardLayout>
+);
 }
