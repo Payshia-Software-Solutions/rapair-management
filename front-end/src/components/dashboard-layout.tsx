@@ -87,6 +87,7 @@ import {
   productionItems,
   hrmItems,
   frontOfficeItems,
+  banquetItems,
   marketingItems
 } from "@/lib/nav-items";
 
@@ -107,6 +108,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isMarketingOpen, setIsMarketingOpen] = useState(false);
   const [isHrmOpen, setIsHrmOpen] = useState(false);
   const [isFrontOfficeOpen, setIsFrontOfficeOpen] = useState(false);
+  const [isBanquetOpen, setIsBanquetOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -380,6 +382,9 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const visibleFrontOfficeItems = frontOfficeItems.filter((it) => hasPerm((it as any).perm));
   const canSeeFrontOffice = isModuleAllowed('frontOffice') && visibleFrontOfficeItems.length > 0;
 
+  const visibleBanquetItems = banquetItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeBanquet = isModuleAllowed('banquet') && visibleBanquetItems.length > 0;
+
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
@@ -387,7 +392,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...frontOfficeItems, ...adminItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...adminItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -419,6 +424,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     if (pathname.startsWith('/production')) setIsProductionOpen(true);
     if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
     if (pathname.startsWith('/front-office')) setIsFrontOfficeOpen(true);
+    if (pathname.startsWith('/banquet')) setIsBanquetOpen(true);
     if (pathname.startsWith('/admin')) setIsAdminOpen(true);
   }, [pathname, permissionKeys, userRole]);
 
@@ -434,6 +440,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const marketingOpen = isMarketingOpen;
   const hrmOpen = isHrmOpen;
   const frontOfficeOpen = isFrontOfficeOpen;
+  const banquetOpen = isBanquetOpen;
   const adminOpen = isAdminOpen;
 
   return (
@@ -934,6 +941,51 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                       {frontOfficeOpen ? (
                         <SidebarMenuSub>
                           {visibleFrontOfficeItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeBanquet ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsBanquetOpen((v) => !v)}
+                        isActive={pathname.startsWith('/banquet')}
+                        tooltip="Banquet"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/banquet') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <LayoutGrid className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Banquet</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            banquetOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {banquetOpen ? (
+                        <SidebarMenuSub>
+                          {visibleBanquetItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>

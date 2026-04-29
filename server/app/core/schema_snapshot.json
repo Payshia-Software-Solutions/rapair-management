@@ -10913,6 +10913,22 @@
                 "Default": "1",
                 "Extra": ""
             },
+            "is_inventory_vendor": {
+                "Field": "is_inventory_vendor",
+                "Type": "tinyint(1)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "is_banquet_vendor": {
+                "Field": "is_banquet_vendor",
+                "Type": "tinyint(1)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
             "created_by": {
                 "Field": "created_by",
                 "Type": "int(11)",

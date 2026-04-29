@@ -12834,6 +12834,24 @@ class SchemaDefinition {
         'Default' => '1',
         'Extra' => '',
       ),
+      'is_inventory_vendor' => 
+      array (
+        'Field' => 'is_inventory_vendor',
+        'Type' => 'tinyint(1)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'is_banquet_vendor' => 
+      array (
+        'Field' => 'is_banquet_vendor',
+        'Type' => 'tinyint(1)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
       'created_by' => 
       array (
         'Field' => 'created_by',

@@ -103,6 +103,8 @@ interface POSContextType {
   setRefundDialogOpen: (val: boolean) => void;
   ledgerDialogOpen: boolean;
   setLedgerDialogOpen: (val: boolean) => void;
+  pendingInvoicesDialogOpen: boolean;
+  setPendingInvoicesDialogOpen: (val: boolean) => void;
   activeMobileTab: 'shelf' | 'bill';
   setActiveMobileTab: (tab: 'shelf' | 'bill') => void;
 
@@ -171,6 +173,11 @@ interface POSContextType {
   setPrintSelectionOpen: (val: boolean) => void;
   lastInvoiceId: number | null;
   setLastInvoiceId: (val: number | null) => void;
+
+  // Reservation Link
+  reservationDialogOpen: boolean;
+  setReservationDialogOpen: (val: boolean) => void;
+  handleAddToReservation: (resId: number, items: any[]) => Promise<void>;
 }
 
 
@@ -223,6 +230,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false);
+  const [pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'shelf' | 'bill'>('shelf');
 
   // Product Modal State
@@ -271,6 +279,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Print Selection State
   const [printSelectionOpen, setPrintSelectionOpen] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState<number | null>(null);
+
+  // Reservation State
+  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
 
 
   const updateAppliedPromotion = (promo: any | null) => {
@@ -465,6 +476,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         !returnDialogOpen && 
         !refundDialogOpen && 
         !ledgerDialogOpen && 
+        !pendingInvoicesDialogOpen &&
         !guideModalOpen &&
         !checkoutOpen
     ) {
@@ -915,6 +927,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleAddToReservation = async (resId: number, items: any[]) => {
+    if (items.length === 0) return;
+    setSubmitting(true);
+    try {
+        const response = await apiHelper(`/api/hotel/items-bulk/${resId}`, {
+            method: "POST",
+            body: JSON.stringify({ items: items })
+        });
+        if (response.ok) {
+            toast({ title: "Success", description: "Items added to guest reservation bill." });
+            setReservationDialogOpen(false);
+        } else {
+            const data = await response.json();
+            throw new Error(data.message || "Transfer failed");
+        }
+    } catch (err: any) {
+        toast({ title: "Transfer Error", description: err.message, variant: "destructive" });
+    } finally {
+        setSubmitting(false);
+    }
+  };
+
   const value = {
       inventory, systemTaxes, locations, customers, banks, bankBranches, company, loading, submitting, setSubmitting,
       cart, selectedLocation, setSelectedLocation, selectedCustomer, setSelectedCustomer, 
@@ -927,6 +961,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToCartWithQty, updateCartLine, removeCartLine, handleCheckoutProcess, holdPOSBill, loadPOSBill, reloadData,
       totals, theme, toggleTheme, searchQuery, setSearchQuery,
       returnDialogOpen, setReturnDialogOpen, refundDialogOpen, setRefundDialogOpen, ledgerDialogOpen, setLedgerDialogOpen,
+      pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen,
       activeMobileTab, setActiveMobileTab,
       productModalOpen, setProductModalOpen, selectedProduct, setSelectedProduct,
       addCustomerOpen, setAddCustomerOpen, addingCustomer, setAddingCustomer, newCustomer, setNewCustomer, handleQuickAddCustomer,
@@ -948,7 +983,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       printSelectionOpen,
       setPrintSelectionOpen,
       lastInvoiceId,
-      setLastInvoiceId
+      setLastInvoiceId,
+      reservationDialogOpen,
+      setReservationDialogOpen,
+      handleAddToReservation
     };
   
     return (

@@ -205,4 +205,29 @@ class Reservation extends Model {
         $this->db->bind(':id', $itemId);
         return $this->db->execute();
     }
+
+    public function addItemsBulk($resId, $items) {
+        $this->db->beginTransaction();
+        try {
+            foreach ($items as $item) {
+                $this->db->query("
+                    INSERT INTO hotel_reservation_items (reservation_id, item_id, description, quantity, unit_price, total_price)
+                    VALUES (:res, :item_id, :desc, :qty, :price, :total)
+                ");
+                $this->db->bind(':res', $resId);
+                $this->db->bind(':item_id', $item['id'] ?? $item['item_id'] ?? null);
+                $this->db->bind(':desc', $item['description']);
+                $this->db->bind(':qty', $item['quantity'] ?? 1);
+                $this->db->bind(':price', $item['unit_price'] ?? 0);
+                $this->db->bind(':total', ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0));
+                $this->db->execute();
+            }
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Bulk add items failed: " . $e->getMessage());
+            return false;
+        }
+    }
 }

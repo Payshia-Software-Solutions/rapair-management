@@ -83,6 +83,7 @@ require_once '../app/helpers/HotelSchema.php';
 require_once '../app/helpers/SystemSchema.php';
 require_once '../app/helpers/QuotationSchema.php';
 require_once '../app/helpers/AccountingSchema.php';
+require_once '../app/helpers/BanquetSchema.php';
 
 // Ensure schema is up to date on every request
 InventorySchema::ensure();
@@ -92,5 +93,6 @@ HotelSchema::ensure();
 SystemSchema::ensure();
 QuotationSchema::ensure();
 AccountingSchema::ensure();
+BanquetSchema::ensure();
 
 $init = new App();

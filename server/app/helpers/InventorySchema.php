@@ -275,6 +275,8 @@ class InventorySchema {
                     address VARCHAR(255) NULL,
                     tax_reg_no VARCHAR(100) NULL,
                     is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    is_inventory_vendor TINYINT(1) NOT NULL DEFAULT 1,
+                    is_banquet_vendor TINYINT(1) NOT NULL DEFAULT 0,
                     created_by INT NULL,
                     updated_by INT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -287,6 +289,12 @@ class InventorySchema {
             try {
                 if (!self::hasColumn($pdo, 'suppliers', 'tax_reg_no')) {
                     $pdo->exec("ALTER TABLE suppliers ADD COLUMN tax_reg_no VARCHAR(100) NULL");
+                }
+                if (!self::hasColumn($pdo, 'suppliers', 'is_inventory_vendor')) {
+                    $pdo->exec("ALTER TABLE suppliers ADD COLUMN is_inventory_vendor TINYINT(1) NOT NULL DEFAULT 1");
+                }
+                if (!self::hasColumn($pdo, 'suppliers', 'is_banquet_vendor')) {
+                    $pdo->exec("ALTER TABLE suppliers ADD COLUMN is_banquet_vendor TINYINT(1) NOT NULL DEFAULT 0");
                 }
             } catch (Exception $e2) {}
         } catch (Exception $e) {}

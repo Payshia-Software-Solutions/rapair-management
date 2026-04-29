@@ -104,219 +104,140 @@ function PrintContent() {
         </div>
       </div>
 
-      {/* 2. Paper Area */}
-      <div className="py-6 print:py-0">
-        <div className="mx-auto w-[210mm] min-h-[148mm] bg-white shadow-2xl print:shadow-none print:w-full print:border-none px-12 py-10 text-slate-900 border border-slate-200 relative overflow-hidden">
-          
-          {/* Subtle Background Mark */}
-          <div className="absolute -right-20 -top-20 opacity-[0.03] rotate-12 pointer-events-none">
-            <CheckCircle2 className="w-96 h-96 text-emerald-900" />
-          </div>
+      {/* POS Thermal View */}
+      <style>{`
+        @page {
+          size: 80mm auto;
+          margin: 4mm 3mm;
+        }
+        @media print {
+          html, body { margin: 0; padding: 0; }
+          .no-print { display: none !important; }
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 0; background: white; font-family: 'Courier New', Courier, monospace; }
+        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; }
+        .center { text-align: center; }
+        .right { text-align: right; }
+        .bold { font-weight: bold; }
+        .hr { border: none; border-top: 1px dashed #000; margin: 5px 0; }
+        .hr-solid { border: none; border-top: 1px solid #000; margin: 5px 0; }
+        .row { display: flex; justify-content: space-between; margin: 1px 0; }
+        .shop-name { font-size: 16px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
+        .tag { font-size: 10px; color: #333; }
+        .preview-wrap { min-height: 100vh; background: #e5e7eb; display: flex; align-items: flex-start; justify-content: center; padding: 24px; }
+        .preview-paper { background: white; width: 80mm; padding: 6px 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.15); min-height: 200px; }
+      `}</style>
 
-          {/* Header */}
-          <div className="flex justify-between items-start border-b-2 border-slate-900 pb-6">
-            <div className="space-y-3">
-              {company?.logo_filename && (
-                <img src={contentUrl('company', company.logo_filename)} alt="Logo" className="w-16 h-16 object-contain" />
-              )}
-              <div>
-                <h1 className="text-3xl font-black tracking-tighter text-slate-900 uppercase leading-none">Official Receipt</h1>
-                <p className="text-slate-400 font-mono text-xs tracking-[0.2em] mt-1 uppercase">Payment Confirmation</p>
-              </div>
-            </div>
-            
-            <div className="text-right space-y-1 pt-1">
-              <p className="text-lg font-black text-slate-900 uppercase leading-none">
-                {company?.name || "ServiceBay Solutions"}
-              </p>
-              <div className="text-[11px] text-slate-500 whitespace-pre-line leading-tight">
-                {company?.address || "Main Street, Colombo"}
-                <div className="mt-2 space-y-0.5">
-                  <div className="flex items-center justify-end gap-1.5 font-bold text-slate-700 italic">
-                    <Phone className="w-3 h-3"/> {company?.phone}
-                  </div>
-                  {company?.tax_no && (
-                    <div className="flex items-center justify-end gap-1.5 font-black text-slate-900 uppercase text-[10px]">
-                      {company?.tax_label || "TAX ID"}: {company?.tax_no}
-                    </div>
-                  )}
-                </div>
-              </div>
+      {/* Screen Preview Wrapper (hidden on print) */}
+      <div className="no-print preview-wrap">
+        <div>
+          <div className="preview-paper">
+            <div className="receipt">
+              <ReceiptBody receipt={receipt} company={company} />
             </div>
           </div>
-
-          {/* Meta Info Grid */}
-          <div className="grid grid-cols-2 gap-12 py-8">
-            <div className="space-y-6">
-              <div className="space-y-1.5">
-                <h4 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">Received From</h4>
-                <p className="text-lg font-black text-slate-900 leading-none">{receipt.customer_name}</p>
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-tight">{receipt.customer_phone}</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <h4 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Receipt No</h4>
-                  <p className="text-sm font-mono font-black text-emerald-600">{receipt.receipt_no}</p>
-                </div>
-                <div className="space-y-1 text-right">
-                  <h4 className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Date</h4>
-                  <p className="text-sm font-bold text-slate-700">{new Date(receipt.payment_date).toLocaleDateString('en-GB')}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 space-y-4">
-              <div className="flex justify-between items-start">
-                <h4 className="text-[9px] font-black uppercase tracking-[0.3em] text-slate-400 leading-none">Amount Paid</h4>
-                <div className="p-2 bg-white rounded-lg shadow-sm">
-                  {getMethodIcon(receipt.payment_method)}
-                </div>
-              </div>
-              <div className="space-y-0.5">
-                <p className="text-3xl font-black text-slate-900 tracking-tighter tabular-nums">
-                  LKR {Number(receipt.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </p>
-                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-widest italic">In Local Currency</p>
-              </div>
-              
-              <div className="pt-3 border-t border-slate-200">
-                <div className="flex justify-between text-[11px]">
-                  <span className="font-bold text-slate-500 uppercase">Payment Method</span>
-                  <span className="font-black text-slate-900 uppercase italic">{receipt.payment_method}</span>
-                </div>
-              </div>
-            </div>
+          <div style={{ textAlign: 'center', marginTop: '16px' }}>
+            <Button onClick={() => window.print()} className="bg-blue-700 hover:bg-blue-800 text-white mr-2">
+              🖨 Print Receipt
+            </Button>
+            <Button variant="outline" onClick={() => window.close()}>
+              Close
+            </Button>
           </div>
-
-          {/* Detailed Payment Specs */}
-          <div className="border-t-2 border-slate-100 pt-6">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-4">Transaction Reference</h4>
-            
-            <div className="grid grid-cols-3 gap-8">
-              <div className="space-y-1">
-                <h5 className="text-[8px] font-bold uppercase text-slate-400">In Relation To</h5>
-                <p className="text-xs font-black text-slate-700 uppercase">Invoice #{receipt.invoice_no}</p>
-              </div>
-
-              {receipt.payment_method === 'Card' && (
-                <>
-                  <div className="space-y-1">
-                    <h5 className="text-[8px] font-bold uppercase text-slate-400">Card Details</h5>
-                    <p className="text-xs font-black text-slate-700 uppercase leading-tight">
-                      {receipt.card_type} {receipt.card_last4 && `(**** ${receipt.card_last4})`}
-                    </p>
-                    <p className="text-[10px] font-bold text-indigo-600 uppercase">
-                      {receipt.card_bank_name || 'Processed via Gateway'}
-                    </p>
-                    {receipt.card_category && (
-                      <span className="text-[8px] font-black px-1.5 py-0.5 bg-slate-100 rounded uppercase tracking-tighter">
-                        {receipt.card_category} Card
-                      </span>
-                    )}
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <h5 className="text-[8px] font-bold uppercase text-slate-400">Authorization Code</h5>
-                    <p className="text-xs font-mono font-black text-slate-900">
-                      {receipt.card_auth_code || "N/A"}
-                    </p>
-                  </div>
-                </>
-              )}
-
-              {receipt.payment_method === 'Cheque' && (
-                <>
-                  <div className="space-y-1">
-                    <h5 className="text-[8px] font-bold uppercase text-slate-400">Cheque Info</h5>
-                    <p className="text-xs font-black text-slate-700 uppercase">
-                      #{receipt.cheque_no_last6}
-                    </p>
-                    <p className="text-[10px] font-bold text-amber-600 uppercase">
-                      {receipt.cheque_bank_name}
-                    </p>
-                  </div>
-                  <div className="space-y-1 text-right">
-                    <h5 className="text-[8px] font-bold uppercase text-slate-400">Cheque Date</h5>
-                    <p className="text-xs font-bold text-slate-700">
-                      {receipt.cheque_date ? new Date(receipt.cheque_date).toLocaleDateString('en-GB') : "N/A"}
-                    </p>
-                  </div>
-                </>
-              )}
-
-              {receipt.payment_method === 'Bank Transfer' && receipt.reference_no && (
-                <div className="space-y-1">
-                  <h5 className="text-[8px] font-bold uppercase text-slate-400">Ref Code</h5>
-                  <p className="text-xs font-mono font-black text-slate-700">{receipt.reference_no}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Words Section */}
-          <div className="mt-12 p-4 bg-slate-50/50 border border-slate-100 rounded-xl">
-             <div className="flex gap-4 items-center">
-                <div className="text-[9px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Amount in Words</div>
-                <div className="text-[11px] font-bold text-slate-600 italic border-l border-slate-200 pl-4 capitalize">
-                   {/* Placeholder for real currency to words converter if needed, usually LKR receipts just have amount */}
-                   Total payment of {formatCurrency(receipt.amount)} received in full satisfaction of the above reference.
-                </div>
-             </div>
-          </div>
-
-          {/* Footer Signatures */}
-          <div className="mt-16 flex justify-between items-end">
-            <div className="w-48 text-center space-y-4">
-               <div className="h-px bg-slate-200 w-full"></div>
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Customer Signature</p>
-            </div>
-
-            <div className="text-center space-y-4">
-              <div className="flex flex-col items-center">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500 mb-2" />
-                <p className="text-[9px] font-black text-slate-900 uppercase tracking-widest">Digitally Verified</p>
-              </div>
-              <p className="text-[8px] text-slate-400 font-medium">Thank you for your business!</p>
-            </div>
-
-            <div className="w-48 text-center space-y-4">
-               <div className="h-px bg-slate-200 w-full"></div>
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Authorized Officer</p>
-            </div>
-          </div>
-
         </div>
       </div>
-      
-      <style jsx global>{`
+
+      {/* Print-only version */}
+      <div style={{ display: 'none' }} className="print-only">
+        <div className="receipt">
+          <ReceiptBody receipt={receipt} company={company} />
+        </div>
+      </div>
+
+      <style>{`
         @media print {
-          @page {
-            size: A4 portrait;
-            margin: 0;
-          }
-          body {
-            background-color: white !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          .min-h-screen {
-            min-height: auto !important;
-            background: none !important;
-          }
-          .mx-auto {
-            margin: 0 !important;
-            width: 210mm !important;
-            min-height: 148mm !important; /* Half A4 height if desired, but 297mm for full A4 */
-          }
-          /* Control specifically the printable card container */
-          .shadow-2xl, .bg-slate-100\\/50, .py-6, .sticky {
-            display: none !important;
-          }
+          .preview-wrap { display: none !important; }
+          .print-only { display: block !important; }
         }
       `}</style>
     </div>
+  );
+}
+
+function ReceiptBody({ receipt, company }: any) {
+  return (
+    <>
+      {/* Store Header */}
+      <div className="center">
+        {company?.name && <div className="shop-name">{company.name}</div>}
+        {company?.phone && <div className="tag">Tel: {company.phone}</div>}
+        {company?.address && <div className="tag">{company.address}</div>}
+      </div>
+
+      <hr className="hr-solid" />
+
+      {/* Title */}
+      <div className="center bold" style={{ fontSize: '13px', margin: '4px 0' }}>PAYMENT RECEIPT</div>
+
+      {/* Receipt Meta */}
+      <div className="row"><span>Receipt#</span><span className="bold">{receipt.receipt_no}</span></div>
+      <div className="row"><span>Date</span><span>{new Date(receipt.payment_date).toLocaleDateString('en-GB')}</span></div>
+      <div className="row"><span>Invoice#</span><span className="bold">{receipt.invoice_no}</span></div>
+      
+      <hr className="hr" />
+
+      {/* Customer */}
+      <div className="bold" style={{ marginBottom: '2px' }}>CUSTOMER:</div>
+      <div className="row"><span>Name</span><span className="bold">{receipt.customer_name}</span></div>
+      {receipt.customer_phone && <div className="row"><span>Phone</span><span>{receipt.customer_phone}</span></div>}
+
+      <hr className="hr" />
+
+      {/* Amount Section */}
+      <div className="center" style={{ padding: '8px 0' }}>
+        <div style={{ fontSize: '10px', textTransform: 'uppercase' }}>Total Amount Received</div>
+        <div style={{ fontSize: '20px', fontWeight: 'bold', margin: '4px 0' }}>
+          LKR {Number(receipt.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </div>
+        <div className="bold italic">({receipt.payment_method})</div>
+      </div>
+
+      <hr className="hr" />
+
+      {/* Payment Details */}
+      {receipt.payment_method === 'Card' && (
+        <div style={{ fontSize: '10px' }}>
+          <div className="row"><span>Card Type</span><span>{receipt.card_type}</span></div>
+          {receipt.card_last4 && <div className="row"><span>Card No</span><span>**** {receipt.card_last4}</span></div>}
+          {receipt.card_auth_code && <div className="row"><span>Auth Code</span><span>{receipt.card_auth_code}</span></div>}
+          {receipt.card_bank_name && <div className="row"><span>Bank</span><span>{receipt.card_bank_name}</span></div>}
+        </div>
+      )}
+
+      {receipt.payment_method === 'Cheque' && (
+        <div style={{ fontSize: '10px' }}>
+          <div className="row"><span>Cheque No</span><span>#{receipt.cheque_no_last6}</span></div>
+          <div className="row"><span>Bank</span><span>{receipt.cheque_bank_name}</span></div>
+          <div className="row"><span>Cheque Date</span><span>{receipt.cheque_date ? new Date(receipt.cheque_date).toLocaleDateString('en-GB') : "N/A"}</span></div>
+        </div>
+      )}
+
+      {receipt.notes && (
+        <div style={{ marginTop: '6px', fontSize: '10px', fontStyle: 'italic', opacity: 0.8 }}>
+          Notes: {receipt.notes}
+        </div>
+      )}
+
+      <hr className="hr-solid" />
+
+      {/* Footer */}
+      <div className="center tag" style={{ marginTop: '8px' }}>
+        <div>Thank you for your business!</div>
+        <div style={{ marginTop: '4px', fontStyle: 'italic' }}>*** Digitally Verified ***</div>
+        <div style={{ marginTop: '4px', fontSize: '9px', opacity: 0.7 }}>Printed: {new Date().toLocaleString('en-GB')}</div>
+      </div>
+    </>
   );
 }
 

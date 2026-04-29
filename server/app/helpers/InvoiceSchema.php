@@ -42,6 +42,12 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'online_order_id')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN online_order_id INT NULL AFTER order_id");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'reservation_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN reservation_id INT NULL AFTER online_order_id");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'banquet_booking_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN banquet_booking_id INT NULL AFTER reservation_id");
+                }
             }
         } catch (Exception $e) {}
 

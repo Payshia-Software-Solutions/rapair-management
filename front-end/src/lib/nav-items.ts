@@ -39,7 +39,8 @@ import {
   ShoppingCart,
   MessageSquare,
   Mail,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Utensils
 } from "lucide-react";
 
 export type NavItem = {
@@ -153,6 +154,16 @@ export const frontOfficeItems: NavItem[] = [
   { icon: CalendarIcon, label: "Calendar View", href: "/front-office/calendar", perm: "orders.read" },
   { icon: ClipboardList, label: "Reservations", href: "/front-office/reservations", perm: "orders.read" },
   { icon: Building2, label: "Rooms & Rates", href: "/front-office/rooms", perm: "parts.read" },
+];
+
+export const banquetItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Banquet Overview", href: "/banquet/dashboard", perm: "orders.read" },
+  { icon: CalendarIcon, label: "Event Calendar", href: "/banquet/calendar", perm: "orders.read" },
+  { icon: ClipboardList, label: "Banquet Bookings", href: "/banquet/bookings", perm: "orders.read" },
+  { icon: LayoutGrid, label: "Banquet Halls", href: "/banquet/halls", perm: "orders.read" },
+  { icon: Utensils, label: "Banquet Menus", href: "/banquet/menus", perm: "orders.read" },
+  { icon: Boxes, label: "Banquet Resources", href: "/banquet/resources", perm: "orders.read" },
+  { icon: Truck, label: "Banquet Vendors", href: "/banquet/vendors", perm: "orders.read" },
 ];
 
 export const adminNavItems: NavItem[] = [

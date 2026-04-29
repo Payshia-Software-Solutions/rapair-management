@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
     MessageSquare, 
@@ -57,12 +58,18 @@ const QUICK_ACTIONS = [
 ];
 
 export function BizFlowAiAssistant() {
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [input, setInput] = useState("");
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
+
+    // Hide assistant in POS
+    if (pathname?.includes('/cms/pos')) {
+        return null;
+    }
 
     useEffect(() => {
         if (isOpen && messages.length === 0) {

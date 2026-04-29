@@ -19,7 +19,8 @@ import {
   PauseCircle,
   Clock,
   RefreshCw,
-  Gift
+  Gift,
+  Home
 } from "lucide-react";
 import { 
   Select, 
@@ -80,7 +81,8 @@ export const SidebarCart: React.FC = () => {
     refreshHeldOrders,
     appliedPromotion,
     setAppliedPromotion,
-    setIsPromotionPromptOpen
+    setIsPromotionPromptOpen,
+    setReservationDialogOpen
   } = usePOS();
 
   const [heldOrdersOpen, setHeldOrdersOpen] = React.useState(false);
@@ -442,6 +444,7 @@ export const SidebarCart: React.FC = () => {
               LKR {totals.grandTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
             </span>
           </div>
+
           
           <div className="hidden lg:grid lg:grid-cols-2 gap-3">
               <Button 
