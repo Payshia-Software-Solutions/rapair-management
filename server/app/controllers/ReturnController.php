@@ -2,7 +2,7 @@
 /**
  * ReturnController
  */
-class SalesreturnController extends Controller {
+class ReturnController extends Controller {
     private $returnModel;
     private $invoiceModel;
     private $refundModel;
@@ -31,6 +31,10 @@ class SalesreturnController extends Controller {
         ];
         $returns = $this->returnModel->getAll($filters);
         $this->success($returns);
+    }
+
+    public function invoice_details($id = null) {
+        return $this->invoice_lookup($id);
     }
 
     public function invoice_lookup($id = null) {
@@ -157,9 +161,9 @@ class SalesreturnController extends Controller {
         }
     }
 
-    public function details() {
+    public function details($id = null) {
         $this->requirePermission('pos.read');
-        $returnNo = $_GET['return_no'] ?? null;
+        $returnNo = $id ?? ($_GET['return_no'] ?? null);
         if (!$returnNo) {
             $this->error('Return Number required', 400);
             return;
@@ -193,6 +197,10 @@ class SalesreturnController extends Controller {
             'items' => $items,
             'is_refunded' => $ret->refund_count > 0
         ]);
+    }
+
+    public function print($id = null) {
+        return $this->print_data($id);
     }
 
     public function print_data($id = null) {
@@ -236,5 +244,44 @@ class SalesreturnController extends Controller {
             'return' => $return,
             'items' => $items
         ]);
+    }
+    public function refunds() {
+        $this->requirePermission('pos.read');
+        $filters = [
+            'location_id' => $_GET['location_id'] ?? null,
+            'invoice_no' => $_GET['invoice_no'] ?? null
+        ];
+        $refunds = $this->refundModel->getAll($filters);
+        $this->success($refunds);
+    }
+
+    public function refund_print($id = null) {
+        $this->requirePermission('pos.read');
+        $db = new Database();
+        
+        $refundId = $id ?? ($_GET['id'] ?? null);
+        if (!$refundId) {
+            $this->error('Refund ID required', 400);
+            return;
+        }
+
+        $db->query("
+            SELECT r.*, sr.return_no, i.invoice_no, c.name as customer_name, sl.name as location_name
+            FROM refunds r
+            LEFT JOIN sales_returns sr ON r.return_id = sr.id
+            JOIN invoices i ON r.invoice_id = i.id
+            JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN service_locations sl ON i.location_id = sl.id
+            WHERE r.id = :id
+        ");
+        $db->bind(':id', $refundId);
+        $refund = $db->single();
+
+        if (!$refund) {
+            $this->error('Refund record not found', 404);
+            return;
+        }
+
+        $this->success($refund);
     }
 }
