@@ -2,7 +2,7 @@
 /**
  * ProductionOrderController
  */
-class ProductionOrderController extends Controller {
+class ProductionorderController extends Controller {
     private $orderModel;
 
     public function __construct() {

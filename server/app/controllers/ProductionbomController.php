@@ -2,7 +2,7 @@
 /**
  * ProductionBOMController
  */
-class ProductionBOMController extends Controller {
+class ProductionbomController extends Controller {
     private $bomModel;
 
     public function __construct() {
