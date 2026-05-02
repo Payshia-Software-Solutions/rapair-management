@@ -4,17 +4,17 @@ import { Toaster } from "@/components/ui/toaster"
 import { BizFlowAiAssistant } from "@/components/bizflow-ai-assistant";
 
 export const metadata: Metadata = {
-  title: 'BizFlow | Business ERP System',
-  description: 'BizFlow - Modern Enterprise Resource Planning for streamlined business flow.',
+  title: 'BizzFlow | Business ERP System',
+  description: 'BizzFlow - Modern Enterprise Resource Planning for streamlined business flow.',
   manifest: '/manifest.webmanifest',
   icons: {
     icon: [
       { url: '/favicon.ico', type: 'image/x-icon' },
-      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/app-icon.png', sizes: '32x32', type: 'image/png' },
+      { url: '/app-icon.png', sizes: '16x16', type: 'image/png' },
     ],
     shortcut: ['/favicon.ico'],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }],
+    apple: [{ url: '/app-icon.png', sizes: '180x180', type: 'image/png' }],
   },
 };
 
@@ -30,10 +30,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="application-name" content="BizFlow" />
+        <meta name="application-name" content="BizzFlow" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-title" content="BizFlow" />
+        <meta name="apple-mobile-web-app-title" content="BizzFlow" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -126,7 +126,7 @@ export default function RootLayout({
                       '<div class=\"card\">' +
                         '<div class=\"row\">' +
                           '<div>' +
-                            '<div class=\"title\" id=\"pwa-title\">Install BizFlow</div>' +
+                            '<div class=\"title\" id=\"pwa-title\">Install BizzFlow</div>' +
                             '<div class=\"desc\" id=\"pwa-desc\">Get faster access and offline-friendly loading.</div>' +
                           '</div>' +
                           '<button type=\"button\" id=\"pwa-close\">Close</button>' +
@@ -144,7 +144,7 @@ export default function RootLayout({
                     var t = document.getElementById('pwa-title');
                     var d = document.getElementById('pwa-desc');
                     var btn = document.getElementById('pwa-install');
-                    if (t) t.textContent = opts.title || 'Install BizFlow';
+                    if (t) t.textContent = opts.title || 'Install BizzFlow';
                     if (d) d.textContent = opts.desc || '';
                     if (btn) btn.style.display = opts.showInstall ? 'inline-block' : 'none';
                     el.style.display = 'block';
@@ -166,7 +166,7 @@ export default function RootLayout({
                   if (isIos()) {
                     window.setTimeout(function () {
                       showBanner({
-                        title: 'Add BizFlow to Home Screen',
+                        title: 'Add BizzFlow to Home Screen',
                         desc: 'On iPhone/iPad: tap Share, then \"Add to Home Screen\".',
                         showInstall: false
                       });
@@ -174,7 +174,7 @@ export default function RootLayout({
                     }, 1200);
                     return;
                   }
-
+ 
                   // Android/Chrome: capture beforeinstallprompt.
                   var deferred = null;
                   window.addEventListener('beforeinstallprompt', function (e) {
@@ -182,7 +182,7 @@ export default function RootLayout({
                     deferred = e;
                     window.setTimeout(function () {
                       showBanner({
-                        title: 'Install BizFlow',
+                        title: 'Install BizzFlow',
                         desc: 'Get faster access and offline-friendly loading.',
                         showInstall: true
                       });

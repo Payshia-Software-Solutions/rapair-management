@@ -75,7 +75,7 @@ export default function LoginPage() {
       }
 
       toast({ title: 'Signed in', description: 'Welcome back.' });
-      router.replace('/dashboard');
+      router.replace('/dashboard/overall');
     } catch (err) {
       toast({
         title: 'Login failed',
@@ -90,12 +90,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="p-3 bg-primary rounded-2xl shadow-lg shadow-primary/20">
-            <Wrench className="w-8 h-8 text-white" />
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="w-20 h-20 relative">
+            <img 
+              src="/icon-bizzflow-logo-optimized.webp" 
+              alt="BizzFlow Icon" 
+              className="w-full h-full object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">BizFlow</h1>
-          <p className="text-muted-foreground text-sm">Workshop Management Simplified</p>
+          <div>
+            <h1 className="text-4xl font-black tracking-tighter text-foreground italic">BizzFlow</h1>
+            <p className="text-muted-foreground text-sm font-medium">Unified Business Intelligence & ERP</p>
+          </div>
         </div>
 
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">

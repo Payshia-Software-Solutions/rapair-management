@@ -134,7 +134,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                   <Label htmlFor="loc-name">Location Name</Label>
                   <Input
                     id="loc-name"
-                    placeholder="e.g. Colombo Service Center"
+                    placeholder="e.g. Colombo Fleet Hub"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -149,7 +149,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                       className="flex-1"
                       onClick={() => setLocationType("service")}
                     >
-                      Service Center
+                      Fleet Management Hub
                     </Button>
                     <Button
                       type="button"

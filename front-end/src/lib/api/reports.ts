@@ -227,6 +227,13 @@ export const createSchemaSnapshot = async (tableName?: string) => {
   return data.status === 'success' ? data.data : data;
 };
 
+export const optimizeDatabase = async () => {
+  const res = await api('/api/report/database_optimize', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to optimize database');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
 // --- Aliases for Backward Compatibility ---
 export const fetchReportStockBalance = fetchStockBalance;
 export const fetchReportStockTransfers = fetchStockTransferReport;

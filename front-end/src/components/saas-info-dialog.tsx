@@ -36,7 +36,7 @@ interface SaasInfoDialogProps {
 }
 
 const ALL_ERP_MODULES = [
-  { id: 'serviceCenter', label: 'Service Center', desc: 'Job cards & repair tracking' },
+  { id: 'serviceCenter', label: 'Fleet Management', desc: 'Job cards & repair tracking' },
   { id: 'inventory', label: 'Inventory Management', desc: 'Stock & batch tracking' },
   { id: 'vendors', label: 'Vendor Management', desc: 'Supplier & payment profile' },
   { id: 'crm', label: 'CRM', desc: 'Customer lifecycle' },

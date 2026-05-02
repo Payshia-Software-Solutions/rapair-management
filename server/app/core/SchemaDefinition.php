@@ -718,6 +718,15 @@ class SchemaDefinition {
           0 => 'account_id',
         ),
       ),
+      'idx_aji_partner' => 
+      array (
+        'Key_name' => 'idx_aji_partner',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'partner_id',
+        ),
+      ),
     ),
   ),
   'acc_mappings' => 
@@ -4018,6 +4027,15 @@ class SchemaDefinition {
           0 => 'assigned_to',
         ),
       ),
+      'idx_inq_created' => 
+      array (
+        'Key_name' => 'idx_inq_created',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'created_at',
+        ),
+      ),
     ),
   ),
   'crm_inquiry_items' => 
@@ -4098,6 +4116,15 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'inquiry_id',
+        ),
+      ),
+      'idx_inqi_item' => 
+      array (
+        'Key_name' => 'idx_inqi_item',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'item_id',
         ),
       ),
     ),
@@ -5980,6 +6007,15 @@ class SchemaDefinition {
           0 => 'location_id',
         ),
       ),
+      'idx_grn_date' => 
+      array (
+        'Key_name' => 'idx_grn_date',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'received_at',
+        ),
+      ),
     ),
   ),
   'grn_items' => 
@@ -6110,6 +6146,15 @@ class SchemaDefinition {
       'idx_grni_part' => 
       array (
         'Key_name' => 'idx_grni_part',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+        ),
+      ),
+      'idx_grni_item' => 
+      array (
+        'Key_name' => 'idx_grni_item',
         'Non_unique' => 1,
         'Columns' => 
         array (
@@ -7426,6 +7471,15 @@ class SchemaDefinition {
           0 => 'is_exhausted',
         ),
       ),
+      'idx_ib_grn' => 
+      array (
+        'Key_name' => 'idx_ib_grn',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'grn_id',
+        ),
+      ),
     ),
   ),
   'invoice_items' => 
@@ -7542,6 +7596,15 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'invoice_id',
+        ),
+      ),
+      'idx_ii_item' => 
+      array (
+        'Key_name' => 'idx_ii_item',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'item_id',
         ),
       ),
     ),
@@ -8112,6 +8175,33 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'location_id',
+        ),
+      ),
+      'idx_inv_date' => 
+      array (
+        'Key_name' => 'idx_inv_date',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'issue_date',
+        ),
+      ),
+      'idx_inv_status' => 
+      array (
+        'Key_name' => 'idx_inv_status',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'status',
+        ),
+      ),
+      'idx_inv_created' => 
+      array (
+        'Key_name' => 'idx_inv_created',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'created_at',
         ),
       ),
     ),
@@ -11713,6 +11803,15 @@ class SchemaDefinition {
           0 => 'part_id',
         ),
       ),
+      'idx_poi_item' => 
+      array (
+        'Key_name' => 'idx_poi_item',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+        ),
+      ),
     ),
   ),
   'purchase_orders' => 
@@ -11865,6 +11964,24 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'location_id',
+        ),
+      ),
+      'idx_po_date' => 
+      array (
+        'Key_name' => 'idx_po_date',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'ordered_at',
+        ),
+      ),
+      'idx_po_status' => 
+      array (
+        'Key_name' => 'idx_po_status',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'status',
         ),
       ),
     ),
@@ -15234,6 +15351,24 @@ class SchemaDefinition {
           0 => 'batch_id',
         ),
       ),
+      'idx_sm_ref' => 
+      array (
+        'Key_name' => 'idx_sm_ref',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'ref_id',
+        ),
+      ),
+      'idx_sm_created' => 
+      array (
+        'Key_name' => 'idx_sm_created',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'created_at',
+        ),
+      ),
     ),
   ),
   'stock_transfer_items' => 
@@ -15332,6 +15467,15 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'batch_id',
+        ),
+      ),
+      'idx_sti_item' => 
+      array (
+        'Key_name' => 'idx_sti_item',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'part_id',
         ),
       ),
     ),

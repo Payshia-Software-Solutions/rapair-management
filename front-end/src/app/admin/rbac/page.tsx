@@ -39,14 +39,14 @@ type PermRow = { id: number; perm_key: string; description: string | null };
 type PermMatrixRow = { module: string; page: string; read: string; write?: string };
 
 const basePagePermissionMatrix: PermMatrixRow[] = [
-  // Service Center
-  { module: "Service Center", page: "Orders (Queue / Dashboard)", read: "orders.read", write: "orders.write" },
-  { module: "Service Center", page: "Active Jobs & Completed", read: "orders.read", write: "orders.write" },
-  { module: "Service Center", page: "Service Bays & Board", read: "bays.read", write: "bays.write" },
-  { module: "Service Center", page: "Technicians Management", read: "technicians.read", write: "technicians.write" },
-  { module: "Service Center", page: "Vehicles List & History", read: "vehicles.read", write: "vehicles.write" },
-  { module: "Service Center", page: "Repair Categories", read: "categories.read", write: "categories.write" },
-  { module: "Service Center", page: "Checklist Repository", read: "checklists.read", write: "checklists.write" },
+  // Fleet Management
+  { module: "Fleet Management", page: "Orders (Queue / Dashboard)", read: "orders.read", write: "orders.write" },
+  { module: "Fleet Management", page: "Active Jobs & Completed", read: "orders.read", write: "orders.write" },
+  { module: "Fleet Management", page: "Service Bays & Board", read: "bays.read", write: "bays.write" },
+  { module: "Fleet Management", page: "Technicians Management", read: "technicians.read", write: "technicians.write" },
+  { module: "Fleet Management", page: "Vehicles List & History", read: "vehicles.read", write: "vehicles.write" },
+  { module: "Fleet Management", page: "Repair Categories", read: "categories.read", write: "categories.write" },
+  { module: "Fleet Management", page: "Checklist Repository", read: "checklists.read", write: "checklists.write" },
 
   // Inventory & Vendors
   { module: "Inventory", page: "Item Master (Parts/Products)", read: "parts.read", write: "parts.write" },

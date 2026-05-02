@@ -1,6 +1,6 @@
 "use client"
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -8,7 +8,8 @@ import {
   ClipboardList, 
   PlusCircle, 
   Menu, 
-  PlayCircle 
+  PlayCircle,
+  HelpCircle
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -17,8 +18,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { getSavedDockItems } from '@/lib/dock-utils';
+import * as NavItems from '@/lib/nav-items';
 
-const dockItems = [
+const DEFAULT_ITEMS = [
   { icon: LayoutDashboard, label: 'Home', href: '/dashboard' },
   { icon: ClipboardList, label: 'Queue', href: '/orders' },
   { icon: PlusCircle, label: 'New', href: '/orders/new', primary: true },
@@ -28,12 +31,57 @@ const dockItems = [
 
 export function DockMenu() {
   const pathname = usePathname();
+  const [items, setItems] = useState<any[]>([]);
+
+  const loadItems = () => {
+    const savedHrefs = getSavedDockItems();
+    if (!savedHrefs) {
+      setItems(DEFAULT_ITEMS);
+      return;
+    }
+
+    // Map hrefs back to NavItems
+    const allAvailableItems: NavItems.NavItem[] = [
+      ...NavItems.mainNavItems,
+      ...NavItems.serviceCenterItems,
+      ...NavItems.inventoryItems,
+      ...NavItems.vendorItems,
+      ...NavItems.crmItems,
+      ...NavItems.marketingItems,
+      ...NavItems.salesItems,
+      ...NavItems.accountingItems,
+      ...NavItems.productionItems,
+      ...NavItems.hrmItems,
+      ...NavItems.frontOfficeItems,
+      ...NavItems.banquetItems,
+      ...NavItems.masterDataItems,
+      ...NavItems.adminNavItems,
+    ];
+
+    const mapped = savedHrefs.map((href, index) => {
+      // Hardcode /menu since it's special (not in sidebar typically but in dock)
+      if (href === '/menu') return { icon: Menu, label: 'All', href: '/menu' };
+      
+      const found = allAvailableItems.find(it => it.href === href);
+      return found ? { ...found, primary: index === 2 && savedHrefs.length === 5 } : null;
+    }).filter(Boolean);
+
+    setItems(mapped);
+  };
+
+  useEffect(() => {
+    loadItems();
+    window.addEventListener("dock_config_updated", loadItems);
+    return () => window.removeEventListener("dock_config_updated", loadItems);
+  }, []);
+
+  if (items.length === 0) return null;
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 w-full max-w-md md:max-w-lg lg:hidden">
       <TooltipProvider delayDuration={0}>
         <nav className="flex items-center justify-around p-2 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border border-white/20 shadow-2xl rounded-2xl">
-          {dockItems.map((item) => {
+          {items.map((item) => {
             const isActive = pathname === item.href;
             
             if (item.primary) {

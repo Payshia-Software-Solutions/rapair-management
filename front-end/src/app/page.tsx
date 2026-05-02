@@ -20,7 +20,7 @@ export default function Home() {
             title: 'All checks completed',
             description: 'Database tables are ready. Redirecting to dashboard.',
           });
-          router.replace('/dashboard');
+          router.replace('/dashboard/overall');
         } else {
           toast({
             title: 'Setup required',

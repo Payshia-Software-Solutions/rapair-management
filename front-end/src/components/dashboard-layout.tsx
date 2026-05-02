@@ -448,16 +448,20 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
       <div className="flex min-h-screen w-full bg-background relative" suppressHydrationWarning>
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="p-1.5 bg-accent rounded-lg">
-                <Wrench className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 shrink-0 relative">
+                <img 
+                  src="/icon-bizzflow-logo-optimized.webp" 
+                  alt="BizzFlow Icon" 
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <div className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                  BizFlow
+                <div className="text-lg font-black tracking-tighter text-white italic">
+                  BizzFlow
                 </div>
-                <div className="text-[10px] text-white/70 uppercase tracking-widest font-bold truncate max-w-[160px]">
-                  {currentLocationName ? `Location: ${currentLocationName}` : "Location: -"}
+                <div className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-black leading-tight">
+                  {currentLocationName || "Global Management"}
                 </div>
               </div>
             </div>
@@ -517,14 +521,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         type="button"
                         onClick={() => setIsServiceCenterOpen((v) => !v)}
                         isActive={serviceCenterOpen}
-                        tooltip="Service Center"
+                        tooltip="Fleet Management"
                         className={cn(
                           "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
                           serviceCenterOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                         )}
                       >
                         <Wrench className="w-5 h-5" />
-                        <span className="text-base sm:text-sm font-medium">Service Center</span>
+                        <span className="text-base sm:text-sm font-medium">Fleet Management</span>
                         <ChevronRight
                           className={cn(
                             "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
@@ -1193,7 +1197,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                   </Button>
                 </div>
               ) : null}
-              <h1 className="lg:hidden font-bold text-lg">BizFlow</h1>
+              <div className="lg:hidden flex items-center gap-2">
+                <img 
+                  src="/icon-bizzflow-logo-optimized.webp" 
+                  alt="BizzFlow Icon" 
+                  className="w-8 h-8 object-contain"
+                />
+                <h1 className="font-bold text-lg tracking-tight">BizzFlow</h1>
+              </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               {docTitle ? (

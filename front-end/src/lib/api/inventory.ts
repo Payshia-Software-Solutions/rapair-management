@@ -47,7 +47,7 @@ export type PartRow = {
 };
 
 // Collections
-export const fetchCollections = async () => {
+export const fetchInventoryCollections = async () => {
   const res = await api('/api/inventory/collections');
   if (!res.ok) throw new Error('Failed to load collections');
   const data = await res.json();

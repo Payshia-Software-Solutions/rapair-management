@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { fetchDatabaseAudit, syncSchema } from "@/lib/api/reports";
+import { fetchDatabaseAudit, syncSchema, optimizeDatabase } from "@/lib/api/reports";
 import { 
   Database, 
   ShieldCheck, 
@@ -77,6 +77,26 @@ export default function TableVerificationPage() {
       void load();
     } catch (err) {
       toast({ title: "Sync Failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSyncing(null);
+    }
+  };
+
+  const handleOptimize = async () => {
+    if (!confirm("Are you sure you want to optimize the database? This will add recommended indexes to improve performance. Already existing indexes will be skipped.")) return;
+
+    setSyncing("optimize");
+    try {
+      const results = await optimizeDatabase();
+      toast({ 
+        title: "Database Optimized", 
+        description: Array.isArray(results) && results.length > 0 
+          ? `Added ${results.length} missing indexes.` 
+          : "Database is already optimized." 
+      });
+      void load();
+    } catch (err) {
+      toast({ title: "Optimization Failed", description: (err as Error).message, variant: "destructive" });
     } finally {
       setSyncing(null);
     }
@@ -192,6 +212,10 @@ export default function TableVerificationPage() {
             <Button variant="outline" onClick={() => void load()} disabled={loading} className="gap-2">
               <RefreshCcw className={cn("w-4 h-4", loading && "animate-spin")} />
               Refresh
+            </Button>
+            <Button variant="outline" onClick={() => void handleOptimize()} disabled={loading || !!syncing} className="gap-2 border-primary/20 text-primary hover:bg-primary/5">
+              <Database className={cn("w-4 h-4", syncing === "optimize" && "animate-spin")} />
+              Optimize Database
             </Button>
             <Button variant="default" onClick={() => void handleSync()} disabled={loading || !!syncing} className="gap-2 bg-primary">
               <Settings2 className={cn("w-4 h-4", syncing === "all" && "animate-spin")} />
