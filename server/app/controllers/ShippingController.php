@@ -550,4 +550,81 @@ class ShippingController extends Controller {
             $this->error('Failed to delete pallet type');
         }
     }
+    // POST /api/shipping/seed-defaults
+    public function seed_defaults() {
+        $u = $this->requirePermission('shipping.manage');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+
+        $results = [
+            'containers' => 0,
+            'packaging' => 0,
+            'pallets' => 0,
+            'factors' => 0
+        ];
+
+        // 1. Containers
+        $containers = [
+            ['name' => '20ft Standard', 'max_cbm_capacity' => 33.00, 'max_weight_capacity_kg' => 28000, 'max_standard_pallets' => 11],
+            ['name' => '40ft Standard', 'max_cbm_capacity' => 67.00, 'max_weight_capacity_kg' => 28000, 'max_standard_pallets' => 21],
+            ['name' => '40ft High Cube', 'max_cbm_capacity' => 76.00, 'max_weight_capacity_kg' => 28000, 'max_standard_pallets' => 21]
+        ];
+        foreach ($containers as $c) {
+            $this->db->query("SELECT id FROM export_container_types WHERE name = :name");
+            $this->db->bind(':name', $c['name']);
+            if (!$this->db->single()) {
+                $this->packingModel->createContainer($c);
+                $results['containers']++;
+            }
+        }
+
+        // 2. Packaging
+        $packaging = [
+            ['name' => 'Standard Carton A', 'type' => 'Carton', 'length_cm' => 30, 'width_cm' => 30, 'height_cm' => 30, 'cbm' => 0.027, 'tare_weight_kg' => 0.5, 'max_weight_capacity_kg' => 15],
+            ['name' => 'Standard Carton B', 'type' => 'Carton', 'length_cm' => 40, 'width_cm' => 40, 'height_cm' => 40, 'cbm' => 0.064, 'tare_weight_kg' => 0.8, 'max_weight_capacity_kg' => 25],
+            ['name' => 'Canister 500ml', 'type' => 'Canister', 'length_cm' => 10, 'width_cm' => 10, 'height_cm' => 15, 'cbm' => 0.0015, 'tare_weight_kg' => 0.05, 'max_weight_capacity_kg' => 1],
+            ['name' => 'Pouch 250g', 'type' => 'Pouch', 'length_cm' => 15, 'width_cm' => 5, 'height_cm' => 20, 'cbm' => 0.0015, 'tare_weight_kg' => 0.01, 'max_weight_capacity_kg' => 0.5]
+        ];
+        foreach ($packaging as $p) {
+            $this->db->query("SELECT id FROM export_packaging_types WHERE name = :name");
+            $this->db->bind(':name', $p['name']);
+            if (!$this->db->single()) {
+                $this->packingModel->createPackaging($p);
+                $results['packaging']++;
+            }
+        }
+
+        // 3. Pallets
+        $pallets = [
+            ['name' => 'Standard Wood (120x100)', 'length_cm' => 120, 'width_cm' => 100, 'max_load_height_cm' => 180, 'tare_weight_kg' => 25, 'max_weight_capacity_kg' => 1500],
+            ['name' => 'Euro Pallet (120x80)', 'length_cm' => 120, 'width_cm' => 80, 'max_load_height_cm' => 160, 'tare_weight_kg' => 20, 'max_weight_capacity_kg' => 1200],
+            ['name' => 'Plastic Pallet (110x110)', 'length_cm' => 110, 'width_cm' => 110, 'max_load_height_cm' => 150, 'tare_weight_kg' => 15, 'max_weight_capacity_kg' => 1000]
+        ];
+        foreach ($pallets as $p) {
+            $this->db->query("SELECT id FROM export_pallet_types WHERE name = :name");
+            $this->db->bind(':name', $p['name']);
+            if (!$this->db->single()) {
+                $this->packingModel->createPallet($p);
+                $results['pallets']++;
+            }
+        }
+
+        // 4. Logistics Factors
+        $factors = [
+            ['name' => 'Customs Clearance', 'type' => 'Clearence', 'absorption_method' => 'Value'],
+            ['name' => 'Handling Charges', 'type' => 'Logistic', 'absorption_method' => 'Quantity'],
+            ['name' => 'Ocean Freight', 'type' => 'Freight', 'absorption_method' => 'Volume'],
+            ['name' => 'Insurance', 'type' => 'General', 'absorption_method' => 'Value'],
+            ['name' => 'Documentation Fee', 'type' => 'Logistic', 'absorption_method' => 'Value']
+        ];
+        foreach ($factors as $f) {
+            $this->db->query("SELECT id FROM logistics_factors WHERE name = :name");
+            $this->db->bind(':name', $f['name']);
+            if (!$this->db->single()) {
+                $this->factorModel->create($f);
+                $results['factors']++;
+            }
+        }
+
+        $this->success($results, 'Standard defaults imported successfully');
+    }
 }

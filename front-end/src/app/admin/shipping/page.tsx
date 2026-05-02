@@ -18,7 +18,43 @@ import {
   fetchLogisticsFactors,
   createLogisticsFactor,
   updateLogisticsFactor,
-  deleteLogisticsFactor
+  deleteLogisticsFactor,
+  fetchPackagingTypes,
+  createPackagingType,
+  updatePackagingType,
+  deletePackagingType,
+  fetchPalletTypes,
+  createPalletType,
+  updatePalletType,
+  deletePalletType,
+  fetchContainerTypes,
+  PackagingType,
+  PalletType,
+  ContainerType,
+  fetchParts,
+  PartRow,
+  importExportDefaults,
+  fetchShippingZones,
+  fetchDistricts,
+  fetchShippingProviders,
+  fetchCostingTemplates,
+  fetchCities,
+  createShippingZone,
+  updateShippingZone,
+  deleteShippingZone,
+  createDistrict,
+  updateDistrict,
+  deleteDistrict,
+  createShippingProvider,
+  updateShippingProvider,
+  deleteShippingProvider,
+  createCity,
+  updateCity,
+  deleteCity,
+  ShippingZone,
+  District,
+  City,
+  ShippingProvider
 } from "@/lib/api";
 import { 
   Truck, 
@@ -30,10 +66,15 @@ import {
   Building2,
   Search,
   Edit,
-  Globe,
-  Info,
-  Calculator,
-  FileText
+  Globe, 
+  Info, 
+  Calculator, 
+  FileText,
+  Package,
+  Layers,
+  Box,
+  Component,
+  Sparkles
 } from "lucide-react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -71,6 +112,20 @@ export default function ShippingManagementPage() {
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [logisticsFactors, setLogisticsFactors] = useState<LogisticsFactor[]>([]);
   const [loadingFactors, setLoadingFactors] = useState(false);
+  
+  const [packagingTypes, setPackagingTypes] = useState<PackagingType[]>([]);
+  const [loadingPackaging, setLoadingPackaging] = useState(false);
+  
+  const [palletTypes, setPalletTypes] = useState<PalletType[]>([]);
+  const [loadingPallets, setLoadingPallets] = useState(false);
+  
+  const [containerTypes, setContainerTypes] = useState<ContainerType[]>([]);
+  const [loadingContainers, setLoadingContainers] = useState(false);
+
+  const [exportItems, setExportItems] = useState<PartRow[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [itemSearch, setItemSearch] = useState("");
+
   const [loading, setLoading] = useState(true);
 
   // Dialog States
@@ -87,6 +142,12 @@ export default function ShippingManagementPage() {
   
   const [isFactorDialogOpen, setIsFactorDialogOpen] = useState(false);
   const [isEditFactorDialogOpen, setIsEditFactorDialogOpen] = useState(false);
+
+  const [isPackagingDialogOpen, setIsPackagingDialogOpen] = useState(false);
+  const [isEditPackagingDialogOpen, setIsEditPackagingDialogOpen] = useState(false);
+
+  const [isPalletDialogOpen, setIsPalletDialogOpen] = useState(false);
+  const [isEditPalletDialogOpen, setIsEditPalletDialogOpen] = useState(false);
 
   const [isDeleteCityDialogOpen, setIsDeleteCityDialogOpen] = useState(false);
   const [cityToDelete, setCityToDelete] = useState<City | null>(null);
@@ -109,6 +170,12 @@ export default function ShippingManagementPage() {
   
   const [newFactor, setNewFactor] = useState({ name: "", type: "Logistic" });
   const [editingFactor, setEditingFactor] = useState<LogisticsFactor | null>(null);
+
+  const [newPackaging, setNewPackaging] = useState<Partial<PackagingType>>({ name: "", type: "Carton", length_cm: 0, width_cm: 0, height_cm: 0, cbm: 0, tare_weight_kg: 0, max_weight_capacity_kg: 0 });
+  const [editingPackaging, setEditingPackaging] = useState<PackagingType | null>(null);
+
+  const [newPallet, setNewPallet] = useState<Partial<PalletType>>({ name: "", length_cm: 0, width_cm: 0, max_load_height_cm: 0, tare_weight_kg: 0, max_weight_capacity_kg: 0 });
+  const [editingPallet, setEditingPallet] = useState<PalletType | null>(null);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -179,6 +246,57 @@ export default function ShippingManagementPage() {
     }
   };
 
+  const loadPackaging = async () => {
+    try {
+      setLoadingPackaging(true);
+      const res = await fetchPackagingTypes();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setPackagingTypes(data);
+    } catch (err) {
+      console.error("Failed to load packaging types:", err);
+    } finally {
+      setLoadingPackaging(false);
+    }
+  };
+
+  const loadPallets = async () => {
+    try {
+      setLoadingPallets(true);
+      const res = await fetchPalletTypes();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setPalletTypes(data);
+    } catch (err) {
+      console.error("Failed to load pallet types:", err);
+    } finally {
+      setLoadingPallets(false);
+    }
+  };
+
+  const loadContainers = async () => {
+    try {
+      setLoadingContainers(true);
+      const res = await fetchContainerTypes();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setContainerTypes(data);
+    } catch (err) {
+      console.error("Failed to load container types:", err);
+    } finally {
+      setLoadingContainers(false);
+    }
+  };
+
+  const loadItems = async () => {
+    try {
+      setLoadingItems(true);
+      const res = await fetchParts("");
+      setExportItems(Array.isArray(res) ? res : []);
+    } catch (err) {
+      console.error("Failed to load items:", err);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
+
   const loadCities = async (districtId: number) => {
     try {
       setLoadingCities(true);
@@ -207,7 +325,11 @@ export default function ShippingManagementPage() {
       loadDistricts(), 
       loadProviders(), 
       loadTemplates(),
-      loadFactors()
+      loadFactors(),
+      loadPackaging(),
+      loadPallets(),
+      loadContainers(),
+      loadItems()
     ]).finally(() => setLoading(false));
   }, []);
 
@@ -411,6 +533,113 @@ export default function ShippingManagementPage() {
       await loadFactors();
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handleAddPackaging = async () => {
+    if (!newPackaging.name) return;
+    try {
+      setSubmitting(true);
+      await createPackagingType(newPackaging);
+      toast({ title: "Success", description: "Packaging type added." });
+      setIsPackagingDialogOpen(false);
+      setNewPackaging({ name: "", type: "Carton", length_cm: 0, width_cm: 0, height_cm: 0, cbm: 0, tare_weight_kg: 0, max_weight_capacity_kg: 0 });
+      await loadPackaging();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdatePackaging = async () => {
+    if (!editingPackaging) return;
+    try {
+      setSubmitting(true);
+      await updatePackagingType(editingPackaging.id, editingPackaging);
+      toast({ title: "Success", description: "Packaging type updated." });
+      setIsEditPackagingDialogOpen(false);
+      setEditingPackaging(null);
+      await loadPackaging();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePackaging = async (id: number) => {
+    if (!confirm("Delete this packaging type?")) return;
+    try {
+      await deletePackagingType(id);
+      toast({ title: "Success", description: "Packaging type deleted." });
+      await loadPackaging();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handleAddPallet = async () => {
+    if (!newPallet.name) return;
+    try {
+      setSubmitting(true);
+      await createPalletType(newPallet);
+      toast({ title: "Success", description: "Pallet type added." });
+      setIsPalletDialogOpen(false);
+      setNewPallet({ name: "", length_cm: 0, width_cm: 0, max_load_height_cm: 0, tare_weight_kg: 0, max_weight_capacity_kg: 0 });
+      await loadPallets();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdatePallet = async () => {
+    if (!editingPallet) return;
+    try {
+      setSubmitting(true);
+      await updatePalletType(editingPallet.id, editingPallet);
+      toast({ title: "Success", description: "Pallet type updated." });
+      setIsEditPalletDialogOpen(false);
+      setEditingPallet(null);
+      await loadPallets();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeletePallet = async (id: number) => {
+    if (!confirm("Delete this pallet type?")) return;
+    try {
+      await deletePalletType(id);
+      toast({ title: "Success", description: "Pallet type deleted." });
+      await loadPallets();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    }
+  };
+
+  const handleImportDefaults = async () => {
+    if (!confirm("This will import standard industry defaults for Containers, Packaging, Pallets, and Logistics Factors. Existing entries with the same names will be skipped. Proceed?")) return;
+    try {
+      setSubmitting(true);
+      const res = await importExportDefaults();
+      if (res.status === 'success') {
+        toast({ 
+          title: "Import Successful", 
+          description: `Imported ${res.data.containers} containers, ${res.data.packaging} packaging, ${res.data.pallets} pallets, and ${res.data.factors} factors.` 
+        });
+        await Promise.all([loadFactors(), loadPackaging(), loadPallets(), loadContainers()]);
+      } else {
+        throw new Error(res.message || "Failed to import defaults");
+      }
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -946,16 +1175,221 @@ export default function ShippingManagementPage() {
              </DialogContent>
           </Dialog>
 
- <Tabs value={initialTab} onValueChange={(val) => router.push(`/admin/shipping/page?tab=${val}`)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 max-w-xl h-12 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-            <TabsTrigger value="regional" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
+          {/* Add Packaging Dialog */}
+          <Dialog open={isPackagingDialogOpen} onOpenChange={setIsPackagingDialogOpen}>
+             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Add Packaging Type</DialogTitle>
+                   <DialogDescription>Define a new packaging standard for exports.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label htmlFor="pkg-name">Packaging Name</Label>
+                      <Input id="pkg-name" value={newPackaging.name} onChange={(e) => setNewPackaging({...newPackaging, name: e.target.value})} className="dark:bg-slate-800 dark:border-slate-700" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>Type</Label>
+                         <Select value={newPackaging.type} onValueChange={(val) => setNewPackaging({...newPackaging, type: val})}>
+                            <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                               <SelectItem value="Carton">Carton</SelectItem>
+                               <SelectItem value="Pouch">Pouch</SelectItem>
+                               <SelectItem value="Canister">Canister</SelectItem>
+                               <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>Tare Weight (kg)</Label>
+                         <Input type="number" step="0.001" value={newPackaging.tare_weight_kg} onChange={(e) => setNewPackaging({...newPackaging, tare_weight_kg: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-3 gap-4">
+                      <div className="grid gap-2">
+                         <Label>L (cm)</Label>
+                         <Input type="number" value={newPackaging.length_cm} onChange={(e) => setNewPackaging({...newPackaging, length_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>W (cm)</Label>
+                         <Input type="number" value={newPackaging.width_cm} onChange={(e) => setNewPackaging({...newPackaging, width_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>H (cm)</Label>
+                         <Input type="number" value={newPackaging.height_cm} onChange={(e) => setNewPackaging({...newPackaging, height_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsPackagingDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleAddPackaging} disabled={submitting || !newPackaging.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Save Packaging
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+          {/* Edit Packaging Dialog */}
+          <Dialog open={isEditPackagingDialogOpen} onOpenChange={setIsEditPackagingDialogOpen}>
+             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Edit Packaging Type</DialogTitle>
+                   <DialogDescription>Update {editingPackaging?.name}.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label>Packaging Name</Label>
+                      <Input value={editingPackaging?.name || ""} onChange={(e) => setEditingPackaging(prev => prev ? {...prev, name: e.target.value} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>Type</Label>
+                         <Select value={editingPackaging?.type} onValueChange={(val) => setEditingPackaging(prev => prev ? {...prev, type: val} : null)}>
+                            <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                               <SelectItem value="Carton">Carton</SelectItem>
+                               <SelectItem value="Pouch">Pouch</SelectItem>
+                               <SelectItem value="Canister">Canister</SelectItem>
+                               <SelectItem value="Other">Other</SelectItem>
+                            </SelectContent>
+                         </Select>
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>Tare Weight (kg)</Label>
+                         <Input type="number" step="0.001" value={editingPackaging?.tare_weight_kg || 0} onChange={(e) => setEditingPackaging(prev => prev ? {...prev, tare_weight_kg: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-3 gap-4">
+                      <div className="grid gap-2">
+                         <Label>L (cm)</Label>
+                         <Input type="number" value={editingPackaging?.length_cm || 0} onChange={(e) => setEditingPackaging(prev => prev ? {...prev, length_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>W (cm)</Label>
+                         <Input type="number" value={editingPackaging?.width_cm || 0} onChange={(e) => setEditingPackaging(prev => prev ? {...prev, width_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>H (cm)</Label>
+                         <Input type="number" value={editingPackaging?.height_cm || 0} onChange={(e) => setEditingPackaging(prev => prev ? {...prev, height_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsEditPackagingDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleUpdatePackaging} disabled={submitting || !editingPackaging?.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Update Packaging
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+          {/* Add Pallet Dialog */}
+          <Dialog open={isPalletDialogOpen} onOpenChange={setIsPalletDialogOpen}>
+             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Add Pallet Type</DialogTitle>
+                   <DialogDescription>Define a new pallet standard.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label>Pallet Name</Label>
+                      <Input value={newPallet.name} onChange={(e) => setNewPallet({...newPallet, name: e.target.value})} className="dark:bg-slate-800 dark:border-slate-700" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>L (cm)</Label>
+                         <Input type="number" value={newPallet.length_cm} onChange={(e) => setNewPallet({...newPallet, length_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>W (cm)</Label>
+                         <Input type="number" value={newPallet.width_cm} onChange={(e) => setNewPallet({...newPallet, width_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>Max Load Height (cm)</Label>
+                         <Input type="number" value={newPallet.max_load_height_cm} onChange={(e) => setNewPallet({...newPallet, max_load_height_cm: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>Tare Weight (kg)</Label>
+                         <Input type="number" step="0.1" value={newPallet.tare_weight_kg} onChange={(e) => setNewPallet({...newPallet, tare_weight_kg: parseFloat(e.target.value)})} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsPalletDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleAddPallet} disabled={submitting || !newPallet.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Save Pallet
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+          {/* Edit Pallet Dialog */}
+          <Dialog open={isEditPalletDialogOpen} onOpenChange={setIsEditPalletDialogOpen}>
+             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Edit Pallet Type</DialogTitle>
+                   <DialogDescription>Update {editingPallet?.name}.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label>Pallet Name</Label>
+                      <Input value={editingPallet?.name || ""} onChange={(e) => setEditingPallet(prev => prev ? {...prev, name: e.target.value} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>L (cm)</Label>
+                         <Input type="number" value={editingPallet?.length_cm || 0} onChange={(e) => setEditingPallet(prev => prev ? {...prev, length_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>W (cm)</Label>
+                         <Input type="number" value={editingPallet?.width_cm || 0} onChange={(e) => setEditingPallet(prev => prev ? {...prev, width_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                         <Label>Max Load Height (cm)</Label>
+                         <Input type="number" value={editingPallet?.max_load_height_cm || 0} onChange={(e) => setEditingPallet(prev => prev ? {...prev, max_load_height_cm: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                      <div className="grid gap-2">
+                         <Label>Tare Weight (kg)</Label>
+                         <Input type="number" step="0.1" value={editingPallet?.tare_weight_kg || 0} onChange={(e) => setEditingPallet(prev => prev ? {...prev, tare_weight_kg: parseFloat(e.target.value)} : null)} className="dark:bg-slate-800 dark:border-slate-700" />
+                      </div>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsEditPalletDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleUpdatePallet} disabled={submitting || !editingPallet?.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Update Pallet
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+  <Tabs value={initialTab} onValueChange={(val) => router.push(`/admin/shipping?tab=${val}`)} className="w-full">
+          <TabsList className="grid w-full grid-cols-3 lg:grid-cols-6 mb-8 max-w-4xl h-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <TabsTrigger value="regional" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2">
               <Truck className="w-4 h-4 mr-2" /> Regional
             </TabsTrigger>
-            <TabsTrigger value="international" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
-              <Calculator className="w-4 h-4 mr-2" /> Costing Templates
+            <TabsTrigger value="international" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2">
+              <Calculator className="w-4 h-4 mr-2" /> Templates
             </TabsTrigger>
-            <TabsTrigger value="factors" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
-              <FileText className="w-4 h-4 mr-2" /> Logistics Factors
+            <TabsTrigger value="factors" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2">
+              <FileText className="w-4 h-4 mr-2" /> Factors
+            </TabsTrigger>
+            <TabsTrigger value="packaging" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2">
+              <Package className="w-4 h-4 mr-2" /> Packaging
+            </TabsTrigger>
+            <TabsTrigger value="pallets" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2">
+              <Layers className="w-4 h-4 mr-2" /> Pallets
+            </TabsTrigger>
+            <TabsTrigger value="items" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm py-2 text-indigo-600">
+              <Component className="w-4 h-4 mr-2" /> Export Items
             </TabsTrigger>
           </TabsList>
 
@@ -1233,9 +1667,14 @@ export default function ShippingManagementPage() {
                                <CardDescription className="text-indigo-100/60">Manage pre-defined factors for Clearance, Freight, and Logistics.</CardDescription>
                             </div>
                          </div>
-                         <Button variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsFactorDialogOpen(true)}>
-                            <Plus className="w-4 h-4 mr-2" /> Add Factor
-                         </Button>
+                         <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={handleImportDefaults}>
+                               <Sparkles className="w-4 h-4 mr-2" /> Import Defaults
+                            </Button>
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsFactorDialogOpen(true)}>
+                               <Plus className="w-4 h-4 mr-2" /> Add Factor
+                            </Button>
+                         </div>
                       </CardHeader>
                       <CardContent className="p-0">
                          <Table>
@@ -1313,6 +1752,275 @@ export default function ShippingManagementPage() {
                       </CardContent>
                    </Card>
                 </div>
+             </div>
+          </TabsContent>
+
+          <TabsContent value="packaging">
+             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
+                <div className="xl:col-span-8 space-y-6">
+                   <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
+                      <CardHeader className="bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-row items-center justify-between">
+                         <div className="flex items-center gap-3">
+                            <Package className="w-6 h-6 text-orange-400" />
+                            <div>
+                               <CardTitle className="text-xl font-bold">Packaging Types</CardTitle>
+                               <CardDescription className="text-orange-100/60">Manage standard carton and container sizes.</CardDescription>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={handleImportDefaults}>
+                               <Sparkles className="w-4 h-4 mr-2" /> Import Defaults
+                            </Button>
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsPackagingDialogOpen(true)}>
+                               <Plus className="w-4 h-4 mr-2" /> Add Packaging
+                            </Button>
+                         </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                         <Table>
+                            <TableHeader>
+                               <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-8 py-4">Standard Name</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Dimensions (L×W×H)</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">CBM</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Tare (kg)</TableHead>
+                                  <TableHead className="w-[100px]"></TableHead>
+                               </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                               {loadingPackaging ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-orange-600" /></TableCell></TableRow>
+                               ) : packagingTypes.length === 0 ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400 italic">No packaging types defined.</TableCell></TableRow>
+                               ) : packagingTypes.map((pkg) => (
+                                 <TableRow key={pkg.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors border-slate-50 dark:border-slate-800/50">
+                                    <TableCell className="pl-8 py-4">
+                                       <div className="flex flex-col">
+                                          <span className="font-bold text-slate-700 dark:text-slate-200">{pkg.name}</span>
+                                          <span className="text-[10px] uppercase text-slate-400 font-black tracking-widest">{pkg.type}</span>
+                                       </div>
+                                    </TableCell>
+                                    <TableCell className="py-4 font-medium">
+                                       {pkg.length_cm} × {pkg.width_cm} × {pkg.height_cm} cm
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                       <Badge variant="outline" className="font-black text-blue-600 border-blue-100 bg-blue-50">{pkg.cbm} CBM</Badge>
+                                    </TableCell>
+                                    <TableCell className="py-4 text-slate-500 font-medium">
+                                       {pkg.tare_weight_kg} kg
+                                    </TableCell>
+                                    <TableCell className="pr-8 text-right">
+                                       <div className="flex items-center justify-end gap-1">
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-orange-600" onClick={() => {
+                                             setEditingPackaging(pkg);
+                                             setIsEditPackagingDialogOpen(true);
+                                          }}>
+                                             <Edit className="w-4 h-4" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500" onClick={() => handleDeletePackaging(pkg.id)}>
+                                             <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                       </div>
+                                    </TableCell>
+                                 </TableRow>
+                               ))}
+                            </TableBody>
+                         </Table>
+                      </CardContent>
+                   </Card>
+                </div>
+
+                <div className="xl:col-span-4 space-y-6">
+                   <Card className="border-none shadow-xl bg-orange-600 text-white overflow-hidden">
+                      <CardHeader>
+                         <div className="p-3 bg-white/20 w-fit rounded-xl mb-2"><Box className="w-6 h-6" /></div>
+                         <CardTitle className="text-white text-xl">Container Standards</CardTitle>
+                         <CardDescription className="text-orange-100">Global shipping container capacities.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                         <div className="space-y-1">
+                            {containerTypes.map(c => (
+                               <div key={c.id} className="p-4 border-b border-white/10 last:border-0 hover:bg-white/5 transition-colors">
+                                  <div className="flex items-center justify-between mb-2">
+                                     <span className="font-black uppercase tracking-widest text-[10px]">{c.name}</span>
+                                     <Badge className="bg-white/20 text-white text-[9px] border-none">{c.max_standard_pallets} Pallets</Badge>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4">
+                                     <div>
+                                        <p className="text-[10px] opacity-60 uppercase font-bold tracking-tighter">Capacity</p>
+                                        <p className="font-black text-sm">{c.max_cbm_capacity} CBM</p>
+                                     </div>
+                                     <div>
+                                        <p className="text-[10px] opacity-60 uppercase font-bold tracking-tighter">Payload</p>
+                                        <p className="font-black text-sm">{(c.max_weight_capacity_kg/1000).toFixed(1)} Tons</p>
+                                     </div>
+                                  </div>
+                               </div>
+                            ))}
+                         </div>
+                      </CardContent>
+                   </Card>
+                </div>
+             </div>
+          </TabsContent>
+
+          <TabsContent value="pallets">
+             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
+                <div className="xl:col-span-8 space-y-6">
+                   <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
+                      <CardHeader className="bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-row items-center justify-between">
+                         <div className="flex items-center gap-3">
+                            <Layers className="w-6 h-6 text-emerald-400" />
+                            <div>
+                               <CardTitle className="text-xl font-bold">Pallet Types</CardTitle>
+                               <CardDescription className="text-emerald-100/60">Standard pallet dimensions and load capacities.</CardDescription>
+                            </div>
+                         </div>
+                         <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={handleImportDefaults}>
+                               <Sparkles className="w-4 h-4 mr-2" /> Import Defaults
+                            </Button>
+                            <Button variant="outline" size="sm" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsPalletDialogOpen(true)}>
+                               <Plus className="w-4 h-4 mr-2" /> Add Pallet
+                            </Button>
+                         </div>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                         <Table>
+                            <TableHeader>
+                               <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-8 py-4">Pallet Standard</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Size (L×W)</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Max Height</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Tare</TableHead>
+                                  <TableHead className="w-[100px]"></TableHead>
+                               </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                               {loadingPallets ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-emerald-600" /></TableCell></TableRow>
+                               ) : palletTypes.length === 0 ? (
+                                 <TableRow><TableCell colSpan={5} className="text-center py-20 text-slate-400 italic">No pallet types defined.</TableCell></TableRow>
+                               ) : palletTypes.map((pal) => (
+                                 <TableRow key={pal.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors border-slate-50 dark:border-slate-800/50">
+                                    <TableCell className="pl-8 py-4 font-bold text-slate-700 dark:text-slate-200">{pal.name}</TableCell>
+                                    <TableCell className="py-4 font-medium text-slate-600 dark:text-slate-400">
+                                       {pal.length_cm} × {pal.width_cm} cm
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                       <Badge variant="outline" className="font-bold border-emerald-100 bg-emerald-50 text-emerald-700">{pal.max_load_height_cm} cm</Badge>
+                                    </TableCell>
+                                    <TableCell className="py-4 text-slate-500 font-medium">
+                                       {pal.tare_weight_kg} kg
+                                    </TableCell>
+                                    <TableCell className="pr-8 text-right">
+                                       <div className="flex items-center justify-end gap-1">
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-emerald-600" onClick={() => {
+                                             setEditingPallet(pal);
+                                             setIsEditPalletDialogOpen(true);
+                                          }}>
+                                             <Edit className="w-4 h-4" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500" onClick={() => handleDeletePallet(pal.id)}>
+                                             <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                       </div>
+                                    </TableCell>
+                                 </TableRow>
+                               ))}
+                            </TableBody>
+                         </Table>
+                      </CardContent>
+                   </Card>
+                </div>
+             </div>
+          </TabsContent>
+
+          <TabsContent value="items">
+             <div className="space-y-6 pb-10">
+                <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-sm border dark:border-slate-800">
+                   <div className="flex items-center gap-4">
+                      <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600 dark:text-indigo-400">
+                         <Component className="w-6 h-6" />
+                      </div>
+                      <div>
+                         <h3 className="text-lg font-black text-slate-900 dark:text-white">Export Item Registry</h3>
+                         <p className="text-sm text-slate-500">Maintain weights, volumes, and HS codes for international shipments.</p>
+                      </div>
+                   </div>
+                   <div className="relative w-80">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input 
+                        placeholder="Filter by name or SKU..." 
+                        className="pl-10 h-11 dark:bg-slate-800 dark:border-slate-700" 
+                        value={itemSearch}
+                        onChange={(e) => setItemSearch(e.target.value)}
+                      />
+                   </div>
+                </div>
+
+                <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
+                   <CardContent className="p-0">
+                      <Table>
+                         <TableHeader className="bg-slate-50 dark:bg-slate-950/50">
+                            <TableRow className="border-slate-100 dark:border-slate-800">
+                               <TableHead className="pl-8 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Product Detail</TableHead>
+                               <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">HS Code</TableHead>
+                               <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Net/Gross (kg)</TableHead>
+                               <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-center">Volume (CBM)</TableHead>
+                               <TableHead className="py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Default Packing</TableHead>
+                               <TableHead className="w-[80px]"></TableHead>
+                            </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                            {loadingItems ? (
+                              <TableRow><TableCell colSpan={6} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></TableCell></TableRow>
+                            ) : exportItems.filter(i => i.part_name.toLowerCase().includes(itemSearch.toLowerCase()) || i.sku?.toLowerCase().includes(itemSearch.toLowerCase())).length === 0 ? (
+                              <TableRow><TableCell colSpan={6} className="text-center py-20 text-slate-400 italic">No products found matching your search.</TableCell></TableRow>
+                            ) : exportItems.filter(i => i.part_name.toLowerCase().includes(itemSearch.toLowerCase()) || i.sku?.toLowerCase().includes(itemSearch.toLowerCase())).map((item) => (
+                              <TableRow key={item.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors border-slate-50 dark:border-slate-800/50">
+                                 <TableCell className="pl-8 py-4">
+                                    <div className="flex flex-col">
+                                       <span className="font-bold text-slate-700 dark:text-slate-200">{item.part_name}</span>
+                                       <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{item.sku || `#${item.id}`}</span>
+                                    </div>
+                                 </TableCell>
+                                 <TableCell className="py-4">
+                                    <code className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-xs font-bold text-slate-600 dark:text-slate-400">
+                                       {item.hs_code || "—"}
+                                    </code>
+                                 </TableCell>
+                                 <TableCell className="py-4 text-center">
+                                    <div className="flex flex-col items-center">
+                                       <span className="text-xs font-black text-slate-900 dark:text-white">{(item.net_weight_kg || 0).toFixed(3)}</span>
+                                       <span className="text-[10px] text-slate-400 font-bold">{(item.gross_weight_kg || 0).toFixed(3)}</span>
+                                    </div>
+                                 </TableCell>
+                                 <TableCell className="py-4 text-center">
+                                    <Badge variant="outline" className="font-black text-indigo-600 border-indigo-100 bg-indigo-50">
+                                       {(item.volume_cbm || 0).toFixed(6)}
+                                    </Badge>
+                                 </TableCell>
+                                 <TableCell className="py-4">
+                                    {item.packing_type ? (
+                                       <Badge variant="secondary" className="font-bold text-[10px] uppercase tracking-wider">{item.packing_type}</Badge>
+                                    ) : (
+                                       <span className="text-xs text-slate-300 italic">Not set</span>
+                                    )}
+                                 </TableCell>
+                                 <TableCell className="pr-8 text-right">
+                                    <Button variant="ghost" size="icon" asChild className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                       <Link href={`/inventory/items/${item.id}?tab=shipping`}>
+                                          <Edit className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
+                                       </Link>
+                                    </Button>
+                                 </TableCell>
+                              </TableRow>
+                            ))}
+                         </TableBody>
+                      </Table>
+                   </CardContent>
+                </Card>
              </div>
           </TabsContent>
         </Tabs>

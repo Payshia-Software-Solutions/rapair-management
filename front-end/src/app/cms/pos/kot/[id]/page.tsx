@@ -63,7 +63,7 @@ function KOTContent() {
            </svg>
         </div>
         <h2 className="text-xl font-bold text-gray-700">No New Items</h2>
-        <p className="text-gray-500 mt-2 max-w-xs">All items in this bill have already been sent to the kitchen (KOT printed).</p>
+        <p className="text-gray-500 mt-2 max-w-xs">All items in this bill have already been sent to the service team (Order printed).</p>
         <button 
           onClick={() => window.close()}
           className="mt-6 px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium border border-gray-200"
@@ -93,14 +93,14 @@ function KOTContent() {
         .hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
         .hr-dashed { border: none; border-top: 1px dashed #000; margin: 6px 0; }
         .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 14px; }
-        .item-row { margin: 10px 0; padding-bottom: 8px; border-bottom: 1px solid #eee; }
-        .item-header { display: flex; justify-content: space-between; align-items: flex-start; }
-        .item-name { font-size: 18px; font-weight: 900; line-height: 1.2; flex: 1; margin-right: 8px; text-transform: uppercase; }
-        .item-qty { font-size: 24px; font-weight: 900; background: #000; color: #fff; padding: 2px 8px; border-radius: 4px; min-width: 50px; text-align: center; }
-        .kot-header { background: #000; color: #fff; padding: 8px; margin-bottom: 12px; border-radius: 4px; }
-        .kot-title { font-size: 26px; font-weight: 900; letter-spacing: 2px; }
-        .meta-label { font-size: 11px; text-transform: uppercase; color: #666; font-weight: 600; }
-        .meta-val { font-size: 16px; font-weight: 800; }
+        .item-row { padding: 4px 0; border-bottom: 1px solid #eee; }
+        .item-name { font-size: 14px; font-weight: 700; line-height: 1.2; text-transform: uppercase; }
+        .item-type { font-size: 9px; color: #666; text-transform: uppercase; margin-top: 2px; }
+        .item-qty { font-size: 16px; font-weight: 900; text-align: right; }
+        .kot-header { background: #000; color: #fff; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
+        .kot-title { font-size: 22px; font-weight: 900; letter-spacing: 1px; }
+        .meta-label { font-size: 10px; text-transform: uppercase; color: #666; font-weight: 600; margin-bottom: 2px; }
+        .meta-val { font-size: 14px; font-weight: 800; }
         
         /* Preview UI */
         .preview-wrap { min-height: 100vh; background: #f3f4f6; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; }
@@ -115,7 +115,7 @@ function KOTContent() {
       <div className="no-print preview-wrap">
         <div className="mb-6 text-center">
             <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Order Preview</span>
-            <h1 className="text-2xl font-black text-gray-900">Kitchen Order Ticket</h1>
+            <h1 className="text-2xl font-black text-gray-900">Job Order</h1>
         </div>
         
         <div className="preview-paper">
@@ -129,7 +129,7 @@ function KOTContent() {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            Print KOT Now
+            Print Job Order
           </button>
           <button onClick={() => window.close()} className="btn-secondary">
             Close
@@ -158,12 +158,12 @@ function KOTBody({ order }: any) {
   return (
     <>
       <div className="center kot-header">
-        <div className="kot-title">KOT</div>
+        <div className="kot-title">JOB ORDER</div>
       </div>
 
       <div className="row">
         <div>
-           <div className="meta-label">Bill #</div>
+           <div className="meta-label">Order #</div>
            <div className="meta-val">{order.id}</div>
         </div>
         <div className="text-right">
@@ -176,33 +176,44 @@ function KOTBody({ order }: any) {
 
       <div className="row">
         <div>
-           <div className="meta-label">Table</div>
+           <div className="meta-label">Location/Bay</div>
            <div className="meta-val">{order.table_name || 'N/A'}</div>
         </div>
         <div className="text-right">
-           <div className="meta-label">Time</div>
-           <div className="meta-val">{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+           <div className="meta-label">Date</div>
+           <div className="meta-val">{new Date().toLocaleDateString('en-GB')}</div>
         </div>
       </div>
 
       <div className="hr" />
 
-      <div className="meta-label" style={{ marginBottom: '8px' }}>Order Items</div>
-      
-      {(order.items || []).map((item: any, idx: number) => (
-        <div className="item-row" key={idx}>
-          <div className="item-header">
-            <span className="item-name">{item.description}</span>
-            <span className="item-qty">x{Number(item.quantity)}</span>
-          </div>
-        </div>
-      ))}
+      <table className="w-full text-left">
+        <thead>
+          <tr className="meta-label" style={{ borderBottom: '1px solid #000' }}>
+            <th className="pb-1">Description</th>
+            <th className="pb-1 text-right">Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(order.items || []).map((item: any, idx: number) => (
+            <tr key={idx} className="item-row">
+              <td className="py-2">
+                <div className="item-name">{item.description}</div>
+                <div className="item-type">{item.item_type}</div>
+              </td>
+              <td className="py-2 item-qty">
+                x{Number(item.quantity)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <div className="hr" />
 
       <div className="center" style={{ marginTop: '12px' }}>
-        <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>Kitchen Copy</div>
-        <div style={{ fontSize: '10px', marginTop: '4px' }}>{new Date().toLocaleString()}</div>
+        <div style={{ fontSize: '12px', fontWeight: 700, textTransform: 'uppercase' }}>Service Copy</div>
+        <div style={{ fontSize: '10px', marginTop: '4px' }}>Generated: {new Date().toLocaleString()}</div>
       </div>
     </>
   );

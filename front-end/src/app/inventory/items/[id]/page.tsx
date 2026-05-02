@@ -32,11 +32,12 @@ import {
   contentUrl,
   deletePart,
   fetchBrands,
-  fetchCollections,
+  fetchInventoryCollections,
   fetchLocations,
   fetchPart,
   fetchSuppliers,
   fetchUnits,
+  fetchPackagingTypes,
   uploadPartImage,
   uploadPartGalleryImage,
   deletePartGalleryImage,
@@ -48,6 +49,7 @@ import {
   type ServiceLocation,
   type SupplierRow,
   type UnitRow,
+  type PackagingType,
 } from "@/lib/api";
 import { 
   ArrowLeft, ChevronDown, LayoutGrid, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload, 
@@ -78,6 +80,7 @@ export default function ItemDetailPage() {
 
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [brands, setBrands] = useState<BrandRow[]>([]);
+  const [packagingTypes, setPackagingTypes] = useState<PackagingType[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [locations, setLocations] = useState<ServiceLocation[]>([]);
@@ -131,15 +134,16 @@ export default function ItemDetailPage() {
     try {
       const loadData = async () => {
         // Use individual catch blocks to ensure one failing call doesn't block everything
-        const [p, u, b, s, c, locationsRes, batchesRes, attrRes] = await Promise.all([
+        const [p, u, b, s, c, locationsRes, batchesRes, attrRes, pkgsRes] = await Promise.all([
           fetchPart(String(id)),
           fetchUnits("").catch(() => []),
           fetchBrands("").catch(() => []),
           fetchSuppliers("").catch(() => []),
-          fetchCollections().catch(() => []),
+          fetchInventoryCollections().catch(() => []),
           fetchLocations().catch(() => []),
           api(`/api/part/batches/${id}`).then(res => res.ok ? res.json() : []).catch(() => []),
-          fetchAttributeGroups().catch(() => [])
+          fetchAttributeGroups().catch(() => []),
+          fetchPackagingTypes().catch(() => [])
         ]);
 
         if (p?.status === 'error') {
@@ -172,6 +176,7 @@ export default function ItemDetailPage() {
         setSuppliers(Array.isArray(s) ? s : []);
         setCollections(Array.isArray(c) ? c : []);
         setLocations(Array.isArray(locationsRes) ? locationsRes : []);
+        setPackagingTypes(pkgsRes?.status === 'success' ? pkgsRes.data : (Array.isArray(pkgsRes) ? pkgsRes : []));
 
         if (p) {
           setForm({
@@ -646,12 +651,14 @@ export default function ItemDetailPage() {
                    <div className="space-y-2">
                       <Label>Packing Type</Label>
                       <Select value={form.packing_type} onValueChange={(v) => setForm(p => ({ ...p, packing_type: v }))}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger><SelectValue placeholder="Select Packing" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Carton">Carton (Box)</SelectItem>
-                          <SelectItem value="Pouch">Pouch / Packet</SelectItem>
-                          <SelectItem value="Canister">Canister</SelectItem>
-                          <SelectItem value="Other">Other</SelectItem>
+                          <SelectItem value="Carton">Carton (Legacy)</SelectItem>
+                          <SelectItem value="Pouch">Pouch (Legacy)</SelectItem>
+                          <SelectItem value="Canister">Canister (Legacy)</SelectItem>
+                          {packagingTypes.map(pkg => (
+                            <SelectItem key={pkg.id} value={pkg.name}>{pkg.name}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                    </div>

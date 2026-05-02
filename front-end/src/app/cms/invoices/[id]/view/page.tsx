@@ -391,7 +391,7 @@ function InvoiceContent() {
               <div className="space-y-4 text-right md:text-left">
                 {invoice.location_name && (
                   <div className="flex justify-between items-start text-sm">
-                    <span className="text-muted-foreground/70 font-medium">Service Center</span>
+                    <span className="text-muted-foreground/70 font-medium">Fleet Management</span>
                     <div className="text-right">
                       <span className="font-bold text-foreground/90 block">{invoice.location_name}</span>
                       {invoice.location_phone && <span className="text-[10px] text-muted-foreground tabular-nums">{invoice.location_phone}</span>}

@@ -337,12 +337,19 @@ export const SidebarCart: React.FC = () => {
                       >
                         <Minus className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                       </Button>
-                      <span className="w-5 lg:w-6 text-center text-[10px] lg:text-xs font-black tabular-nums">{item.quantity}</span>
+                      <input 
+                        type="number"
+                        step="any"
+                        className="w-10 lg:w-12 text-center text-[10px] lg:text-xs font-black tabular-nums bg-transparent border-none focus:ring-0 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        value={item.quantity}
+                        onChange={(e) => updateCartLine(index, 'quantity', parseFloat(e.target.value) || 0)}
+                        onFocus={(e) => e.target.select()}
+                      />
                       <Button 
                         variant="ghost" 
                         size="icon" 
                         className="w-6 h-6 lg:w-7 lg:h-7 rounded-md text-primary" 
-                        onClick={() => updateCartLine(index, 'quantity', item.quantity + 1)}
+                        onClick={() => updateCartLine(index, 'quantity', Number(item.quantity) + 1)}
                       >
                         <Plus className="w-2.5 h-2.5 lg:w-3 lg:h-3" />
                       </Button>
@@ -454,7 +461,7 @@ export const SidebarCart: React.FC = () => {
                 onClick={holdPOSBill}
                 className="h-14 lg:h-16 rounded-xl text-[10px] lg:text-[11px] font-black tracking-widest uppercase border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:bg-orange-950/20 dark:border-orange-500/20 dark:text-orange-400"
               >
-                Hold & KOT <PauseCircle className="w-5 h-5 ml-2 opacity-60" />
+                Hold & Print Order <PauseCircle className="w-5 h-5 ml-2 opacity-60" />
               </Button>
               <Button 
                 size="lg" 

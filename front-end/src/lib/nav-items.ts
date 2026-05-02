@@ -53,6 +53,7 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Executive Dashboard", href: "/dashboard/overall" },
   { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard" },
   { icon: MessageSquare, label: "AI Business Intelligence", href: "/ai/insights", perm: "reports.read" },
   { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },

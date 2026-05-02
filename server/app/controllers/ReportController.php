@@ -913,4 +913,28 @@ class ReportController extends Controller {
             $this->error('Failed to write SchemaDefinition.php');
         }
     }
+    // POST /api/report/database_optimize
+    public function database_optimize() {
+        $u = $this->requireAuth();
+        if ($u['role'] !== 'Admin') {
+            $this->error('Access Denied', 403);
+            return;
+        }
+
+        require_once dirname(__FILE__) . '/../core/SchemaHelper.php';
+        $helper = new SchemaHelper($this->db);
+        
+        // Get diff but ONLY for missing indexes
+        $diff = $helper->getDiff();
+        
+        if (empty($diff['missing_indexes'])) {
+            $this->success(null, "Database is already optimized. No missing indexes found.");
+            return;
+        }
+
+        // Apply only missing indexes
+        $results = $helper->sync(['missing_tables' => [], 'missing_columns' => [], 'missing_indexes' => $diff['missing_indexes']]);
+        
+        $this->success($results, "Database optimization completed.");
+    }
 }

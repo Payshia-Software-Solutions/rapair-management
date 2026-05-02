@@ -14,7 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { createPart, fetchBrands, fetchCollections, fetchLocations, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type ServiceLocation, type SupplierRow, type UnitRow } from "@/lib/api";
+import { createPart, fetchBrands, fetchInventoryCollections, fetchLocations, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type ServiceLocation, type SupplierRow, type UnitRow } from "@/lib/api";
 import { ArrowLeft, ChevronDown, LayoutGrid, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 
 function asNumOrNull(v: any) {
@@ -104,7 +104,7 @@ export default function NewItemPage() {
           fetchUnits(""), 
           fetchBrands(""), 
           fetchSuppliers(""),
-          fetchCollections(),
+          fetchInventoryCollections(),
           fetchLocations()
         ]);
         setUnits(Array.isArray(u) ? u : []);

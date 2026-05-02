@@ -473,3 +473,22 @@ export const fetchTermDefaults = async (term: string) => {
   const res = await api(`/api/shipping/term-defaults/${term}`);
   return res.json();
 };
+
+export const importExportDefaults = async () => {
+  const res = await api('/api/shipping/seed-defaults', {
+    method: 'POST'
+  });
+  return res.json();
+};
+
+// --- Hotel / Front Office ---
+export const fetchHotelReservations = async () => {
+  const res = await api('/api/hotel/reservations');
+  return res.json();
+};
+
+// --- Banquet ---
+export const fetchBanquetBookings = async () => {
+  const res = await api('/api/banquet/bookings');
+  return res.json();
+};

@@ -325,11 +325,19 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshHeldOrders = async () => {
-    if (!selectedLocation) return;
+    const lid = selectedLocation || window?.localStorage?.getItem('location_id');
+    if (!lid) return;
     try {
-      const res = await fetchHeldOrders(selectedLocation);
+      const res = await fetchHeldOrders(Number(lid));
       setHeldOrders(Array.isArray(res) ? res : []);
-    } catch (err) {}
+    } catch (err: any) {
+      console.error("Failed to refresh held orders:", err);
+      toast({ 
+        title: "Sync Error", 
+        description: "Could not retrieve held bills. Check your connection.",
+        variant: "destructive" 
+      });
+    }
   };
 
   const reloadData = async () => {
