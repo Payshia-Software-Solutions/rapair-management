@@ -2,7 +2,7 @@
 /**
  * ProductionBOMController
  */
-class ProductionBOMController extends Controller {
+class ProductionbomController extends Controller {
     private $bomModel;
 
     public function __construct() {
@@ -47,5 +47,12 @@ class ProductionBOMController extends Controller {
             $this->success(null, 'BOM updated');
         }
         $this->error('Failed to update BOM', 500);
+    }
+
+    public function getByPart($partId) {
+        $this->requirePermission('production.read');
+        $row = $this->bomModel->getActiveBOMForPart($partId);
+        // Do not error if not found, just return null data so frontend knows no BOM exists
+        $this->success($row);
     }
 }

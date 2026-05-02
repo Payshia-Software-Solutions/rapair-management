@@ -96,7 +96,12 @@ class QuotationController extends Controller {
             'due_date' => date('Y-m-d', strtotime('+7 days')),
             'subtotal' => $quotation->subtotal,
             'tax_total' => $quotation->tax_total,
+            'shipping_fee' => $quotation->shipping_cost,
             'grand_total' => $quotation->grand_total,
+            'is_international' => $quotation->is_international,
+            'shipping_provider_id' => $quotation->shipping_provider_id,
+            'shipping_country' => $quotation->shipping_country,
+            'shipping_address' => $quotation->shipping_address,
             'notes' => "Converted from Quotation #" . $quotation->quotation_no,
             'userId' => $u['sub']
         ];

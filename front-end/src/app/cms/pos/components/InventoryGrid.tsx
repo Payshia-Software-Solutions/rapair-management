@@ -15,7 +15,8 @@ import {
   LayoutGrid, 
   RefreshCw,
   Filter,
-  LayoutDashboard 
+  LayoutDashboard,
+  FileText 
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export const InventoryGrid: React.FC = () => {
     setReturnDialogOpen,
     setRefundDialogOpen,
     setLedgerDialogOpen,
+    setPendingInvoicesDialogOpen,
     setLoadingLedger,
     setDayLedger,
     selectedLocation,
@@ -159,6 +161,15 @@ export const InventoryGrid: React.FC = () => {
             >
               <Banknote className="w-4 h-4" /> 
               <span>Refunds</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              className={isMobileMenu ? btnClass + " bg-indigo-50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-400" : "h-10 px-3 shrink-0 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400 font-bold flex items-center gap-2"}
+              onClick={() => setPendingInvoicesDialogOpen(true)}
+            >
+              <FileText className="w-4 h-4" /> 
+              <span>Pending</span>
             </Button>
 
             <Button

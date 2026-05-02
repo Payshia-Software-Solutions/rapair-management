@@ -39,7 +39,9 @@ import {
   ShoppingCart,
   MessageSquare,
   Mail,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Utensils,
+  Calculator
 } from "lucide-react";
 
 export type NavItem = {
@@ -91,6 +93,7 @@ export const inventoryItems: NavItem[] = [
 ];
 
 export const crmItems: NavItem[] = [
+  { icon: MessageSquare, label: "Inquiries (Leads)", href: "/crm/inquiries", perm: "crm.inquiries.view" },
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
 ];
@@ -112,6 +115,7 @@ export const salesItems: NavItem[] = [
 
 export const masterDataItems: NavItem[] = [
   { icon: LayoutGrid, label: "Product Collections", href: "/master-data/collections", perm: "parts.read" },
+  { icon: Settings, label: "Technical Specifications", href: "/master-data/attributes", perm: "parts.read" },
   { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
@@ -129,6 +133,8 @@ export const accountingItems: NavItem[] = [
   { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
   { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
   { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet" },
+  { icon: Calculator, label: "Product Costing Templates", href: "/admin/shipping/templates", perm: "costing.manage" },
+  { icon: FileText, label: "Product & Export Costing", href: "/accounts/costing-sheet", perm: "costing.manage" },
   { icon: Settings, label: "Accounting Settings", href: "/accounting/settings" },
 ];
 
@@ -153,6 +159,16 @@ export const frontOfficeItems: NavItem[] = [
   { icon: CalendarIcon, label: "Calendar View", href: "/front-office/calendar", perm: "orders.read" },
   { icon: ClipboardList, label: "Reservations", href: "/front-office/reservations", perm: "orders.read" },
   { icon: Building2, label: "Rooms & Rates", href: "/front-office/rooms", perm: "parts.read" },
+];
+
+export const banquetItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Banquet Overview", href: "/banquet/dashboard", perm: "orders.read" },
+  { icon: CalendarIcon, label: "Event Calendar", href: "/banquet/calendar", perm: "orders.read" },
+  { icon: ClipboardList, label: "Banquet Bookings", href: "/banquet/bookings", perm: "orders.read" },
+  { icon: LayoutGrid, label: "Banquet Halls", href: "/banquet/halls", perm: "orders.read" },
+  { icon: Utensils, label: "Banquet Menus", href: "/banquet/menus", perm: "orders.read" },
+  { icon: Boxes, label: "Banquet Resources", href: "/banquet/resources", perm: "orders.read" },
+  { icon: Truck, label: "Banquet Vendors", href: "/banquet/vendors", perm: "orders.read" },
 ];
 
 export const adminNavItems: NavItem[] = [

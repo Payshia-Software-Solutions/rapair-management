@@ -23,7 +23,8 @@ import {
   ArrowRight,
   LayoutGrid,
   Building2,
-  Store
+  Store,
+  Calculator
 } from "lucide-react";
 import { 
   Dialog, 
@@ -42,14 +43,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { usePOS } from "../../context/POSContext";
 import { 
   fetchInvoiceForReturn, 
   fetchReturnDetails, 
-  fetchPosDayLedger, 
+  fetchPosDayLedger,
+  fetchInvoices,
+  addInvoicePayment, 
   api as apiHelper 
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+
+import { ReservationSelectionDialog } from "./ReservationSelectionDialog";
 
 export const ManagementModals: React.FC = () => {
   const { toast } = useToast();
@@ -62,7 +68,9 @@ export const ManagementModals: React.FC = () => {
     loadingLedger, setLoadingLedger,
     selectedLocation,
     inventory, customers: posCustomers,
-    vKeyboardEnabled, setVKeyboardActiveInput
+    vKeyboardEnabled, setVKeyboardActiveInput,
+    pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen,
+    banks, bankBranches
   } = usePOS();
 
   // --- Returns States ---
@@ -92,6 +100,59 @@ export const ManagementModals: React.FC = () => {
   const [refundPaymentMethod, setRefundPaymentMethod] = useState<'Cash' | 'Bank Transfer'>('Cash');
   const [newRefundId, setNewRefundId] = useState<number | null>(null);
   const [newRefundNo, setNewRefundNo] = useState<string | null>(null);
+  
+  // --- Pending Invoices States ---
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [loadingPending, setLoadingPending] = useState(false);
+  const [searchInvoice, setSearchInvoice] = useState("");
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Cheque' | 'Bank Transfer'>('Cash');
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+  
+  // Cheque Specifics
+  const [chequeNo, setChequeNo] = useState("");
+  const [chequeDate, setChequeDate] = useState("");
+  const [chequeBank, setChequeBank] = useState("");
+  const refreshPendingInvoices = async () => {
+    setLoadingPending(true);
+    try {
+      const [unpaid, partial] = await Promise.all([
+        fetchInvoices({ status: 'Unpaid' }),
+        fetchInvoices({ status: 'Partial' })
+      ]);
+      setPendingInvoices([...unpaid, ...partial].sort((a, b) => b.id - a.id));
+    } catch (err) {
+      console.error("fetchInvoices error:", err);
+      toast({ title: "Fetch Error", description: "Could not load pending invoices.", variant: "destructive" });
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (pendingInvoicesDialogOpen) {
+      refreshPendingInvoices();
+    }
+  }, [pendingInvoicesDialogOpen]);
+
+  // Fetch branches when bank changes
+  React.useEffect(() => {
+    const loadBranches = async () => {
+      if (chequeBank) {
+        try {
+          const { fetchBankBranches } = await import("@/lib/api");
+          const branches = await fetchBankBranches(chequeBank);
+          setBankBranches(branches);
+        } catch (err) {
+          console.error("Failed to load branches", err);
+        }
+      } else {
+        setBankBranches([]);
+      }
+    };
+    loadBranches();
+  }, [chequeBank]);
 
 
   return (
@@ -128,6 +189,238 @@ export const ManagementModals: React.FC = () => {
              </div>
           </div>
           <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12 rounded-xl font-bold uppercase tracking-widest" onClick={() => setGuideModalOpen(false)}>Got it!</Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. PENDING INVOICES DIALOG */}
+      <Dialog open={pendingInvoicesDialogOpen} onOpenChange={(open) => {
+          setPendingInvoicesDialogOpen(open);
+          if(!open) {
+              setSelectedInvoice(null);
+              setSearchInvoice("");
+              setPaymentAmount("");
+              setPaymentMethod('Cash');
+              setChequeNo("");
+              setChequeBank("");
+              setChequeBranch("");
+          }
+      }}>
+        <DialogContent className="w-full sm:max-w-4xl h-[100dvh] sm:h-[90vh] sm:max-h-[850px] p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-[2rem] flex flex-col bg-white dark:bg-slate-950">
+          <div className="bg-white dark:bg-slate-950 sm:bg-indigo-600 px-4 py-3 sm:px-8 sm:py-5 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none shrink-0">
+            <div className="flex sm:flex-row items-center gap-3 sm:gap-4">
+               <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 sm:bg-white/20 rounded-xl shrink-0">
+                 <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 sm:text-white" />
+               </div>
+               <div className="text-left">
+                  <DialogTitle className="text-base sm:text-xl font-black uppercase tracking-tight">Pending Invoices</DialogTitle>
+                  <p className="hidden sm:block text-indigo-100 text-[10px] font-bold uppercase tracking-widest opacity-80 mt-0.5">
+                    Debt Collection Management
+                  </p>
+               </div>
+            </div>
+          </div>
+
+          <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-950">
+             {/* Left Panel: List & Search */}
+             <div className="w-full md:w-[350px] border-r border-slate-100 dark:border-slate-800 flex flex-col">
+                <div className="p-4 border-b border-slate-100 dark:border-slate-800">
+                   <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input 
+                        placeholder="Invoice # or Customer..." 
+                        value={searchInvoice}
+                        onChange={e => setSearchInvoice(e.target.value)}
+                        className="h-10 pl-9 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm"
+                      />
+                   </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                   {loadingPending ? (
+                      <div className="flex flex-col items-center justify-center py-10 gap-2">
+                         <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
+                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Loading...</p>
+                      </div>
+                   ) : (
+                      pendingInvoices
+                        .filter(inv => !searchInvoice || inv.invoice_no.toLowerCase().includes(searchInvoice.toLowerCase()) || inv.customer_name?.toLowerCase().includes(searchInvoice.toLowerCase()))
+                        .map(inv => (
+                           <button 
+                             key={inv.id}
+                             onClick={() => {
+                                setSelectedInvoice(inv);
+                                setPaymentAmount(String(parseFloat(inv.grand_total) - parseFloat(inv.paid_amount)));
+                             }}
+                             className={`w-full p-3 rounded-xl text-left transition-all border ${selectedInvoice?.id === inv.id ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-white dark:bg-slate-950 border-transparent hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                           >
+                              <div className="flex justify-between items-start mb-0.5">
+                                 <span className="text-xs font-black tracking-tight">{inv.invoice_no}</span>
+                                 <Badge variant="outline" className={`text-[7px] tracking-widest uppercase h-4 px-1 ${inv.status === 'Partial' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'}`}>{inv.status}</Badge>
+                              </div>
+                              <p className="text-[9px] font-bold text-muted-foreground truncate mb-1.5">{inv.customer_name || 'Walk-in'}</p>
+                              <div className="flex justify-between items-end">
+                                 <div className="text-[8px] font-black uppercase tracking-tighter text-muted-foreground">Balance</div>
+                                 <div className="text-xs font-black text-indigo-600">LKR {(parseFloat(inv.grand_total) - parseFloat(inv.paid_amount)).toLocaleString()}</div>
+                              </div>
+                           </button>
+                        ))
+                   )}
+                   {pendingInvoices.length === 0 && !loadingPending && (
+                      <div className="py-20 text-center text-muted-foreground opacity-30">
+                         <Receipt className="w-12 h-12 mx-auto mb-4" />
+                         <p className="text-xs font-black uppercase tracking-widest">No Pending Invoices</p>
+                      </div>
+                   )}
+                </div>
+             </div>
+
+             {/* Right Panel: Payment Form */}
+             <div className="flex-1 bg-slate-50/50 dark:bg-slate-900/50 p-6 overflow-y-auto custom-scrollbar">
+                {selectedInvoice ? (
+                   <div className="space-y-6">
+                      <div className="p-5 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+                         <div className="flex justify-between items-center mb-4 pb-4 border-b border-slate-50 dark:border-slate-900">
+                            <div>
+                               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Receiving Payment For</p>
+                               <p className="text-xl font-black">{selectedInvoice.invoice_no}</p>
+                            </div>
+                            <div className="text-right">
+                               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Original Total</p>
+                               <p className="text-lg font-black opacity-40 tabular-nums">LKR {parseFloat(selectedInvoice.grand_total).toLocaleString()}</p>
+                            </div>
+                         </div>
+                         <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                               <p className="text-[10px] font-bold text-muted-foreground uppercase">Already Paid</p>
+                               <p className="text-lg font-black text-emerald-600">LKR {parseFloat(selectedInvoice.paid_amount).toLocaleString()}</p>
+                            </div>
+                            <div className="space-y-1 text-right">
+                               <p className="text-[10px] font-bold text-muted-foreground uppercase">Remaining Balance</p>
+                               <p className="text-lg font-black text-rose-600">LKR {(parseFloat(selectedInvoice.grand_total) - parseFloat(selectedInvoice.paid_amount)).toLocaleString()}</p>
+                            </div>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Method</label>
+                         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                            {(['Cash', 'Card', 'Cheque', 'Bank Transfer'] as const).map(m => (
+                               <Button 
+                                 key={m}
+                                 variant={paymentMethod === m ? 'default' : 'outline'}
+                                 className={`h-12 font-bold text-[10px] uppercase rounded-xl transition-all ${paymentMethod === m ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-950'}`}
+                                 onClick={() => setPaymentMethod(m)}
+                               >
+                                  {m}
+                               </Button>
+                            ))}
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Amount</label>
+                         <div className="relative">
+                            <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">LKR</span>
+                            <Input 
+                               type="number"
+                               value={paymentAmount}
+                               onChange={e => setPaymentAmount(e.target.value)}
+                               className="h-16 pl-14 text-2xl font-black bg-white dark:bg-slate-950 border-2 border-indigo-100 dark:border-indigo-900 rounded-2xl shadow-inner focus-visible:ring-indigo-500"
+                            />
+                         </div>
+                      </div>
+
+                      {paymentMethod === 'Cheque' && (
+                         <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl space-y-4 animate-in fade-in zoom-in-95">
+                            <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
+                               <Receipt className="w-4 h-4" /> Cheque Documentation
+                            </p>
+                            <div className="grid grid-cols-2 gap-4">
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-bold uppercase">Cheque #</label>
+                                  <Input placeholder="XXXXXX" value={chequeNo} onChange={e => setChequeNo(e.target.value)} className="h-10 font-bold bg-white dark:bg-slate-950" />
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-bold uppercase">Cheque Date</label>
+                                  <Input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} className="h-10 font-bold bg-white dark:bg-slate-950" />
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-bold uppercase">Issuing Bank</label>
+                                  <SearchableSelect 
+                                     options={banks.map(b => ({ value: String(b.id), label: b.name }))}
+                                     value={chequeBank}
+                                     onValueChange={(val) => setChequeBank(val)}
+                                     placeholder="Select Bank"
+                                  />
+                               </div>
+                               <div className="space-y-2">
+                                  <label className="text-[10px] font-bold uppercase">Branch</label>
+                                  <SearchableSelect 
+                                     options={bankBranches.map(br => ({ value: br.branch_name, label: br.branch_name }))}
+                                     value={chequeBranchId}
+                                     onValueChange={(val) => setChequeBranchId(val)}
+                                     placeholder="Select Branch"
+                                     disabled={!chequeBank}
+                                  />
+                               </div>
+                            </div>
+                         </div>
+                      )}
+
+                      <Button 
+                        className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-lg shadow-xl shadow-indigo-200 active:scale-[0.98] transition-all rounded-2xl"
+                        disabled={isRecordingPayment || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                        onClick={async () => {
+                           setIsRecordingPayment(true);
+                           try {
+                              const payload = {
+                                 amount: parseFloat(paymentAmount),
+                                 payment_method: paymentMethod,
+                                 payment_date: new Date().toISOString().split('T')[0],
+                                 notes: `POS payment for ${selectedInvoice.invoice_no}`,
+                                 // Cheque specifics
+                                 cheque: paymentMethod === 'Cheque' ? {
+                                    cheque_no: chequeNo,
+                                    cheque_date: chequeDate,
+                                    bank_name: banks.find(b => String(b.id) === chequeBank)?.name || "",
+                                    branch_name: chequeBranchId, // We use the ID or text if available
+                                    payee_name: selectedInvoice.customer_name || 'Walk-in'
+                                 } : null,
+                                 bank_id: paymentMethod === 'Cheque' ? chequeBank : null,
+                                 reference_no: paymentMethod === 'Cheque' ? chequeNo : null
+                              };
+
+                              const res = await addInvoicePayment(selectedInvoice.id, payload);
+                              if (res.status === 'success') {
+                                 toast({ title: "Payment Recorded", description: `LKR ${parseFloat(paymentAmount).toLocaleString()} collected successfully.` });
+                                 // Reset and Refresh
+                                 setSelectedInvoice(null);
+                                 setPaymentAmount("");
+                                 await refreshPendingInvoices();
+                                 if (res.receipt_id) {
+                                    window.open(`/cms/payment-receipts/${res.receipt_id}/print?autoprint=1`, '_blank');
+                                 }
+                              } else {
+                                 throw new Error(res.message || "Failed to record payment");
+                              }
+                           } catch (err: any) {
+                              toast({ title: "Payment Failed", description: err.message, variant: "destructive" });
+                           } finally {
+                              setIsRecordingPayment(false);
+                           }
+                        }}
+                      >
+                         {isRecordingPayment ? <Loader2 className="w-5 h-5 animate-spin mr-3" /> : <ShieldCheck className="w-5 h-5 mr-3" />}
+                         Confirm & Collect Payment
+                      </Button>
+                   </div>
+                ) : (
+                   <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-30 text-center">
+                      <Calculator className="w-16 h-16 mb-4" />
+                      <p className="text-sm font-black uppercase tracking-widest max-w-[200px]">Select an invoice from the left to start collecting payment.</p>
+                   </div>
+                )}
+             </div>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -947,8 +1240,9 @@ export const ManagementModals: React.FC = () => {
                 )}
             </div>
          </DialogContent>
-       </Dialog>
+        </Dialog>
 
-    </>
-  );
+        <ReservationSelectionDialog />
+      </>
+    );
 };

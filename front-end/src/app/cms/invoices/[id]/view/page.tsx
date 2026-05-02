@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   Mail,
   Phone,
-  MapPin
+  MapPin,
+  Globe,
+  Truck
 } from "lucide-react";
 import {
   Dialog,
@@ -347,7 +349,21 @@ function InvoiceContent() {
                   {invoice.billing_address && (
                     <p className="text-sm text-muted-foreground/80 mt-3 whitespace-pre-line border-t pt-3 border-border/40 leading-relaxed">{invoice.billing_address}</p>
                   )}
-                  {invoice.shipping_address && invoice.shipping_address !== invoice.billing_address && (
+                  {invoice.is_international === 1 && (
+                    <div className="mt-4 pt-4 border-t border-border/40 bg-blue-50/30 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 dark:text-blue-400/60">International Delivery</h5>
+                        <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 text-[9px] h-4">
+                          <Globe className="w-3 h-3 mr-1" /> {invoice.shipping_country || 'Global'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 font-bold mb-1 flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5" /> {invoice.provider_name || 'Shipping Provider'}
+                      </p>
+                      <p className="text-sm text-muted-foreground/80 whitespace-pre-line leading-relaxed">{invoice.shipping_address}</p>
+                    </div>
+                  )}
+                  {invoice.shipping_address && invoice.shipping_address !== invoice.billing_address && invoice.is_international !== 1 && (
                     <div className="mt-4 pt-4 border-t border-border/40 bg-muted/20 p-3 rounded-lg">
                       <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2">Shipping Address</h5>
                       <p className="text-sm text-muted-foreground/80 whitespace-pre-line leading-relaxed">{invoice.shipping_address}</p>
@@ -586,6 +602,12 @@ function InvoiceContent() {
                             <span className="font-bold tabular-nums">+LKR {Number(invoice.tax_total).toFixed(2)}</span>
                           </div>
                         )
+                      )}
+                      {invoice.is_international === 1 && (
+                        <div className="flex justify-between items-center text-sm text-indigo-600 dark:text-indigo-400">
+                          <span className="font-medium">Shipping ({invoice.provider_name || 'International'})</span>
+                          <span className="font-bold tabular-nums">+LKR {Number(invoice.shipping_cost || 0).toFixed(2)}</span>
+                        </div>
                       )}
                     </>
                   )}

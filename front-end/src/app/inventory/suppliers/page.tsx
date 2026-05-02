@@ -49,6 +49,8 @@ export default function SuppliersPage() {
     address: "",
     tax_reg_no: "",
     is_active: true,
+    is_inventory_vendor: true,
+    is_banquet_vendor: false,
     tax_ids: [] as number[],
   });
 
@@ -102,6 +104,8 @@ export default function SuppliersPage() {
         address: row.address ?? "",
         tax_reg_no: (row as any).tax_reg_no ?? "",
         is_active: Boolean(row.is_active),
+        is_inventory_vendor: row.is_inventory_vendor !== undefined ? Boolean(row.is_inventory_vendor) : true,
+        is_banquet_vendor: Boolean(row.is_banquet_vendor),
         tax_ids: Array.isArray((row as any).tax_ids) ? (row as any).tax_ids.map(Number) : [],
       });
     } catch (e: any) {
@@ -114,6 +118,8 @@ export default function SuppliersPage() {
         address: s?.address ?? "",
         tax_reg_no: (s as any)?.tax_reg_no ?? "",
         is_active: Boolean(s?.is_active),
+        is_inventory_vendor: s?.is_inventory_vendor !== undefined ? Boolean(s?.is_inventory_vendor) : true,
+        is_banquet_vendor: Boolean(s?.is_banquet_vendor),
         tax_ids: [],
       });
     }
@@ -121,7 +127,7 @@ export default function SuppliersPage() {
 
   const openAdd = () => {
     setEditId(null);
-    setForm({ name: "", email: "", phone: "", address: "", tax_reg_no: "", is_active: true, tax_ids: [] });
+    setForm({ name: "", email: "", phone: "", address: "", tax_reg_no: "", is_active: true, is_inventory_vendor: true, is_banquet_vendor: false, tax_ids: [] });
     setIsDialogOpen(true);
     void loadTaxes();
   };
@@ -146,6 +152,8 @@ export default function SuppliersPage() {
         address: form.address.trim() ? form.address.trim() : null,
         tax_reg_no: form.tax_reg_no.trim() ? form.tax_reg_no.trim() : null,
         is_active: form.is_active ? 1 : 0,
+        is_inventory_vendor: form.is_inventory_vendor ? 1 : 0,
+        is_banquet_vendor: form.is_banquet_vendor ? 1 : 0,
         tax_ids: form.tax_ids,
       };
       if (editId) {
@@ -231,6 +239,30 @@ export default function SuppliersPage() {
                     <div className="col-span-3 flex items-center gap-2">
                       <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
                       <span className="text-sm text-muted-foreground">{form.is_active ? "Enabled" : "Disabled"}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-4 items-start gap-4">
+                    <Label className="text-right pt-1">Vendor Type</Label>
+                    <div className="col-span-3 space-y-2">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={form.is_inventory_vendor} 
+                          onChange={(e) => setForm((p) => ({...p, is_inventory_vendor: e.target.checked}))} 
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm">Inventory Vendor (PO & GRN)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          checked={form.is_banquet_vendor} 
+                          onChange={(e) => setForm((p) => ({...p, is_banquet_vendor: e.target.checked}))} 
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                        <span className="text-sm">Banquet Vendor (Events & Services)</span>
+                      </label>
                     </div>
                   </div>
 
@@ -346,7 +378,11 @@ export default function SuppliersPage() {
                             <p className="font-bold truncate">{s.name}</p>
                             <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">SUPPLIER ID: #{s.id}</p>
                           </div>
-                          {s.is_active ? null : <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
+                          <div className="flex gap-1 mt-1">
+                            {!s.is_active && <Badge variant="secondary" className="text-[10px]">Inactive</Badge>}
+                            {s.is_inventory_vendor && <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200">Inventory</Badge>}
+                            {s.is_banquet_vendor && <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-700 border-orange-200">Banquet</Badge>}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">

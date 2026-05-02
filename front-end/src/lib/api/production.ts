@@ -118,3 +118,10 @@ export const updateBom = async (id: number | string, payload: any) => {
   if (!res.ok) throw new Error('Failed to update BOM');
   return res.json() as Promise<ApiSuccess<null>>;
 };
+
+export const fetchBomByPart = async (partId: number | string) => {
+  const res = await api(`/api/productionbom/getByPart/${partId}`);
+  if (!res.ok) throw new Error('Failed to load BOM for part');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};

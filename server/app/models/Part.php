@@ -187,6 +187,16 @@ class Part extends Model {
         $row->collection_ids = array_map(function($c) { return (int)$c->id; }, $collections ?: []);
         $row->collections = $collections;
 
+        // Gallery mapping
+        require_once __DIR__ . '/PartImage.php';
+        $imageModel = new PartImage();
+        $row->gallery = $imageModel->getByPart($id);
+
+        // Attributes mapping
+        require_once __DIR__ . '/PartAttribute.php';
+        $attrModel = new PartAttribute();
+        $row->attributes_grouped = $attrModel->getPartAttributesGrouped($id);
+
         return $row;
     }
 
@@ -231,9 +241,9 @@ class Part extends Model {
         $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table}
-            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, wholesale_price, min_selling_price, price_2, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, default_location_id, allowed_locations, created_by, updated_by)
+            (sku, part_number, barcode_number, part_name, unit, brand_id, stock_quantity, cost_price, price, wholesale_price, min_selling_price, price_2, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, default_location_id, allowed_locations, created_by, updated_by, net_weight_kg, gross_weight_kg, units_per_carton, packing_type, hs_code, carton_length_cm, carton_width_cm, carton_height_cm, volume_cbm, carton_tare_weight_kg, is_online, public_description)
             VALUES
-            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :wholesale_price, :min_selling_price, :price_2, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :default_location_id, :allowed_locations, :created_by, :updated_by)
+            (:sku, :part_number, :barcode_number, :part_name, :unit, :brand_id, :stock_quantity, :cost_price, :price, :wholesale_price, :min_selling_price, :price_2, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :default_location_id, :allowed_locations, :created_by, :updated_by, :net_weight_kg, :gross_weight_kg, :units_per_carton, :packing_type, :hs_code, :carton_length_cm, :carton_width_cm, :carton_height_cm, :volume_cbm, :carton_tare_weight_kg, :is_online, :public_description)
         ");
         $this->db->bind(':sku', $data['sku'] ?? null);
         $this->db->bind(':part_number', $data['part_number'] ?? null);
@@ -258,6 +268,18 @@ class Part extends Model {
         $this->db->bind(':allowed_locations', $data['allowed_locations'] ?? null);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
+        $this->db->bind(':net_weight_kg', isset($data['net_weight_kg']) ? (float)$data['net_weight_kg'] : 0);
+        $this->db->bind(':gross_weight_kg', isset($data['gross_weight_kg']) ? (float)$data['gross_weight_kg'] : 0);
+        $this->db->bind(':units_per_carton', isset($data['units_per_carton']) ? (int)$data['units_per_carton'] : 1);
+        $this->db->bind(':packing_type', $data['packing_type'] ?? null);
+        $this->db->bind(':hs_code', $data['hs_code'] ?? null);
+        $this->db->bind(':carton_length_cm', isset($data['carton_length_cm']) ? (float)$data['carton_length_cm'] : 0);
+        $this->db->bind(':carton_width_cm', isset($data['carton_width_cm']) ? (float)$data['carton_width_cm'] : 0);
+        $this->db->bind(':carton_height_cm', isset($data['carton_height_cm']) ? (float)$data['carton_height_cm'] : 0);
+        $this->db->bind(':volume_cbm', isset($data['volume_cbm']) ? (float)$data['volume_cbm'] : 0);
+        $this->db->bind(':carton_tare_weight_kg', isset($data['carton_tare_weight_kg']) ? (float)$data['carton_tare_weight_kg'] : 0);
+        $this->db->bind(':is_online', isset($data['is_online']) ? (int)(bool)$data['is_online'] : 1);
+        $this->db->bind(':public_description', $data['public_description'] ?? null);
         $ok = $this->db->execute();
         if (!$ok) return false;
         $partId = (int)$this->db->lastInsertId();
@@ -266,6 +288,13 @@ class Part extends Model {
         if (isset($data['collection_ids']) && is_array($data['collection_ids'])) {
             $collectionModel = new Collection();
             $collectionModel->syncProductCollections($partId, $data['collection_ids']);
+        }
+
+        // Sync Attributes if present
+        if (isset($data['attribute_values']) && is_array($data['attribute_values'])) {
+            require_once __DIR__ . '/PartAttribute.php';
+            $attrModel = new PartAttribute();
+            $attrModel->syncPartAttributes($partId, $data['attribute_values']);
         }
 
         return $partId;
@@ -295,6 +324,18 @@ class Part extends Model {
                 recipe_type = :recipe_type,
                 default_location_id = :default_location_id,
                 allowed_locations = :allowed_locations,
+                net_weight_kg = :net_weight_kg,
+                gross_weight_kg = :gross_weight_kg,
+                units_per_carton = :units_per_carton,
+                packing_type = :packing_type,
+                hs_code = :hs_code,
+                carton_length_cm = :carton_length_cm,
+                carton_width_cm = :carton_width_cm,
+                carton_height_cm = :carton_height_cm,
+                volume_cbm = :volume_cbm,
+                carton_tare_weight_kg = :carton_tare_weight_kg,
+                is_online = :is_online,
+                public_description = :public_description,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -318,6 +359,18 @@ class Part extends Model {
         $this->db->bind(':recipe_type', $data['recipe_type'] ?? 'Standard');
         $this->db->bind(':default_location_id', isset($data['default_location_id']) ? (int)$data['default_location_id'] : null);
         $this->db->bind(':allowed_locations', $data['allowed_locations'] ?? null);
+        $this->db->bind(':net_weight_kg', isset($data['net_weight_kg']) ? (float)$data['net_weight_kg'] : 0);
+        $this->db->bind(':gross_weight_kg', isset($data['gross_weight_kg']) ? (float)$data['gross_weight_kg'] : 0);
+        $this->db->bind(':units_per_carton', isset($data['units_per_carton']) ? (int)$data['units_per_carton'] : 1);
+        $this->db->bind(':packing_type', $data['packing_type'] ?? null);
+        $this->db->bind(':hs_code', $data['hs_code'] ?? null);
+        $this->db->bind(':carton_length_cm', isset($data['carton_length_cm']) ? (float)$data['carton_length_cm'] : 0);
+        $this->db->bind(':carton_width_cm', isset($data['carton_width_cm']) ? (float)$data['carton_width_cm'] : 0);
+        $this->db->bind(':carton_height_cm', isset($data['carton_height_cm']) ? (float)$data['carton_height_cm'] : 0);
+        $this->db->bind(':volume_cbm', isset($data['volume_cbm']) ? (float)$data['volume_cbm'] : 0);
+        $this->db->bind(':carton_tare_weight_kg', isset($data['carton_tare_weight_kg']) ? (float)$data['carton_tare_weight_kg'] : 0);
+        $this->db->bind(':is_online', isset($data['is_online']) ? (int)(bool)$data['is_online'] : 1);
+        $this->db->bind(':public_description', $data['public_description'] ?? null);
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
         $ok = $this->db->execute();
@@ -325,6 +378,18 @@ class Part extends Model {
         if ($ok && isset($data['collection_ids']) && is_array($data['collection_ids'])) {
             $collectionModel = new Collection();
             $collectionModel->syncProductCollections($id, $data['collection_ids']);
+        }
+
+        if ($ok && isset($data['attribute_values']) && is_array($data['attribute_values'])) {
+            require_once __DIR__ . '/PartAttribute.php';
+            $attrModel = new PartAttribute();
+            $attrModel->syncPartAttributes($id, $data['attribute_values']);
+        }
+
+        if ($ok && isset($data['gallery']) && is_array($data['gallery'])) {
+            require_once __DIR__ . '/PartImage.php';
+            $imageModel = new PartImage();
+            $imageModel->syncGallery($id, $data['gallery']);
         }
 
         return $ok;

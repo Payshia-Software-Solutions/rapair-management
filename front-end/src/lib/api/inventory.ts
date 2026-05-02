@@ -27,9 +27,128 @@ export type PartRow = {
   image_filename?: string | null;
   item_type: "Part" | "Service";
   recipe_type: "Standard" | "A La Carte" | "Recipe";
+  
+  // Shipping & Packing Defaults
+  net_weight_kg?: number;
+  gross_weight_kg?: number;
+  units_per_carton?: number;
+  packing_type?: string;
+  carton_length_cm?: number;
+  carton_width_cm?: number;
+  carton_height_cm?: number;
+  volume_cbm?: number;
+  carton_tare_weight_kg?: number;
+
+  // E-Commerce Rich Data
+  is_online?: number;
+  public_description?: string | null;
+  gallery?: Array<{ id: number; filename: string; label: string | null; sort_order: number }>;
+  attributes_grouped?: Array<{ id: number; name: string; attributes: any[] }>;
 };
 
+// Collections
+export const fetchCollections = async () => {
+  const res = await api('/api/inventory/collections');
+  if (!res.ok) throw new Error('Failed to load collections');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
 
+// Attributes Groups
+export const fetchAttributeGroups = async () => {
+  const res = await api('/api/attribute/list_groups');
+  if (!res.ok) throw new Error('Failed to load attribute groups');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createAttributeGroup = async (payload: any) => {
+  const res = await api('/api/attribute/create_group', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateAttributeGroup = async (id: number | string, payload: any) => {
+  const res = await api(`/api/attribute/update_group/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteAttributeGroup = async (id: number | string) => {
+  const res = await api(`/api/attribute/delete_group/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+// Attributes
+export const fetchAttributes = async (groupId?: number | string) => {
+  const url = groupId ? `/api/attribute/list/${groupId}` : '/api/attribute/list';
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to load attributes');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createAttribute = async (payload: any) => {
+  const res = await api('/api/attribute/create', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateAttribute = async (id: number | string, payload: any) => {
+  const res = await api(`/api/attribute/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteAttribute = async (id: number | string) => {
+  const res = await api(`/api/attribute/delete/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+export const assignAttributeGroupToPart = async (partId: number, groupId: number) => {
+  const res = await api('/api/attribute/assign_to_part', {
+    method: 'POST',
+    body: JSON.stringify({ part_id: partId, group_id: groupId })
+  });
+  return res.json();
+};
+
+export const unassignAttributeGroupFromPart = async (partId: number, groupId: number) => {
+  const res = await api('/api/attribute/unassign_from_part', {
+    method: 'POST',
+    body: JSON.stringify({ part_id: partId, group_id: groupId })
+  });
+  return res.json();
+};
+
+// Gallery
+export const uploadPartGalleryImage = async (partId: string | number, file: File, label?: string) => {
+  const formData = new FormData();
+  formData.append('image', file);
+  if (label) formData.append('label', label);
+  formData.append('part_id', String(partId));
+
+  const res = await api('/api/upload/part_gallery', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Upload failed');
+  }
+  return res.json();
+};
+
+export const deletePartGalleryImage = async (id: number | string) => {
+  const res = await api(`/api/part/gallery_delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete gallery image');
+  return res.json();
+};
+
+export const updatePartGallery = async (partId: number | string, images: any[]) => {
+  const res = await api(`/api/part/gallery_update/${partId}`, {
+    method: 'POST',
+    body: JSON.stringify({ images })
+  });
+  return res.json();
+};
 
 export const fetchParts = async (q: string = '') => {
   const qs = q ? `?q=${encodeURIComponent(q)}` : '';

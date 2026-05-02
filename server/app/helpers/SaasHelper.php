@@ -98,7 +98,9 @@ class SaasHelper {
     private static function getCache() {
         $file = APPROOT . '/scratch/nexus_license.json';
         if (file_exists($file)) {
-            $data = json_decode(file_get_contents($file), true);
+            $content = @file_get_contents($file);
+            if ($content === false) return null;
+            $data = json_decode($content, true);
             if (time() - ($data['ts'] ?? 0) < self::$cache_ttl) return $data['data'];
         }
         return null;

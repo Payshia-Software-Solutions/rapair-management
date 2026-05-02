@@ -9,20 +9,26 @@ class Supplier extends Model {
         InventorySchema::ensure();
     }
 
-    public function list($q = '') {
+    public function list($q = '', $type = null) {
         $this->ensureSchema();
         $q = is_string($q) ? trim($q) : '';
+        $sql = "SELECT * FROM {$this->table} WHERE 1=1";
+        $params = [];
+
         if ($q !== '') {
-            $this->db->query("
-                SELECT *
-                FROM {$this->table}
-                WHERE name LIKE :q OR email LIKE :q OR phone LIKE :q
-                ORDER BY name ASC
-            ");
-            $this->db->bind(':q', '%' . $q . '%');
-            return $this->db->resultSet();
+            $sql .= " AND (name LIKE :q OR email LIKE :q OR phone LIKE :q)";
+            $params[':q'] = '%' . $q . '%';
         }
-        $this->db->query("SELECT * FROM {$this->table} ORDER BY name ASC");
+
+        if ($type === 'banquet') {
+            $sql .= " AND is_banquet_vendor = 1";
+        } elseif ($type === 'inventory') {
+            $sql .= " AND is_inventory_vendor = 1";
+        }
+
+        $sql .= " ORDER BY name ASC";
+        $this->db->query($sql);
+        foreach ($params as $k => $v) $this->db->bind($k, $v);
         return $this->db->resultSet();
     }
 
@@ -84,8 +90,8 @@ class Supplier extends Model {
     public function create($data, $userId = null) {
         $this->ensureSchema();
         $this->db->query("
-            INSERT INTO {$this->table} (name, email, phone, address, tax_reg_no, is_active, created_by, updated_by)
-            VALUES (:name, :email, :phone, :address, :tax_reg_no, :is_active, :created_by, :updated_by)
+            INSERT INTO {$this->table} (name, email, phone, address, tax_reg_no, is_active, is_inventory_vendor, is_banquet_vendor, created_by, updated_by)
+            VALUES (:name, :email, :phone, :address, :tax_reg_no, :is_active, :is_inv, :is_ban, :created_by, :updated_by)
         ");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':email', $data['email'] ?? null);
@@ -93,6 +99,8 @@ class Supplier extends Model {
         $this->db->bind(':address', $data['address'] ?? null);
         $this->db->bind(':tax_reg_no', $data['tax_reg_no'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
+        $this->db->bind(':is_inv', isset($data['is_inventory_vendor']) ? (int)(bool)$data['is_inventory_vendor'] : 1);
+        $this->db->bind(':is_ban', isset($data['is_banquet_vendor']) ? (int)(bool)$data['is_banquet_vendor'] : 0);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         $ok = $this->db->execute();
@@ -111,6 +119,8 @@ class Supplier extends Model {
                 address = :address,
                 tax_reg_no = :tax_reg_no,
                 is_active = :is_active,
+                is_inventory_vendor = :is_inv,
+                is_banquet_vendor = :is_ban,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -120,6 +130,8 @@ class Supplier extends Model {
         $this->db->bind(':address', $data['address'] ?? null);
         $this->db->bind(':tax_reg_no', $data['tax_reg_no'] ?? null);
         $this->db->bind(':is_active', isset($data['is_active']) ? (int)(bool)$data['is_active'] : 1);
+        $this->db->bind(':is_inv', isset($data['is_inventory_vendor']) ? (int)(bool)$data['is_inventory_vendor'] : 1);
+        $this->db->bind(':is_ban', isset($data['is_banquet_vendor']) ? (int)(bool)$data['is_banquet_vendor'] : 0);
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();

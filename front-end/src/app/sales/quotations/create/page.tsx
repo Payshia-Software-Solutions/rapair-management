@@ -9,8 +9,11 @@ import {
   fetchParts, 
   createQuotation,
   fetchCompany,
-  fetchLocations
-} from "@/lib/api"; 
+  fetchLocations,
+  fetchShippingProviders,
+  fetchCostingTemplates,
+  fetchCostingTemplate
+} from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +29,9 @@ import {
   User, 
   Package, 
   Info,
-  Calendar
+  Calendar,
+  Globe,
+  Truck
 } from "lucide-react";
 import { 
   Select, 
@@ -58,6 +63,17 @@ export default function CreateQuotationPage() {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<any[]>([{ description: "", quantity: 1, unit_price: 0, line_total: 0 }]);
   const [selectedTaxIds, setSelectedTaxIds] = useState<string[]>([]);
+  const [shippingProviders, setShippingProviders] = useState<any[]>([]);
+  const [costingTemplates, setCostingTemplates] = useState<any[]>([]);
+
+  // International Shipping State
+  const [isInternational, setIsInternational] = useState(false);
+  const [shippingProviderId, setShippingProviderId] = useState("");
+  const [shippingCost, setShippingCost] = useState(0);
+  const [shippingCountry, setShippingCountry] = useState("");
+  const [shippingAddress, setShippingAddress] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateItems, setTemplateItems] = useState<any[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,17 +81,21 @@ export default function CreateQuotationPage() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [cData, tData, pData, compData, locData] = await Promise.all([
+        const [cData, tData, pData, compData, locData, sData, ctData] = await Promise.all([
           fetchCustomers(),
           fetchTaxes(),
           fetchParts(),
           fetchCompany().catch(() => null),
-          fetchLocations().catch(() => [])
+          fetchLocations().catch(() => []),
+          fetchShippingProviders().catch(() => []),
+          fetchCostingTemplates().catch(() => [])
         ]);
         setCustomers(cData);
         setTaxes(tData);
         setParts(pData);
         setLocations(locData);
+        setShippingProviders(sData?.data || sData || []);
+        setCostingTemplates(Array.isArray(ctData?.data) ? ctData.data : []);
 
         // Pre-select location (LS preference or default)
         const lsLocId = window?.localStorage?.getItem('location_id');
@@ -134,6 +154,59 @@ export default function CreateQuotationPage() {
     setItems(newItems);
   };
 
+  const calculateShippingCost = (baseCost: number, templateItems: any[]) => {
+    let total = baseCost;
+    const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+    
+    templateItems.forEach(item => {
+      if (item.cost_type === 'Fixed') {
+        total += Number(item.value);
+      } else if (item.cost_type === 'Percentage') {
+        total += baseCost * (Number(item.value) / 100);
+      } else if (item.cost_type === 'Per Unit') {
+        total += Number(item.value) * totalQty;
+      }
+    });
+    return total;
+  };
+
+  const handleTemplateChange = async (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId || templateId === "none") {
+      setTemplateItems([]);
+      // Reset to provider base cost if a provider is selected
+      const provider = shippingProviders.find(p => p.id.toString() === shippingProviderId);
+      if (provider) setShippingCost(Number(provider.base_cost));
+      return;
+    }
+
+    try {
+      const res = await fetchCostingTemplate(Number(templateId));
+      if (res && res.status === 'success') {
+        const items = res.data.items || [];
+        setTemplateItems(items);
+        
+        const provider = shippingProviders.find(p => p.id.toString() === shippingProviderId);
+        const base = provider ? Number(provider.base_cost) : 0;
+        setShippingCost(calculateShippingCost(base, items));
+      }
+    } catch (err) {
+      console.error("Failed to fetch template items", err);
+    }
+  };
+
+  const handleProviderChange = (providerId: string) => {
+    setShippingProviderId(providerId);
+    const provider = shippingProviders.find(p => p.id.toString() === providerId);
+    const base = provider ? Number(provider.base_cost) : 0;
+    
+    if (selectedTemplateId && selectedTemplateId !== "none") {
+      setShippingCost(calculateShippingCost(base, templateItems));
+    } else {
+      setShippingCost(base);
+    }
+  };
+
   const subtotal = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   
   const appliedTaxes = selectedTaxIds.map(tid => {
@@ -149,7 +222,7 @@ export default function CreateQuotationPage() {
   }).filter(t => t !== null) as any[];
 
   const taxTotal = appliedTaxes.reduce((sum, t) => sum + t.amount, 0);
-  const grandTotal = subtotal + taxTotal;
+  const grandTotal = subtotal + taxTotal + (isInternational ? Number(shippingCost || 0) : 0);
 
   const handleSubmit = async () => {
     if (!selectedCustomerId) {
@@ -169,7 +242,13 @@ export default function CreateQuotationPage() {
         tax_total: taxTotal,
         grand_total: grandTotal,
         items,
-        taxes: appliedTaxes
+        taxes: appliedTaxes,
+        is_international: isInternational ? 1 : 0,
+        shipping_provider_id: isInternational ? shippingProviderId : null,
+        shipping_costing_template_id: isInternational && selectedTemplateId !== "none" ? selectedTemplateId : null,
+        shipping_cost: isInternational ? shippingCost : 0,
+        shipping_country: isInternational ? shippingCountry : null,
+        shipping_address: isInternational ? shippingAddress : null
       };
 
       const res = await createQuotation(payload);
@@ -447,6 +526,137 @@ export default function CreateQuotationPage() {
                       ))}
                     </div>
                   )}
+
+                  {/* International Shipping Section */}
+                  <div className="pt-4 border-t border-dashed space-y-4">
+                    <div className="flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/20">
+                      <div className="flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                        <Label htmlFor="intl-toggle" className="font-bold text-blue-900 dark:text-blue-300 cursor-pointer">International Delivery</Label>
+                      </div>
+                      <Checkbox 
+                        id="intl-toggle" 
+                        checked={isInternational}
+                        onCheckedChange={(checked) => setIsInternational(!!checked)}
+                      />
+                    </div>
+
+                    {isInternational && (
+                      <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                        <div className="space-y-2">
+                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Carrier</Label>
+                          <Select 
+                            value={shippingProviderId} 
+                            onValueChange={handleProviderChange}
+                          >
+                            <SelectTrigger className="h-11 font-bold border-blue-200 dark:border-blue-900/30">
+                              <SelectValue placeholder="Select carrier..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {shippingProviders.map(p => (
+                                <SelectItem key={p.id} value={p.id.toString()}>{p.name} (Base: LKR {p.base_cost})</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Costing Template</Label>
+                          <Select 
+                            value={selectedTemplateId || "none"} 
+                            onValueChange={handleTemplateChange}
+                          >
+                            <SelectTrigger className="h-11 font-bold border-indigo-200 dark:border-indigo-900/30">
+                              <SelectValue placeholder="No template (Base Cost Only)" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">No template (Base Cost Only)</SelectItem>
+                              {costingTemplates.map(t => (
+                                <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Cost</Label>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">LKR</span>
+                              <Input 
+                                type="number"
+                                className="h-11 pl-12 font-black text-blue-600"
+                                value={shippingCost}
+                                onChange={(e) => setShippingCost(Number(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Country</Label>
+                            <Input 
+                              placeholder="e.g. USA"
+                              className="h-11 font-bold"
+                              value={shippingCountry}
+                              onChange={(e) => setShippingCountry(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Address</Label>
+                          <textarea 
+                            className="w-full min-h-[80px] p-3 rounded-xl border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium"
+                            placeholder="Full destination address..."
+                            value={shippingAddress}
+                            onChange={(e) => setShippingAddress(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {isInternational && (
+                      <div className="flex justify-between items-center text-sm font-bold text-blue-600 dark:text-blue-400">
+                        <span>Total Shipping Fee</span>
+                        <span>LKR {Number(shippingCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    )}
+
+                    {isInternational && templateItems.length > 0 && (
+                      <div className="mt-2 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/20 animate-in fade-in zoom-in-95 duration-300">
+                        <div className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-2 flex items-center gap-2">
+                          <Calculator className="w-3 h-3" /> Costing Sheet Breakdown
+                        </div>
+                        <div className="space-y-1.5">
+                          {/* Base Cost from Carrier */}
+                          <div className="flex justify-between text-[11px] font-bold text-slate-500">
+                            <span>Base Carrier Rate</span>
+                            <span>LKR {Number(shippingProviders.find(p => p.id.toString() === shippingProviderId)?.base_cost || 0).toLocaleString()}</span>
+                          </div>
+                          {/* Template Components */}
+                          {templateItems.map((ti, idx) => {
+                            const base = Number(shippingProviders.find(p => p.id.toString() === shippingProviderId)?.base_cost || 0);
+                            const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+                            
+                            let amount = 0;
+                            if (ti.cost_type === 'Fixed') amount = Number(ti.value);
+                            else if (ti.cost_type === 'Percentage') amount = base * (Number(ti.value) / 100);
+                            else if (ti.cost_type === 'Per Unit') amount = Number(ti.value) * totalQty;
+
+                            return (
+                              <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400">
+                                <span>
+                                  {ti.name} 
+                                  {ti.cost_type === 'Percentage' ? ` (${ti.value}%)` : ''}
+                                  {ti.cost_type === 'Per Unit' ? ` (LKR ${ti.value} x ${totalQty})` : ''}
+                                </span>
+                                <span>+ LKR {amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="pt-4 border-t-2 border-dashed flex justify-between items-center">

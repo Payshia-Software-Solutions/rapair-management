@@ -36,4 +36,25 @@ class InventoryController extends Controller {
 
         $this->success($results);
     }
+
+    /**
+     * GET /api/inventory/collections
+     */
+    public function collections() {
+        $this->requirePermission('parts.read');
+        $this->db->query("SELECT * FROM collections ORDER BY name ASC");
+        $rows = $this->db->resultSet();
+        $this->success($rows);
+    }
+
+    /**
+     * GET /api/inventory/attributes/groups
+     */
+    public function attributes_groups() {
+        $this->requirePermission('parts.read');
+        require_once '../app/models/PartAttribute.php';
+        $attr = new PartAttribute();
+        $rows = $attr->getGroups();
+        $this->success($rows);
+    }
 }

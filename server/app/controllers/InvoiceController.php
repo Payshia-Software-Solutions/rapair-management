@@ -253,15 +253,22 @@ class InvoiceController extends Controller {
             'customer_id' => $invoice->customer_id,
             'customer_name' => $invoice->customer_name,
             'location_id' => $this->currentLocationId($u),
-            'amount' => $data['amount'],
+            'amount' => $data['amount'] ?? $data['payment_amount'], // Support both keys
             'payment_method' => $data['payment_method'] ?? 'Cash',
             'payment_date' => $data['payment_date'],
-            'reference_no' => $data['reference_no'] ?? null,
+            'reference_no' => $data['reference_no'] ?? $data['cheque_no'] ?? null,
             'notes' => $data['notes'] ?? null,
+            'card_type' => $data['card_type'] ?? null,
+            'card_last4' => $data['card_last4'] ?? null,
+            'card_auth_code' => $data['card_auth_code'] ?? null,
+            'bank_id' => $data['bank_id'] ?? null,
+            'card_category' => $data['card_category'] ?? null,
+            'cheque' => $data['cheque'] ?? null,
             'created_by' => $u['sub']
         ];
 
-        if ($receiptModel->create($receiptData)) {
+        $receiptId = $receiptModel->create($receiptData);
+        if ($receiptId) {
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'action' => 'payment',
@@ -271,9 +278,13 @@ class InvoiceController extends Controller {
                 'path' => $_SERVER['REQUEST_URI'] ?? '',
                 'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-                'details' => json_encode(['amount' => $data['amount'], 'method' => $data['payment_method'] ?? 'Cash']),
+                'details' => json_encode(['amount' => $data['amount'] ?? 0, 'method' => $data['payment_method'] ?? 'Cash', 'receipt_id' => $receiptId]),
             ]);
-            $this->success(null, 'Payment added successfully');
+            $this->json([
+                'status' => 'success',
+                'message' => 'Payment added successfully',
+                'receipt_id' => $receiptId
+            ]);
         } else {
             $this->error('Failed to add payment');
         }
