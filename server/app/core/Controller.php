@@ -67,6 +67,15 @@ class Controller {
         return trim(substr($hdr, 7));
     }
 
+    protected function getApiKey() {
+        $key = $_SERVER['HTTP_X_API_KEY'] ?? $_GET['api_key'] ?? '';
+        if (!$key && function_exists('getallheaders')) {
+            $headers = getallheaders();
+            $key = $headers['X-API-Key'] ?? $headers['x-api-key'] ?? '';
+        }
+        return $key;
+    }
+
     protected function currentUser() {
         $token = $this->getBearerToken();
         if (!$token) return null;

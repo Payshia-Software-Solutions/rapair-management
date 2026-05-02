@@ -48,4 +48,11 @@ class ProductionbomController extends Controller {
         }
         $this->error('Failed to update BOM', 500);
     }
+
+    public function getByPart($partId) {
+        $this->requirePermission('production.read');
+        $row = $this->bomModel->getActiveBOMForPart($partId);
+        // Do not error if not found, just return null data so frontend knows no BOM exists
+        $this->success($row);
+    }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,21 +10,15 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
-  fetchShippingZones, 
-  createShippingZone, 
-  updateShippingZone, 
-  deleteShippingZone, 
-  ShippingZone, 
-  fetchDistricts, 
-  createDistrict, 
-  updateDistrict, 
-  deleteDistrict, 
-  District,
-  fetchCities,
-  createCity,
-  updateCity,
-  deleteCity,
-  City
+  updateCostingTemplate, 
+  deleteCostingTemplate, 
+  ShippingCostingTemplate, 
+  ShippingCostingItem,
+  LogisticsFactor,
+  fetchLogisticsFactors,
+  createLogisticsFactor,
+  updateLogisticsFactor,
+  deleteLogisticsFactor
 } from "@/lib/api";
 import { 
   Truck, 
@@ -34,8 +29,14 @@ import {
   AlertCircle, 
   Building2,
   Search,
-  Edit
+  Edit,
+  Globe,
+  Info,
+  Calculator,
+  FileText
 } from "lucide-react";
+import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Select, 
   SelectContent, 
@@ -55,22 +56,38 @@ import {
 import { Label } from "@/components/ui/label";
 
 export default function ShippingManagementPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") || "regional";
   const { toast } = useToast();
   const [shippingZones, setShippingZones] = useState<ShippingZone[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
+  const [shippingProviders, setShippingProviders] = useState<ShippingProvider[]>([]);
+  const [costingTemplates, setCostingTemplates] = useState<ShippingCostingTemplate[]>([]);
   const [districtSearch, setDistrictSearch] = useState("");
   const [loadingZones, setLoadingZones] = useState(false);
   const [loadingDistricts, setLoadingDistricts] = useState(false);
+  const [loadingProviders, setLoadingProviders] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [logisticsFactors, setLogisticsFactors] = useState<LogisticsFactor[]>([]);
+  const [loadingFactors, setLoadingFactors] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Dialog States
   const [isZoneDialogOpen, setIsZoneDialogOpen] = useState(false);
   const [isEditZoneDialogOpen, setIsEditZoneDialogOpen] = useState(false);
   const [isDistrictDialogOpen, setIsDistrictDialogOpen] = useState(false);
+  const [isProviderDialogOpen, setIsProviderDialogOpen] = useState(false);
+  const [isEditProviderDialogOpen, setIsEditProviderDialogOpen] = useState(false);
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+  const [isEditTemplateDialogOpen, setIsEditTemplateDialogOpen] = useState(false);
   const [isCitiesDialogOpen, setIsCitiesDialogOpen] = useState(false);
   const [isAddCityDialogOpen, setIsAddCityDialogOpen] = useState(false);
   const [isEditCityDialogOpen, setIsEditCityDialogOpen] = useState(false);
   
+  const [isFactorDialogOpen, setIsFactorDialogOpen] = useState(false);
+  const [isEditFactorDialogOpen, setIsEditFactorDialogOpen] = useState(false);
+
   const [isDeleteCityDialogOpen, setIsDeleteCityDialogOpen] = useState(false);
   const [cityToDelete, setCityToDelete] = useState<City | null>(null);
 
@@ -84,6 +101,15 @@ export default function ShippingManagementPage() {
   const [newZone, setNewZone] = useState({ name: "", base_fee: 0, free_threshold: 0 });
   const [editingZone, setEditingZone] = useState<ShippingZone | null>(null);
   const [newDistrict, setNewDistrict] = useState({ name: "", shipping_zone_id: null as number | null });
+  const [newProvider, setNewProvider] = useState({ name: "", base_cost: 0 });
+  const [editingProvider, setEditingProvider] = useState<ShippingProvider | null>(null);
+  
+  const [newTemplate, setNewTemplate] = useState<{ name: string; items: ShippingCostingItem[] }>({ name: "", items: [] });
+  const [editingTemplate, setEditingTemplate] = useState<ShippingCostingTemplate | null>(null);
+  
+  const [newFactor, setNewFactor] = useState({ name: "", type: "Logistic" });
+  const [editingFactor, setEditingFactor] = useState<LogisticsFactor | null>(null);
+
   const [submitting, setSubmitting] = useState(false);
 
   const loadShippingZones = async () => {
@@ -114,6 +140,45 @@ export default function ShippingManagementPage() {
     }
   };
 
+  const loadProviders = async () => {
+    try {
+      setLoadingProviders(true);
+      const res = await fetchShippingProviders();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setShippingProviders(data);
+    } catch (err) {
+      console.error("Failed to load providers:", err);
+    } finally {
+      setLoadingProviders(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      setLoadingTemplates(true);
+      const res = await fetchCostingTemplates();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setCostingTemplates(data);
+    } catch (err) {
+      console.error("Failed to load templates:", err);
+    } finally {
+      setLoadingTemplates(false);
+    }
+  };
+
+  const loadFactors = async () => {
+    try {
+      setLoadingFactors(true);
+      const res = await fetchLogisticsFactors();
+      const data = (res && res.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+      setLogisticsFactors(data);
+    } catch (err) {
+      console.error("Failed to load factors:", err);
+    } finally {
+      setLoadingFactors(false);
+    }
+  };
+
   const loadCities = async (districtId: number) => {
     try {
       setLoadingCities(true);
@@ -137,7 +202,13 @@ export default function ShippingManagementPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadShippingZones(), loadDistricts()]).finally(() => setLoading(false));
+    Promise.all([
+      loadShippingZones(), 
+      loadDistricts(), 
+      loadProviders(), 
+      loadTemplates(),
+      loadFactors()
+    ]).finally(() => setLoading(false));
   }, []);
 
   const handleAddZone = async () => {
@@ -233,6 +304,113 @@ export default function ShippingManagementPage() {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAddProvider = async () => {
+    if (!newProvider.name) return;
+    try {
+      setSubmitting(true);
+      await createShippingProvider(newProvider);
+      toast({ title: "Success", description: "Shipping provider added." });
+      setIsProviderDialogOpen(false);
+      setNewProvider({ name: "", base_cost: 0 });
+      await loadProviders();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateProvider = async () => {
+    if (!editingProvider) return;
+    try {
+      setSubmitting(true);
+      await updateShippingProvider(editingProvider.id, editingProvider);
+      toast({ title: "Success", description: "Shipping provider updated." });
+      setIsEditProviderDialogOpen(false);
+      setEditingProvider(null);
+      await loadProviders();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAddTemplate = async () => {
+    if (!newTemplate.name) return;
+    try {
+      setSubmitting(true);
+      await createCostingTemplate(newTemplate);
+      toast({ title: "Success", description: "Costing template added." });
+      setIsTemplateDialogOpen(false);
+      setNewTemplate({ name: "", items: [] });
+      await loadTemplates();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateTemplate = async () => {
+    if (!editingTemplate) return;
+    try {
+      setSubmitting(true);
+      await updateCostingTemplate(editingTemplate.id, editingTemplate);
+      toast({ title: "Success", description: "Costing template updated." });
+      setIsEditTemplateDialogOpen(false);
+      setEditingTemplate(null);
+      await loadTemplates();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleAddFactor = async () => {
+    if (!newFactor.name) return;
+    try {
+      setSubmitting(true);
+      await createLogisticsFactor(newFactor);
+      toast({ title: "Success", description: "Logistics factor added." });
+      setIsFactorDialogOpen(false);
+      setNewFactor({ name: "", type: "Logistic" });
+      await loadFactors();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleUpdateFactor = async () => {
+    if (!editingFactor) return;
+    try {
+      setSubmitting(true);
+      await updateLogisticsFactor(editingFactor.id, editingFactor);
+      toast({ title: "Success", description: "Logistics factor updated." });
+      setIsEditFactorDialogOpen(false);
+      setEditingFactor(null);
+      await loadFactors();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDeleteFactor = async (id: number) => {
+    if (!confirm("Delete this factor?")) return;
+    try {
+      await deleteLogisticsFactor(id);
+      toast({ title: "Success", description: "Factor deleted." });
+      await loadFactors();
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
     }
   };
 
@@ -414,7 +592,375 @@ export default function ShippingManagementPage() {
            </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
+        {/* Add Provider Dialog */}
+        <Dialog open={isProviderDialogOpen} onOpenChange={setIsProviderDialogOpen}>
+           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+              <DialogHeader>
+                 <DialogTitle>Add International Provider</DialogTitle>
+                 <DialogDescription>Setup a new global shipping partner (e.g. DHL, UPS).</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                 <div className="grid gap-2">
+                    <Label htmlFor="provider-name">Provider Name</Label>
+                    <Input 
+                      id="provider-name" 
+                      placeholder="e.g. DHL Express" 
+                      value={newProvider.name}
+                      onChange={(e) => setNewProvider({...newProvider, name: e.target.value})}
+                      className="dark:bg-slate-800 dark:border-slate-700"
+                    />
+                 </div>
+                 <div className="grid gap-2">
+                    <Label htmlFor="provider-cost">Base Cost (LKR)</Label>
+                    <Input 
+                      id="provider-cost" 
+                      type="number"
+                      value={newProvider.base_cost}
+                      onChange={(e) => setNewProvider({...newProvider, base_cost: parseFloat(e.target.value)})}
+                      className="dark:bg-slate-800 dark:border-slate-700"
+                    />
+                 </div>
+              </div>
+              <DialogFooter>
+                 <Button variant="outline" onClick={() => setIsProviderDialogOpen(false)}>Cancel</Button>
+                 <Button onClick={handleAddProvider} disabled={submitting || !newProvider.name}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Save Provider
+                 </Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+
+        {/* Edit Provider Dialog */}
+        <Dialog open={isEditProviderDialogOpen} onOpenChange={setIsEditProviderDialogOpen}>
+           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+              <DialogHeader>
+                 <DialogTitle>Edit Provider</DialogTitle>
+                 <DialogDescription>Update pricing or details for {editingProvider?.name}.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                 <div className="grid gap-2">
+                    <Label htmlFor="edit-provider-name">Provider Name</Label>
+                    <Input 
+                      id="edit-provider-name" 
+                      value={editingProvider?.name || ""}
+                      onChange={(e) => setEditingProvider(prev => prev ? {...prev, name: e.target.value} : null)}
+                      className="dark:bg-slate-800 dark:border-slate-700"
+                    />
+                 </div>
+                 <div className="grid gap-2">
+                    <Label htmlFor="edit-provider-cost">Base Cost (LKR)</Label>
+                    <Input 
+                      id="edit-provider-cost" 
+                      type="number"
+                      value={editingProvider?.base_cost || 0}
+                      onChange={(e) => setEditingProvider(prev => prev ? {...prev, base_cost: parseFloat(e.target.value)} : null)}
+                      className="dark:bg-slate-800 dark:border-slate-700"
+                    />
+                 </div>
+              </div>
+              <DialogFooter>
+                 <Button variant="outline" onClick={() => setIsEditProviderDialogOpen(false)}>Cancel</Button>
+                 <Button onClick={handleUpdateProvider} disabled={submitting || !editingProvider?.name}>
+                    {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Update Provider
+                 </Button>
+              </DialogFooter>
+           </DialogContent>
+        </Dialog>
+
+         {/* Add Template Dialog */}
+         <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+            <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+               <DialogHeader>
+                  <DialogTitle>Create Costing Template</DialogTitle>
+                  <DialogDescription>Define a set of rules for shipping cost calculation.</DialogDescription>
+               </DialogHeader>
+               <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                  <div className="grid gap-2">
+                     <Label htmlFor="template-name">Template Name</Label>
+                     <Input 
+                       id="template-name" 
+                       placeholder="e.g. Standard DHL Express" 
+                       value={newTemplate.name}
+                       onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})}
+                       className="dark:bg-slate-800 dark:border-slate-700"
+                     />
+                  </div>
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-black uppercase tracking-widest opacity-50">Cost Components</Label>
+                      <Button variant="ghost" size="sm" className="text-[10px] h-7 font-bold text-primary" onClick={() => {
+                        setNewTemplate({
+                          ...newTemplate,
+                          items: [...newTemplate.items, { name: "", cost_type: "Fixed", value: 0 }]
+                        });
+                      }}>
+                        <Plus className="w-3 h-3 mr-1" /> Add Component
+                      </Button>
+                    </div>
+                    {newTemplate.items.map((item, idx) => (
+                      <div key={idx} className="p-3 border rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-3 relative">
+                        <Button variant="ghost" size="icon" className="absolute top-1 right-1 w-6 h-6 text-red-500" onClick={() => {
+                          const items = [...newTemplate.items];
+                          items.splice(idx, 1);
+                          setNewTemplate({...newTemplate, items});
+                        }}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                        <div className="grid gap-2">
+                          <Label className="text-[10px]">Name</Label>
+                          <Input size={1} className="h-8 text-xs" value={item.name} onChange={(e) => {
+                             const items = [...newTemplate.items];
+                             items[idx].name = e.target.value;
+                             setNewTemplate({...newTemplate, items});
+                          }} placeholder="e.g. Fuel Surcharge" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="grid gap-2">
+                            <Label className="text-[10px]">Type</Label>
+                            <Select value={item.cost_type} onValueChange={(val: any) => {
+                               const items = [...newTemplate.items];
+                               items[idx].cost_type = val;
+                               setNewTemplate({...newTemplate, items});
+                            }}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Fixed">Fixed Amount</SelectItem>
+                                <SelectItem value="Percentage">Percentage of Base</SelectItem>
+                                <SelectItem value="Per Unit">Per Unit (Qty/Kg)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className="text-[10px]">Value</Label>
+                            <Input type="number" className="h-8 text-xs" value={item.value} onChange={(e) => {
+                               const items = [...newTemplate.items];
+                               items[idx].value = parseFloat(e.target.value) || 0;
+                               setNewTemplate({...newTemplate, items});
+                            }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+               <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleAddTemplate} disabled={submitting || !newTemplate.name}>
+                     {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                     Save Template
+                  </Button>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
+
+
+         {/* Edit Template Dialog */}
+         <Dialog open={isEditTemplateDialogOpen} onOpenChange={setIsEditTemplateDialogOpen}>
+            <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+               <DialogHeader>
+                  <DialogTitle>Edit Costing Template</DialogTitle>
+                  <DialogDescription>Update rules for {editingTemplate?.name}.</DialogDescription>
+               </DialogHeader>
+               <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-2">
+                  <div className="grid gap-2">
+                     <Label htmlFor="edit-template-name">Template Name</Label>
+                     <Input 
+                       id="edit-template-name" 
+                       value={editingTemplate?.name || ""}
+                       onChange={(e) => setEditingTemplate(prev => prev ? {...prev, name: e.target.value} : null)}
+                       className="dark:bg-slate-800 dark:border-slate-700"
+                     />
+                  </div>
+                  <div className="space-y-4 pt-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-black uppercase tracking-widest opacity-50">Cost Components</Label>
+                      <Button variant="ghost" size="sm" className="text-[10px] h-7 font-bold text-primary" onClick={() => {
+                        if (editingTemplate) {
+                          setEditingTemplate({
+                            ...editingTemplate,
+                            items: [...(editingTemplate.items || []), { name: "", cost_type: "Fixed", value: 0 }]
+                          });
+                        }
+                      }}>
+                        <Plus className="w-3 h-3 mr-1" /> Add Component
+                      </Button>
+                    </div>
+                    {editingTemplate?.items?.map((item, idx) => (
+                      <div key={idx} className="p-3 border rounded-xl bg-slate-50 dark:bg-slate-800/50 space-y-3 relative">
+                        <Button variant="ghost" size="icon" className="absolute top-1 right-1 w-6 h-6 text-red-500" onClick={() => {
+                          if (editingTemplate) {
+                            const items = [...(editingTemplate.items || [])];
+                            items.splice(idx, 1);
+                            setEditingTemplate({...editingTemplate, items});
+                          }
+                        }}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                        <div className="grid gap-2">
+                          <Label className="text-[10px]">Name</Label>
+                          <Input size={1} className="h-8 text-xs" value={item.name} onChange={(e) => {
+                             if (editingTemplate) {
+                               const items = [...(editingTemplate.items || [])];
+                               items[idx].name = e.target.value;
+                               setEditingTemplate({...editingTemplate, items});
+                             }
+                          }} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="grid gap-2">
+                            <Label className="text-[10px]">Type</Label>
+                            <Select value={item.cost_type} onValueChange={(val: any) => {
+                               if (editingTemplate) {
+                                 const items = [...(editingTemplate.items || [])];
+                                 items[idx].cost_type = val;
+                                 setEditingTemplate({...editingTemplate, items});
+                               }
+                            }}>
+                              <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Fixed">Fixed Amount</SelectItem>
+                                <SelectItem value="Percentage">Percentage of Base</SelectItem>
+                                <SelectItem value="Per Unit">Per Unit (Qty/Kg)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-2">
+                            <Label className="text-[10px]">Value</Label>
+                            <Input type="number" className="h-8 text-xs" value={item.value} onChange={(e) => {
+                               if (editingTemplate) {
+                                 const items = [...(editingTemplate.items || [])];
+                                 items[idx].value = parseFloat(e.target.value) || 0;
+                                 setEditingTemplate({...editingTemplate, items});
+                               }
+                            }} />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+               </div>
+               <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsEditTemplateDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleUpdateTemplate} disabled={submitting || !editingTemplate?.name}>
+                     {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                     Update Template
+                  </Button>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
+
+          {/* Add Factor Dialog */}
+          <Dialog open={isFactorDialogOpen} onOpenChange={setIsFactorDialogOpen}>
+             <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Add Logistics Factor</DialogTitle>
+                   <DialogDescription>Pre-define a cost factor for export logistics.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label htmlFor="factor-name">Factor Name</Label>
+                      <Input 
+                        id="factor-name" 
+                        placeholder="e.g. Clearance Charges" 
+                        value={newFactor.name}
+                        onChange={(e) => setNewFactor({...newFactor, name: e.target.value})}
+                        className="dark:bg-slate-800 dark:border-slate-700"
+                      />
+                   </div>
+                   <div className="grid gap-2">
+                      <Label htmlFor="factor-type">Category</Label>
+                      <Select value={newFactor.type} onValueChange={(val) => setNewFactor({...newFactor, type: val})}>
+                         <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700">
+                            <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent>
+                            <SelectItem value="Logistic">Logistic</SelectItem>
+                            <SelectItem value="Clearence">Clearence</SelectItem>
+                            <SelectItem value="Freight">Freight</SelectItem>
+                            <SelectItem value="General">General</SelectItem>
+                         </SelectContent>
+                      </Select>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsFactorDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleAddFactor} disabled={submitting || !newFactor.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Save Factor
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+          {/* Edit Factor Dialog */}
+          <Dialog open={isEditFactorDialogOpen} onOpenChange={setIsEditFactorDialogOpen}>
+             <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+                <DialogHeader>
+                   <DialogTitle>Edit Logistics Factor</DialogTitle>
+                   <DialogDescription>Update details for {editingFactor?.name}.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                   <div className="grid gap-2">
+                      <Label htmlFor="edit-factor-name">Factor Name</Label>
+                      <Input 
+                        id="edit-factor-name" 
+                        value={editingFactor?.name || ""}
+                        onChange={(e) => setEditingFactor(prev => prev ? {...prev, name: e.target.value} : null)}
+                        className="dark:bg-slate-800 dark:border-slate-700"
+                      />
+                   </div>
+                   <div className="grid gap-2">
+                      <Label htmlFor="edit-factor-type">Category</Label>
+                      <Select value={editingFactor?.type || "General"} onValueChange={(val) => setEditingFactor(prev => prev ? {...prev, type: val} : null)}>
+                         <SelectTrigger className="dark:bg-slate-800 dark:border-slate-700">
+                            <SelectValue />
+                         </SelectTrigger>
+                         <SelectContent>
+                            <SelectItem value="Logistic">Logistic</SelectItem>
+                            <SelectItem value="Clearence">Clearence</SelectItem>
+                            <SelectItem value="Freight">Freight</SelectItem>
+                            <SelectItem value="General">General</SelectItem>
+                         </SelectContent>
+                      </Select>
+                   </div>
+                   <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        id="edit-factor-active" 
+                        checked={editingFactor?.is_active} 
+                        onChange={(e) => setEditingFactor(prev => prev ? {...prev, is_active: e.target.checked} : null)}
+                        className="w-4 h-4 rounded border-slate-300"
+                      />
+                      <Label htmlFor="edit-factor-active">Active</Label>
+                   </div>
+                </div>
+                <DialogFooter>
+                   <Button variant="outline" onClick={() => setIsEditFactorDialogOpen(false)}>Cancel</Button>
+                   <Button onClick={handleUpdateFactor} disabled={submitting || !editingFactor?.name}>
+                      {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      Update Factor
+                   </Button>
+                </DialogFooter>
+             </DialogContent>
+          </Dialog>
+
+ <Tabs value={initialTab} onValueChange={(val) => router.push(`/admin/shipping/page?tab=${val}`)} className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8 max-w-xl h-12 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <TabsTrigger value="regional" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
+              <Truck className="w-4 h-4 mr-2" /> Regional
+            </TabsTrigger>
+            <TabsTrigger value="international" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
+              <Calculator className="w-4 h-4 mr-2" /> Costing Templates
+            </TabsTrigger>
+            <TabsTrigger value="factors" className="font-bold rounded-lg data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:shadow-sm">
+              <FileText className="w-4 h-4 mr-2" /> Logistics Factors
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="regional">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
           {/* Shipping Zones - Left Column */}
           <div className="xl:col-span-5 space-y-6">
             <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
@@ -577,6 +1123,199 @@ export default function ShippingManagementPage() {
             </Card>
           </div>
         </div>
+          </TabsContent>
+
+          <TabsContent value="international">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
+              <div className="xl:col-span-8 space-y-6">
+                <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
+                  <CardHeader className="bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Globe className="w-6 h-6 text-blue-400" />
+                      <div>
+                        <CardTitle className="text-xl font-bold">International Providers</CardTitle>
+                        <CardDescription className="text-blue-100/60">Manage global carriers and standard shipping rates.</CardDescription>
+                      </div>
+                    </div>
+                    <Button variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsProviderDialogOpen(true)}>
+                      <Plus className="w-4 h-4 mr-2" /> Add Provider
+                    </Button>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                          <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-8 py-4">Carrier</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Base Costing</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Status</TableHead>
+                          <TableHead className="w-[100px]"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {loadingProviders ? (
+                          <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></TableCell></TableRow>
+                        ) : shippingProviders.length === 0 ? (
+                          <TableRow><TableCell colSpan={4} className="text-center py-20 text-slate-400 italic">No international providers configured.</TableCell></TableRow>
+                        ) : shippingProviders.map((provider) => (
+                          <TableRow key={provider.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors border-slate-50 dark:border-slate-800/50">
+                            <TableCell className="pl-8 py-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-black text-xs">
+                                  {provider.name.substring(0, 2).toUpperCase()}
+                                </div>
+                                <span className="font-bold text-slate-700 dark:text-slate-200">{provider.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <span className="font-black text-slate-900 dark:text-white">LKR {parseFloat(provider.base_cost.toString()).toLocaleString()}</span>
+                            </TableCell>
+                            <TableCell className="py-4">
+                              <Badge variant={provider.is_active ? "success" : "secondary"}>
+                                {provider.is_active ? "Live" : "Inactive"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="pr-8 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-blue-600" onClick={() => {
+                                  setEditingProvider(provider);
+                                  setIsEditProviderDialogOpen(true);
+                                }}>
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500" onClick={() => {
+                                  if (confirm(`Delete ${provider.name}?`)) deleteShippingProvider(provider.id).then(() => loadProviders());
+                                }}>
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="xl:col-span-4 space-y-6">
+                <Card className="border-none shadow-xl bg-blue-600 text-white overflow-hidden">
+                  <CardHeader>
+                    <div className="p-3 bg-white/20 w-fit rounded-xl mb-2">
+                      <Globe className="w-6 h-6" />
+                    </div>
+                    <CardTitle className="text-white text-xl">Global Reach</CardTitle>
+                    <CardDescription className="text-blue-100">Configure providers for international quotations.</CardDescription>
+                  </CardHeader>
+                  <CardContent className="text-sm leading-relaxed text-blue-50/80">
+                    Providers defined here will be available in the Quotation builder when the "International" option is enabled.
+                    <div className="mt-4 p-4 bg-white/10 rounded-xl border border-white/10">
+                      <h5 className="font-bold text-white flex items-center gap-2 mb-1">
+                        <Info className="w-3.5 h-3.5" />
+                        Cost Calculation
+                      </h5>
+                      The base cost will be automatically applied as the default shipping fee, which can be overridden per quotation.
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="factors">
+             <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start pb-10">
+                <div className="xl:col-span-8 space-y-6">
+                   <Card className="border-none shadow-xl overflow-hidden bg-white dark:bg-slate-900">
+                      <CardHeader className="bg-slate-900 dark:bg-slate-950 text-white p-6 flex flex-row items-center justify-between">
+                         <div className="flex items-center gap-3">
+                            <FileText className="w-6 h-6 text-indigo-400" />
+                            <div>
+                               <CardTitle className="text-xl font-bold">Logistics Factors</CardTitle>
+                               <CardDescription className="text-indigo-100/60">Manage pre-defined factors for Clearance, Freight, and Logistics.</CardDescription>
+                            </div>
+                         </div>
+                         <Button variant="outline" className="bg-white/10 border-white/20 hover:bg-white/20 text-white" onClick={() => setIsFactorDialogOpen(true)}>
+                            <Plus className="w-4 h-4 mr-2" /> Add Factor
+                         </Button>
+                      </CardHeader>
+                      <CardContent className="p-0">
+                         <Table>
+                            <TableHeader>
+                               <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 pl-8 py-4">Factor Name</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Category</TableHead>
+                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4">Status</TableHead>
+                                  <TableHead className="w-[100px]"></TableHead>
+                               </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                               {loadingFactors ? (
+                                 <TableRow><TableCell colSpan={4} className="text-center py-20"><Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-600" /></TableCell></TableRow>
+                               ) : logisticsFactors.length === 0 ? (
+                                 <TableRow><TableCell colSpan={4} className="text-center py-20 text-slate-400 italic">No logistics factors configured.</TableCell></TableRow>
+                               ) : logisticsFactors.map((factor) => (
+                                 <TableRow key={factor.id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors border-slate-50 dark:border-slate-800/50">
+                                    <TableCell className="pl-8 py-4 font-bold text-slate-700 dark:text-slate-200">{factor.name}</TableCell>
+                                    <TableCell className="py-4">
+                                       <Badge variant="outline" className={cn(
+                                          "font-bold",
+                                          factor.type === 'Clearence' ? "text-orange-600 border-orange-200 bg-orange-50" :
+                                          factor.type === 'Freight' ? "text-blue-600 border-blue-200 bg-blue-50" :
+                                          "text-green-600 border-green-200 bg-green-50"
+                                       )}>
+                                          {factor.type}
+                                       </Badge>
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                       <Badge variant={factor.is_active ? "success" : "secondary"}>
+                                          {factor.is_active ? "Active" : "Inactive"}
+                                       </Badge>
+                                    </TableCell>
+                                    <TableCell className="pr-8 text-right">
+                                       <div className="flex items-center justify-end gap-1">
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-indigo-600" onClick={() => {
+                                             setEditingFactor(factor);
+                                             setIsEditFactorDialogOpen(true);
+                                          }}>
+                                             <Edit className="w-4 h-4" />
+                                          </Button>
+                                          <Button variant="ghost" size="icon" className="text-slate-400 hover:text-red-500" onClick={() => handleDeleteFactor(factor.id)}>
+                                             <Trash2 className="w-4 h-4" />
+                                          </Button>
+                                       </div>
+                                    </TableCell>
+                                 </TableRow>
+                               ))}
+                            </TableBody>
+                         </Table>
+                      </CardContent>
+                   </Card>
+                </div>
+
+                <div className="xl:col-span-4 space-y-6">
+                   <Card className="border-none shadow-xl bg-indigo-600 text-white overflow-hidden">
+                      <CardHeader>
+                         <div className="p-3 bg-white/20 w-fit rounded-xl mb-2">
+                            <Info className="w-6 h-6" />
+                         </div>
+                         <CardTitle className="text-white text-xl">Factor Management</CardTitle>
+                         <CardDescription className="text-indigo-100">Standardize your logistics charges.</CardDescription>
+                      </CardHeader>
+                      <CardContent className="text-sm leading-relaxed text-indigo-50/80">
+                         Defining logistics factors here allows your team to select them from a searchable dropdown during costing.
+                         <div className="mt-4 p-4 bg-white/10 rounded-xl border border-white/10">
+                            <h5 className="font-bold text-white flex items-center gap-2 mb-1 uppercase text-[10px] tracking-widest">Categories</h5>
+                            <ul className="space-y-2 mt-2">
+                               <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-orange-400" /><span><strong>Clearence:</strong> Customs & Duty related</span></li>
+                               <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-blue-400" /><span><strong>Freight:</strong> Shipping & Insurance</span></li>
+                               <li className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-400" /><span><strong>Logistic:</strong> Transport & Handling</span></li>
+                            </ul>
+                         </div>
+                      </CardContent>
+                   </Card>
+                </div>
+             </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
   );

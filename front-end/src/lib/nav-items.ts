@@ -40,7 +40,8 @@ import {
   MessageSquare,
   Mail,
   Calendar as CalendarIcon,
-  Utensils
+  Utensils,
+  Calculator
 } from "lucide-react";
 
 export type NavItem = {
@@ -92,6 +93,7 @@ export const inventoryItems: NavItem[] = [
 ];
 
 export const crmItems: NavItem[] = [
+  { icon: MessageSquare, label: "Inquiries (Leads)", href: "/crm/inquiries", perm: "crm.inquiries.view" },
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
 ];
@@ -113,6 +115,7 @@ export const salesItems: NavItem[] = [
 
 export const masterDataItems: NavItem[] = [
   { icon: LayoutGrid, label: "Product Collections", href: "/master-data/collections", perm: "parts.read" },
+  { icon: Settings, label: "Technical Specifications", href: "/master-data/attributes", perm: "parts.read" },
   { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
@@ -130,6 +133,8 @@ export const accountingItems: NavItem[] = [
   { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
   { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
   { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet" },
+  { icon: Calculator, label: "Product Costing Templates", href: "/admin/shipping/templates", perm: "costing.manage" },
+  { icon: FileText, label: "Product & Export Costing", href: "/accounts/costing-sheet", perm: "costing.manage" },
   { icon: Settings, label: "Accounting Settings", href: "/accounting/settings" },
 ];
 

@@ -226,4 +226,42 @@ class UploadController extends Controller {
             'url' => $url,
         ], 'Uploaded successfully');
     }
+
+    // POST /api/upload/part_gallery
+    public function part_gallery() {
+        $u = $this->requirePermission('parts.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+
+        $partId = isset($_POST['part_id']) ? (int)$_POST['part_id'] : 0;
+        if ($partId <= 0) $this->error('part_id is required', 400);
+
+        $f = $this->requireFile('image');
+        $allowed = ['jpg','jpeg','png','webp','gif'];
+        $ext = strtolower($this->extFromName($f['name'] ?? ''));
+        if ($ext && !in_array($ext, $allowed, true)) {
+            $this->error('Unsupported image type', 400);
+        }
+
+        $filename = $this->safeFilename('glr', $f['name'] ?? 'image');
+        $dir = trim((string)CONTENT_ITEMS_DIR, '/');
+
+        try {
+            $ftp = new FtpStorage();
+            $ftp->upload($f['tmp_name'], $dir, $filename);
+            
+            require_once '../app/models/PartImage.php';
+            $imgModel = new PartImage();
+            $imgModel->add($partId, $filename, $_POST['label'] ?? null, (int)$u['sub']);
+
+        } catch (Exception $e) {
+            $this->error('Upload failed: ' . $e->getMessage(), 500);
+        }
+
+        $this->success([
+            'filename' => $filename,
+            'url' => rtrim(CONTENT_BASE_URL, '/') . '/' . trim(CONTENT_ITEMS_DIR, '/') . '/' . $filename,
+        ], 'Uploaded to gallery');
+    }
 }

@@ -75,6 +75,18 @@ class PartController extends Controller {
             'wholesale_price' => $data['wholesale_price'] ?? null,
             'min_selling_price' => $data['min_selling_price'] ?? null,
             'price_2' => $data['price_2'] ?? null,
+            'net_weight_kg' => $data['net_weight_kg'] ?? 0,
+            'gross_weight_kg' => $data['gross_weight_kg'] ?? 0,
+            'units_per_carton' => $data['units_per_carton'] ?? 1,
+            'packing_type' => $data['packing_type'] ?? null,
+            'hs_code' => $data['hs_code'] ?? null,
+            'carton_length_cm' => $data['carton_length_cm'] ?? 0,
+            'carton_width_cm' => $data['carton_width_cm'] ?? 0,
+            'carton_height_cm' => $data['carton_height_cm'] ?? 0,
+            'volume_cbm' => $data['volume_cbm'] ?? 0,
+            'carton_tare_weight_kg' => $data['carton_tare_weight_kg'] ?? 0,
+            'is_online' => $data['is_online'] ?? 0,
+            'public_description' => $data['public_description'] ?? null,
         ];
 
         $newId = $this->partModel->create($payload, (int)$u['sub']);
@@ -134,11 +146,30 @@ class PartController extends Controller {
             'wholesale_price' => $data['wholesale_price'] ?? null,
             'min_selling_price' => $data['min_selling_price'] ?? null,
             'price_2' => $data['price_2'] ?? null,
+            'net_weight_kg' => $data['net_weight_kg'] ?? 0,
+            'gross_weight_kg' => $data['gross_weight_kg'] ?? 0,
+            'units_per_carton' => $data['units_per_carton'] ?? 1,
+            'packing_type' => $data['packing_type'] ?? null,
+            'hs_code' => $data['hs_code'] ?? null,
+            'carton_length_cm' => $data['carton_length_cm'] ?? 0,
+            'carton_width_cm' => $data['carton_width_cm'] ?? 0,
+            'carton_height_cm' => $data['carton_height_cm'] ?? 0,
+            'volume_cbm' => $data['volume_cbm'] ?? 0,
+            'carton_tare_weight_kg' => $data['carton_tare_weight_kg'] ?? 0,
+            'is_online' => $data['is_online'] ?? 0,
+            'public_description' => $data['public_description'] ?? null,
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {
             // Save supplier mapping (optional)
             $this->partModel->setSuppliers((int)$id, $supplierIds, (int)$u['sub']);
+
+            // Save attributes (Specifications)
+            if (isset($data['attributes']) && is_array($data['attributes'])) {
+                require_once '../app/models/PartAttribute.php';
+                $attrModel = new PartAttribute();
+                $attrModel->syncPartAttributes($id, $data['attributes']);
+            }
 
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
@@ -307,5 +338,33 @@ class PartController extends Controller {
         
         $rows = $batchModel->getAvailableBatches($id, $locationId);
         $this->success($rows);
+    }
+
+    // POST /api/part/gallery/update/1
+    public function gallery_update($id = null) {
+        $this->requirePermission('parts.write');
+        if (!$id) $this->error('Part ID required', 400);
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $images = $data['images'] ?? [];
+        
+        require_once '../app/models/PartImage.php';
+        $imgModel = new PartImage();
+        if ($imgModel->syncGallery($id, $images)) {
+            $this->success(null, 'Gallery updated');
+        }
+        $this->error('Failed to update gallery');
+    }
+
+    // DELETE /api/part/gallery/delete/1
+    public function gallery_delete($id = null) {
+        $u = $this->requirePermission('parts.write');
+        if (!$id) $this->error('ID required', 400);
+        
+        require_once '../app/models/PartImage.php';
+        $imgModel = new PartImage();
+        if ($imgModel->delete($id)) {
+            $this->success(null, 'Image deleted');
+        }
+        $this->error('Failed to delete image');
     }
 }

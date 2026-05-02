@@ -1,0 +1,2 @@
+"     let finalPallets = 0;\n     if (loadPlan.palletize && loadPlan.pallet_type_id) {\n        const palDef = palletTypes.find(p => p.id.toString() === loadPlan.pallet_type_id);\n        if (palDef) {\n           const cbmPerPallet = (Number(palDef.length
+<truncated 753 bytes>

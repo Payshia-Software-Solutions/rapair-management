@@ -1784,6 +1784,143 @@ class SchemaDefinition {
       ),
     ),
   ),
+  'attribute_groups' => 
+  array (
+    'name' => 'attribute_groups',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'sort_order' => 
+      array (
+        'Field' => 'sort_order',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'attributes' => 
+  array (
+    'name' => 'attributes',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'group_id' => 
+      array (
+        'Field' => 'group_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'type' => 
+      array (
+        'Field' => 'type',
+        'Type' => 'enum(\'text\',\'number\',\'boolean\',\'selection\')',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'text',
+        'Extra' => '',
+      ),
+      'sort_order' => 
+      array (
+        'Field' => 'sort_order',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'group_id' => 
+      array (
+        'Key_name' => 'group_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'group_id',
+        ),
+      ),
+    ),
+  ),
   'audit_logs' => 
   array (
     'name' => 'audit_logs',
@@ -2099,6 +2236,841 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_bookings' => 
+  array (
+    'name' => 'banquet_bookings',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'booking_no' => 
+      array (
+        'Field' => 'booking_no',
+        'Type' => 'varchar(20)',
+        'Null' => 'NO',
+        'Key' => 'UNI',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'customer_id' => 
+      array (
+        'Field' => 'customer_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'hall_id' => 
+      array (
+        'Field' => 'hall_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'menu_id' => 
+      array (
+        'Field' => 'menu_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'pax_count' => 
+      array (
+        'Field' => 'pax_count',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'booking_date' => 
+      array (
+        'Field' => 'booking_date',
+        'Type' => 'date',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'session' => 
+      array (
+        'Field' => 'session',
+        'Type' => 'enum(\'Morning\',\'Evening\',\'FullDay\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'FullDay',
+        'Extra' => '',
+      ),
+      'status' => 
+      array (
+        'Field' => 'status',
+        'Type' => 'enum(\'Confirmed\',\'Cancelled\',\'Completed\',\'Invoiced\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Confirmed',
+        'Extra' => '',
+      ),
+      'total_amount' => 
+      array (
+        'Field' => 'total_amount',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'discount_amount' => 
+      array (
+        'Field' => 'discount_amount',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'total_cost' => 
+      array (
+        'Field' => 'total_cost',
+        'Type' => 'decimal(12,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'advance_paid' => 
+      array (
+        'Field' => 'advance_paid',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'invoice_id' => 
+      array (
+        'Field' => 'invoice_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'booking_no' => 
+      array (
+        'Key_name' => 'booking_no',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'booking_no',
+        ),
+      ),
+      'customer_id' => 
+      array (
+        'Key_name' => 'customer_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'customer_id',
+        ),
+      ),
+      'hall_id' => 
+      array (
+        'Key_name' => 'hall_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'hall_id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_event_assignments' => 
+  array (
+    'name' => 'banquet_event_assignments',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'booking_id' => 
+      array (
+        'Field' => 'booking_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'resource_id' => 
+      array (
+        'Field' => 'resource_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'vendor_id' => 
+      array (
+        'Field' => 'vendor_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'description' => 
+      array (
+        'Field' => 'description',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'qty' => 
+      array (
+        'Field' => 'qty',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '1.00',
+        'Extra' => '',
+      ),
+      'unit_cost' => 
+      array (
+        'Field' => 'unit_cost',
+        'Type' => 'decimal(12,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'unit_price' => 
+      array (
+        'Field' => 'unit_price',
+        'Type' => 'decimal(12,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'status' => 
+      array (
+        'Field' => 'status',
+        'Type' => 'enum(\'Pending\',\'Confirmed\',\'Completed\',\'Cancelled\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Pending',
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'idx_bea_booking' => 
+      array (
+        'Key_name' => 'idx_bea_booking',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'booking_id',
+        ),
+      ),
+      'idx_bea_resource' => 
+      array (
+        'Key_name' => 'idx_bea_resource',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'resource_id',
+        ),
+      ),
+      'idx_bea_vendor' => 
+      array (
+        'Key_name' => 'idx_bea_vendor',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'vendor_id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_halls' => 
+  array (
+    'name' => 'banquet_halls',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'location_id' => 
+      array (
+        'Field' => 'location_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'capacity' => 
+      array (
+        'Field' => 'capacity',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'price_per_session' => 
+      array (
+        'Field' => 'price_per_session',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'status' => 
+      array (
+        'Field' => 'status',
+        'Type' => 'enum(\'Available\',\'Maintenance\',\'Inactive\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Available',
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_menu_items' => 
+  array (
+    'name' => 'banquet_menu_items',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'menu_id' => 
+      array (
+        'Field' => 'menu_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'part_id' => 
+      array (
+        'Field' => 'part_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'category' => 
+      array (
+        'Field' => 'category',
+        'Type' => 'varchar(50)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'qty' => 
+      array (
+        'Field' => 'qty',
+        'Type' => 'decimal(15,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1.000',
+        'Extra' => '',
+      ),
+      'description' => 
+      array (
+        'Field' => 'description',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'menu_id' => 
+      array (
+        'Key_name' => 'menu_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'menu_id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_menus' => 
+  array (
+    'name' => 'banquet_menus',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'description' => 
+      array (
+        'Field' => 'description',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'price_per_pax' => 
+      array (
+        'Field' => 'price_per_pax',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'cost_price' => 
+      array (
+        'Field' => 'cost_price',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_resources' => 
+  array (
+    'name' => 'banquet_resources',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(150)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'resource_type' => 
+      array (
+        'Field' => 'resource_type',
+        'Type' => 'enum(\'Internal\',\'External\')',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'Internal',
+        'Extra' => '',
+      ),
+      'base_price' => 
+      array (
+        'Field' => 'base_price',
+        'Type' => 'decimal(12,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'selling_price' => 
+      array (
+        'Field' => 'selling_price',
+        'Type' => 'decimal(12,2)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'default_supplier_id' => 
+      array (
+        'Field' => 'default_supplier_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'fk_br_supplier' => 
+      array (
+        'Key_name' => 'fk_br_supplier',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'default_supplier_id',
+        ),
+      ),
+    ),
+  ),
+  'banquet_staff_assignments' => 
+  array (
+    'name' => 'banquet_staff_assignments',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'booking_id' => 
+      array (
+        'Field' => 'booking_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'employee_id' => 
+      array (
+        'Field' => 'employee_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'role' => 
+      array (
+        'Field' => 'role',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'idx_bsa_booking' => 
+      array (
+        'Key_name' => 'idx_bsa_booking',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'booking_id',
+        ),
+      ),
+      'idx_bsa_employee' => 
+      array (
+        'Key_name' => 'idx_bsa_employee',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'employee_id',
         ),
       ),
     ),
@@ -2818,6 +3790,396 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'tax_id',
+        ),
+      ),
+    ),
+  ),
+  'crm_inquiries' => 
+  array (
+    'name' => 'crm_inquiries',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'inquiry_number' => 
+      array (
+        'Field' => 'inquiry_number',
+        'Type' => 'varchar(50)',
+        'Null' => 'NO',
+        'Key' => 'UNI',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'customer_id' => 
+      array (
+        'Field' => 'customer_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'customer_name' => 
+      array (
+        'Field' => 'customer_name',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'phone' => 
+      array (
+        'Field' => 'phone',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'email' => 
+      array (
+        'Field' => 'email',
+        'Type' => 'varchar(255)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'source' => 
+      array (
+        'Field' => 'source',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Direct',
+        'Extra' => '',
+      ),
+      'inquiry_type' => 
+      array (
+        'Field' => 'inquiry_type',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => 'General',
+        'Extra' => '',
+      ),
+      'status' => 
+      array (
+        'Field' => 'status',
+        'Type' => 'enum(\'New\',\'Contacted\',\'Qualified\',\'Converted\',\'Lost\')',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => 'New',
+        'Extra' => '',
+      ),
+      'assigned_to' => 
+      array (
+        'Field' => 'assigned_to',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'requirements' => 
+      array (
+        'Field' => 'requirements',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'converted_to_type' => 
+      array (
+        'Field' => 'converted_to_type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'converted_to_id' => 
+      array (
+        'Field' => 'converted_to_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'updated_by' => 
+      array (
+        'Field' => 'updated_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'inquiry_number' => 
+      array (
+        'Key_name' => 'inquiry_number',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'inquiry_number',
+        ),
+      ),
+      'idx_inquiry_customer' => 
+      array (
+        'Key_name' => 'idx_inquiry_customer',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'customer_id',
+        ),
+      ),
+      'idx_inquiry_status' => 
+      array (
+        'Key_name' => 'idx_inquiry_status',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'status',
+        ),
+      ),
+      'idx_inquiry_type' => 
+      array (
+        'Key_name' => 'idx_inquiry_type',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'inquiry_type',
+        ),
+      ),
+      'idx_inquiry_assigned' => 
+      array (
+        'Key_name' => 'idx_inquiry_assigned',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'assigned_to',
+        ),
+      ),
+    ),
+  ),
+  'crm_inquiry_items' => 
+  array (
+    'name' => 'crm_inquiry_items',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'inquiry_id' => 
+      array (
+        'Field' => 'inquiry_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'item_id' => 
+      array (
+        'Field' => 'item_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'description' => 
+      array (
+        'Field' => 'description',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'quantity' => 
+      array (
+        'Field' => 'quantity',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1.00',
+        'Extra' => '',
+      ),
+      'unit_price' => 
+      array (
+        'Field' => 'unit_price',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'idx_inquiry_item' => 
+      array (
+        'Key_name' => 'idx_inquiry_item',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'inquiry_id',
+        ),
+      ),
+    ),
+  ),
+  'crm_inquiry_logs' => 
+  array (
+    'name' => 'crm_inquiry_logs',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'inquiry_id' => 
+      array (
+        'Field' => 'inquiry_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'action' => 
+      array (
+        'Field' => 'action',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'notes' => 
+      array (
+        'Field' => 'notes',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'idx_inquiry_log_inquiry' => 
+      array (
+        'Key_name' => 'idx_inquiry_log_inquiry',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'inquiry_id',
         ),
       ),
     ),
@@ -4103,6 +5465,306 @@ class SchemaDefinition {
       ),
     ),
   ),
+  'export_container_types' => 
+  array (
+    'name' => 'export_container_types',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'max_cbm_capacity' => 
+      array (
+        'Field' => 'max_cbm_capacity',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'max_weight_capacity_kg' => 
+      array (
+        'Field' => 'max_weight_capacity_kg',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'max_standard_pallets' => 
+      array (
+        'Field' => 'max_standard_pallets',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'export_packaging_types' => 
+  array (
+    'name' => 'export_packaging_types',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'type' => 
+      array (
+        'Field' => 'type',
+        'Type' => 'enum(\'Carton\',\'Bag\',\'Drum\',\'Crate\',\'Other\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Carton',
+        'Extra' => '',
+      ),
+      'length_cm' => 
+      array (
+        'Field' => 'length_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'width_cm' => 
+      array (
+        'Field' => 'width_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'height_cm' => 
+      array (
+        'Field' => 'height_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'cbm' => 
+      array (
+        'Field' => 'cbm',
+        'Type' => 'decimal(10,4)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.0000',
+        'Extra' => '',
+      ),
+      'tare_weight_kg' => 
+      array (
+        'Field' => 'tare_weight_kg',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'max_weight_capacity_kg' => 
+      array (
+        'Field' => 'max_weight_capacity_kg',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'export_pallet_types' => 
+  array (
+    'name' => 'export_pallet_types',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'length_cm' => 
+      array (
+        'Field' => 'length_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'width_cm' => 
+      array (
+        'Field' => 'width_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'max_load_height_cm' => 
+      array (
+        'Field' => 'max_load_height_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'tare_weight_kg' => 
+      array (
+        'Field' => 'tare_weight_kg',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'max_weight_capacity_kg' => 
+      array (
+        'Field' => 'max_weight_capacity_kg',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
   'goods_receive_notes' => 
   array (
     'name' => 'goods_receive_notes',
@@ -4522,6 +6184,15 @@ class SchemaDefinition {
         'Null' => 'YES',
         'Key' => '',
         'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'source' => 
+      array (
+        'Field' => 'source',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'FrontOffice',
         'Extra' => '',
       ),
       'created_at' => 
@@ -6125,6 +7796,15 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'banquet_booking_id' => 
+      array (
+        'Field' => 'banquet_booking_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'location_id' => 
       array (
         'Field' => 'location_id',
@@ -6222,6 +7902,33 @@ class SchemaDefinition {
         'Null' => 'NO',
         'Key' => '',
         'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'shipping_provider_id' => 
+      array (
+        'Field' => 'shipping_provider_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'is_international' => 
+      array (
+        'Field' => 'is_international',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'shipping_country' => 
+      array (
+        'Field' => 'shipping_country',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
         'Extra' => '',
       ),
       'order_type' => 
@@ -6623,6 +8330,152 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'name',
+        ),
+      ),
+    ),
+  ),
+  'logistics_categories' => 
+  array (
+    'name' => 'logistics_categories',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => 'UNI',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'description' => 
+      array (
+        'Field' => 'description',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'name' => 
+      array (
+        'Key_name' => 'name',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'name',
+        ),
+      ),
+    ),
+  ),
+  'logistics_factors' => 
+  array (
+    'name' => 'logistics_factors',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'type' => 
+      array (
+        'Field' => 'type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'General',
+        'Extra' => '',
+      ),
+      'absorption_method' => 
+      array (
+        'Field' => 'absorption_method',
+        'Type' => 'enum(\'Value\',\'Quantity\',\'Weight\',\'Volume\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Value',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
         ),
       ),
     ),
@@ -7162,6 +9015,245 @@ class SchemaDefinition {
       ),
     ),
   ),
+  'part_attribute_groups' => 
+  array (
+    'name' => 'part_attribute_groups',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'part_id' => 
+      array (
+        'Field' => 'part_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'group_id' => 
+      array (
+        'Field' => 'group_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'uq_part_group' => 
+      array (
+        'Key_name' => 'uq_part_group',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+          1 => 'group_id',
+        ),
+      ),
+      'group_id' => 
+      array (
+        'Key_name' => 'group_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'group_id',
+        ),
+      ),
+    ),
+  ),
+  'part_attribute_values' => 
+  array (
+    'name' => 'part_attribute_values',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'part_id' => 
+      array (
+        'Field' => 'part_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'attribute_id' => 
+      array (
+        'Field' => 'attribute_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'value' => 
+      array (
+        'Field' => 'value',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'uq_part_attr' => 
+      array (
+        'Key_name' => 'uq_part_attr',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+          1 => 'attribute_id',
+        ),
+      ),
+      'attribute_id' => 
+      array (
+        'Key_name' => 'attribute_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'attribute_id',
+        ),
+      ),
+    ),
+  ),
+  'part_images' => 
+  array (
+    'name' => 'part_images',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'part_id' => 
+      array (
+        'Field' => 'part_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'filename' => 
+      array (
+        'Field' => 'filename',
+        'Type' => 'varchar(255)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'label' => 
+      array (
+        'Field' => 'label',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'sort_order' => 
+      array (
+        'Field' => 'sort_order',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'part_id' => 
+      array (
+        'Key_name' => 'part_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+        ),
+      ),
+    ),
+  ),
   'part_suppliers' => 
   array (
     'name' => 'part_suppliers',
@@ -7488,6 +9580,114 @@ class SchemaDefinition {
       array (
         'Field' => 'price_2',
         'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'net_weight_kg' => 
+      array (
+        'Field' => 'net_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'gross_weight_kg' => 
+      array (
+        'Field' => 'gross_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'units_per_carton' => 
+      array (
+        'Field' => 'units_per_carton',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'carton_length_cm' => 
+      array (
+        'Field' => 'carton_length_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_width_cm' => 
+      array (
+        'Field' => 'carton_width_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_height_cm' => 
+      array (
+        'Field' => 'carton_height_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_tare_weight_kg' => 
+      array (
+        'Field' => 'carton_tare_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'packing_type' => 
+      array (
+        'Field' => 'packing_type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Carton',
+        'Extra' => '',
+      ),
+      'hs_code' => 
+      array (
+        'Field' => 'hs_code',
+        'Type' => 'varchar(32)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'volume_cbm' => 
+      array (
+        'Field' => 'volume_cbm',
+        'Type' => 'decimal(15,6)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000000',
+        'Extra' => '',
+      ),
+      'is_online' => 
+      array (
+        'Field' => 'is_online',
+        'Type' => 'tinyint(1)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'public_description' => 
+      array (
+        'Field' => 'public_description',
+        'Type' => 'text',
         'Null' => 'YES',
         'Key' => '',
         'Default' => NULL,
@@ -10018,6 +12218,60 @@ class SchemaDefinition {
         'Default' => 'current_timestamp()',
         'Extra' => 'on update current_timestamp()',
       ),
+      'is_international' => 
+      array (
+        'Field' => 'is_international',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0',
+        'Extra' => '',
+      ),
+      'shipping_provider_id' => 
+      array (
+        'Field' => 'shipping_provider_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'shipping_cost' => 
+      array (
+        'Field' => 'shipping_cost',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'shipping_country' => 
+      array (
+        'Field' => 'shipping_country',
+        'Type' => 'varchar(100)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'shipping_address' => 
+      array (
+        'Field' => 'shipping_address',
+        'Type' => 'text',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'shipping_costing_template_id' => 
+      array (
+        'Field' => 'shipping_costing_template_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
     ),
     'indexes' => 
     array (
@@ -11449,6 +13703,831 @@ class SchemaDefinition {
       ),
     ),
   ),
+  'shipping_costing_items' => 
+  array (
+    'name' => 'shipping_costing_items',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'template_id' => 
+      array (
+        'Field' => 'template_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'cost_type' => 
+      array (
+        'Field' => 'cost_type',
+        'Type' => 'enum(\'Fixed\',\'Percentage\',\'Per Unit\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Fixed',
+        'Extra' => '',
+      ),
+      'value' => 
+      array (
+        'Field' => 'value',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'template_id' => 
+      array (
+        'Key_name' => 'template_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'template_id',
+        ),
+      ),
+    ),
+  ),
+  'shipping_costing_sheet_items' => 
+  array (
+    'name' => 'shipping_costing_sheet_items',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'sheet_id' => 
+      array (
+        'Field' => 'sheet_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'cost_type' => 
+      array (
+        'Field' => 'cost_type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'value' => 
+      array (
+        'Field' => 'value',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'calculated_amount' => 
+      array (
+        'Field' => 'calculated_amount',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'absorption_method' => 
+      array (
+        'Field' => 'absorption_method',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Value',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'sheet_id' => 
+      array (
+        'Key_name' => 'sheet_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'sheet_id',
+        ),
+      ),
+    ),
+  ),
+  'shipping_costing_sheet_products' => 
+  array (
+    'name' => 'shipping_costing_sheet_products',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'sheet_id' => 
+      array (
+        'Field' => 'sheet_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'part_id' => 
+      array (
+        'Field' => 'part_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'quantity' => 
+      array (
+        'Field' => 'quantity',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'unit_cost' => 
+      array (
+        'Field' => 'unit_cost',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'profit_margin' => 
+      array (
+        'Field' => 'profit_margin',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'profit_method' => 
+      array (
+        'Field' => 'profit_method',
+        'Type' => 'varchar(20)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'profit_base' => 
+      array (
+        'Field' => 'profit_base',
+        'Type' => 'varchar(20)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'weight' => 
+      array (
+        'Field' => 'weight',
+        'Type' => 'decimal(15,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'cbm' => 
+      array (
+        'Field' => 'cbm',
+        'Type' => 'decimal(15,6)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000000',
+        'Extra' => '',
+      ),
+      'packaging_type_id' => 
+      array (
+        'Field' => 'packaging_type_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'units_per_carton' => 
+      array (
+        'Field' => 'units_per_carton',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'carton_length_cm' => 
+      array (
+        'Field' => 'carton_length_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_width_cm' => 
+      array (
+        'Field' => 'carton_width_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_height_cm' => 
+      array (
+        'Field' => 'carton_height_cm',
+        'Type' => 'decimal(10,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'carton_tare_weight_kg' => 
+      array (
+        'Field' => 'carton_tare_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'net_weight_kg' => 
+      array (
+        'Field' => 'net_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'gross_weight_kg' => 
+      array (
+        'Field' => 'gross_weight_kg',
+        'Type' => 'decimal(10,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'packing_type' => 
+      array (
+        'Field' => 'packing_type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Carton',
+        'Extra' => '',
+      ),
+      'hs_code' => 
+      array (
+        'Field' => 'hs_code',
+        'Type' => 'varchar(32)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'volume_cbm' => 
+      array (
+        'Field' => 'volume_cbm',
+        'Type' => 'decimal(15,6)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000000',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'sheet_id' => 
+      array (
+        'Key_name' => 'sheet_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'sheet_id',
+        ),
+      ),
+      'part_id' => 
+      array (
+        'Key_name' => 'part_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'part_id',
+        ),
+      ),
+    ),
+  ),
+  'shipping_costing_sheets' => 
+  array (
+    'name' => 'shipping_costing_sheets',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'costing_number' => 
+      array (
+        'Field' => 'costing_number',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => 'UNI',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'template_id' => 
+      array (
+        'Field' => 'template_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'customer_id' => 
+      array (
+        'Field' => 'customer_id',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'reference_number' => 
+      array (
+        'Field' => 'reference_number',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'base_carrier_cost' => 
+      array (
+        'Field' => 'base_carrier_cost',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'total_quantity' => 
+      array (
+        'Field' => 'total_quantity',
+        'Type' => 'decimal(15,3)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.000',
+        'Extra' => '',
+      ),
+      'total_cost' => 
+      array (
+        'Field' => 'total_cost',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'status' => 
+      array (
+        'Field' => 'status',
+        'Type' => 'enum(\'Draft\',\'Finalized\')',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Draft',
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'updated_by' => 
+      array (
+        'Field' => 'updated_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+      'shipping_term' => 
+      array (
+        'Field' => 'shipping_term',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'freight_type' => 
+      array (
+        'Field' => 'freight_type',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'shipment_mode' => 
+      array (
+        'Field' => 'shipment_mode',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'LCL',
+        'Extra' => '',
+      ),
+      'profit_method' => 
+      array (
+        'Field' => 'profit_method',
+        'Type' => 'varchar(20)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Markup',
+        'Extra' => '',
+      ),
+      'profit_base' => 
+      array (
+        'Field' => 'profit_base',
+        'Type' => 'varchar(20)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Landed',
+        'Extra' => '',
+      ),
+      'profit_value' => 
+      array (
+        'Field' => 'profit_value',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '10.00',
+        'Extra' => '',
+      ),
+      'overhead_absorption_method' => 
+      array (
+        'Field' => 'overhead_absorption_method',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'Value',
+        'Extra' => '',
+      ),
+      'target_currency' => 
+      array (
+        'Field' => 'target_currency',
+        'Type' => 'varchar(10)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => 'USD',
+        'Extra' => '',
+      ),
+      'exchange_rate' => 
+      array (
+        'Field' => 'exchange_rate',
+        'Type' => 'decimal(15,4)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1.0000',
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'uq_costing_number' => 
+      array (
+        'Key_name' => 'uq_costing_number',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'costing_number',
+        ),
+      ),
+      'template_id' => 
+      array (
+        'Key_name' => 'template_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'template_id',
+        ),
+      ),
+    ),
+  ),
+  'shipping_costing_templates' => 
+  array (
+    'name' => 'shipping_costing_templates',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'updated_by' => 
+      array (
+        'Field' => 'updated_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'shipping_providers' => 
+  array (
+    'name' => 'shipping_providers',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'name' => 
+      array (
+        'Field' => 'name',
+        'Type' => 'varchar(100)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'base_cost' => 
+      array (
+        'Field' => 'base_cost',
+        'Type' => 'decimal(15,2)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '0.00',
+        'Extra' => '',
+      ),
+      'is_active' => 
+      array (
+        'Field' => 'is_active',
+        'Type' => 'tinyint(1)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'created_by' => 
+      array (
+        'Field' => 'created_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'updated_by' => 
+      array (
+        'Field' => 'updated_by',
+        'Type' => 'int(11)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'created_at' => 
+      array (
+        'Field' => 'created_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => '',
+      ),
+      'updated_at' => 
+      array (
+        'Field' => 'updated_at',
+        'Type' => 'timestamp',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => 'current_timestamp()',
+        'Extra' => 'on update current_timestamp()',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+    ),
+  ),
   'shipping_zones' => 
   array (
     'name' => 'shipping_zones',
@@ -12834,24 +15913,6 @@ class SchemaDefinition {
         'Default' => '1',
         'Extra' => '',
       ),
-      'is_inventory_vendor' => 
-      array (
-        'Field' => 'is_inventory_vendor',
-        'Type' => 'tinyint(1)',
-        'Null' => 'NO',
-        'Key' => '',
-        'Default' => '1',
-        'Extra' => '',
-      ),
-      'is_banquet_vendor' => 
-      array (
-        'Field' => 'is_banquet_vendor',
-        'Type' => 'tinyint(1)',
-        'Null' => 'NO',
-        'Key' => '',
-        'Default' => '0',
-        'Extra' => '',
-      ),
       'created_by' => 
       array (
         'Field' => 'created_by',
@@ -12895,6 +15956,24 @@ class SchemaDefinition {
         'Null' => 'YES',
         'Key' => '',
         'Default' => NULL,
+        'Extra' => '',
+      ),
+      'is_inventory_vendor' => 
+      array (
+        'Field' => 'is_inventory_vendor',
+        'Type' => 'tinyint(1)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '1',
+        'Extra' => '',
+      ),
+      'is_banquet_vendor' => 
+      array (
+        'Field' => 'is_banquet_vendor',
+        'Type' => 'tinyint(1)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => '0',
         'Extra' => '',
       ),
     ),
@@ -13162,6 +16241,61 @@ class SchemaDefinition {
         'Columns' => 
         array (
           0 => 'id',
+        ),
+      ),
+    ),
+  ),
+  'term_factor_defaults' => 
+  array (
+    'name' => 'term_factor_defaults',
+    'columns' => 
+    array (
+      'id' => 
+      array (
+        'Field' => 'id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'PRI',
+        'Default' => NULL,
+        'Extra' => 'auto_increment',
+      ),
+      'shipping_term' => 
+      array (
+        'Field' => 'shipping_term',
+        'Type' => 'varchar(20)',
+        'Null' => 'NO',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'factor_id' => 
+      array (
+        'Field' => 'factor_id',
+        'Type' => 'int(11)',
+        'Null' => 'NO',
+        'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+    ),
+    'indexes' => 
+    array (
+      'PRIMARY' => 
+      array (
+        'Key_name' => 'PRIMARY',
+        'Non_unique' => 0,
+        'Columns' => 
+        array (
+          0 => 'id',
+        ),
+      ),
+      'factor_id' => 
+      array (
+        'Key_name' => 'factor_id',
+        'Non_unique' => 1,
+        'Columns' => 
+        array (
+          0 => 'factor_id',
         ),
       ),
     ),

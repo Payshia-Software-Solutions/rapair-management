@@ -70,7 +70,7 @@ export function SearchableSelect({
               triggerClassName
             )}
           >
-            <span className="truncate">{selected ? selected.label : placeholder}</span>
+            <span className="truncate text-slate-900 dark:text-slate-100 font-bold">{selected ? selected.label : placeholder}</span>
             <ChevronDown className="ml-2 h-4 w-4 opacity-70 shrink-0" />
           </Button>
         </PopoverTrigger>
@@ -78,7 +78,7 @@ export function SearchableSelect({
         <PopoverContent 
           align="start" 
           sideOffset={12} 
-          className={cn("p-0 w-[--radix-popover-trigger-width] z-[100000] shadow-2xl", contentClassName)}
+          className={cn("p-0 w-[--radix-popover-trigger-width] z-[100000] shadow-2xl bg-white dark:bg-slate-900", contentClassName)}
           style={{ pointerEvents: 'auto' }}
           onWheel={(e) => e.stopPropagation()}
           onPointerDown={(e) => e.stopPropagation()}
@@ -131,6 +131,7 @@ export function SearchableSelect({
                       type="button"
                       className={cn(
                         "w-full text-left flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted transition-colors",
+                        "text-slate-900 dark:text-slate-100 font-bold",
                         isSelected ? "bg-muted" : ""
                       )}
                       onPointerDown={(e) => e.stopPropagation()}
@@ -145,7 +146,7 @@ export function SearchableSelect({
                       <span className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-transparent")}>
                         <Check className="h-4 w-4" />
                       </span>
-                      <span className="truncate">{o.label}</span>
+                      <span className="truncate text-slate-900 dark:text-white">{o.label}</span>
                     </button>
                   );
                 })

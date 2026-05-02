@@ -17,8 +17,9 @@ import { useToast } from "@/hooks/use-toast";
 import { createPart, fetchBrands, fetchCollections, fetchLocations, fetchParts, fetchSuppliers, fetchUnits, uploadPartImage, type BrandRow, type ServiceLocation, type SupplierRow, type UnitRow } from "@/lib/api";
 import { ArrowLeft, ChevronDown, LayoutGrid, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 
-function asNumOrNull(v: string) {
-  const t = v.trim();
+function asNumOrNull(v: any) {
+  if (v === null || v === undefined) return null;
+  const t = String(v).trim();
   if (!t) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
@@ -73,6 +74,16 @@ export default function NewItemPage() {
     item_type: "Part" as "Part" | "Service",
     recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
     default_location_id: "",
+    net_weight_kg: "",
+    gross_weight_kg: "",
+    units_per_carton: "1",
+    packing_type: "Carton",
+    carton_length_cm: "",
+    carton_width_cm: "",
+    carton_height_cm: "",
+    volume_cbm: "",
+    carton_tare_weight_kg: "",
+    hs_code: "",
   });
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
@@ -147,12 +158,12 @@ export default function NewItemPage() {
       }
 
       await createPart({
-        sku: form.sku.trim() ? form.sku.trim() : null,
-        part_number: form.part_number.trim() ? form.part_number.trim() : null,
-        barcode_number: form.barcode_number.trim() ? form.barcode_number.trim() : null,
-        part_name: form.part_name.trim(),
-        unit: form.unit.trim() ? form.unit.trim() : null,
-        brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
+        sku: (form.sku || "").trim() ? form.sku.trim() : null,
+        part_number: (form.part_number || "").trim() ? form.part_number.trim() : null,
+        barcode_number: (form.barcode_number || "").trim() ? form.barcode_number.trim() : null,
+        part_name: (form.part_name || "").trim(),
+        unit: (form.unit || "").trim() ? form.unit.trim() : null,
+        brand_id: (form.brand_id || "").trim() ? Number(form.brand_id) : null,
         supplier_ids: supplierIds,
         collection_ids: collectionIds,
         stock_quantity: 0,
@@ -170,6 +181,16 @@ export default function NewItemPage() {
         recipe_type: form.recipe_type,
         default_location_id: (form.default_location_id && form.default_location_id !== "none") ? Number(form.default_location_id) : null,
         allowed_locations: JSON.stringify(allowedLocationIds),
+        net_weight_kg: asNumOrNull(form.net_weight_kg),
+        gross_weight_kg: asNumOrNull(form.gross_weight_kg),
+        units_per_carton: asNumOrNull(form.units_per_carton) || 1,
+        packing_type: form.packing_type,
+        carton_length_cm: asNumOrNull(form.carton_length_cm),
+        carton_width_cm: asNumOrNull(form.carton_width_cm),
+        carton_height_cm: asNumOrNull(form.carton_height_cm),
+        volume_cbm: asNumOrNull(form.volume_cbm),
+        carton_tare_weight_kg: asNumOrNull(form.carton_tare_weight_kg),
+        hs_code: (form.hs_code || "").trim() || null,
       });
 
       toast({ title: "Created", description: "Product created" });
@@ -525,8 +546,123 @@ export default function NewItemPage() {
                     <div className="text-[11px] text-muted-foreground">Optional</div>
                   </div>
                 </div>
+                
+                {form.item_type === "Part" && (
+                  <>
+                    <h3 className="font-semibold text-lg border-t pt-4 mt-2">Shipping & Packing Defaults</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>Net Weight (kg)</Label>
+                        <Input type="number" step="0.001" value={form.net_weight_kg} onChange={(e) => setForm(p => ({ ...p, net_weight_kg: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Gross Weight (kg)</Label>
+                        <Input type="number" step="0.001" value={form.gross_weight_kg} onChange={(e) => setForm(p => ({ ...p, gross_weight_kg: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Units / Carton</Label>
+                        <Input type="number" step="1" value={form.units_per_carton} onChange={(e) => setForm(p => ({ ...p, units_per_carton: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Packing Type</Label>
+                        <Select value={form.packing_type} onValueChange={(v) => setForm(p => ({ ...p, packing_type: v }))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Carton">Carton (Box)</SelectItem>
+                            <SelectItem value="Pouch">Pouch / Packet</SelectItem>
+                            <SelectItem value="Canister">Canister</SelectItem>
+                            <SelectItem value="Drum">Drum / Barrel</SelectItem>
+                            <SelectItem value="Bag">Bag / Sack</SelectItem>
+                            <SelectItem value="Crate">Crate</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>HS Code (Tariff)</Label>
+                        <Input value={form.hs_code} onChange={(e) => setForm(p => ({ ...p, hs_code: e.target.value }))} placeholder="e.g. 6109.10" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Carton Tare Wt (kg)</Label>
+                        <Input type="number" step="0.001" value={form.carton_tare_weight_kg} onChange={(e) => setForm(p => ({ ...p, carton_tare_weight_kg: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Volume (CBM)</Label>
+                        <Input type="number" step="0.000001" value={form.volume_cbm} onChange={(e) => setForm(p => ({ ...p, volume_cbm: e.target.value }))} />
+                        <p className="text-[10px] text-muted-foreground">Manual override or calculated</p>
+                      </div>
 
-                <div className="flex items-center justify-end gap-2">
+                      {form.packing_type === "Carton" && (
+                        <>
+                          <div className="space-y-2">
+                            <Label>Carton Length (cm)</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={form.carton_length_cm} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setForm(p => {
+                                  const next = { ...p, carton_length_cm: val };
+                                  const l = parseFloat(val) || 0;
+                                  const w = parseFloat(next.carton_width_cm) || 0;
+                                  const h = parseFloat(next.carton_height_cm) || 0;
+                                  const vol = (l * w * h) / 1000000;
+                                  if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                                  return next;
+                                });
+                              }} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Carton Width (cm)</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={form.carton_width_cm} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setForm(p => {
+                                  const next = { ...p, carton_width_cm: val };
+                                  const l = parseFloat(next.carton_length_cm) || 0;
+                                  const w = parseFloat(val) || 0;
+                                  const h = parseFloat(next.carton_height_cm) || 0;
+                                  const vol = (l * w * h) / 1000000;
+                                  if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                                  return next;
+                                });
+                              }} 
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Carton Height (cm)</Label>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              value={form.carton_height_cm} 
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setForm(p => {
+                                  const next = { ...p, carton_height_cm: val };
+                                  const l = parseFloat(next.carton_length_cm) || 0;
+                                  const w = parseFloat(next.carton_width_cm) || 0;
+                                  const h = parseFloat(val) || 0;
+                                  const vol = (l * w * h) / 1000000;
+                                  if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                                  return next;
+                                });
+                              }} 
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="flex items-center justify-end gap-2 pt-4 border-t">
                   <Button variant="outline" onClick={() => router.push("/inventory/items")} disabled={saving}>
                     Cancel
                   </Button>

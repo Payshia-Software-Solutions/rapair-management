@@ -48,6 +48,15 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'banquet_booking_id')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN banquet_booking_id INT NULL AFTER reservation_id");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'shipping_provider_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_provider_id INT NULL AFTER shipping_fee");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'is_international')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN is_international TINYINT(1) DEFAULT 0 AFTER shipping_provider_id");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'shipping_country')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_country VARCHAR(100) NULL AFTER is_international");
+                }
             }
         } catch (Exception $e) {}
 

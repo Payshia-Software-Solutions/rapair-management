@@ -1,9 +1,9 @@
 <?php
-require_once 'config/config.php';
-require_once 'app/core/Database.php';
+include 'server/config/config.php';
+include 'server/app/core/Database.php';
 $db = new Database();
-$db->query("DESCRIBE invoices");
-$rows = $db->resultSet();
-foreach($rows as $r) {
-    echo "{$r->Field}: {$r->Type}\n";
+$db->query("DESCRIBE shipping_costing_sheets");
+$cols = $db->resultSet();
+foreach($cols as $col) {
+    echo $col->Field . " (" . $col->Type . ")\n";
 }

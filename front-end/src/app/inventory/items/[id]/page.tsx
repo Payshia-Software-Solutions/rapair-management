@@ -1,218 +1,312 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogTrigger,
+  DialogFooter
+} from "@/components/ui/dialog";
 import {
   api,
   contentUrl,
   deletePart,
   fetchBrands,
   fetchCollections,
-  fetchPart,
   fetchLocations,
+  fetchPart,
   fetchSuppliers,
   fetchUnits,
-  setPartImage,
-  updatePart,
   uploadPartImage,
+  uploadPartGalleryImage,
+  deletePartGalleryImage,
+  updatePartGallery,
+  fetchAttributeGroups,
+  assignAttributeGroupToPart,
+  unassignAttributeGroupFromPart,
   type BrandRow,
   type ServiceLocation,
   type SupplierRow,
   type UnitRow,
 } from "@/lib/api";
-import { ArrowLeft, ChevronDown, LayoutGrid, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { 
+  ArrowLeft, ChevronDown, LayoutGrid, Image as ImageIcon, Loader2, Save, Sparkles, Trash2, Upload, 
+  Globe, Info, Settings, Package, Truck, ListTree, PlusCircle, XCircle, Plus, LogOut
+} from "lucide-react";
 
-function asNumOrNull(v: string) {
-  const t = v.trim();
-  if (!t) return null;
-  const n = Number(t);
-  return Number.isFinite(n) ? n : null;
+function asNumOrNull(v: any) {
+  if (v === null || v === undefined) return null;
+  const n = parseFloat(String(v));
+  return isNaN(n) ? null : n;
 }
 
 function generateSku() {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const ymd = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-  let rand = "";
-  try {
-    const bytes = new Uint8Array(3);
-    globalThis.crypto.getRandomValues(bytes);
-    rand = Array.from(bytes)
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("")
-      .toUpperCase();
-  } catch {
-    rand = Math.random().toString(16).slice(2, 8).toUpperCase();
-  }
-  return `SKU-${ymd}-${rand}`;
+  return "ITM-" + Math.random().toString(36).substring(2, 9).toUpperCase();
 }
 
-export default function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function ItemDetailPage() {
+  const { id } = useParams();
   const router = useRouter();
   const { toast } = useToast();
-  const { id } = React.use(params);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [part, setPart] = useState<any>(null);
+  const [batches, setBatches] = useState<any[]>([]);
+
   const [units, setUnits] = useState<UnitRow[]>([]);
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
   const [locations, setLocations] = useState<ServiceLocation[]>([]);
-  const [part, setPart] = useState<any>(null);
-  const [batches, setBatches] = useState<any[]>([]);
 
   const [form, setForm] = useState({
+    part_name: "",
     sku: "",
     part_number: "",
     barcode_number: "",
-    part_name: "",
     unit: "",
     brand_id: "",
     cost_price: "",
     price: "",
-    wholesale_price: "",
-    min_selling_price: "",
-    price_2: "",
-    reorder_level: "",
+    reorder_level: "0",
     is_active: true,
     is_fifo: false,
     is_expiry: false,
-    item_type: "Part" as "Part" | "Service",
-    recipe_type: "Standard" as "Standard" | "A La Carte" | "Recipe",
-    default_location_id: "" as string,
+    item_type: "Part",
+    recipe_type: "Standard",
+    default_location_id: "none",
+    wholesale_price: "",
+    min_selling_price: "",
+    price_2: "",
+    net_weight_kg: "",
+    gross_weight_kg: "",
+    units_per_carton: "1",
+    carton_length_cm: "",
+    carton_width_cm: "",
+    carton_height_cm: "",
+    carton_tare_weight_kg: "",
+    hs_code: "",
+    packing_type: "Carton",
+    is_online: true,
+    public_description: "",
   });
+
+  const [attrGroups, setAttrGroups] = useState<any[]>([]);
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+  const [attrValues, setAttrValues] = useState<Record<number, string>>({});
+  const [gallery, setGallery] = useState<any[]>([]);
 
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
   const [collectionIds, setCollectionIds] = useState<number[]>([]);
   const [allowedLocationIds, setAllowedLocationIds] = useState<number[]>([]);
-  const [supplierQuery, setSupplierQuery] = useState("");
-  const [collectionQuery, setCollectionQuery] = useState("");
 
-  const fileRef = useRef<HTMLInputElement | null>(null);
-
-  const load = async () => {
+  useEffect(() => {
     if (!id) return;
     setLoading(true);
+    setError(null);
     try {
-      const [p, u, b, s, c, locationsRes, batchesRes] = await Promise.all([
-        fetchPart(String(id)), 
-        fetchUnits(""), 
-        fetchBrands(""), 
-        fetchSuppliers(""),
-        fetchCollections(),
-        fetchLocations(),
-        api(`/api/part/batches/${id}`).then(res => res.json())
-      ]);
-      setPart(p);
-      setBatches(batchesRes?.status === 'success' ? batchesRes.data : (Array.isArray(batchesRes) ? batchesRes : []));
-      setUnits(Array.isArray(u) ? u : []);
-      setBrands(Array.isArray(b) ? b : []);
-      setSuppliers(Array.isArray(s) ? s : []);
-      setCollections(Array.isArray(c) ? c : []);
-      setLocations(Array.isArray(locationsRes) ? locationsRes : []);
-      setForm({
-        sku: p?.sku ?? "",
-        part_number: p?.part_number ?? "",
-        barcode_number: p?.barcode_number ?? "",
-        part_name: p?.part_name ?? "",
-        unit: p?.unit ?? "",
-        brand_id: p?.brand_id ? String(p.brand_id) : "",
-        cost_price: p?.cost_price !== null && p?.cost_price !== undefined ? String(p.cost_price) : "",
-        price: p?.price !== null && p?.price !== undefined ? String(p.price) : "",
-        wholesale_price: p?.wholesale_price !== null && p?.wholesale_price !== undefined ? String(p.wholesale_price) : "",
-        min_selling_price: p?.min_selling_price !== null && p?.min_selling_price !== undefined ? String(p.min_selling_price) : "",
-        price_2: p?.price_2 !== null && p?.price_2 !== undefined ? String(p.price_2) : "",
-        reorder_level: p?.reorder_level !== null && p?.reorder_level !== undefined ? String(p.reorder_level) : "",
-        is_active: Boolean(p?.is_active),
-        is_fifo: Boolean(p?.is_fifo),
-        is_expiry: Boolean(p?.is_expiry),
-        item_type: (p?.item_type === "Service" ? "Service" : "Part") as "Part" | "Service",
-        recipe_type: (p?.recipe_type || "Standard") as "Standard" | "A La Carte" | "Recipe",
-        default_location_id: p?.default_location_id ? String(p.default_location_id) : "",
-      });
-      const ids = Array.isArray(p?.supplier_ids) ? (p.supplier_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
-      setSupplierIds(Array.from(new Set(ids)).sort((a, b) => a - b));
-      const cids = Array.isArray(p?.collection_ids) ? (p.collection_ids as any[]).map((x) => Number(x)).filter((n) => Number.isFinite(n) && n > 0) : [];
-      setCollectionIds(Array.from(new Set(cids)).sort((a, b) => a - b));
+      const loadData = async () => {
+        // Use individual catch blocks to ensure one failing call doesn't block everything
+        const [p, u, b, s, c, locationsRes, batchesRes, attrRes] = await Promise.all([
+          fetchPart(String(id)),
+          fetchUnits("").catch(() => []),
+          fetchBrands("").catch(() => []),
+          fetchSuppliers("").catch(() => []),
+          fetchCollections().catch(() => []),
+          fetchLocations().catch(() => []),
+          api(`/api/part/batches/${id}`).then(res => res.ok ? res.json() : []).catch(() => []),
+          fetchAttributeGroups().catch(() => [])
+        ]);
 
-      const aloc = Array.isArray(p?.allowed_locations) 
-        ? p.allowed_locations.map(Number) 
-        : (typeof p?.allowed_locations === 'string' 
-            ? (JSON.parse(p.allowed_locations) as any[] || []).map(Number) 
-            : []);
-      setAllowedLocationIds(Array.from(new Set(aloc)).filter(n => !isNaN(n) && n > 0).sort((a, b) => a - b));
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to load product", variant: "destructive" });
-      setPart(null);
+        if (p?.status === 'error') {
+           setError(p.message || "Failed to load product");
+           setLoading(false);
+           return;
+        }
+
+        setPart(p);
+        setGallery(p?.gallery || []);
+        setAllGroups(attrRes || []);
+        
+        // Use grouped attributes from part data (includes values)
+        const grouped = p?.attributes_grouped || [];
+        setAttrGroups(grouped);
+        
+        // Initialize attribute values from part data
+        const initialAttrs: Record<number, string> = {};
+        if (p?.attributes_grouped) {
+          p.attributes_grouped.forEach((g: any) => {
+            g.attributes.forEach((a: any) => {
+              if (a.value !== null) initialAttrs[a.id] = String(a.value);
+            });
+          });
+        }
+        setAttrValues(initialAttrs);
+        setBatches(batchesRes?.status === 'success' ? batchesRes.data : (Array.isArray(batchesRes) ? batchesRes : []));
+        setUnits(Array.isArray(u) ? u : []);
+        setBrands(Array.isArray(b) ? b : []);
+        setSuppliers(Array.isArray(s) ? s : []);
+        setCollections(Array.isArray(c) ? c : []);
+        setLocations(Array.isArray(locationsRes) ? locationsRes : []);
+
+        if (p) {
+          setForm({
+            part_name: p.part_name || "",
+            sku: p.sku || "",
+            part_number: p.part_number || "",
+            barcode_number: p.barcode_number || "",
+            unit: p.unit || "",
+            brand_id: p.brand_id ? String(p.brand_id) : "",
+            cost_price: p.cost_price !== null && p.cost_price !== undefined ? String(p.cost_price) : "",
+            price: p.price !== null && p.price !== undefined ? String(p.price) : "",
+            reorder_level: p.reorder_level !== null && p.reorder_level !== undefined ? String(p.reorder_level) : "0",
+            is_active: Boolean(p.is_active),
+            is_fifo: Boolean(p.is_fifo),
+            is_expiry: Boolean(p.is_expiry),
+            item_type: p.item_type || "Part",
+            recipe_type: p.recipe_type || "Standard",
+            default_location_id: p.default_location_id ? String(p.default_location_id) : "none",
+            wholesale_price: p.wholesale_price !== null && p.wholesale_price !== undefined ? String(p.wholesale_price) : "",
+            min_selling_price: p.min_selling_price !== null && p.min_selling_price !== undefined ? String(p.min_selling_price) : "",
+            price_2: p.price_2 !== null && p.price_2 !== undefined ? String(p.price_2) : "",
+            net_weight_kg: p.net_weight_kg !== null && p.net_weight_kg !== undefined ? String(p.net_weight_kg) : "",
+            gross_weight_kg: p.gross_weight_kg !== null && p.gross_weight_kg !== undefined ? String(p.gross_weight_kg) : "",
+            units_per_carton: p.units_per_carton !== null && p.units_per_carton !== undefined ? String(p.units_per_carton) : "1",
+            carton_length_cm: p.carton_length_cm !== null && p.carton_length_cm !== undefined ? String(p.carton_length_cm) : "",
+            carton_width_cm: p.carton_width_cm !== null && p.carton_width_cm !== undefined ? String(p.carton_width_cm) : "",
+            carton_height_cm: p.carton_height_cm !== null && p.carton_height_cm !== undefined ? String(p.carton_height_cm) : "",
+            carton_tare_weight_kg: p.carton_tare_weight_kg !== null && p.carton_tare_weight_kg !== undefined ? String(p.carton_tare_weight_kg) : "",
+            hs_code: p.hs_code ?? "",
+            packing_type: p.packing_type ?? "Carton",
+            is_online: p.is_online !== undefined ? Boolean(p.is_online) : true,
+            public_description: p.public_description ?? "",
+          });
+          const sIds = Array.isArray(p.supplier_ids) ? p.supplier_ids.map(Number) : [];
+          setSupplierIds(sIds);
+          const cIds = Array.isArray(p.collection_ids) ? p.collection_ids.map(Number) : [];
+          setCollectionIds(cIds);
+          const aLocs = p.allowed_locations ? String(p.allowed_locations).split(",").map(Number).filter(n => !isNaN(n)) : [];
+          setAllowedLocationIds(aLocs);
+        }
+      };
+      loadData();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "An unexpected error occurred while loading product data.");
     } finally {
       setLoading(false);
     }
+  }, [id, toast]);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const p = await fetchPart(String(id));
+      setPart(p);
+      setGallery(p?.gallery || []);
+      // re-initialize attributes etc.
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  useEffect(() => {
-    void load();
-  }, [id]);
-
-  const imageUrl = useMemo(() => {
-    const fn = part?.image_filename ? String(part.image_filename) : "";
-    return fn ? contentUrl("items", fn) : "";
-  }, [part]);
-
-  const lowStock = useMemo(() => {
-    const stock = Number(part?.stock_quantity ?? 0);
-    const r = part?.reorder_level;
-    if (r === null || r === undefined) return false;
-    return stock <= Number(r);
-  }, [part]);
-
-  const save = async () => {
-    const name = form.part_name.trim();
-    const price = asNumOrNull(form.price);
-    if (!name || price === null) {
-      toast({ title: "Validation", description: "Name and Selling price are required", variant: "destructive" });
-      return;
+  const handleAssignGroup = async (groupId: number) => {
+    if (!id || !groupId) return;
+    try {
+      await assignAttributeGroupToPart(Number(id), groupId);
+      // Reload part to get updated attributes
+      const p = await fetchPart(String(id));
+      setPart(p);
+      setAttrGroups(p?.attributes_grouped || []);
+      toast.success("Group assigned successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to assign group");
     }
+  };
+
+  const handleUnassignGroup = async (groupId: number) => {
+    if (!id || !groupId) return;
+    if (!confirm("Are you sure you want to remove this group and all its values from this product?")) return;
+    try {
+      await unassignAttributeGroupFromPart(Number(id), groupId);
+      // Reload part
+      const p = await fetchPart(String(id));
+      setPart(p);
+      setAttrGroups(p?.attributes_grouped || []);
+      toast.success("Group removed successfully");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove group");
+    }
+  };
+
+  const handleUpdateGallery = async () => {
     setSaving(true);
     try {
-      await updatePart(String(id), {
-        sku: form.sku.trim() ? form.sku.trim() : null,
-        part_number: form.part_number.trim() ? form.part_number.trim() : null,
-        barcode_number: form.barcode_number.trim() ? form.barcode_number.trim() : null,
-        part_name: name,
-        unit: form.unit.trim() ? form.unit.trim() : null,
-        brand_id: form.brand_id.trim() ? Number(form.brand_id) : null,
-        supplier_ids: supplierIds,
-        collection_ids: collectionIds,
+      await updatePartGallery(String(id), gallery);
+      toast({ title: "Success", description: "Gallery updated" });
+      await load();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const payload: any = {
+        ...form,
+        brand_id: form.brand_id === "" ? null : parseInt(form.brand_id),
         cost_price: asNumOrNull(form.cost_price),
-        price,
+        price: asNumOrNull(form.price),
         wholesale_price: asNumOrNull(form.wholesale_price),
         min_selling_price: asNumOrNull(form.min_selling_price),
         price_2: asNumOrNull(form.price_2),
-        reorder_level: asNumOrNull(form.reorder_level),
-        is_active: form.is_active ? 1 : 0,
-        is_fifo: form.is_fifo ? 1 : 0,
-        is_expiry: form.is_expiry ? 1 : 0,
-        image_filename: part?.image_filename ?? null,
-        item_type: form.item_type,
-        recipe_type: form.recipe_type,
-        default_location_id: (form.default_location_id && form.default_location_id !== "none") ? Number(form.default_location_id) : null,
-        allowed_locations: JSON.stringify(allowedLocationIds),
-      });
+        reorder_level: parseInt(form.reorder_level),
+        default_location_id: form.default_location_id === "none" ? null : parseInt(form.default_location_id),
+        supplier_ids: supplierIds,
+        collection_ids: collectionIds,
+        allowed_locations: allowedLocationIds.length > 0 ? allowedLocationIds.join(",") : null,
+        net_weight_kg: asNumOrNull(form.net_weight_kg),
+        gross_weight_kg: asNumOrNull(form.gross_weight_kg),
+        units_per_carton: parseInt(form.units_per_carton) || 1,
+        carton_length_cm: asNumOrNull(form.carton_length_cm),
+        carton_width_cm: asNumOrNull(form.carton_width_cm),
+        carton_height_cm: asNumOrNull(form.carton_height_cm),
+        volume_cbm: (parseFloat(form.carton_length_cm) * parseFloat(form.carton_width_cm) * parseFloat(form.carton_height_cm) / 1000000) || null,
+        carton_tare_weight_kg: asNumOrNull(form.carton_tare_weight_kg),
+        hs_code: (form.hs_code || "").trim() || null,
+        is_online: form.is_online ? 1 : 0,
+        public_description: form.public_description.trim() || null,
+        attributes: attrValues
+      };
+
+      const res = await api(`/api/part/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+      if (!res.ok) throw new Error("Failed to save");
       toast({ title: "Saved", description: "Product updated" });
       await load();
     } catch (e: any) {
@@ -239,9 +333,22 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
   const uploadImage = async (file: File) => {
     setSaving(true);
     try {
-      const up = await uploadPartImage(file);
+      const up = await api('/api/upload/part_image', {
+        method: 'POST',
+        body: (() => {
+          const fd = new FormData();
+          fd.append('image', file);
+          return fd;
+        })()
+      }).then(r => r.json());
+
       if (up.status !== "success") throw new Error(up.message || "Upload failed");
-      await setPartImage(String(id), up.data.filename);
+      
+      await api(`/api/part/set_image/${id}`, {
+        method: 'POST',
+        body: JSON.stringify({ image_filename: up.data.filename })
+      });
+
       toast({ title: "Uploaded", description: "Image updated" });
       await load();
     } catch (e: any) {
@@ -250,6 +357,8 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
       setSaving(false);
     }
   };
+
+  const imageUrl = part?.image_filename ? contentUrl("items", part.image_filename) : null;
 
   return (
     <DashboardLayout>
@@ -265,440 +374,568 @@ export default function ItemDetailPage({ params }: { params: Promise<{ id: strin
               <p className="text-muted-foreground mt-1">{part?.part_name ? part.part_name : "Product"}</p>
             </div>
           </div>
-          <Button asChild variant="outline">
-            <Link href="/inventory/items">All Products</Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => void load()} disabled={saving}>
+              Reload
+            </Button>
+            <Button className="gap-2" onClick={() => void save()} disabled={saving}>
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Save
+            </Button>
+            <Button variant="destructive" className="gap-2" onClick={() => void remove()} disabled={saving}>
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </Button>
+          </div>
         </div>
 
-        <Card className="border-none shadow-md overflow-hidden">
-          <CardHeader>
-            <CardTitle>Product</CardTitle>
-            <CardDescription>Details, pricing, unit, image and stock</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {loading ? (
-              <div className="flex items-center justify-center py-10 text-muted-foreground">
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                Loading...
-              </div>
-            ) : !part ? (
-              <div className="text-sm text-muted-foreground py-10 text-center">Not found</div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                  <div className="lg:col-span-4">
-                    <div className="rounded-xl border bg-muted/10 p-4 space-y-3">
-                      <div className="h-[220px] rounded-lg border bg-background overflow-hidden flex items-center justify-center">
-                        {imageUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={imageUrl} alt="" className="h-full w-full object-cover" />
-                        ) : (
-                          <div className="text-muted-foreground flex flex-col items-center gap-2">
-                            <ImageIcon className="w-7 h-7" />
-                            <div className="text-sm">No image</div>
-                          </div>
-                        )}
-                      </div>
-                      <input
-                        ref={fileRef}
-                        className="hidden"
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          if (!f) return;
-                          void uploadImage(f);
-                          e.currentTarget.value = "";
-                        }}
-                      />
-	                      <div className="flex gap-2">
-	                        <Button variant="outline" className="gap-2 w-full" onClick={() => fileRef.current?.click()} disabled={saving}>
-	                          <Upload className="w-4 h-4" />
-	                          Upload Image
-	                        </Button>
-	                      </div>
-	                      {part?.image_filename ? (
-	                        <div className="text-xs text-muted-foreground">
-	                          Filename: <span className="font-mono">{String(part.image_filename)}</span>
-	                        </div>
-	                      ) : null}
-                    </div>
-                  </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="w-8 h-8 animate-spin mr-3" />
+            <span className="text-lg font-medium">Loading product details...</span>
+          </div>
+        ) : error || !part ? (
+          <div className="text-lg text-muted-foreground py-20 text-center bg-muted/10 rounded-xl border border-dashed flex flex-col items-center gap-4">
+            <XCircle className="w-10 h-10 text-destructive/50" />
+            <div className="space-y-1">
+               <p className="font-semibold text-foreground">{error || "Product not found"}</p>
+               <p className="text-sm">Please verify the ID or your access permissions.</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void load()}>Retry</Button>
+          </div>
+        ) : (
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="w-full flex justify-start h-auto p-1 bg-muted/30 border overflow-x-auto no-scrollbar">
+              <TabsTrigger value="general" className="gap-2 py-2.5 px-4"><Info className="w-4 h-4" /> General</TabsTrigger>
+              <TabsTrigger value="inventory" className="gap-2 py-2.5 px-4"><Package className="w-4 h-4" /> Inventory</TabsTrigger>
+              <TabsTrigger value="shipping" className="gap-2 py-2.5 px-4"><Truck className="w-4 h-4" /> Shipping</TabsTrigger>
+              <TabsTrigger value="ecommerce" className="gap-2 py-2.5 px-4 text-primary font-bold"><Globe className="w-4 h-4" /> E-Commerce</TabsTrigger>
+              <TabsTrigger value="gallery" className="gap-2 py-2.5 px-4"><ImageIcon className="w-4 h-4" /> Gallery</TabsTrigger>
+              <TabsTrigger value="attributes" className="gap-2 py-2.5 px-4"><ListTree className="w-4 h-4" /> Attributes</TabsTrigger>
+            </TabsList>
 
-                  <div className="lg:col-span-8 space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label>Item Type</Label>
-                        <Select value={form.item_type} onValueChange={(v: any) => setForm((p) => ({ ...p, item_type: v }))}>
-                          <SelectTrigger className="font-bold border-amber-200 bg-amber-50/30">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Part" className="font-bold">Part (Physical Goods)</SelectItem>
-                            <SelectItem value="Service" className="font-bold">Service (Labor/Fee)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Recipe Type</Label>
-                        <Select value={form.recipe_type} onValueChange={(v: any) => setForm((p) => ({ ...p, recipe_type: v }))}>
-                          <SelectTrigger className="font-bold border-blue-200 bg-blue-50/30">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Standard" className="font-bold">Standard (GRN & Sell)</SelectItem>
-                            <SelectItem value="A La Carte" className="font-bold">A La Carte (Needs BOM)</SelectItem>
-                            <SelectItem value="Recipe" className="font-bold">Recipe (Needs BOM)</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Default Stock Location</Label>
-                        <Select value={form.default_location_id} onValueChange={(v) => setForm((p) => ({ ...p, default_location_id: v }))}>
-                          <SelectTrigger className="font-bold border-green-200 bg-green-50/30">
-                            <SelectValue placeholder="Select location..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none" className="italic">Inherit from Invoice/POS</SelectItem>
-                            {locations.map((loc) => (
-                              <SelectItem key={loc.id} value={String(loc.id)}>
-                                {loc.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-2 italic">A La Carte items will ALWAYS deduct ingredients from this location.</div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>SKU</Label>
-                        <div className="flex gap-2">
-                          <Input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} />
-                          <Button
-                            type="button"
-                            variant="outline"
-                            className="gap-2 shrink-0"
-                            onClick={() => setForm((p) => ({ ...p, sku: generateSku() }))}
-                            disabled={saving}
-                          >
-                            <Sparkles className="w-4 h-4" />
-                            Generate
-                          </Button>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">Optional</div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Part Number</Label>
-                        <Input value={form.part_number} onChange={(e) => setForm((p) => ({ ...p, part_number: e.target.value }))} />
-                        <div className="text-[11px] text-muted-foreground">Optional</div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Barcode</Label>
-                        <Input value={form.barcode_number} onChange={(e) => setForm((p) => ({ ...p, barcode_number: e.target.value }))} />
-                        <div className="text-[11px] text-muted-foreground">Optional</div>
-                      </div>
-	                      <div className="space-y-2">
-	                        <Label>Name</Label>
-	                        <Input value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
-	                      </div>
-	                      <div className="space-y-2">
-	                        <Label>Brand</Label>
-	                        <Select value={form.brand_id} onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}>
-	                          <SelectTrigger>
-	                            <SelectValue placeholder="Select brand..." />
-	                          </SelectTrigger>
-	                          <SelectContent className="max-h-[280px]">
-	                            {brands.map((b) => (
-	                              <SelectItem key={b.id} value={String(b.id)}>
-	                                {b.name}
-	                              </SelectItem>
-	                            ))}
-	                          </SelectContent>
-	                        </Select>
-	                        <div className="text-[11px] text-muted-foreground">
-	                          Manage brands in <Link className="underline" href="/master-data/brands">Master Data → Brands</Link>
-	                        </div>
-	                      </div>
-	                      <div className="space-y-2">
-	                        <Label>Unit</Label>
-	                        <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
-	                          <SelectTrigger>
-                            <SelectValue placeholder="Select unit..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {units.map((u) => (
-                              <SelectItem key={u.id} value={u.name}>
-                                {u.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <div className="text-[11px] text-muted-foreground">
-                          Manage units in <Link className="underline" href="/master-data/units">Master Data → Units</Link>
-                        </div>
-                      </div>
-                      <div className="space-y-2 col-span-1 md:col-span-2">
-                        <Label>Suppliers</Label>
-                        <div className="rounded-md border p-4 bg-muted/5 space-y-3">
-                          <Input 
-                            placeholder="Search suppliers..." 
-                            value={supplierQuery} 
-                            onChange={(e) => setSupplierQuery(e.target.value)} 
-                            className="h-8 text-sm"
-                          />
-                          <ScrollArea className="h-[120px] pr-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {suppliers
-                                .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
-                                .map((s) => {
-                                  const sid = Number(s.id);
-                                  const checked = supplierIds.includes(sid);
-                                  return (
-                                    <label key={s.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-sm transition-colors border border-transparent hover:border-muted-foreground/20">
-                                      <Checkbox
-                                        checked={checked}
-                                        onCheckedChange={(v) => {
-                                          setSupplierIds((prev) => {
-                                            const next = new Set(prev);
-                                            if (v) next.add(sid);
-                                            else next.delete(sid);
-                                            return Array.from(next).sort((a, b) => a - b);
-                                          });
-                                        }}
-                                      />
-                                      <span className="truncate flex-1">{s.name}</span>
-                                    </label>
-                                  );
-                                })}
-                              {suppliers.length === 0 ? (
-                                <div className="text-xs text-muted-foreground py-4 text-center col-span-full">No suppliers found</div>
-                              ) : null}
-                            </div>
-                          </ScrollArea>
-                        </div>
-                        <div className="text-[11px] text-muted-foreground">Select multiple suppliers for this product.</div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Collections</Label>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button type="button" variant="outline" className="w-full justify-between" disabled={saving}>
-                              <span className="truncate">
-                                {collectionIds.length === 0 ? "Select collections..." : `${collectionIds.length} selected`}
-                              </span>
-                              <LayoutGrid className="w-4 h-4 text-muted-foreground" />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent className="w-[360px] p-3" align="start">
-                            <div className="space-y-2">
-                              <Input placeholder="Search collections..." value={collectionQuery} onChange={(e) => setCollectionQuery(e.target.value)} />
-                              <ScrollArea className="h-[240px] pr-2">
-                                <div className="space-y-2">
-                                  {collections
-                                    .filter((c) => (c.name ?? "").toLowerCase().includes(collectionQuery.trim().toLowerCase()))
-                                    .map((c) => {
-                                      const cid = Number(c.id);
-                                      const checked = collectionIds.includes(cid);
-                                      return (
-                                        <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer select-none">
-                                          <Checkbox
-                                            checked={checked}
-                                            onCheckedChange={(v) => {
-                                              setCollectionIds((prev) => {
-                                                const next = new Set(prev);
-                                                if (v) next.add(cid);
-                                                else next.delete(cid);
-                                                return Array.from(next).sort((a, b) => a - b);
-                                              });
-                                            }}
-                                          />
-                                          <span className="truncate">{c.name}</span>
-                                        </label>
-                                      );
-                                    })}
-                                  {collections.length === 0 ? (
-                                    <div className="text-xs text-muted-foreground py-4 text-center">No collections</div>
-                                  ) : null}
-                                </div>
-                              </ScrollArea>
-                            </div>
-                          </PopoverContent>
-                        </Popover>
-                        <div className="text-[11px] text-muted-foreground">Group this product for POS filtering.</div>
-                      </div>
-                      <div className="space-y-2 col-span-1 md:col-span-2">
-                        <Label>Allowed Stock Locations</Label>
-                        <div className="rounded-md border p-4 bg-muted/5 space-y-2">
-                          <ScrollArea className="h-[120px] pr-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                              {locations.map((loc) => {
-                                const checked = allowedLocationIds.includes(loc.id);
-                                return (
-                                  <label key={loc.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1.5 rounded-md transition-colors border border-transparent hover:border-muted-foreground/10">
-                                    <Checkbox
-                                      checked={checked}
-                                      onCheckedChange={(v) => {
-                                        setAllowedLocationIds((prev) => {
-                                          const next = new Set(prev);
-                                          if (v) next.add(loc.id);
-                                          else next.delete(loc.id);
-                                          return Array.from(next).sort((a, b) => a - b);
-                                        });
-                                      }}
-                                    />
-                                    <span className="truncate flex-1 font-medium">{loc.name}</span>
-                                  </label>
-                                );
-                              })}
-                              {locations.length === 0 ? (
-                                <div className="text-xs text-muted-foreground py-4 text-center col-span-full italic">No locations configured</div>
-                              ) : null}
-                            </div>
-                          </ScrollArea>
-                          <div className="text-[11px] text-muted-foreground border-t pt-2">Limit which locations can sell this item. Leave empty for "All Locations".</div>
-                        </div>
-                      </div>
-	                      <div className="space-y-2">
-	                        <Label>Active</Label>
-	                        <div className="h-11 flex items-center">
-	                          <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
-	                        </div>
-	                      </div>
-                          <div className="space-y-2">
-                            <Label>Follow FIFO</Label>
-                            <div className="h-11 flex items-center">
-                              <Switch checked={form.is_fifo} onCheckedChange={(v) => setForm((p) => ({ ...p, is_fifo: v }))} />
-                            </div>
-                            <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Track stock by oldest batch first</div>
+            <TabsContent value="general" className="mt-6 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <Card className="lg:col-span-4 shadow-sm border-none bg-muted/5">
+                  <CardHeader>
+                    <CardTitle className="text-base">Thumbnail</CardTitle>
+                    <CardDescription>Main product image for listings</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="h-[240px] rounded-xl border-2 border-dashed bg-background overflow-hidden flex items-center justify-center group relative">
+                      {imageUrl ? (
+                        <>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={imageUrl} alt="" className="h-full w-full object-contain" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                             <Button variant="secondary" size="sm" onClick={() => fileRef.current?.click()}>Change</Button>
                           </div>
-                          <div className="space-y-2">
-                            <Label>Track Expiry</Label>
-                            <div className="h-11 flex items-center">
-                              <Switch checked={form.is_expiry} onCheckedChange={(v) => setForm((p) => ({ ...p, is_expiry: v }))} />
-                            </div>
-                            <div className="text-[10px] text-muted-foreground -mt-1 line-clamp-1">Capture Mfg/Expiry dates during GRN</div>
-                          </div>
+                        </>
+                      ) : (
+                        <div className="text-muted-foreground flex flex-col items-center gap-3">
+                          <ImageIcon className="w-10 h-10 opacity-20" />
+                          <div className="text-sm font-medium">No Primary Image</div>
+                          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>Upload</Button>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={fileRef}
+                      className="hidden"
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        if (!f) return;
+                        void uploadImage(f);
+                        e.currentTarget.value = "";
+                      }}
+                    />
+                    <div className="space-y-2">
+                      <Label>Status</Label>
+                      <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                        <span className="text-sm font-medium">{form.is_active ? 'Active' : 'Inactive'}</span>
+                        <Switch checked={form.is_active} onCheckedChange={(v) => setForm((p) => ({ ...p, is_active: v }))} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="lg:col-span-8 shadow-sm border-none bg-muted/5">
+                  <CardHeader>
+                    <CardTitle className="text-base">Core Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2 col-span-full">
+                      <Label>Product Name</Label>
+                      <Input className="text-lg font-bold" value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>SKU</Label>
+                      <div className="flex gap-2">
+                        <Input value={form.sku} onChange={(e) => setForm((p) => ({ ...p, sku: e.target.value }))} />
+                        <Button variant="outline" size="icon" onClick={() => setForm((p) => ({ ...p, sku: generateSku() }))} disabled={saving}>
+                          <Sparkles className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Brand</Label>
+                      <Select value={form.brand_id} onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select brand..." /></SelectTrigger>
+                        <SelectContent>
+                          {brands.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Item Type</Label>
+                      <Select value={form.item_type} onValueChange={(v: any) => setForm((p) => ({ ...p, item_type: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Part">Part (Physical)</SelectItem>
+                          <SelectItem value="Service">Service (Labor)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unit of Measure</Label>
+                      <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select unit..." /></SelectTrigger>
+                        <SelectContent>
+                          {units.map((u) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="col-span-full grid grid-cols-1 md:grid-cols-3 gap-5 border-t pt-5 mt-2">
                       <div className="space-y-2">
                         <Label>Cost Price</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal" 
-                          value={Number.isFinite(Number(form.cost_price)) ? Number(form.cost_price).toFixed(2) : "0.00"} 
-                          onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} 
-                        />
+                        <Input type="number" value={form.cost_price} onChange={(e) => setForm((p) => ({ ...p, cost_price: e.target.value }))} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Selling Price</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal" 
-                          value={form.price} 
-                          onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} 
-                          required 
-                        />
+                        <Label className="text-primary font-bold">Selling Price</Label>
+                        <Input className="border-primary/30 bg-primary/5 font-bold" type="number" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} required />
                       </div>
                       <div className="space-y-2">
                         <Label>Wholesale Price</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal" 
-                          value={form.wholesale_price} 
-                          onChange={(e) => setForm((p) => ({ ...p, wholesale_price: e.target.value }))} 
-                        />
+                        <Input type="number" value={form.wholesale_price} onChange={(e) => setForm((p) => ({ ...p, wholesale_price: e.target.value }))} />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Min. Selling Price</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal" 
-                          value={form.min_selling_price} 
-                          onChange={(e) => setForm((p) => ({ ...p, min_selling_price: e.target.value }))} 
-                        />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="inventory" className="mt-6 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="shadow-sm border-none bg-muted/5">
+                  <CardHeader>
+                    <CardTitle className="text-base">Stock Controls</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <Label>Reorder Level</Label>
+                          <Input type="number" value={form.reorder_level} onChange={(e) => setForm((p) => ({ ...p, reorder_level: e.target.value }))} />
+                       </div>
+                       <div className="space-y-2">
+                          <Label>Recipe Type</Label>
+                          <Select value={form.recipe_type} onValueChange={(v: any) => setForm((p) => ({ ...p, recipe_type: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Standard">Standard</SelectItem>
+                              <SelectItem value="A La Carte">A La Carte</SelectItem>
+                              <SelectItem value="Recipe">Recipe</SelectItem>
+                            </SelectContent>
+                          </Select>
+                       </div>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                      <div className="space-y-0.5">
+                        <Label>FIFO Tracking</Label>
+                        <p className="text-xs text-muted-foreground">Force oldest batch usage first</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Price 2 Option</Label>
-                        <Input 
-                          type="number"
-                          step="0.01"
-                          inputMode="decimal" 
-                          value={form.price_2} 
-                          onChange={(e) => setForm((p) => ({ ...p, price_2: e.target.value }))} 
-                        />
+                      <Switch checked={form.is_fifo} onCheckedChange={(v) => setForm((p) => ({ ...p, is_fifo: v }))} />
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                      <div className="space-y-0.5">
+                        <Label>Track Expiry</Label>
+                        <p className="text-xs text-muted-foreground">Capture dates during receiving</p>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Reorder Level</Label>
-                        <Input inputMode="numeric" value={form.reorder_level} onChange={(e) => setForm((p) => ({ ...p, reorder_level: e.target.value }))} />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Stock</Label>
-                        <div className="h-11 flex items-center gap-2">
-                          <Badge variant="outline" className="bg-muted/40">
-                            {Number(part.stock_quantity ?? 0).toLocaleString()} {part.unit ?? ""}
-                          </Badge>
-                          {lowStock ? <Badge variant="destructive">Low</Badge> : null}
+                      <Switch checked={form.is_expiry} onCheckedChange={(v) => setForm((p) => ({ ...p, is_expiry: v }))} />
+                    </div>
+
+                    {batches.length > 0 && (
+                      <div className="mt-6 border-t pt-6">
+                        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                          <Package className="w-4 h-4" /> Current Batches
+                        </h4>
+                        <div className="rounded-lg border overflow-hidden">
+                          <Table>
+                            <TableHeader className="bg-muted/50">
+                              <TableRow>
+                                <TableHead className="text-[10px] uppercase">Batch</TableHead>
+                                <TableHead className="text-[10px] uppercase text-right">Qty</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {batches.map((b: any) => (
+                                <TableRow key={b.id}>
+                                  <TableCell className="py-2 text-xs font-medium">{b.batch_number || "N/A"}</TableCell>
+                                  <TableCell className="py-2 text-xs text-right font-bold">{Number(b.quantity_on_hand).toLocaleString()}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
                         </div>
                       </div>
-                    </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-                    <div className="flex items-center justify-end gap-2">
-                      <Button variant="outline" onClick={() => void load()} disabled={saving}>
-                        Reload
-                      </Button>
-                      <Button className="gap-2" onClick={() => void save()} disabled={saving}>
-                        {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        Save
-                      </Button>
-                      <Button variant="destructive" className="gap-2" onClick={() => void remove()} disabled={saving}>
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </Button>
+                <Card className="shadow-sm border-none bg-muted/5">
+                  <CardHeader>
+                    <CardTitle className="text-base">Location Mapping</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label>Default Location</Label>
+                      <Select value={form.default_location_id} onValueChange={(v) => setForm((p) => ({ ...p, default_location_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select location..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Inherit from Context</SelectItem>
+                          {locations.map((loc) => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                  </div>
+                    <div className="space-y-2 pt-2">
+                      <Label>Restricted Locations</Label>
+                      <div className="rounded-xl border bg-background p-4 grid grid-cols-2 gap-3 max-h-[180px] overflow-y-auto">
+                        {locations.map((loc) => (
+                          <label key={loc.id} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-muted/30 p-1 rounded transition-colors">
+                            <Checkbox 
+                              checked={allowedLocationIds.includes(loc.id)} 
+                              onCheckedChange={(v) => setAllowedLocationIds(prev => v ? [...prev, loc.id] : prev.filter(id => id !== loc.id))} 
+                            />
+                            {loc.name}
+                          </label>
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground italic">Leave all unchecked to allow across all branches.</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="shipping" className="mt-6">
+              <Card className="shadow-sm border-none bg-muted/5">
+                <CardHeader>
+                  <CardTitle className="text-base">Logistics & Packaging</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                   <div className="space-y-2">
+                      <Label>Net Weight (kg)</Label>
+                      <Input type="number" step="0.001" value={form.net_weight_kg} onChange={(e) => setForm(p => ({ ...p, net_weight_kg: e.target.value }))} />
+                   </div>
+                   <div className="space-y-2">
+                      <Label>Gross Weight (kg)</Label>
+                      <Input type="number" step="0.001" value={form.gross_weight_kg} onChange={(e) => setForm(p => ({ ...p, gross_weight_kg: e.target.value }))} />
+                   </div>
+                   <div className="space-y-2">
+                      <Label>Packing Type</Label>
+                      <Select value={form.packing_type} onValueChange={(v) => setForm(p => ({ ...p, packing_type: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Carton">Carton (Box)</SelectItem>
+                          <SelectItem value="Pouch">Pouch / Packet</SelectItem>
+                          <SelectItem value="Canister">Canister</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                   </div>
+                   <div className="space-y-2">
+                      <Label>HS Code</Label>
+                      <Input value={form.hs_code} onChange={(e) => setForm(p => ({ ...p, hs_code: e.target.value }))} />
+                   </div>
+                   <div className="space-y-2 lg:col-span-2">
+                      <Label>Volume (CBM)</Label>
+                      <div className="flex gap-2">
+                        <Input type="number" step="0.000001" value={form.volume_cbm} onChange={(e) => setForm(p => ({ ...p, volume_cbm: e.target.value }))} />
+                        <div className="flex items-center gap-1 text-[10px] bg-background border px-2 rounded-md whitespace-nowrap">
+                          {form.carton_length_cm} × {form.carton_width_cm} × {form.carton_height_cm}
+                        </div>
+                      </div>
+                   </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="ecommerce" className="mt-6 space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-4 space-y-6">
+                  <Card className="shadow-sm border-none bg-primary/5 border-l-4 border-l-primary">
+                    <CardHeader>
+                      <CardTitle className="text-base flex items-center gap-2">
+                         <Globe className="w-4 h-4 text-primary" /> Visibility
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-background shadow-sm border border-primary/10">
+                        <div className="space-y-1">
+                          <Label className="text-base">Online Store</Label>
+                          <p className="text-xs text-muted-foreground">Show in external storefronts</p>
+                        </div>
+                        <Switch checked={form.is_online} onCheckedChange={(v) => setForm(p => ({ ...p, is_online: v }))} />
+                      </div>
+                      
+                      <div className="space-y-2 pt-4">
+                        <Label>Collections</Label>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" className="w-full justify-between h-12">
+                              <span className="truncate">{collectionIds.length === 0 ? "Not in any collection" : `${collectionIds.length} Collections`}</span>
+                              <LayoutGrid className="w-4 h-4 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start">
+                             <ScrollArea className="h-[300px] p-4">
+                               <div className="space-y-3">
+                                  {collections.map(c => (
+                                    <label key={c.id} className="flex items-center gap-3 text-sm cursor-pointer hover:bg-muted/50 p-2 rounded-md transition-colors">
+                                      <Checkbox 
+                                        checked={collectionIds.includes(c.id)} 
+                                        onCheckedChange={(v) => setCollectionIds(prev => v ? [...prev, c.id] : prev.filter(id => id !== c.id))} 
+                                      />
+                                      {c.name}
+                                    </label>
+                                  ))}
+                               </div>
+                             </ScrollArea>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
 
-                {/* Stock adjustments are handled in a separate page for safety/auditability. */}
+                <div className="lg:col-span-8">
+                  <Card className="shadow-sm border-none bg-muted/5">
+                    <CardHeader>
+                      <CardTitle className="text-base">Public Description</CardTitle>
+                      <CardDescription>Rich HTML or plain text description for the website</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Textarea 
+                        placeholder="Enter detailed product description..." 
+                        className="min-h-[300px] font-mono text-sm leading-relaxed" 
+                        value={form.public_description} 
+                        onChange={(e) => setForm(p => ({ ...p, public_description: e.target.value }))}
+                      />
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </TabsContent>
 
-                {(form.is_fifo || form.is_expiry) && batches.length > 0 && (
-                  <div className="mt-8 border-t pt-8">
-                    <h3 className="text-lg font-semibold mb-4">Stored Batches</h3>
-                    <div className="rounded-lg border overflow-hidden">
-                      <Table>
-                        <TableHeader className="bg-muted/50">
-                          <TableRow>
-                            <TableHead>Batch No</TableHead>
-                            <TableHead>Mfg Date</TableHead>
-                            <TableHead>Expiry Date</TableHead>
-                            <TableHead className="text-right">Quantity</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {batches.map((b) => (
-                            <TableRow key={b.id}>
-                              <TableCell className="font-medium">{b.batch_number || "N/A"}</TableCell>
-                              <TableCell>{b.mfg_date || "N/A"}</TableCell>
-                              <TableCell>
-                                {b.expiry_date || "N/A"}
-                                {b.expiry_date && new Date(b.expiry_date) < new Date() && (
-                                  <Badge variant="destructive" className="ml-2 py-0 h-5">Expired</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right font-bold">
-                                {Number(b.quantity_on_hand).toLocaleString()}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+            <TabsContent value="gallery" className="mt-6">
+              <Card className="shadow-sm border-none bg-muted/5">
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base">Media Gallery</CardTitle>
+                    <CardDescription>Upload multiple views and technical diagrams</CardDescription>
                   </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                  <Button variant="outline" className="gap-2" onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.accept = 'image/*';
+                    input.onchange = async (e: any) => {
+                      const files = Array.from(e.target.files) as File[];
+                      if (files.length === 0) return;
+                      setSaving(true);
+                      try {
+                        for (const f of files) {
+                          await uploadPartGalleryImage(String(id), f);
+                        }
+                        toast({ title: "Uploaded", description: "Gallery updated" });
+                        await load();
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      } finally {
+                        setSaving(false);
+                      }
+                    };
+                    input.click();
+                  }} disabled={saving}>
+                    <PlusCircle className="w-4 h-4" /> Add Images
+                  </Button>
+                </CardHeader>
+                 <CardContent>
+                    {gallery.length > 0 && (
+                      <div className="flex justify-end mb-4">
+                        <Button size="sm" variant="secondary" onClick={handleUpdateGallery} disabled={saving}>
+                          Save Gallery Changes
+                        </Button>
+                      </div>
+                    )}
+                    {gallery.length === 0 ? (
+                      <div className="py-20 text-center border-2 border-dashed rounded-xl bg-background/50">
+                         <ImageIcon className="w-12 h-12 mx-auto mb-4 opacity-10" />
+                         <p className="text-muted-foreground font-medium">Gallery is empty</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                         {gallery.map((img, idx) => (
+                           <div key={img.id} className="group relative rounded-xl border bg-background overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col">
+                              <div className="relative aspect-video">
+                                 {/* eslint-disable-next-line @next/next/no-img-element */}
+                                 <img src={contentUrl("items", img.filename)} alt="" className="h-full w-full object-cover" />
+                                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Button 
+                                      variant="destructive" 
+                                      size="icon" 
+                                      className="h-8 w-8 rounded-full"
+                                      onClick={async () => {
+                                        if (!confirm("Delete this gallery image?")) return;
+                                        setSaving(true);
+                                        try {
+                                          await deletePartGalleryImage(img.id);
+                                          await load();
+                                        } catch (err: any) {
+                                          toast({ title: "Error", description: err.message, variant: "destructive" });
+                                        } finally {
+                                          setSaving(false);
+                                        }
+                                      }}
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </Button>
+                                 </div>
+                              </div>
+                              <div className="p-3 space-y-2 bg-muted/30">
+                                 <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase text-muted-foreground font-bold">Label</Label>
+                                    <Input 
+                                      className="h-8 text-xs bg-background" 
+                                      placeholder="e.g. Front View" 
+                                      value={img.label || ""} 
+                                      onChange={(e) => {
+                                        const newGal = [...gallery];
+                                        newGal[idx].label = e.target.value;
+                                        setGallery(newGal);
+                                      }}
+                                    />
+                                 </div>
+                                 <div className="space-y-1">
+                                    <Label className="text-[10px] uppercase text-muted-foreground font-bold">Sort Order</Label>
+                                    <Input 
+                                      type="number"
+                                      className="h-8 text-xs bg-background" 
+                                      value={img.sort_order || 0} 
+                                      onChange={(e) => {
+                                        const newGal = [...gallery];
+                                        newGal[idx].sort_order = parseInt(e.target.value) || 0;
+                                        setGallery(newGal);
+                                      }}
+                                    />
+                                 </div>
+                              </div>
+                           </div>
+                         ))}
+                      </div>
+                    )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="attributes" className="mt-6">
+              <Card className="shadow-sm border-none bg-muted/5">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                  <div>
+                    <CardTitle className="text-base">Technical Specifications</CardTitle>
+                    <CardDescription>Select and manage groups for this product</CardDescription>
+                  </div>
+                  <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="gap-2">
+                        <Plus className="w-4 h-4" /> Add Specification Group
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <DialogHeader>
+                        <DialogTitle>Add Specification Group</DialogTitle>
+                        <DialogDescription>
+                          Select a group to add it to this product's technical specifications.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="grid gap-4 py-4">
+                         <ScrollArea className="h-[300px] pr-4">
+                            <div className="space-y-2">
+                               {allGroups
+                                 .filter(g => !attrGroups.some(ag => ag.id === g.id))
+                                 .map(g => (
+                                   <div 
+                                     key={g.id} 
+                                     className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent cursor-pointer transition-colors"
+                                     onClick={() => {
+                                       handleAssignGroup(g.id);
+                                       setIsAssignDialogOpen(false);
+                                     }}
+                                   >
+                                      <div className="font-medium">{g.name}</div>
+                                      <PlusCircle className="w-4 h-4 text-primary" />
+                                   </div>
+                                 ))
+                               }
+                               {allGroups.filter(g => !attrGroups.some(ag => ag.id === g.id)).length === 0 && (
+                                 <div className="py-8 text-center text-muted-foreground italic">
+                                   No more groups available to add.
+                                 </div>
+                               )}
+                            </div>
+                         </ScrollArea>
+                      </div>
+                      <DialogFooter>
+                        <Button variant="ghost" onClick={() => setIsAssignDialogOpen(false)}>Close</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </CardHeader>
+                <CardContent className="space-y-8">
+                   {attrGroups.length === 0 ? (
+                      <div className="py-12 text-center text-muted-foreground italic border rounded-lg">
+                        No attribute groups defined.
+                      </div>
+                   ) : (
+                     attrGroups.map(group => (
+                       <div key={group.id} className="space-y-4">
+                          <div className="flex items-center gap-3">
+                             <div className="h-px bg-muted flex-1" />
+                             <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">{group.name}</h3>
+                             <div className="h-px bg-muted flex-1" />
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                             {(group.attributes || []).map((attr: any) => (
+                               <div key={attr.id} className="space-y-1.5">
+                                  <Label className="text-xs">{attr.name}</Label>
+                                  <Input 
+                                    placeholder={`Enter ${attr.name}...`} 
+                                    value={attrValues[attr.id] || ""} 
+                                    onChange={(e) => setAttrValues(prev => ({ ...prev, [attr.id]: e.target.value }))}
+                                  />
+                               </div>
+                             ))}
+                          </div>
+                       </div>
+                     ))
+                   )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -1778,6 +1778,718 @@
             }
         }
     },
+    "banquet_bookings": {
+        "name": "banquet_bookings",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "booking_no": {
+                "Field": "booking_no",
+                "Type": "varchar(20)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "hall_id": {
+                "Field": "hall_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "menu_id": {
+                "Field": "menu_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "pax_count": {
+                "Field": "pax_count",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "booking_date": {
+                "Field": "booking_date",
+                "Type": "date",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "session": {
+                "Field": "session",
+                "Type": "enum('Morning','Evening','FullDay')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "FullDay",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Confirmed','Cancelled','Completed','Invoiced')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Confirmed",
+                "Extra": ""
+            },
+            "total_amount": {
+                "Field": "total_amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "discount_amount": {
+                "Field": "discount_amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "total_cost": {
+                "Field": "total_cost",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "advance_paid": {
+                "Field": "advance_paid",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "invoice_id": {
+                "Field": "invoice_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "booking_no": {
+                "Key_name": "booking_no",
+                "Non_unique": 0,
+                "Columns": [
+                    "booking_no"
+                ]
+            },
+            "customer_id": {
+                "Key_name": "customer_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "customer_id"
+                ]
+            },
+            "hall_id": {
+                "Key_name": "hall_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "hall_id"
+                ]
+            }
+        }
+    },
+    "banquet_event_assignments": {
+        "name": "banquet_event_assignments",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "booking_id": {
+                "Field": "booking_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "resource_id": {
+                "Field": "resource_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "vendor_id": {
+                "Field": "vendor_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "qty": {
+                "Field": "qty",
+                "Type": "decimal(10,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "1.00",
+                "Extra": ""
+            },
+            "unit_cost": {
+                "Field": "unit_cost",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "unit_price": {
+                "Field": "unit_price",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Pending','Confirmed','Completed','Cancelled')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Pending",
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "idx_bea_booking": {
+                "Key_name": "idx_bea_booking",
+                "Non_unique": 1,
+                "Columns": [
+                    "booking_id"
+                ]
+            },
+            "idx_bea_resource": {
+                "Key_name": "idx_bea_resource",
+                "Non_unique": 1,
+                "Columns": [
+                    "resource_id"
+                ]
+            },
+            "idx_bea_vendor": {
+                "Key_name": "idx_bea_vendor",
+                "Non_unique": 1,
+                "Columns": [
+                    "vendor_id"
+                ]
+            }
+        }
+    },
+    "banquet_halls": {
+        "name": "banquet_halls",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "location_id": {
+                "Field": "location_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "capacity": {
+                "Field": "capacity",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "price_per_session": {
+                "Field": "price_per_session",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Available','Maintenance','Inactive')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Available",
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "banquet_menu_items": {
+        "name": "banquet_menu_items",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "menu_id": {
+                "Field": "menu_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "part_id": {
+                "Field": "part_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(255)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "category": {
+                "Field": "category",
+                "Type": "varchar(50)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "qty": {
+                "Field": "qty",
+                "Type": "decimal(15,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1.000",
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "menu_id": {
+                "Key_name": "menu_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "menu_id"
+                ]
+            }
+        }
+    },
+    "banquet_menus": {
+        "name": "banquet_menus",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "price_per_pax": {
+                "Field": "price_per_pax",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "cost_price": {
+                "Field": "cost_price",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "banquet_resources": {
+        "name": "banquet_resources",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(150)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "resource_type": {
+                "Field": "resource_type",
+                "Type": "enum('Internal','External')",
+                "Null": "NO",
+                "Key": "",
+                "Default": "Internal",
+                "Extra": ""
+            },
+            "base_price": {
+                "Field": "base_price",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "selling_price": {
+                "Field": "selling_price",
+                "Type": "decimal(12,2)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "default_supplier_id": {
+                "Field": "default_supplier_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "fk_br_supplier": {
+                "Key_name": "fk_br_supplier",
+                "Non_unique": 1,
+                "Columns": [
+                    "default_supplier_id"
+                ]
+            }
+        }
+    },
+    "banquet_staff_assignments": {
+        "name": "banquet_staff_assignments",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "booking_id": {
+                "Field": "booking_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "employee_id": {
+                "Field": "employee_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "role": {
+                "Field": "role",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "notes": {
+                "Field": "notes",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "idx_bsa_booking": {
+                "Key_name": "idx_bsa_booking",
+                "Non_unique": 1,
+                "Columns": [
+                    "booking_id"
+                ]
+            },
+            "idx_bsa_employee": {
+                "Key_name": "idx_bsa_employee",
+                "Non_unique": 1,
+                "Columns": [
+                    "employee_id"
+                ]
+            }
+        }
+    },
     "brands": {
         "name": "brands",
         "columns": {
@@ -3487,6 +4199,264 @@
             }
         }
     },
+    "export_container_types": {
+        "name": "export_container_types",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "max_cbm_capacity": {
+                "Field": "max_cbm_capacity",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_weight_capacity_kg": {
+                "Field": "max_weight_capacity_kg",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_standard_pallets": {
+                "Field": "max_standard_pallets",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "export_packaging_types": {
+        "name": "export_packaging_types",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "type": {
+                "Field": "type",
+                "Type": "enum('Carton','Bag','Drum','Crate','Other')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Carton",
+                "Extra": ""
+            },
+            "length_cm": {
+                "Field": "length_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "width_cm": {
+                "Field": "width_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "height_cm": {
+                "Field": "height_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "cbm": {
+                "Field": "cbm",
+                "Type": "decimal(10,4)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.0000",
+                "Extra": ""
+            },
+            "tare_weight_kg": {
+                "Field": "tare_weight_kg",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_weight_capacity_kg": {
+                "Field": "max_weight_capacity_kg",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "export_pallet_types": {
+        "name": "export_pallet_types",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "length_cm": {
+                "Field": "length_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "width_cm": {
+                "Field": "width_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_load_height_cm": {
+                "Field": "max_load_height_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "tare_weight_kg": {
+                "Field": "tare_weight_kg",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "max_weight_capacity_kg": {
+                "Field": "max_weight_capacity_kg",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
     "goods_receive_notes": {
         "name": "goods_receive_notes",
         "columns": {
@@ -3846,6 +4816,14 @@
                 "Null": "YES",
                 "Key": "",
                 "Default": "0.00",
+                "Extra": ""
+            },
+            "source": {
+                "Field": "source",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "FrontOffice",
                 "Extra": ""
             },
             "created_at": {
@@ -5201,6 +6179,14 @@
                 "Default": null,
                 "Extra": ""
             },
+            "banquet_booking_id": {
+                "Field": "banquet_booking_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
             "location_id": {
                 "Field": "location_id",
                 "Type": "int(11)",
@@ -5287,6 +6273,30 @@
                 "Null": "NO",
                 "Key": "",
                 "Default": "0.00",
+                "Extra": ""
+            },
+            "shipping_provider_id": {
+                "Field": "shipping_provider_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "is_international": {
+                "Field": "is_international",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "shipping_country": {
+                "Field": "shipping_country",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
                 "Extra": ""
             },
             "order_type": {
@@ -5628,6 +6638,129 @@
                 "Non_unique": 0,
                 "Columns": [
                     "name"
+                ]
+            }
+        }
+    },
+    "logistics_categories": {
+        "name": "logistics_categories",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "description": {
+                "Field": "description",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "name": {
+                "Key_name": "name",
+                "Non_unique": 0,
+                "Columns": [
+                    "name"
+                ]
+            }
+        }
+    },
+    "logistics_factors": {
+        "name": "logistics_factors",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "type": {
+                "Field": "type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "General",
+                "Extra": ""
+            },
+            "absorption_method": {
+                "Field": "absorption_method",
+                "Type": "enum('Value','Quantity','Weight','Volume')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Value",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
                 ]
             }
         }
@@ -6371,6 +7504,86 @@
                 "Null": "YES",
                 "Key": "",
                 "Default": null,
+                "Extra": ""
+            },
+            "net_weight_kg": {
+                "Field": "net_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "gross_weight_kg": {
+                "Field": "gross_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "units_per_carton": {
+                "Field": "units_per_carton",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "carton_length_cm": {
+                "Field": "carton_length_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_width_cm": {
+                "Field": "carton_width_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_height_cm": {
+                "Field": "carton_height_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_tare_weight_kg": {
+                "Field": "carton_tare_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "packing_type": {
+                "Field": "packing_type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Carton",
+                "Extra": ""
+            },
+            "hs_code": {
+                "Field": "hs_code",
+                "Type": "varchar(32)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "volume_cbm": {
+                "Field": "volume_cbm",
+                "Type": "decimal(15,6)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000000",
                 "Extra": ""
             }
         },
@@ -8525,6 +9738,54 @@
                 "Key": "",
                 "Default": "current_timestamp()",
                 "Extra": "on update current_timestamp()"
+            },
+            "is_international": {
+                "Field": "is_international",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0",
+                "Extra": ""
+            },
+            "shipping_provider_id": {
+                "Field": "shipping_provider_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "shipping_cost": {
+                "Field": "shipping_cost",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "shipping_country": {
+                "Field": "shipping_country",
+                "Type": "varchar(100)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "shipping_address": {
+                "Field": "shipping_address",
+                "Type": "text",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "shipping_costing_template_id": {
+                "Field": "shipping_costing_template_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -9742,6 +11003,716 @@
             }
         }
     },
+    "shipping_costing_items": {
+        "name": "shipping_costing_items",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "template_id": {
+                "Field": "template_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cost_type": {
+                "Field": "cost_type",
+                "Type": "enum('Fixed','Percentage','Per Unit')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Fixed",
+                "Extra": ""
+            },
+            "value": {
+                "Field": "value",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "template_id": {
+                "Key_name": "template_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "template_id"
+                ]
+            }
+        }
+    },
+    "shipping_costing_sheet_items": {
+        "name": "shipping_costing_sheet_items",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "sheet_id": {
+                "Field": "sheet_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "cost_type": {
+                "Field": "cost_type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "value": {
+                "Field": "value",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "calculated_amount": {
+                "Field": "calculated_amount",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "absorption_method": {
+                "Field": "absorption_method",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Value",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "sheet_id": {
+                "Key_name": "sheet_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "sheet_id"
+                ]
+            }
+        }
+    },
+    "shipping_costing_sheet_products": {
+        "name": "shipping_costing_sheet_products",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "sheet_id": {
+                "Field": "sheet_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "part_id": {
+                "Field": "part_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "quantity": {
+                "Field": "quantity",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "unit_cost": {
+                "Field": "unit_cost",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "profit_margin": {
+                "Field": "profit_margin",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "profit_method": {
+                "Field": "profit_method",
+                "Type": "varchar(20)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "profit_base": {
+                "Field": "profit_base",
+                "Type": "varchar(20)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "weight": {
+                "Field": "weight",
+                "Type": "decimal(15,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "cbm": {
+                "Field": "cbm",
+                "Type": "decimal(15,6)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000000",
+                "Extra": ""
+            },
+            "packaging_type_id": {
+                "Field": "packaging_type_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "units_per_carton": {
+                "Field": "units_per_carton",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "carton_length_cm": {
+                "Field": "carton_length_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_width_cm": {
+                "Field": "carton_width_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_height_cm": {
+                "Field": "carton_height_cm",
+                "Type": "decimal(10,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "carton_tare_weight_kg": {
+                "Field": "carton_tare_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "net_weight_kg": {
+                "Field": "net_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "gross_weight_kg": {
+                "Field": "gross_weight_kg",
+                "Type": "decimal(10,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "packing_type": {
+                "Field": "packing_type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Carton",
+                "Extra": ""
+            },
+            "hs_code": {
+                "Field": "hs_code",
+                "Type": "varchar(32)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "volume_cbm": {
+                "Field": "volume_cbm",
+                "Type": "decimal(15,6)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000000",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "sheet_id": {
+                "Key_name": "sheet_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "sheet_id"
+                ]
+            },
+            "part_id": {
+                "Key_name": "part_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "part_id"
+                ]
+            }
+        }
+    },
+    "shipping_costing_sheets": {
+        "name": "shipping_costing_sheets",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "costing_number": {
+                "Field": "costing_number",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "UNI",
+                "Default": null,
+                "Extra": ""
+            },
+            "template_id": {
+                "Field": "template_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            },
+            "customer_id": {
+                "Field": "customer_id",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "reference_number": {
+                "Field": "reference_number",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "base_carrier_cost": {
+                "Field": "base_carrier_cost",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "total_quantity": {
+                "Field": "total_quantity",
+                "Type": "decimal(15,3)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.000",
+                "Extra": ""
+            },
+            "total_cost": {
+                "Field": "total_cost",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "status": {
+                "Field": "status",
+                "Type": "enum('Draft','Finalized')",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Draft",
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "updated_by": {
+                "Field": "updated_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            },
+            "shipping_term": {
+                "Field": "shipping_term",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "freight_type": {
+                "Field": "freight_type",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "shipment_mode": {
+                "Field": "shipment_mode",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "LCL",
+                "Extra": ""
+            },
+            "profit_method": {
+                "Field": "profit_method",
+                "Type": "varchar(20)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Markup",
+                "Extra": ""
+            },
+            "profit_base": {
+                "Field": "profit_base",
+                "Type": "varchar(20)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Landed",
+                "Extra": ""
+            },
+            "profit_value": {
+                "Field": "profit_value",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "10.00",
+                "Extra": ""
+            },
+            "overhead_absorption_method": {
+                "Field": "overhead_absorption_method",
+                "Type": "varchar(50)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "Value",
+                "Extra": ""
+            },
+            "target_currency": {
+                "Field": "target_currency",
+                "Type": "varchar(10)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "USD",
+                "Extra": ""
+            },
+            "exchange_rate": {
+                "Field": "exchange_rate",
+                "Type": "decimal(15,4)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1.0000",
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "uq_costing_number": {
+                "Key_name": "uq_costing_number",
+                "Non_unique": 0,
+                "Columns": [
+                    "costing_number"
+                ]
+            },
+            "template_id": {
+                "Key_name": "template_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "template_id"
+                ]
+            }
+        }
+    },
+    "shipping_costing_templates": {
+        "name": "shipping_costing_templates",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "updated_by": {
+                "Field": "updated_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
+    "shipping_providers": {
+        "name": "shipping_providers",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "name": {
+                "Field": "name",
+                "Type": "varchar(100)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "base_cost": {
+                "Field": "base_cost",
+                "Type": "decimal(15,2)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "0.00",
+                "Extra": ""
+            },
+            "is_active": {
+                "Field": "is_active",
+                "Type": "tinyint(1)",
+                "Null": "YES",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "created_by": {
+                "Field": "created_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "updated_by": {
+                "Field": "updated_by",
+                "Type": "int(11)",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "created_at": {
+                "Field": "created_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": ""
+            },
+            "updated_at": {
+                "Field": "updated_at",
+                "Type": "timestamp",
+                "Null": "NO",
+                "Key": "",
+                "Default": "current_timestamp()",
+                "Extra": "on update current_timestamp()"
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            }
+        }
+    },
     "shipping_zones": {
         "name": "shipping_zones",
         "columns": {
@@ -10913,22 +12884,6 @@
                 "Default": "1",
                 "Extra": ""
             },
-            "is_inventory_vendor": {
-                "Field": "is_inventory_vendor",
-                "Type": "tinyint(1)",
-                "Null": "NO",
-                "Key": "",
-                "Default": "1",
-                "Extra": ""
-            },
-            "is_banquet_vendor": {
-                "Field": "is_banquet_vendor",
-                "Type": "tinyint(1)",
-                "Null": "NO",
-                "Key": "",
-                "Default": "0",
-                "Extra": ""
-            },
             "created_by": {
                 "Field": "created_by",
                 "Type": "int(11)",
@@ -10967,6 +12922,22 @@
                 "Null": "YES",
                 "Key": "",
                 "Default": null,
+                "Extra": ""
+            },
+            "is_inventory_vendor": {
+                "Field": "is_inventory_vendor",
+                "Type": "tinyint(1)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "1",
+                "Extra": ""
+            },
+            "is_banquet_vendor": {
+                "Field": "is_banquet_vendor",
+                "Type": "tinyint(1)",
+                "Null": "NO",
+                "Key": "",
+                "Default": "0",
                 "Extra": ""
             }
         },
@@ -11192,6 +13163,51 @@
                 "Non_unique": 0,
                 "Columns": [
                     "id"
+                ]
+            }
+        }
+    },
+    "term_factor_defaults": {
+        "name": "term_factor_defaults",
+        "columns": {
+            "id": {
+                "Field": "id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "PRI",
+                "Default": null,
+                "Extra": "auto_increment"
+            },
+            "shipping_term": {
+                "Field": "shipping_term",
+                "Type": "varchar(20)",
+                "Null": "NO",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
+            },
+            "factor_id": {
+                "Field": "factor_id",
+                "Type": "int(11)",
+                "Null": "NO",
+                "Key": "MUL",
+                "Default": null,
+                "Extra": ""
+            }
+        },
+        "indexes": {
+            "PRIMARY": {
+                "Key_name": "PRIMARY",
+                "Non_unique": 0,
+                "Columns": [
+                    "id"
+                ]
+            },
+            "factor_id": {
+                "Key_name": "factor_id",
+                "Non_unique": 1,
+                "Columns": [
+                    "factor_id"
                 ]
             }
         }

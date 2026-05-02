@@ -184,13 +184,15 @@ class Invoice extends Model {
                    c.tax_number as customer_tax_no, ro.customer_name as order_ref_name,
                    sl.name as location_name, sl.address as location_address, sl.phone as location_phone,
                    sl.tax_no as location_tax_no, sl.tax_label as location_tax_label,
-                   rt.name as table_name, u.name as steward_name
+                   rt.name as table_name, u.name as steward_name,
+                   sp.name as shipping_provider_name
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
             LEFT JOIN repair_orders ro ON i.order_id = ro.id
             LEFT JOIN service_locations sl ON i.location_id = sl.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
             LEFT JOIN users u ON i.steward_id = u.id
+            LEFT JOIN shipping_providers sp ON i.shipping_provider_id = sp.id
             WHERE i.id = :id
         ");
         $this->db->bind(':id', $id);
@@ -226,10 +228,12 @@ class Invoice extends Model {
             INSERT INTO invoices (
                 invoice_no, order_id, online_order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
                 subtotal, tax_total, discount_total, shipping_fee, grand_total, order_type, table_id, steward_id, notes,
+                is_international, shipping_provider_id, shipping_country,
                 applied_promotion_id, applied_promotion_name, created_by, updated_by
             ) VALUES (
                 :invoice_no, :order_id, :online_order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
                 :subtotal, :tax_total, :discount_total, :shipping_fee, :grand_total, :order_type, :table_id, :steward_id, :notes,
+                :is_international, :shipping_provider_id, :shipping_country,
                 :applied_promo_id, :applied_promo_name, :created_by, :updated_by
             )
         ");
@@ -251,6 +255,9 @@ class Invoice extends Model {
         $this->db->bind(':table_id', $data['table_id'] ?? null);
         $this->db->bind(':steward_id', $data['steward_id'] ?? null);
         $this->db->bind(':notes', $data['notes'] ?? null);
+        $this->db->bind(':is_international', !empty($data['is_international']) ? 1 : 0);
+        $this->db->bind(':shipping_provider_id', $data['shipping_provider_id'] ?? null);
+        $this->db->bind(':shipping_country', $data['shipping_country'] ?? null);
         $this->db->bind(':applied_promo_id', $data['applied_promotion_id'] ?? null);
         $this->db->bind(':applied_promo_name', $data['applied_promotion_name'] ?? null);
         $this->db->bind(':created_by', $data['userId']);

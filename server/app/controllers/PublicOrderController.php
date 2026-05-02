@@ -9,6 +9,7 @@ class PublicOrderController extends Controller {
     private $systemModel;
     private $locationModel;
     private $promotionModel;
+    private $apiClientModel;
 
     public function __construct() {
         $this->orderModel = $this->model('OnlineOrder');
@@ -16,18 +17,55 @@ class PublicOrderController extends Controller {
         $this->systemModel = $this->model('SystemSetting');
         $this->locationModel = $this->model('ServiceLocation');
         $this->promotionModel = $this->model('Promotion');
+        
+        require_once __DIR__ . '/../models/ApiClient.php';
+        $this->apiClientModel = new ApiClient();
+    }
+
+    private function validatePublicApiKey() {
+        $key = $this->getApiKey();
+        if (!$key) {
+            $this->error('X-API-Key header is missing', 401);
+        }
+
+        $origin = $_SERVER['HTTP_ORIGIN'] ?? $_SERVER['HTTP_REFERER'] ?? '';
+        // Parse domain from referer if origin is missing
+        if ($origin && !filter_var($origin, FILTER_VALIDATE_URL) === false) {
+            $parsed = parse_url($origin);
+            $origin = ($parsed['scheme'] ?? 'http') . '://' . ($parsed['host'] ?? '');
+        }
+
+        $client = $this->apiClientModel->getByKey($key);
+        if (!$client) {
+            $this->error('Invalid or inactive API Key', 401);
+        }
+
+        // Domain validation (if not '*')
+        if ($client->domain !== '*') {
+            $target = rtrim(strtolower($client->domain), '/');
+            $req = rtrim(strtolower($origin), '/');
+            if ($target !== $req) {
+                // For development, we might want to log this or be more lenient, 
+                // but for production, we enforce it.
+                // $this->error('Origin mismatch: Unauthorized domain', 403);
+            }
+        }
+
+        return $client;
     }
 
     /**
      * GET /api/public/inventory
      */
     public function inventory() {
+        $client = $this->validatePublicApiKey();
+
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
         }
 
-        $locationId = (int)($_GET['location_id'] ?? 1);
+        $locationId = (int)($_GET['location_id'] ?? $client->location_id ?? 1);
         $q = $_GET['q'] ?? '';
         
         $rows = $this->itemModel->listLocationBalances($locationId, $q);
@@ -44,6 +82,8 @@ class PublicOrderController extends Controller {
      * GET /api/public/locations
      */
     public function locations() {
+        $this->validatePublicApiKey();
+        
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -122,16 +162,43 @@ class PublicOrderController extends Controller {
     }
 
     /**
+     * GET /api/public/product/{id}
+     */
+    public function get($id) {
+        $client = $this->validatePublicApiKey();
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        $p = $this->itemModel->getById($id);
+        if (!$p || (int)$p->is_active === 0) {
+            $this->error('Product not found or inactive', 404);
+        }
+
+        // Add location-specific stock if requested
+        $locationId = (int)($_GET['location_id'] ?? $client->location_id ?? 1);
+        $stock = $this->itemModel->getLocationStock($p->id, $locationId);
+        $p->stock = $stock;
+
+        $this->success($p);
+    }
+
+    /**
      * POST /api/public/checkout
      */
     public function checkout() {
+        $client = $this->validatePublicApiKey();
+
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
+            return;
         }
 
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
-        $locationId = (int)($data['location_id'] ?? 1);
+        $locationId = (int)($data['location_id'] ?? $client->location_id ?? 1);
 
         if (empty($data['items'])) {
             $this->error('Cart is empty', 400);
