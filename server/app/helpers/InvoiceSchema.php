@@ -57,6 +57,9 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'shipping_country')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_country VARCHAR(100) NULL AFTER is_international");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'recurring_template_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN recurring_template_id INT NULL AFTER banquet_booking_id");
+                }
             }
         } catch (Exception $e) {}
 
@@ -87,6 +90,7 @@ class InvoiceSchema {
                 notes TEXT NULL,
                 applied_promotion_id INT NULL,
                 applied_promotion_name VARCHAR(255) NULL,
+                recurring_template_id INT NULL,
                 created_by INT NULL,
                 updated_by INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

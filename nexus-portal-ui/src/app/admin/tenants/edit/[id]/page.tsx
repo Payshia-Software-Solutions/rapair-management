@@ -30,7 +30,8 @@ export default function TenantEditPage() {
     status: '',
     license_key: '',
     api_key: '',
-    trial_expiry: ''
+    trial_expiry: '',
+    currency: 'USD'
   });
 
   const API_BASE = 'http://localhost/rapair-management/nexus-portal-server/public/api';
@@ -147,7 +148,7 @@ export default function TenantEditPage() {
                 </div>
              </div>
 
-             <div className="grid md:grid-cols-2 gap-6 pt-6 border-t border-slate-100 dark:border-white/5">
+             <div className="grid md:grid-cols-3 gap-6 pt-6 border-t border-slate-100 dark:border-white/5">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Plan Tier</label>
                   <select 
@@ -169,6 +170,19 @@ export default function TenantEditPage() {
                     <option value="Trial">Trial</option>
                     <option value="Suspended">Suspended</option>
                     <option value="Expired">Expired</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing Currency</label>
+                  <select 
+                    value={formData.currency}
+                    onChange={(e) => setFormData({...formData, currency: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all appearance-none"
+                  >
+                    <option value="USD">USD - US Dollar</option>
+                    <option value="LKR">LKR - Sri Lankan Rupee</option>
+                    <option value="EUR">EUR - Euro</option>
+                    <option value="GBP">GBP - British Pound</option>
                   </select>
                 </div>
              </div>

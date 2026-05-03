@@ -104,8 +104,22 @@ $router->add('api/admin/billing/run-cycle', ['controller' => 'BillingController'
 $router->add('api/admin/billing/list', ['controller' => 'BillingController', 'action' => 'listAll']);
 $router->add('api/admin/billing/download', ['controller' => 'BillingController', 'action' => 'download']);
 $router->add('api/admin/billing/resend', ['controller' => 'BillingController', 'action' => 'resend']);
+$router->add('api/admin/billing/delete', ['controller' => 'BillingController', 'action' => 'deleteInvoice'], 'POST');
+$router->add('api/admin/billing/pay', ['controller' => 'BillingController', 'action' => 'processPayment'], 'POST');
 $router->add('api/admin/billing/update', ['controller' => 'BillingController', 'action' => 'update'], 'POST');
 $router->add('api/client/billing/history', ['controller' => 'BillingController', 'action' => 'getMyHistory']);
+
+// Settings & Exchange Rates
+$router->add('api/admin/settings/exchange-rates', ['controller' => 'SettingsController', 'action' => 'getExchangeRates']);
+$router->add('api/admin/settings/exchange-rates/update', ['controller' => 'SettingsController', 'action' => 'updateExchangeRate'], 'POST');
+$router->add('api/admin/settings/exchange-rates/reset', ['controller' => 'SettingsController', 'action' => 'resetExchangeRate'], 'POST');
+$router->add('api/admin/settings/exchange-rates/source', ['controller' => 'SettingsController', 'action' => 'updateSyncSource'], 'POST');
+$router->add('api/admin/settings/exchange-rates/preview', ['controller' => 'SettingsController', 'action' => 'previewSync'], 'POST');
+$router->add('api/admin/settings/exchange-rates/apply', ['controller' => 'SettingsController', 'action' => 'applySync'], 'POST');
+
+// Company Settings
+$router->add('api/admin/settings/company', ['controller' => 'SettingsController', 'action' => 'getCompanyInfo']);
+$router->add('api/admin/settings/company/update', ['controller' => 'SettingsController', 'action' => 'updateCompanyInfo'], 'POST');
 
 // Match and Dispatch
 $url = $_GET['url'] ?? '';

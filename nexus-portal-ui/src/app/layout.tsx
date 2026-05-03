@@ -9,8 +9,8 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Nexus ERP | Modern Enterprise Operating System",
-  description: "Accelerate your operations with the most advanced ERP workspace for modern businesses. Inventory, POS, HRM, and more.",
+  title: "BizzFlow ERP | Modern Enterprise Operating System",
+  description: "Accelerate your operations with BizzFlow, the most advanced ERP workspace for modern businesses. Powered by Nebulink.",
 };
 
 export default function RootLayout({

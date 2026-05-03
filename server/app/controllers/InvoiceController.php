@@ -341,4 +341,177 @@ class InvoiceController extends Controller {
 
         return $invoiceNo;
     }
+
+    public function convert_to_recurring($id = null) {
+        $u = $this->requirePermission('invoices.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        if (!$id) {
+            $this->error('Invoice ID required', 400);
+            return;
+        }
+
+        $invoice = $this->invoiceModel->getById($id);
+        if (!$invoice) {
+            $this->error('Invoice not found', 404);
+            return;
+        }
+
+        $items = $this->invoiceModel->getItems($id);
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+
+        $recurringModel = $this->model('RecurringInvoice');
+
+        $templateData = [
+            'template_name' => $input['template_name'] ?? 'Template for ' . $invoice->invoice_no,
+            'customer_id' => $invoice->customer_id,
+            'location_id' => $invoice->location_id,
+            'frequency' => $input['frequency'] ?? 'Monthly',
+            'start_date' => $input['start_date'] ?? date('Y-m-d'),
+            'end_date' => $input['end_date'] ?? null,
+            'next_generation_date' => $input['start_date'] ?? date('Y-m-d'),
+            'billing_address' => $invoice->billing_address,
+            'shipping_address' => $invoice->shipping_address,
+            'subtotal' => $invoice->subtotal,
+            'tax_total' => $invoice->tax_total,
+            'discount_total' => $invoice->discount_total,
+            'shipping_fee' => $invoice->shipping_fee ?? 0,
+            'grand_total' => $invoice->grand_total,
+            'notes' => $invoice->notes,
+            'userId' => $u['sub'],
+            'items' => array_map(function($item) {
+                return [
+                    'item_id' => $item->item_id,
+                    'description' => $item->description,
+                    'item_type' => $item->item_type,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'discount' => $item->discount,
+                    'line_total' => $item->line_total
+                ];
+            }, $items)
+        ];
+
+        $templateId = $recurringModel->create($templateData);
+        if ($templateId) {
+            $recurringModel->addItems($templateId, $templateData['items']);
+            $this->success(['id' => $templateId, 'message' => 'Invoice converted to recurring template successfully']);
+        } else {
+            $this->error('Failed to create recurring template');
+        }
+    }
+
+    public function send_email($id = null) {
+        $u = $this->requirePermission('invoices.read');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        if (!$id) {
+            $this->error('Invoice ID required', 400);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $input = json_decode($raw, true);
+        $targetEmail = $input['email'] ?? null;
+
+        $invoice = $this->invoiceModel->getById($id);
+        if (!$invoice) {
+            $this->error('Invoice not found', 404);
+            return;
+        }
+
+        if (!$targetEmail) {
+            $targetEmail = $invoice->customer_email ?? null;
+        }
+
+        if (empty($targetEmail)) {
+            $this->error('No recipient email provided', 400);
+            return;
+        }
+
+        require_once '../app/helpers/EmailHelper.php';
+        require_once '../app/helpers/PdfHelper.php';
+        require_once '../app/models/SystemSetting.php';
+        
+        $settingModel = new SystemSetting();
+        $company = (object)$settingModel->getAll();
+        $company->name = $company->mail_from_name ?? 'BizFlow Solutions'; // Fallback
+
+        // Fetch items and taxes for PDF
+        $invoiceArray = (array)$invoice;
+        $invoiceArray['items'] = $this->invoiceModel->getItems($id);
+        $invoiceArray['applied_taxes'] = $this->invoiceModel->getAppliedTaxes($id);
+        $invoiceObj = (object)$invoiceArray;
+
+        // Generate PDF
+        $pdfPath = PdfHelper::generateInvoice($invoiceObj, $company);
+
+        $subject = "Invoice from " . ($company->name) . ": " . $invoice->invoice_no;
+        
+        $amountFormatted = number_format($invoice->grand_total, 2);
+        $statusColor = $invoice->status === 'Paid' ? '#059669' : '#e11d48';
+        
+        $message = "
+            <h2>Hello " . ($invoice->customer_name ?? 'Valued Customer') . ",</h2>
+            <p>We appreciate your business. Please find your invoice <strong>{$invoice->invoice_no}</strong> attached to this email for your records.</p>
+            
+            <div class='info-card'>
+                <div class='info-row'>
+                    <span class='label'>Invoice Number</span>
+                    <span class='value'>{$invoice->invoice_no}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='label'>Issue Date</span>
+                    <span class='value'>" . date('d M Y', strtotime($invoice->issue_date)) . "</span>
+                </div>
+                <div class='info-row'>
+                    <span class='label'>Amount Due</span>
+                    <span class='value'>LKR {$amountFormatted}</span>
+                </div>
+                <div class='info-row'>
+                    <span class='label'>Payment Status</span>
+                    <span class='value' style='color: {$statusColor};'>{$invoice->status}</span>
+                </div>
+            </div>
+
+            <p>If you have any questions regarding this invoice, please feel free to contact our support team.</p>
+            
+            <div style='text-align: center;'>
+                <a href='" . (defined('URLROOT') ? URLROOT : '#') . "' class='btn'>Log in to Portal</a>
+            </div>
+
+            <p style='margin-top: 32px;'>Thank you for choosing <strong>" . ($company->name) . "</strong>.</p>
+        ";
+
+        $result = EmailHelper::send($targetEmail, $subject, $message, [$pdfPath]);
+        
+        // Clean up temp file
+        if (file_exists($pdfPath)) {
+            @unlink($pdfPath);
+        }
+
+        if ($result['status'] === 'success') {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'action' => 'email_resend',
+                'entity' => 'invoice',
+                'entity_id' => (int)$id,
+                'method' => 'POST',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['to' => $targetEmail]),
+            ]);
+            $this->success(null, 'Email sent successfully to ' . $targetEmail);
+        } else {
+            $this->error($result['message']);
+        }
+    }
 }

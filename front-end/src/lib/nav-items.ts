@@ -109,6 +109,7 @@ export const marketingItems: NavItem[] = [
 export const salesItems: NavItem[] = [
   { icon: FileText, label: "Quotations", href: "/sales/quotations", perm: "sales.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
+  { icon: History, label: "Recurring Invoices", href: "/cms/invoices/recurring", perm: "invoices.read" },
   { icon: ShoppingCart, label: "Online Orders", href: "/sales/online-orders", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },

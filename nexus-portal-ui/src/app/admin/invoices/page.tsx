@@ -16,7 +16,8 @@ import {
   Send,
   X,
   DollarSign,
-  FileText
+  FileText,
+  Trash2
 } from 'lucide-react';
 
 export default function GlobalInvoicesPage() {
@@ -28,6 +29,18 @@ export default function GlobalInvoicesPage() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isResending, setIsResending] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  
+  // Billing Cycle Progress State
+  const [billingModal, setBillingModal] = useState({
+    isOpen: false,
+    step: 'idle', // idle, fetching, processing, completed
+    total: 0,
+    processed: 0,
+    currentTenant: '',
+    selectedMonth: new Date().toLocaleString('default', { month: 'long' }),
+    selectedYear: new Date().getFullYear().toString(),
+    results: { created: 0, skipped: 0, details: [] as any[] }
+  });
 
   const API_BASE = 'http://localhost/rapair-management/nexus-portal-server/public/api';
 
@@ -136,6 +149,73 @@ export default function GlobalInvoicesPage() {
     }
   };
 
+  const handleDelete = async (id: number) => {
+    if (!confirm('Are you sure you want to delete this invoice? This action cannot be undone.')) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/billing/delete?id=${id}`, { 
+        method: 'POST',
+        credentials: 'include' 
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      alert('Failed to delete invoice');
+    }
+  };
+
+  const handleRunBilling = async () => {
+    const period = `${billingModal.selectedMonth} ${billingModal.selectedYear}`;
+    setBillingModal(prev => ({ ...prev, step: 'fetching', processed: 0, total: 0 }));
+    
+    try {
+      // 1. Fetch all active tenants
+      const tenantsRes = await fetch(`${API_BASE}/admin/tenants`, { credentials: 'include' });
+      const tenantsData = await tenantsRes.json();
+      const activeTenants = tenantsData.data || [];
+      
+      setBillingModal(prev => ({ ...prev, step: 'processing', total: activeTenants.length }));
+      
+      let created = 0;
+      let skipped = 0;
+      const details = [];
+      
+      // 2. Process one by one
+      for (let i = 0; i < activeTenants.length; i++) {
+        const tenant = activeTenants[i];
+        setBillingModal(prev => ({ ...prev, currentTenant: tenant.name, processed: i + 1 }));
+        
+        try {
+          const res = await fetch(`${API_BASE}/admin/billing/run-cycle?tenant_id=${tenant.id}&period=${encodeURIComponent(period)}`, { 
+            method: 'POST',
+            credentials: 'include' 
+          });
+          const data = await res.json();
+          if (data.processed > 0) {
+            created++;
+            details.push({ name: tenant.name, status: 'Generated', amount: tenant.monthly_price });
+          } else {
+            skipped++;
+            details.push({ name: tenant.name, status: 'Skipped', reason: 'Already exists' });
+          }
+        } catch (e) {
+          skipped++;
+          details.push({ name: tenant.name, status: 'Error', reason: 'Connection failed' });
+        }
+      }
+      
+      setBillingModal(prev => ({ 
+        ...prev, 
+        step: 'completed', 
+        results: { created, skipped, details } 
+      }));
+      fetchData();
+    } catch (err) {
+      alert('Failed to start billing cycle');
+      setBillingModal(prev => ({ ...prev, isOpen: false, step: 'idle' }));
+    }
+  };
+
   const filtered = invoices.filter(i => 
     i.tenant_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     i.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -149,6 +229,14 @@ export default function GlobalInvoicesPage() {
           <p className="text-slate-500 dark:text-slate-400 font-medium">Global oversight of enterprise billing cycles and financial status.</p>
         </div>
         <div className="flex items-center gap-3">
+          <button 
+            onClick={() => setBillingModal(prev => ({ ...prev, isOpen: true, step: 'idle' }))}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white text-xs font-black tracking-widest rounded-xl hover:bg-indigo-500 transition-all shadow-lg shadow-indigo-600/20 disabled:opacity-50"
+          >
+            <CreditCard size={18} />
+            Run Billing Cycle
+          </button>
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
             <input 
@@ -156,7 +244,7 @@ export default function GlobalInvoicesPage() {
               placeholder="Search invoices or companies..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm w-80 focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
+              className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-3 text-sm w-64 lg:w-80 focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
             />
           </div>
           <button onClick={fetchData} className="p-3 glass glass-hover text-slate-400 rounded-xl transition-all">
@@ -281,6 +369,13 @@ export default function GlobalInvoicesPage() {
                         Revert to Pending
                       </button>
                     )}
+                    <button 
+                      onClick={() => handleDelete(inv.id)}
+                      className="p-2 hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
+                      title="Delete Invoice"
+                    >
+                      <Trash2 size={16} />
+                    </button>
                     <button className="p-2 hover:bg-slate-200 dark:hover:bg-white/5 text-slate-400 rounded-lg transition-all">
                       <MoreVertical size={16} />
                     </button>
@@ -423,6 +518,148 @@ export default function GlobalInvoicesPage() {
                   {isPaying ? 'Processing...' : 'Confirm Now'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Billing Cycle Progress Modal */}
+      {billingModal.isOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-200 dark:border-white/10 animate-in zoom-in-95 duration-300">
+            <div className="p-10">
+              <div className="flex items-center justify-between mb-8">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                  <CreditCard size={28} />
+                </div>
+                {billingModal.step === 'completed' && (
+                  <button 
+                    onClick={() => setBillingModal(prev => ({ ...prev, isOpen: false }))}
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 transition-all"
+                  >
+                    <X size={24} />
+                  </button>
+                )}
+              </div>
+
+              <h3 className="text-3xl font-black text-slate-900 dark:text-white mb-2 leading-tight">
+                {billingModal.step === 'idle' && 'Billing Period'}
+                {billingModal.step === 'fetching' && 'Initializing Cycle...'}
+                {billingModal.step === 'processing' && 'Processing Billing'}
+                {billingModal.step === 'completed' && 'Cycle Completed'}
+              </h3>
+              <p className="text-slate-500 dark:text-slate-400 font-medium mb-8">
+                {billingModal.step === 'idle' && 'Select the target month and year for this billing cycle.'}
+                {billingModal.step === 'fetching' && 'Accessing BizzFlow Master API to scope enterprise tenants.'}
+                {billingModal.step === 'processing' && `Generating and dispatching invoices for ${billingModal.total} active accounts.`}
+                {billingModal.step === 'completed' && 'The monthly billing cycle has been executed successfully.'}
+              </p>
+
+              {billingModal.step === 'idle' && (
+                <div className="space-y-6 mb-8">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Billing Month</label>
+                            <select 
+                                value={billingModal.selectedMonth}
+                                onChange={(e) => setBillingModal(prev => ({ ...prev, selectedMonth: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
+                            >
+                                {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                                    <option key={m} value={m}>{m}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Billing Year</label>
+                            <select 
+                                value={billingModal.selectedYear}
+                                onChange={(e) => setBillingModal(prev => ({ ...prev, selectedYear: e.target.value }))}
+                                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-2xl px-4 py-3 text-sm font-bold focus:border-indigo-500 outline-none transition-all text-slate-900 dark:text-white"
+                            >
+                                {[2024, 2025, 2026, 2027, 2028].map(y => (
+                                    <option key={y} value={y.toString()}>{y}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={handleRunBilling}
+                        className="w-full py-5 bg-indigo-600 text-white text-sm font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-500 transition-all shadow-2xl shadow-indigo-600/30"
+                    >
+                        Start Billing Cycle
+                    </button>
+                </div>
+              )}
+
+              {(billingModal.step === 'processing' || billingModal.step === 'completed') && (
+                <div className="space-y-6 mb-8">
+                  <div className="flex items-center justify-between text-[11px] font-black tracking-widest text-slate-400 uppercase">
+                    <span>Progress Status</span>
+                    <span>{Math.round((billingModal.processed / billingModal.total) * 100)}%</span>
+                  </div>
+                  <div className="h-4 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden border border-slate-200 dark:border-white/5">
+                    <div 
+                      className="h-full bg-indigo-600 transition-all duration-500 ease-out"
+                      style={{ width: `${(billingModal.processed / billingModal.total) * 100}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5">
+                    {billingModal.step === 'processing' ? (
+                        <RefreshCcw size={16} className="animate-spin text-indigo-500" />
+                    ) : (
+                        <CheckCircle size={16} className="text-emerald-500" />
+                    )}
+                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                      {billingModal.step === 'processing' 
+                        ? `Processing: ${billingModal.currentTenant}` 
+                        : 'All tenants processed'}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {billingModal.step === 'completed' && (
+                <div className="space-y-4 mb-8">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl">
+                            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Generated</div>
+                            <div className="text-2xl font-black text-emerald-600">{billingModal.results.created}</div>
+                        </div>
+                        <div className="p-4 bg-slate-500/5 border border-slate-500/10 rounded-2xl">
+                            <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Skipped</div>
+                            <div className="text-2xl font-black text-slate-500">{billingModal.results.skipped}</div>
+                        </div>
+                    </div>
+                    
+                    <div className="max-h-48 overflow-y-auto pr-2 space-y-2 custom-scrollbar">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Detailed Report</div>
+                        {billingModal.results.details.map((d, i) => (
+                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-xl">
+                                <div>
+                                    <div className="text-xs font-bold text-slate-900 dark:text-white">{d.name}</div>
+                                    <div className="text-[9px] text-slate-500 font-medium">{d.reason || `Amount: $${d.amount}`}</div>
+                                </div>
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md ${
+                                    d.status === 'Generated' ? 'bg-emerald-500/10 text-emerald-600' : 
+                                    d.status === 'Skipped' ? 'bg-amber-500/10 text-amber-600' : 
+                                    'bg-rose-500/10 text-rose-600'
+                                }`}>
+                                    {d.status}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+              )}
+
+              {billingModal.step === 'completed' && (
+                <button 
+                  onClick={() => setBillingModal(prev => ({ ...prev, isOpen: false }))}
+                  className="w-full py-5 bg-indigo-600 text-white text-sm font-black uppercase tracking-widest rounded-2xl hover:bg-indigo-500 transition-all shadow-2xl shadow-indigo-600/30"
+                >
+                  Dismiss Report
+                </button>
+              )}
             </div>
           </div>
         </div>

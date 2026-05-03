@@ -124,4 +124,9 @@ class SaaSInvoiceModel {
         }
         return false;
     }
+    public function delete($id) {
+        $this->db->query("DELETE FROM saas_invoices WHERE id = :id");
+        $this->db->bind(':id', $id);
+        return $this->db->execute();
+    }
 }

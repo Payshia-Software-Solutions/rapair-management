@@ -9,7 +9,9 @@ import {
   CreditCard,
   LogOut,
   Sun,
-  Moon
+  Moon,
+  Globe,
+  Building2
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 
@@ -36,6 +38,8 @@ export default function AdminSidebar({ activeTab, currentUser, role, theme, onTo
     { id: 'packages', label: 'License Packages', icon: CreditCard, roles: ['super_admin'] },
     { id: 'subscription', label: 'Subscription & Billing', icon: CreditCard, roles: ['super_admin', 'client'] },
     { id: 'invoices', label: 'Payments & Invoices', icon: CreditCard, roles: ['super_admin'] },
+    { id: 'settings/rates', label: 'Exchange Rates', icon: Globe, roles: ['super_admin'] },
+    { id: 'settings/company', label: 'Company Branding', icon: Building2, roles: ['super_admin'] },
     { id: 'users', label: 'Client Accounts', icon: UserCheck, roles: ['super_admin'] },
   ];
 
@@ -44,10 +48,14 @@ export default function AdminSidebar({ activeTab, currentUser, role, theme, onTo
   return (
     <aside className="w-72 bg-white dark:bg-slate-950 border-r border-slate-200 dark:border-white/5 flex flex-col h-screen sticky top-0 z-50 transition-colors duration-300">
       <div className="p-8 flex items-center gap-3">
-        <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-          <Zap className="text-white fill-white" size={18} />
+        <div className="w-8 h-8 shrink-0 relative">
+          <img 
+            src="/icon-bizzflow-logo-optimized.webp" 
+            alt="BizzFlow" 
+            className="w-full h-full object-contain"
+          />
         </div>
-        <span className="text-xl font-black tracking-tighter text-indigo-600 dark:text-white">NEXUS PORTAL</span>
+        <span className="text-xl font-black tracking-tighter text-indigo-600 dark:text-white">BIZZFLOW ERP</span>
       </div>
 
       <nav className="flex-1 px-4 py-4 space-y-2">

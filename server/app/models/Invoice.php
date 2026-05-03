@@ -180,7 +180,7 @@ class Invoice extends Model {
 
     public function getById($id) {
         $this->db->query("
-            SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, 
+            SELECT i.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, c.email as customer_email,
                    c.tax_number as customer_tax_no, ro.customer_name as order_ref_name,
                    sl.name as location_name, sl.address as location_address, sl.phone as location_phone,
                    sl.tax_no as location_tax_no, sl.tax_label as location_tax_label,

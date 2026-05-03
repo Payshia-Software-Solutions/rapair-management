@@ -23,7 +23,8 @@ export default function TenantCreatePage() {
     package_id: '1',
     admin_email: '',
     business_type: '',
-    address: ''
+    address: '',
+    currency: 'USD'
   });
 
   const API_BASE = 'http://localhost/rapair-management/nexus-portal-server/public/api';
@@ -133,6 +134,19 @@ export default function TenantCreatePage() {
                     {packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing Currency</label>
+                <select 
+                  value={formData.currency}
+                  onChange={(e) => setFormData({...formData, currency: e.target.value})}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all appearance-none"
+                >
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="LKR">LKR - Sri Lankan Rupee</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                </select>
               </div>
            </div>
         </div>

@@ -87,16 +87,16 @@ require_once '../app/helpers/BanquetSchema.php';
 require_once '../app/helpers/ShippingSchema.php';
 require_once '../app/helpers/CRMSchema.php';
 
-// Ensure schema is up to date on every request
-InventorySchema::ensure();
-PromotionSchema::ensure();
-ApiClientsSchema::ensure();
-HotelSchema::ensure();
-SystemSchema::ensure();
-QuotationSchema::ensure();
-AccountingSchema::ensure();
-BanquetSchema::ensure();
-ShippingSchema::ensure();
-CRMSchema::ensure();
+// Ensure schema is up to date (Disabled for performance - enable only for updates)
+// InventorySchema::ensure();
+// PromotionSchema::ensure();
+// ApiClientsSchema::ensure();
+// HotelSchema::ensure();
+// SystemSchema::ensure();
+// QuotationSchema::ensure();
+// AccountingSchema::ensure();
+// BanquetSchema::ensure();
+// ShippingSchema::ensure();
+// CRMSchema::ensure();
 
 $init = new App();

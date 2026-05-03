@@ -1233,7 +1233,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </Link>
             </div>
           </header>
-          <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
+          <main className="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
             <div
               className={cn(
                 fullWidth ? "w-full" : "max-w-7xl mx-auto",
@@ -1245,14 +1245,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </div>
 
               <div className="pt-6 border-t text-[11px] text-muted-foreground flex flex-row flex-wrap items-center justify-between gap-2">
-                <span>Powered by Payshia Software Solutions Pvt Ltd</span>
+                <span>Powered by Nebulink</span>
                 <a
                   className="text-foreground/80 hover:text-foreground underline underline-offset-2"
-                  href="https://www.payshia.com"
+                  href="https://www.nebulink.com"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  www.payshia.com
+                  www.nebulink.com
                 </a>
               </div>
             </div>

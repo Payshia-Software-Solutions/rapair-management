@@ -20,8 +20,8 @@ import {
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const [email, setEmail] = useState('admin@local');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const decodeJwtPayload = (token: string): any | null => {
@@ -90,18 +90,15 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
       <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center text-center space-y-4">
-          <div className="w-20 h-20 relative">
+        <div className="flex flex-col items-center text-center space-y-2">
+          <div className="w-64 h-24 relative">
             <img 
-              src="/icon-bizzflow-logo-optimized.webp" 
-              alt="BizzFlow Icon" 
+              src="/bizzflow-logo.png" 
+              alt="BizzFlow Logo" 
               className="w-full h-full object-contain"
             />
           </div>
-          <div>
-            <h1 className="text-4xl font-black tracking-tighter text-foreground italic">BizzFlow</h1>
-            <p className="text-muted-foreground text-sm font-medium">Unified Business Intelligence & ERP</p>
-          </div>
+          <p className="text-muted-foreground text-sm font-medium">Unified Business Intelligence & ERP</p>
         </div>
 
         <Card className="border-none shadow-xl rounded-2xl overflow-hidden">

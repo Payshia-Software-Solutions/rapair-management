@@ -31,15 +31,22 @@ class SaaSController extends Controller {
     public function getLicenseDetails() {
         $key = $_GET['key'] ?? '';
         if (empty($key)) {
-            return $this->json(['status' => 'error', 'message' => 'License key required'], 400);
+            return $this->json(['status' => 'error', 'message' => 'License key or API key required'], 400);
         }
 
         $model = new TenantModel();
+        // Try as API key first (NX-...)
         $details = $model->getByApiKey($key);
+        
+        // If not found, try as License Key (RM-...)
+        if (!$details) {
+            $details = $model->getByLicenseKey($key);
+        }
 
         if ($details) {
-            $details->modules = json_decode($details->modules);
-            // Hide sensitive DB internal IDs if necessary, but user asked for "full details"
+            if (isset($details->modules) && is_string($details->modules)) {
+                $details->modules = json_decode($details->modules);
+            }
             return $this->json(['status' => 'success', 'data' => $details]);
         } else {
             return $this->json(['status' => 'error', 'message' => 'Invalid or inactive license key'], 404);

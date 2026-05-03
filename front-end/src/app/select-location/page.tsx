@@ -109,15 +109,14 @@ export default function SelectLocationPage() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-lg border-none shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="text-center pb-4">
-          <div className="w-16 h-16 mx-auto mb-3">
+        <CardHeader className="text-center pb-4 space-y-2">
+          <div className="w-64 h-24 mx-auto">
             <img 
-              src="/icon-bizzflow-logo-optimized.webp" 
-              alt="BizzFlow Icon" 
+              src="/bizzflow-logo.png" 
+              alt="BizzFlow Logo" 
               className="w-full h-full object-contain"
             />
           </div>
-          <CardTitle className="text-2xl">Choose Location</CardTitle>
           <CardDescription>Select the location you want to work in</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

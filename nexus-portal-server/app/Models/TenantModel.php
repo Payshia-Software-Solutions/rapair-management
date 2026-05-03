@@ -26,12 +26,43 @@ class TenantModel {
         return $this->db->single();
     }
 
+    public function getByLicenseKey($license) {
+        $this->db->query("
+            SELECT 
+                t.id,
+                t.name as tenant_name, 
+                t.status, 
+                t.license_key,
+                t.trial_expiry as renewal_date, 
+                p.name as package_name, 
+                p.package_key, 
+                p.modules, 
+                p.monthly_price,
+                p.max_users,
+                p.max_locations
+            FROM saas_tenants t
+            JOIN saas_packages p ON t.package_id = p.id
+            WHERE t.license_key = :license AND t.status IN ('Active', 'Trial')
+        ");
+        $this->db->bind(':license', $license);
+        $tenant = $this->db->single();
+
+        if ($tenant) {
+            $this->db->query("SELECT invoice_number, amount, status, due_date FROM saas_invoices WHERE tenant_id = :tid ORDER BY created_at DESC LIMIT 5");
+            $this->db->bind(':tid', $tenant->id);
+            $tenant->invoices = $this->db->resultSet();
+        }
+
+        return $tenant;
+    }
+
     public function getByApiKey($key) {
         $this->db->query("
             SELECT 
                 t.id,
                 t.name as tenant_name, 
                 t.status, 
+                t.license_key,
                 t.trial_expiry as renewal_date, 
                 p.name as package_name, 
                 p.package_key, 
@@ -66,14 +97,15 @@ class TenantModel {
         $apiKey = "NX-" . bin2hex(random_bytes(24)); // Also make API key longer
         $expiry = date('Y-m-d', strtotime('+14 days'));
 
-        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, slug, package_id, db_name, api_url, status, trial_expiry, license_key, api_key) 
-                         VALUES (:name, :address, :type, :email, :slug, :pid, :db, :url, 'Trial', :expiry, :license, :apikey)");
+        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, slug, package_id, currency, db_name, api_url, status, trial_expiry, license_key, api_key) 
+                         VALUES (:name, :address, :type, :email, :slug, :pid, :curr, :db, :url, 'Trial', :expiry, :license, :apikey)");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':address', $data['address'] ?? '');
         $this->db->bind(':type', $data['business_type'] ?? '');
         $this->db->bind(':email', $data['admin_email'] ?? '');
         $this->db->bind(':slug', $data['slug']);
         $this->db->bind(':pid', $data['package_id'] ?? 1);
+        $this->db->bind(':curr', $data['currency'] ?? 'USD');
         $this->db->bind(':db', $data['db_name'] ?? 'repair_management_db');
         $this->db->bind(':url', $data['api_url'] ?? 'http://localhost/rapair-management/server');
         $this->db->bind(':expiry', $expiry);
@@ -91,10 +123,11 @@ class TenantModel {
     }
 
     public function update($data) {
-        $this->db->query("UPDATE saas_tenants SET name = :name, slug = :slug, package_id = :pid, status = :status, license_key = :license, api_key = :apikey, trial_expiry = :expiry WHERE id = :id");
+        $this->db->query("UPDATE saas_tenants SET name = :name, slug = :slug, package_id = :pid, currency = :curr, status = :status, license_key = :license, api_key = :apikey, trial_expiry = :expiry WHERE id = :id");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':slug', $data['slug']);
         $this->db->bind(':pid', $data['package_id']);
+        $this->db->bind(':curr', $data['currency']);
         $this->db->bind(':status', $data['status']);
         $this->db->bind(':license', $data['license_key']);
         $this->db->bind(':apikey', $data['api_key']);
