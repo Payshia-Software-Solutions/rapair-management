@@ -15,13 +15,17 @@ import {
   CreditCard,
   Download,
   AlertCircle,
-  RefreshCw
+  RefreshCw,
+  Users,
+  MapPin
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from '@/lib/api';
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
 
 export default function SubscriptionPage() {
   const router = useRouter();
@@ -29,6 +33,9 @@ export default function SubscriptionPage() {
   const [syncing, setSyncing] = useState(false);
   const [saasData, setSaasData] = useState<any>(null);
   const [availablePlans, setAvailablePlans] = useState<any[]>([]);
+  const [newLicenseKey, setNewLicenseKey] = useState('');
+  const [updating, setUpdating] = useState(false);
+  const { toast } = useToast();
 
   const allPossibleModules = React.useMemo(() => {
     const modulesMap = new Map<string, string>();
@@ -102,6 +109,29 @@ export default function SubscriptionPage() {
     }
   };
 
+  const handleUpdateLicense = async () => {
+    if (!newLicenseKey.trim()) return;
+    setUpdating(true);
+    try {
+      const res = await api('/api/saas/update-license', {
+        method: 'POST',
+        body: JSON.stringify({ license_key: newLicenseKey })
+      });
+      const data = await res.json();
+      if (data.status === 'success') {
+        toast({ title: "Success", description: "License key updated. Syncing now..." });
+        setNewLicenseKey('');
+        await handleSync();
+      } else {
+        toast({ title: "Error", description: data.message || "Failed to update license key", variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Error", description: "Request failed", variant: "destructive" });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   useEffect(() => {
     loadSaas();
     loadPackages();
@@ -133,7 +163,7 @@ export default function SubscriptionPage() {
 
   return (
     <DashboardLayout title="Subscription & Billing">
-      <div className="p-4 md:p-6 w-full space-y-4 md:space-y-6">
+      <div className="w-full space-y-4 md:space-y-6">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -144,28 +174,28 @@ export default function SubscriptionPage() {
             >
                 <ArrowLeft size={20} />
             </button>
-            <h1 className="text-xl md:text-3xl font-black tracking-tighter uppercase italic truncate">Subscription & Billing</h1>
+            <h1 className="text-xl md:text-3xl font-black tracking-tighter truncate">Subscription & Billing</h1>
           </div>
           <p className="text-xs md:text-base text-muted-foreground font-medium pl-10 md:pl-12">Manage license, entitlements & history.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 pl-2 lg:pl-0">
-           {saasData?.api_connected === false ? (
-              <Badge variant="outline" className="px-2 py-1 bg-red-500/10 text-red-500 border-red-500/20 font-black uppercase tracking-widest text-[10px] animate-pulse">
+            {saasData?.api_connected === false ? (
+              <Badge variant="outline" className="px-2 py-1 bg-red-500/10 text-red-500 border-red-500/20 font-black tracking-widest text-[10px] animate-pulse">
                  Sync: Error
               </Badge>
            ) : (
-              <Badge variant="outline" className="px-2 py-1 bg-emerald-500/5 text-emerald-500 border-emerald-500/20 font-black uppercase tracking-widest text-[10px]">
+              <Badge variant="outline" className="px-2 py-1 bg-emerald-500/5 text-emerald-500 border-emerald-500/20 font-black tracking-widest text-[10px]">
                  Sync: Stable
               </Badge>
            )}
-           <Badge variant="outline" className="px-2 py-1 bg-blue-500/5 text-blue-400 border-blue-500/20 font-black uppercase tracking-widest text-[10px]">
+           <Badge variant="outline" className="px-2 py-1 bg-blue-500/5 text-blue-400 border-blue-500/20 font-black tracking-widest text-[10px]">
               #01-SG
            </Badge>
            <Button 
                 variant="outline" 
                 onClick={handleSync}
                 disabled={syncing}
-                className="h-9 px-4 rounded-xl border-border dark:border-white/5 bg-background dark:bg-white/5 hover:bg-accent/10 text-[10px] font-black uppercase tracking-widest gap-2 ml-auto lg:ml-0"
+                className="h-9 px-4 rounded-xl border-border dark:border-white/5 bg-background dark:bg-white/5 hover:bg-accent/10 text-[10px] font-black tracking-widest gap-2 ml-auto lg:ml-0"
             >
                 <RefreshCw className={syncing ? "animate-spin w-4 h-4" : "w-4 h-4"} />
                 {syncing ? 'Syncing' : 'Sync Now'}
@@ -181,7 +211,7 @@ export default function SubscriptionPage() {
          >
             <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
             <div className="space-y-1">
-               <p className="text-sm font-black text-red-500 uppercase tracking-tight">Master API Connection Failed</p>
+               <p className="text-sm font-black text-red-500 tracking-tight">Master API Connection Failed</p>
                <p className="text-xs text-red-400 font-medium">
                   We could not reach the Nexus Licensing Server. The system is currently running on cached credentials (Restricted Mode). Some feature updates may be delayed until connectivity is restored.
                </p>
@@ -189,247 +219,206 @@ export default function SubscriptionPage() {
          </motion.div>
       )}
 
-      <div className="grid lg:grid-cols-3 gap-3 md:gap-8">
-        {/* Left Column: Plan Summary */}
-        <div className="lg:col-span-1 space-y-3 md:space-y-6">
+      <div className="grid lg:grid-cols-12 gap-6">
+        {/* Left Column: Active Subscription & Plan Info */}
+        <div className="lg:col-span-4 space-y-6">
             <motion.div 
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-card dark:bg-card/40 border border-border dark:border-white/5 rounded-2xl md:rounded-3xl shadow-sm p-4 sm:p-6 md:p-8 relative overflow-hidden"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="relative overflow-hidden bg-gradient-to-br from-indigo-600 via-blue-700 to-slate-900 text-white rounded-[2rem] shadow-xl shadow-blue-500/10 p-6 md:p-8"
             >
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600" />
-                <div className="flex items-center gap-4 mb-4 md:mb-6">
-                    <div className="p-3 bg-blue-600 rounded-xl md:rounded-2xl shadow-lg shadow-blue-600/20">
-                        <ShieldCheck className="text-white" size={24} />
+                {/* Decorative background element */}
+                <div className="absolute -top-12 -right-12 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+                <div className="absolute -bottom-12 -left-12 w-48 h-48 bg-blue-400/20 rounded-full blur-3xl" />
+                
+                <div className="relative z-10 space-y-6">
+                    <div className="flex items-center justify-between">
+                        <div className="p-3 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
+                            <ShieldCheck size={28} className="text-blue-200" />
+                        </div>
+                        <Badge className="bg-emerald-400/20 text-emerald-300 border-emerald-400/30 font-black text-[10px] tracking-widest px-3 py-1">
+                            {saasData?.status}
+                        </Badge>
                     </div>
+
                     <div>
-                        <div className="text-[10px] md:text-xs font-black text-muted-foreground uppercase tracking-widest">Active Plan</div>
-                        <div className="text-xl md:text-3xl font-black uppercase italic tracking-tighter text-foreground">{saasData?.name}</div>
+                        <p className="text-[10px] font-black tracking-[0.2em] text-blue-200/70 mb-1">Active Subscription</p>
+                        <h2 className="text-3xl md:text-4xl font-black tracking-tighter leading-none mb-1">
+                            {saasData?.package_name || saasData?.name}
+                        </h2>
+                        {saasData?.tenant_name && (
+                            <p className="text-xs font-bold text-blue-100/60 tracking-widest">{saasData.tenant_name}</p>
+                        )}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
+                        <div className="space-y-1">
+                            <p className="text-[9px] font-black text-blue-200/50 tracking-widest flex items-center gap-1.5">
+                                <Users size={10} /> Max Users
+                            </p>
+                            <p className="text-xl font-black">{saasData?.max_users || 'Unlimited'}</p>
+                        </div>
+                        <div className="space-y-1">
+                            <p className="text-[9px] font-black text-blue-200/50 tracking-widest flex items-center gap-1.5">
+                                <MapPin size={10} /> Sites
+                            </p>
+                            <p className="text-xl font-black">{saasData?.max_locations || '1'}</p>
+                        </div>
+                    </div>
+
+                    <div className="pt-4 space-y-3">
+                         <div className="flex items-center justify-between text-xs font-medium">
+                            <span className="text-blue-200/70">Price</span>
+                            <span className="font-black text-lg">${saasData?.monthly_price || saasData?.price || '0.00'}<span className="text-[10px] opacity-60 ml-0.5">/mo</span></span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-medium">
+                            <span className="text-blue-200/70">Renewal</span>
+                            <span className="font-black">{formatDate(saasData?.renewal_date)}</span>
+                        </div>
+                    </div>
+                </div>
+            </motion.div>
+
+            {/* License Key & Update */}
+            <div className="bg-card dark:bg-slate-900/40 border border-border dark:border-white/5 rounded-[2rem] p-6 space-y-6">
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black tracking-widest text-muted-foreground">Current Identity</span>
+                        <Badge variant="outline" className="text-[9px] font-black border-primary/20 text-primary">STABLE</Badge>
+                    </div>
+                    <div className="p-3 bg-muted/50 dark:bg-black/20 rounded-xl font-mono text-[9px] md:text-xs text-primary break-all border border-border dark:border-white/5 select-all">
+                        {saasData?.license_key || 'No key active'}
                     </div>
                 </div>
 
                 <div className="space-y-3">
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-muted/30 dark:bg-muted/20 rounded-xl border border-border dark:border-white/5">
-                        <div className="flex items-center gap-3">
-                            <Calendar className="text-blue-600 dark:text-blue-400 shrink-0" size={18} />
-                            <span className="text-sm md:text-base font-bold">Renewal</span>
-                        </div>
-                        <span className="text-sm md:text-base font-black text-foreground text-right">{formatDate(saasData?.renewal_date)}</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-muted/30 dark:bg-muted/20 rounded-xl border border-border dark:border-white/5">
-                        <div className="flex items-center gap-3">
-                            <CreditCard className="text-emerald-600 dark:text-emerald-400 shrink-0" size={18} />
-                            <span className="text-sm md:text-base font-bold">Price</span>
-                        </div>
-                        <span className="text-sm md:text-base font-black text-foreground">${saasData?.monthly_price || saasData?.price || '0.00'}/mo</span>
-                    </div>
-                    <div className="flex items-center justify-between p-3 md:p-4 bg-muted/30 dark:bg-muted/20 rounded-xl border border-border dark:border-white/5">
-                        <div className="flex items-center gap-3">
-                            <Activity className="text-amber-600 dark:text-amber-400 shrink-0" size={18} />
-                            <span className="text-sm md:text-base font-bold">Status</span>
-                        </div>
-                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-500 border-none uppercase text-[10px] md:text-xs font-black">{saasData?.status}</Badge>
+                    <div className="text-[10px] font-black tracking-widest text-muted-foreground">Activation Key</div>
+                    <div className="relative">
+                        <Input 
+                            placeholder="NX- Activation Key" 
+                            value={newLicenseKey}
+                            onChange={(e) => setNewLicenseKey(e.target.value)}
+                            className="h-11 pl-4 pr-24 text-xs font-mono bg-muted/30 border-border dark:border-white/10 rounded-xl focus:ring-primary/20"
+                        />
+                        <Button 
+                            onClick={handleUpdateLicense}
+                            disabled={updating || !newLicenseKey.trim()}
+                            className="absolute right-1 top-1 h-9 px-4 rounded-lg bg-primary hover:bg-primary/90 text-white font-black tracking-widest transition-all active:scale-95"
+                        >
+                            {updating ? <RefreshCw className="animate-spin w-3 h-3" /> : 'Update'}
+                        </Button>
                     </div>
                 </div>
+            </div>
 
-                 <div className="mt-4 pt-4 md:mt-8 md:pt-8 border-t border-border dark:border-white/5">
-                    <div className="text-[9px] md:text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1.5">License Key</div>
-                    <div className="p-2.5 md:p-4 bg-muted/50 dark:bg-slate-900 rounded-lg md:rounded-xl font-mono text-[10px] md:text-xs text-primary break-all border border-border dark:border-white/5">
-                        {saasData?.license_key}
-                    </div>
+            {/* Upgrade CTA */}
+            <div className="p-6 bg-amber-500/5 border border-amber-500/10 rounded-[2rem] flex flex-col gap-3">
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+                    <Zap size={16} fill="currentColor" />
+                    <span className="text-xs font-black tracking-widest">Enterprise Support</span>
                 </div>
-            </motion.div>
-
-            {availablePlans.length > 0 && (
-                <div className="space-y-4">
-                     <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground pl-1">Available Upgrade Plans</h3>
-                     <div className="space-y-3">
-                        {availablePlans.filter(p => p.name !== saasData?.name).map((plan, idx) => (
-                             <motion.div 
-                                key={idx}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                transition={{ delay: 0.1 * idx }}
-                                className="bg-card dark:bg-card/40 border border-border dark:border-white/5 p-4 rounded-2xl shadow-sm group hover:border-primary/50 transition-all cursor-pointer"
-                             >
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="font-black italic uppercase text-xl group-hover:text-primary transition-colors tracking-tighter">{plan.name}</div>
-                                    <div className="text-xl font-black text-foreground">
-                                        ${plan.monthly_price || plan.price || '0'}
-                                        <span className="text-[10px] text-muted-foreground ml-0.5">/mo</span>
-                                    </div>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                    {(() => {
-                                        let mods: string[] = [];
-                                        try {
-                                            if (Array.isArray(plan.modules)) {
-                                                mods = plan.modules;
-                                            } else if (typeof plan.modules === 'string') {
-                                                // Handle potential JSON string or comma-separated
-                                                if (plan.modules.startsWith('[')) {
-                                                    mods = JSON.parse(plan.modules);
-                                                } else {
-                                                    mods = plan.modules.split(',');
-                                                }
-                                            }
-                                        } catch (e) {
-                                            mods = [];
-                                        }
-
-                                        return mods.map((m: string, i: number) => {
-                                            const label = m.replace(/[\[\]"']/g, '').trim();
-                                            if (!label || label === '*') return null;
-                                            return (
-                                                <Badge key={i} variant="outline" className="text-[10px] uppercase border-primary/20 bg-primary/5 text-primary py-0.5 h-6 px-2 font-black tracking-tight">
-                                                    {label}
-                                                </Badge>
-                                            );
-                                        }).filter(Boolean).slice(0, 5);
-                                    })()}
-                                    {/* Handle All Access '*' */}
-                                    {(typeof plan.modules === 'string' && plan.modules.includes('*')) || (Array.isArray(plan.modules) && plan.modules.includes('*')) ? (
-                                        <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-none text-[10px] uppercase font-black px-2 py-0.5 h-6">All ERP Access</Badge>
-                                    ) : null}
-                                </div>
-                             </motion.div>
-                        ))}
-                     </div>
-                </div>
-            )}
-
-            <div className="p-3 md:p-6 bg-amber-500/5 border border-amber-500/20 rounded-2xl md:rounded-3xl flex gap-3">
-                <AlertCircle className="text-amber-500 shrink-0" size={16} />
-                <p className="text-[10px] md:text-xs text-amber-500/80 font-medium">
-                    To upgrade your plan, contact your account manager or visit the Nexus Enterprise Portal.
+                <p className="text-[10px] text-amber-700/70 dark:text-amber-400/70 font-medium leading-relaxed">
+                    To upgrade your plan or increase your site/user limits, please contact your account manager or visit the Nexus Enterprise Portal.
                 </p>
             </div>
         </div>
 
-        {/* Right Column: Entitlements & Invoices */}
-        <div className="lg:col-span-2 space-y-3 md:space-y-8">
-            {/* Feature Audit */}
-            <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.1 }}
-                className="bg-card dark:bg-card/40 border border-border dark:border-white/5 rounded-2xl md:rounded-3xl shadow-sm p-4 sm:p-6"
-            >
-                <h3 className="text-base md:text-xl font-black uppercase tracking-tighter italic mb-4 md:mb-6">Module Entitlements</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-                    {allPossibleModules.map((mod) => {
-                        const included = isModuleIncluded(mod.id);
-                        return (
-                             <div key={mod.id} className={`flex items-center gap-3 md:gap-4 p-3 md:p-4 rounded-xl border transition-all ${
-                                included ? "bg-emerald-500/5 border-emerald-500/10 dark:border-emerald-500/20" : "bg-muted/50 dark:bg-red-500/5 border-border dark:border-red-500/10 opacity-60 grayscale"
-                            }`}>
-                                <div className={`p-2 md:p-3 rounded-lg md:rounded-xl shrink-0 ${included ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-500" : "bg-muted dark:bg-red-500/10 text-muted-foreground dark:text-red-500"}`}>
-                                    {included ? <CheckCircle2 size={18} className="md:w-6 md:h-6" /> : <Lock size={18} className="md:w-6 md:h-6" />}
+        {/* Right Column: Entitlements & History */}
+        <div className="lg:col-span-8 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {allPossibleModules.map((mod) => {
+                    const included = isModuleIncluded(mod.id);
+                    return (
+                        <motion.div 
+                            key={mod.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className={`group relative overflow-hidden flex items-center gap-3 p-3.5 rounded-2xl border transition-all ${
+                                included 
+                                ? "bg-card hover:bg-emerald-500/[0.02] border-emerald-500/10 dark:border-emerald-500/20 shadow-sm" 
+                                : "bg-muted/40 border-transparent opacity-40 grayscale"
+                            }`}
+                        >
+                            {included && (
+                                <div className="absolute top-0 right-0 w-8 h-8 bg-emerald-500/10 rounded-bl-3xl flex items-center justify-center">
+                                    <CheckCircle2 size={10} className="text-emerald-500" />
                                 </div>
-                                <div className="min-w-0">
-                                    <div className="text-sm md:text-base font-bold truncate text-foreground">{mod.label}</div>
-                                    <div className="text-[10px] md:text-xs text-muted-foreground font-medium truncate hidden sm:block">{mod.desc}</div>
-                                </div>
+                            )}
+                            <div className={`p-2 rounded-xl shrink-0 ${included ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted dark:bg-white/5 text-muted-foreground"}`}>
+                                {included ? <ShieldCheck size={18} /> : <Lock size={18} />}
                             </div>
-                        );
-                    })}
-                </div>
-            </motion.div>
+                            <div className="min-w-0 pr-4">
+                                <div className="text-[11px] font-black tracking-tight text-foreground truncate">{mod.label}</div>
+                                <div className="text-[9px] text-muted-foreground font-medium truncate opacity-60">Nexus Master API</div>
+                            </div>
+                        </motion.div>
+                    );
+                })}
+            </div>
 
-            {/* Invoices */}
             <motion.div 
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-card dark:bg-card/40 border border-border dark:border-white/5 rounded-2xl md:rounded-3xl shadow-sm p-4 sm:p-6"
+                className="bg-card dark:bg-card/40 border border-border dark:border-white/5 rounded-[2rem] shadow-sm overflow-hidden"
             >
-                <div className="flex items-center justify-between gap-2 mb-4 md:mb-6">
-                    <h3 className="text-base md:text-xl font-black uppercase tracking-tighter italic">Billing History</h3>
-                    <Button variant="outline" size="sm" className="rounded-xl text-[10px] md:text-xs font-black uppercase tracking-widest h-8 md:h-9 px-3 md:px-4">
+                <div className="p-6 flex items-center justify-between border-b border-border dark:border-white/5">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 bg-blue-500/10 rounded-xl">
+                            <CreditCard size={18} className="text-blue-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-lg font-black tracking-tighter">Billing History</h3>
+                            <p className="text-[10px] text-muted-foreground font-medium tracking-widest">Recent transactions & invoices</p>
+                        </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="rounded-xl text-[10px] font-black tracking-widest h-9 px-4 border-border dark:border-white/10">
                         <Download size={14} className="mr-2" /> All
                     </Button>
                 </div>
-
-                {/* Mobile: Card Layout */}
-                <div className="md:hidden space-y-2">
-                    {saasData?.invoices && saasData.invoices.length > 0 ? (
-                        saasData.invoices.map((inv: any, idx: number) => (
-                            <div key={idx} className="p-3 bg-muted/20 rounded-xl border border-white/5">
-                                <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 bg-blue-500/10 rounded-lg">
-                                            <FileText className="text-blue-400" size={12} />
-                                        </div>
-                                        <span className="text-xs font-black">{inv.invoice_number}</span>
-                                    </div>
-                                    <Badge className={`text-[8px] font-black uppercase tracking-widest ${
-                                        inv.status === 'Paid' ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
-                                    }`}>
-                                        {inv.status}
-                                    </Badge>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-[10px] text-muted-foreground font-medium">{inv.due_date}</span>
-                                        <span className="text-xs font-black text-foreground">${inv.amount}</span>
-                                    </div>
-                                    <button className="p-1.5 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground">
-                                        <Download size={14} />
-                                    </button>
-                                </div>
-                            </div>
-                        ))
-                    ) : (
-                        <div className="py-8 text-center text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 italic">
-                            No transaction history found
-                        </div>
-                    )}
-                </div>
-
-                {/* Desktop: Table Layout */}
-                <div className="hidden md:block overflow-hidden rounded-2xl border border-border dark:border-white/5 bg-muted/10 dark:bg-white/[0.02]">
+                
+                <div className="p-0 overflow-x-auto">
                     <table className="w-full text-left border-collapse">
                         <thead>
-                            <tr className="bg-white/5 border-b border-white/5">
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground/70">Invoice #</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground/70">Due Date</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground/70">Amount</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground/70">Status</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-widest text-muted-foreground/70 text-right">Action</th>
+                            <tr className="bg-muted/30 border-b border-border dark:border-white/5">
+                                <th className="px-6 py-3 text-[10px] font-black tracking-widest text-muted-foreground/70">Invoice #</th>
+                                <th className="px-6 py-3 text-[10px] font-black tracking-widest text-muted-foreground/70">Due Date</th>
+                                <th className="px-6 py-3 text-[10px] font-black tracking-widest text-muted-foreground/70 text-right">Amount</th>
+                                <th className="px-6 py-3 text-[10px] font-black tracking-widest text-muted-foreground/70">Status</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-white/5">
+                        <tbody className="divide-y divide-border dark:divide-white/5">
                             {saasData?.invoices && saasData.invoices.length > 0 ? (
                                 saasData.invoices.map((inv: any, idx: number) => (
-                                     <tr key={idx} className="hover:bg-muted/30 transition-colors">
+                                     <tr key={idx} className="hover:bg-muted/30 transition-colors group">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-blue-500/10 rounded-lg">
-                                                    <FileText className="text-blue-600 dark:text-blue-400" size={14} />
+                                                <div className="p-2 bg-blue-500/5 group-hover:bg-blue-500/10 rounded-lg transition-colors">
+                                                    <FileText className="text-blue-600/60" size={12} />
                                                 </div>
-                                                <span className="text-sm font-bold text-foreground">{inv.invoice_number}</span>
+                                                <span className="text-xs font-bold text-foreground">{inv.invoice_number}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-medium text-muted-foreground">{inv.due_date}</td>
-                                        <td className="px-6 py-4 text-sm font-black text-foreground">${inv.amount}</td>
+                                        <td className="px-6 py-4 text-[11px] font-medium text-muted-foreground">{inv.due_date}</td>
+                                        <td className="px-6 py-4 text-xs font-black text-foreground text-right">${inv.amount}</td>
                                         <td className="px-6 py-4">
-                                            <Badge className={`text-[9px] font-black uppercase tracking-widest ${
-                                                inv.status === 'Paid' ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-500" : "bg-amber-500/10 text-amber-600 dark:text-amber-500"
+                                            <Badge className={`text-[8px] font-black tracking-widest px-2 py-0.5 ${
+                                                inv.status === 'Paid' ? "bg-emerald-500/10 text-emerald-600" : "bg-amber-500/10 text-amber-600"
                                             }`}>
                                                 {inv.status}
                                             </Badge>
                                         </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <button className="p-2 hover:bg-muted rounded-lg transition-colors text-muted-foreground hover:text-foreground">
-                                                <Download size={16} />
-                                            </button>
-                                        </td>
                                     </tr>
-                                ))
+                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-12 text-center text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30 italic">
-                                        No transaction history found
+                                    <td colSpan={4} className="px-6 py-12 text-center">
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="p-3 bg-muted rounded-full opacity-50">
+                                                <FileText size={20} className="text-muted-foreground" />
+                                            </div>
+                                            <p className="text-[10px] font-black tracking-[0.2em] text-muted-foreground">No transaction history found</p>
+                                        </div>
                                     </td>
                                 </tr>
                             )}
@@ -439,6 +428,43 @@ export default function SubscriptionPage() {
             </motion.div>
         </div>
       </div>
+
+      {availablePlans.length > 0 && (
+         <div className="space-y-6 pt-6 border-t border-border dark:border-white/5">
+            <div className="flex items-center gap-3">
+                <div className="w-10 h-1 bg-primary rounded-full" />
+                <h3 className="text-lg font-black tracking-tighter">Available Upgrade Plans</h3>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {availablePlans.filter(p => p.name !== saasData?.name).map((plan, idx) => (
+                    <motion.div 
+                        key={idx}
+                        whileHover={{ y: -4 }}
+                        className="bg-card dark:bg-card/40 border border-border dark:border-white/5 p-5 rounded-[2rem] shadow-sm group transition-all"
+                    >
+                        <div className="space-y-1 mb-4">
+                            <div className="text-[10px] font-black text-primary/70 tracking-widest">Plan Option</div>
+                            <div className="font-black uppercase text-2xl group-hover:text-primary transition-colors tracking-tighter leading-none">{plan.name}</div>
+                        </div>
+                        <div className="text-3xl font-black text-foreground mb-4">
+                            ${plan.monthly_price || plan.price || '0'}
+                            <span className="text-[10px] text-muted-foreground ml-1 opacity-60">Monthly</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mb-6">
+                            {(typeof plan.modules === 'string' && plan.modules.includes('*')) || (Array.isArray(plan.modules) && plan.modules.includes('*')) ? (
+                                <Badge className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-none text-[8px] font-black px-2 py-0.5 h-6">Full ERP Access</Badge>
+                            ) : (
+                                <Badge variant="outline" className="text-[8px] font-black px-2 py-0.5 h-6 border-primary/20">Limited Features</Badge>
+                            )}
+                        </div>
+                        <Button variant="outline" className="w-full rounded-xl border-primary/20 text-primary font-black tracking-widest h-10 group-hover:bg-primary group-hover:text-white transition-all">
+                            View Plan
+                        </Button>
+                    </motion.div>
+                ))}
+            </div>
+         </div>
+      )}
     </div>
     </DashboardLayout>
   );

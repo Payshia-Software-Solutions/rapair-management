@@ -21,7 +21,8 @@ import {
   BarChart,
   Sparkles,
   Factory,
-  Building2
+  Building2,
+  Music
 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { motion } from 'framer-motion';
@@ -102,6 +103,7 @@ export default function PackageEditPage() {
     { id: 'promotions', label: 'Marketing & Promotions', icon: Sparkles },
     { id: 'production', label: 'Manufacturing & Production', icon: Factory },
     { id: 'frontOffice', label: 'Hotel Front Office', icon: Building2 },
+    { id: 'banquet', label: 'Banquet Management', icon: Music },
   ];
 
   const toggleModule = (modId: string) => {

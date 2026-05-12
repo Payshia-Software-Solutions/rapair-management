@@ -42,6 +42,24 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'online_order_id')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN online_order_id INT NULL AFTER order_id");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'reservation_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN reservation_id INT NULL AFTER online_order_id");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'banquet_booking_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN banquet_booking_id INT NULL AFTER reservation_id");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'shipping_provider_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_provider_id INT NULL AFTER shipping_fee");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'is_international')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN is_international TINYINT(1) DEFAULT 0 AFTER shipping_provider_id");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'shipping_country')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN shipping_country VARCHAR(100) NULL AFTER is_international");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'recurring_template_id')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN recurring_template_id INT NULL AFTER banquet_booking_id");
+                }
             }
         } catch (Exception $e) {}
 
@@ -72,6 +90,7 @@ class InvoiceSchema {
                 notes TEXT NULL,
                 applied_promotion_id INT NULL,
                 applied_promotion_name VARCHAR(255) NULL,
+                recurring_template_id INT NULL,
                 created_by INT NULL,
                 updated_by INT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

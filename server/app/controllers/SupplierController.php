@@ -15,7 +15,7 @@ class SupplierController extends Controller {
     public function list() {
         $this->requirePermission('suppliers.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
-        $rows = $this->supplierModel->list($_GET['q'] ?? '');
+        $rows = $this->supplierModel->list($_GET['q'] ?? '', $_GET['type'] ?? null);
         $this->success($rows);
     }
 
@@ -44,6 +44,8 @@ class SupplierController extends Controller {
             'address' => isset($data['address']) ? trim((string)$data['address']) : null,
             'tax_reg_no' => isset($data['tax_reg_no']) ? trim((string)$data['tax_reg_no']) : null,
             'is_active' => $data['is_active'] ?? 1,
+            'is_inventory_vendor' => $data['is_inventory_vendor'] ?? 1,
+            'is_banquet_vendor' => $data['is_banquet_vendor'] ?? 0,
         ];
 
         $created = $this->supplierModel->create($payload, (int)$u['sub']);
@@ -88,6 +90,8 @@ class SupplierController extends Controller {
             'address' => isset($data['address']) ? trim((string)$data['address']) : null,
             'tax_reg_no' => isset($data['tax_reg_no']) ? trim((string)$data['tax_reg_no']) : null,
             'is_active' => $data['is_active'] ?? 1,
+            'is_inventory_vendor' => $data['is_inventory_vendor'] ?? 1,
+            'is_banquet_vendor' => $data['is_banquet_vendor'] ?? 0,
         ];
 
         if ($this->supplierModel->update($id, $payload, (int)$u['sub'])) {

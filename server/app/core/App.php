@@ -19,10 +19,22 @@ class App {
 
         // 1. Look for Controller
         if (!empty($url)) {
-            $controllerName = ucwords($url[0]) . 'Controller';
+            // Try normalized CamelCase (e.g. production-order -> ProductionOrderController)
+            $controllerPart = str_replace('-', ' ', $url[0]);
+            $controllerPart = ucwords($controllerPart);
+            $controllerPart = str_replace(' ', '', $controllerPart);
+            $controllerName = $controllerPart . 'Controller';
+
             if (file_exists('../app/controllers/' . $controllerName . '.php')) {
                 $this->currentController = $controllerName;
                 array_shift($url);
+            } else {
+                // Fallback to literal ucwords (original behavior)
+                $controllerName = ucwords($url[0]) . 'Controller';
+                if (file_exists('../app/controllers/' . $controllerName . '.php')) {
+                    $this->currentController = $controllerName;
+                    array_shift($url);
+                }
             }
         }
 

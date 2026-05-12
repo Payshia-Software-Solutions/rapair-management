@@ -43,7 +43,8 @@ import {
   Factory,
   TrendingUp,
   Gift,
-  Building2
+  Building2,
+  ShoppingCart
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -87,7 +88,9 @@ import {
   productionItems,
   hrmItems,
   frontOfficeItems,
-  marketingItems
+  banquetItems,
+  marketingItems,
+  ecommerceItems
 } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
@@ -107,6 +110,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isMarketingOpen, setIsMarketingOpen] = useState(false);
   const [isHrmOpen, setIsHrmOpen] = useState(false);
   const [isFrontOfficeOpen, setIsFrontOfficeOpen] = useState(false);
+  const [isBanquetOpen, setIsBanquetOpen] = useState(false);
+  const [isEcommerceOpen, setIsEcommerceOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
 	  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 	  const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -380,6 +385,13 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const visibleFrontOfficeItems = frontOfficeItems.filter((it) => hasPerm((it as any).perm));
   const canSeeFrontOffice = isModuleAllowed('frontOffice') && visibleFrontOfficeItems.length > 0;
 
+  const visibleBanquetItems = banquetItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeBanquet = isModuleAllowed('banquet') && visibleBanquetItems.length > 0;
+
+  const visibleEcommerceItems = ecommerceItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeEcommerce = isModuleAllowed('ecommerce') && visibleEcommerceItems.length > 0;
+
+
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
@@ -387,7 +399,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...frontOfficeItems, ...adminItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...adminItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -419,6 +431,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     if (pathname.startsWith('/production')) setIsProductionOpen(true);
     if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
     if (pathname.startsWith('/front-office')) setIsFrontOfficeOpen(true);
+    if (pathname.startsWith('/banquet')) setIsBanquetOpen(true);
+    if (pathname.startsWith('/ecommerce')) setIsEcommerceOpen(true);
     if (pathname.startsWith('/admin')) setIsAdminOpen(true);
   }, [pathname, permissionKeys, userRole]);
 
@@ -434,6 +448,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const marketingOpen = isMarketingOpen;
   const hrmOpen = isHrmOpen;
   const frontOfficeOpen = isFrontOfficeOpen;
+  const banquetOpen = isBanquetOpen;
+  const ecommerceOpen = isEcommerceOpen;
   const adminOpen = isAdminOpen;
 
   return (
@@ -441,16 +457,20 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
       <div className="flex min-h-screen w-full bg-background relative" suppressHydrationWarning>
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
           <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="p-1.5 bg-accent rounded-lg">
-                <Wrench className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 shrink-0 relative">
+                <img 
+                  src="/icon-bizzflow-logo-optimized.webp" 
+                  alt="BizzFlow Icon" 
+                  className="w-full h-full object-contain"
+                />
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <div className="text-lg sm:text-xl font-bold tracking-tight text-white">
-                  BizFlow
+                <div className="text-lg font-black tracking-tighter text-white italic">
+                  BizzFlow
                 </div>
-                <div className="text-[10px] text-white/70 uppercase tracking-widest font-bold truncate max-w-[160px]">
-                  {currentLocationName ? `Location: ${currentLocationName}` : "Location: -"}
+                <div className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-black leading-tight">
+                  {currentLocationName || "Global Management"}
                 </div>
               </div>
             </div>
@@ -510,14 +530,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         type="button"
                         onClick={() => setIsServiceCenterOpen((v) => !v)}
                         isActive={serviceCenterOpen}
-                        tooltip="Service Center"
+                        tooltip="Fleet Management"
                         className={cn(
                           "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
                           serviceCenterOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
                         )}
                       >
                         <Wrench className="w-5 h-5" />
-                        <span className="text-base sm:text-sm font-medium">Service Center</span>
+                        <span className="text-base sm:text-sm font-medium">Fleet Management</span>
                         <ChevronRight
                           className={cn(
                             "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
@@ -774,6 +794,52 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
                 <SidebarMenu>
+                  {!canSeeEcommerce ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsEcommerceOpen((v) => !v)}
+                        isActive={ecommerceOpen}
+                        tooltip="E-commerce"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          ecommerceOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <ShoppingCart className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">E-commerce</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            ecommerceOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {ecommerceOpen ? (
+                        <SidebarMenuSub>
+                          {visibleEcommerceItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+
+              <SidebarGroupContent>
+                <SidebarMenu>
                   {!canSeeAccounting ? null : (
                     <SidebarMenuItem>
                       <SidebarMenuButton
@@ -934,6 +1000,51 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                       {frontOfficeOpen ? (
                         <SidebarMenuSub>
                           {visibleFrontOfficeItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                  )}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {!canSeeBanquet ? null : (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsBanquetOpen((v) => !v)}
+                        isActive={pathname.startsWith('/banquet')}
+                        tooltip="Banquet"
+                        className={cn(
+                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                          pathname.startsWith('/banquet') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        )}
+                      >
+                        <LayoutGrid className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Banquet</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            banquetOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {banquetOpen ? (
+                        <SidebarMenuSub>
+                          {visibleBanquetItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>
@@ -1141,7 +1252,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                   </Button>
                 </div>
               ) : null}
-              <h1 className="lg:hidden font-bold text-lg">BizFlow</h1>
+              <div className="lg:hidden flex items-center gap-2">
+                <img 
+                  src="/icon-bizzflow-logo-optimized.webp" 
+                  alt="BizzFlow Icon" 
+                  className="w-8 h-8 object-contain"
+                />
+                <h1 className="font-bold text-lg tracking-tight">BizzFlow</h1>
+              </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               {docTitle ? (
@@ -1170,7 +1288,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </Link>
             </div>
           </header>
-          <main className="flex-1 p-4 sm:p-8 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
+          <main className="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
             <div
               className={cn(
                 fullWidth ? "w-full" : "max-w-7xl mx-auto",
@@ -1182,14 +1300,14 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </div>
 
               <div className="pt-6 border-t text-[11px] text-muted-foreground flex flex-row flex-wrap items-center justify-between gap-2">
-                <span>Powered by Payshia Software Solutions Pvt Ltd</span>
+                <span>Powered by Nebulink</span>
                 <a
                   className="text-foreground/80 hover:text-foreground underline underline-offset-2"
-                  href="https://www.payshia.com"
+                  href="https://www.nebulink.com"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  www.payshia.com
+                  www.nebulink.com
                 </a>
               </div>
             </div>

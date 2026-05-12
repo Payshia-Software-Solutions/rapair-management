@@ -84,6 +84,54 @@ export const cancelInvoice = async (id: number, reason: string) => {
   return res.json();
 };
 
+// Recurring Invoices
+export const fetchRecurringInvoices = async (filters: { status?: string; customer_id?: string } = {}) => {
+  const params = new URLSearchParams();
+  if (filters.status) params.append('status', filters.status);
+  if (filters.customer_id) params.append('customer_id', filters.customer_id);
+  const res = await api(`/api/recurring-invoice/list${params.toString() ? '?' + params.toString() : ''}`);
+  if (!res.ok) throw new Error('Failed to load recurring templates');
+  const data = await res.json();
+  return data.success ? data.data : [];
+};
+
+export const fetchRecurringInvoiceDetails = async (id: string | number) => {
+  const res = await api(`/api/recurring-invoice/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load template details');
+  const data = await res.json();
+  return data.success ? data.data : null;
+};
+
+export const createRecurringInvoice = async (payload: any) => {
+  const res = await api('/api/recurring-invoice/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to create recurring template');
+  return res.json();
+};
+
+export const updateRecurringInvoice = async (id: string | number, payload: any) => {
+  const res = await api(`/api/recurring-invoice/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update recurring template');
+  return res.json();
+};
+
+export const convertInvoiceToRecurring = async (id: string | number, payload: any) => {
+  const res = await api(`/api/invoice/convert_to_recurring/${id}`, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.message || 'Failed to convert to recurring');
+  }
+  return res.json();
+};
+
+export const processRecurringInvoices = async () => {
+  const res = await api('/api/recurring-invoice/process', { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to process recurring invoices');
+  return res.json();
+};
+
 // Payment Receipts
 export const createPaymentReceipt = async (payload: any) => {
   const res = await api('/api/paymentreceipt/create', { method: 'POST', body: JSON.stringify(payload) });

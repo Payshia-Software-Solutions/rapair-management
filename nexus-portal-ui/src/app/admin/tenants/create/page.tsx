@@ -23,7 +23,9 @@ export default function TenantCreatePage() {
     package_id: '1',
     admin_email: '',
     business_type: '',
-    address: ''
+    address: '',
+    currency: 'USD',
+    billing_cc_email: ''
   });
 
   const API_BASE = 'http://localhost/rapair-management/nexus-portal-server/public/api';
@@ -132,6 +134,32 @@ export default function TenantCreatePage() {
                   >
                     {packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing Currency</label>
+                <select 
+                  value={formData.currency}
+                  onChange={(e) => setFormData({...formData, currency: e.target.value})}
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-3.5 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all appearance-none"
+                >
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="LKR">LKR - Sri Lankan Rupee</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Billing CC Email (Optional)</label>
+                <div className="relative">
+                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input 
+                    type="email"
+                    placeholder="accounts@enterprise.com"
+                    value={formData.billing_cc_email}
+                    onChange={(e) => setFormData({...formData, billing_cc_email: e.target.value})}
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-white/10 rounded-xl pl-12 pr-4 py-3.5 text-sm text-slate-900 dark:text-white outline-none focus:border-indigo-500 transition-all" 
+                  />
                 </div>
               </div>
            </div>

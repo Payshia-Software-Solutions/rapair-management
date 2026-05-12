@@ -22,6 +22,7 @@ class ServiceLocation extends Model {
                 'is_pos_active' => "TINYINT NOT NULL DEFAULT 1",
                 'allow_production' => "TINYINT NOT NULL DEFAULT 0",
                 'allow_online' => "TINYINT NOT NULL DEFAULT 0",
+                'allowed_taxes_json' => "TEXT NULL",
                 'google_analytics_code' => "TEXT NULL",
                 'facebook_pixel_code' => "TEXT NULL"
             ];
@@ -60,6 +61,7 @@ class ServiceLocation extends Model {
                 :name, :location_type, :address, :phone, :tax_no, :tax_label, 
                 :allow_service_charge, :service_charge_rate, 
                 :allow_dine_in, :allow_take_away, :allow_retail, :is_pos_active, :allow_production, :allow_online,
+                :allowed_taxes_json,
                 :google_analytics_code, :facebook_pixel_code,
                 :created_by, :updated_by
             )
@@ -78,6 +80,7 @@ class ServiceLocation extends Model {
         $this->db->bind(':is_pos_active', $data['is_pos_active'] ?? 1);
         $this->db->bind(':allow_production', $data['allow_production'] ?? 0);
         $this->db->bind(':allow_online', $data['allow_online'] ?? 0);
+        $this->db->bind(':allowed_taxes_json', $data['allowed_taxes_json'] ?? null);
         $this->db->bind(':google_analytics_code', $data['google_analytics_code'] ?? null);
         $this->db->bind(':facebook_pixel_code', $data['facebook_pixel_code'] ?? null);
         $this->db->bind(':created_by', $userId);
@@ -94,6 +97,7 @@ class ServiceLocation extends Model {
                 allow_service_charge = :allow_service_charge, service_charge_rate = :service_charge_rate,
                 allow_dine_in = :allow_dine_in, allow_take_away = :allow_take_away, allow_retail = :allow_retail,
                 is_pos_active = :is_pos_active, allow_production = :allow_production, allow_online = :allow_online,
+                allowed_taxes_json = :allowed_taxes_json,
                 google_analytics_code = :google_analytics_code, facebook_pixel_code = :facebook_pixel_code,
                 updated_by = :updated_by
             WHERE id = :id
@@ -113,6 +117,7 @@ class ServiceLocation extends Model {
         $this->db->bind(':is_pos_active', $data['is_pos_active'] ?? 1);
         $this->db->bind(':allow_production', $data['allow_production'] ?? 0);
         $this->db->bind(':allow_online', $data['allow_online'] ?? 0);
+        $this->db->bind(':allowed_taxes_json', $data['allowed_taxes_json'] ?? null);
         $this->db->bind(':google_analytics_code', $data['google_analytics_code'] ?? null);
         $this->db->bind(':facebook_pixel_code', $data['facebook_pixel_code'] ?? null);
         $this->db->bind(':updated_by', $userId);

@@ -104,10 +104,12 @@ export const CheckoutDialog: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (document.activeElement?.tagName === 'INPUT') return;
       
-      if (/^[0-9]$/.test(e.key)) {
+      if (/^[0-9]$/.test(e.key) || e.key === '.') {
         e.preventDefault();
         const current = String(amountReceived || '');
-        setAmountReceived(Number(current + e.key));
+        if (e.key === '.' && current.includes('.')) return;
+        const next = current + e.key;
+        setAmountReceived(Number(next));
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         e.preventDefault();
         const str = String(amountReceived || '');
@@ -495,8 +497,9 @@ export const CheckoutDialog: React.FC = () => {
                             if (val === 'C') setAmountReceived(0);
                             else {
                                const current = String(amountReceived || '');
+                               if (val === '.' && current.includes('.')) return;
                                const next = current + String(val);
-                               if (next.length <= 10) setAmountReceived(parseFloat(next) || 0);
+                               if (next.length <= 12) setAmountReceived(Number(next) || 0);
                             }
                           }}
                         >

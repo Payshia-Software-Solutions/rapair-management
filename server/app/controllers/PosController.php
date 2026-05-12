@@ -131,7 +131,7 @@ class PosController extends Controller {
         ]);
     }
 
-    public function list_held_orders() {
+    public function held_orders() {
         $u = $this->requirePermission('pos.read');
         $locationId = (int)($_GET['location_id'] ?? 1);
         require_once '../app/models/PosHeldOrder.php';

@@ -59,7 +59,8 @@ export const ProductSelectionDialog: React.FC = () => {
     setManualSelections({});
     if (val === 'C') setModalQty("1");
     else if (val === 'DEL') setModalQty(prev => prev.length > 1 ? prev.slice(0, -1) : "0");
-    else setModalQty(prev => prev === "0" ? val : prev + val);
+    else if (val === '.') setModalQty(prev => prev.includes('.') ? prev : prev + '.');
+    else setModalQty(prev => (prev === "0" && val !== '.') ? val : prev + val);
   };
 
   const handleManualBatchChange = (batchId: number, newQty: number, onHand: number) => {
@@ -78,7 +79,7 @@ export const ProductSelectionDialog: React.FC = () => {
 
   const confirmAddToCart = useCallback(() => {
     if (!selectedProduct) return;
-    const q = parseInt(modalQty, 10);
+    const q = parseFloat(modalQty);
     const d = parseFloat(modalDiscount) || 0;
     if (isNaN(q) || q <= 0) return;
     
@@ -137,6 +138,7 @@ export const ProductSelectionDialog: React.FC = () => {
       } else if (!isAdjustmentOpen) {
         // Main Quantity Logic
         if (isNumber) { e.preventDefault(); handleNumpadClick(key); }
+        else if (key === '.') { e.preventDefault(); handleNumpadClick('.'); }
         else if (isDelete) { e.preventDefault(); handleNumpadClick('DEL'); }
         else if (isClear) { e.preventDefault(); handleNumpadClick('C'); }
         else if (isEnter) { e.preventDefault(); confirmAddToCart(); }
@@ -316,7 +318,7 @@ export const ProductSelectionDialog: React.FC = () => {
 
             {/* Numpad Grid */}
             <div className="grid grid-cols-3 gap-3 mb-6">
-              {['1','2','3','4','5','6','7','8','9','C','0','DEL'].map(val => (
+              {['1','2','3','4','5','6','7','8','9','.','0','DEL'].map(val => (
                 <Button
                   key={val}
                   variant={val === 'C' || val === 'DEL' ? 'secondary' : 'outline'}
@@ -359,11 +361,11 @@ export const ProductSelectionDialog: React.FC = () => {
             size="lg" 
             className="w-full h-16 sm:h-20 rounded-2xl text-lg sm:text-xl font-black tracking-[0.1em] uppercase shadow-2xl bg-primary hover:bg-primary/90 text-white"
             onClick={confirmAddToCart}
-            disabled={!selectedProduct || parseInt(modalQty, 10) <= 0 || (selectedProduct?.item_type !== 'Service' && parseInt(modalQty, 10) > (batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0) || selectedProduct?.stock_quantity))}
+            disabled={!selectedProduct || parseFloat(modalQty) <= 0 || (selectedProduct?.item_type !== 'Service' && selectedProduct?.recipe_type !== 'A La Carte' && parseFloat(modalQty) > (batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0) || selectedProduct?.stock_quantity))}
           >
             <ShoppingCart className="w-6 h-6 mr-4" /> Add to Shopping Cart
           </Button>
-          {selectedProduct && selectedProduct.item_type !== 'Service' && parseInt(modalQty, 10) > selectedProduct.stock_quantity && (
+          {selectedProduct && selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && parseFloat(modalQty) > selectedProduct.stock_quantity && (
             <p className="text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2 px-4">Cannot exceed available stock</p>
           )}
         </div>
@@ -405,6 +407,7 @@ export const ProductSelectionDialog: React.FC = () => {
                   >-</button>
                   <input 
                     type="number"
+                    step="any"
                     className="w-20 h-full text-center text-xl font-black bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     value={modalQty}
                     onChange={(e) => {
@@ -415,7 +418,7 @@ export const ProductSelectionDialog: React.FC = () => {
                   <button 
                     className="w-14 h-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-900 border-l border-slate-200 dark:border-slate-800 transition-colors text-2xl font-black"
                     onClick={() => {
-                        const q = parseInt(modalQty, 10) || 0;
+                        const q = parseFloat(modalQty) || 0;
                         setModalQty(String(q + 1));
                         setManualSelections({});
                     }}
@@ -473,10 +476,11 @@ export const ProductSelectionDialog: React.FC = () => {
                         >-</button>
                         <input 
                           type="number"
+                          step="any"
                           className="w-12 h-full text-center text-xs font-black bg-transparent focus:outline-none"
                           value={picked || ''}
                           placeholder="0"
-                          onChange={(e) => handleManualBatchChange(b.id, parseInt(e.target.value) || 0, onHand)}
+                          onChange={(e) => handleManualBatchChange(b.id, parseFloat(e.target.value) || 0, onHand)}
                         />
                         <button 
                           className="w-10 h-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-900 border-l border-slate-100 dark:border-slate-800 transition-colors"

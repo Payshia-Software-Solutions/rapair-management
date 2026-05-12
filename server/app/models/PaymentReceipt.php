@@ -291,7 +291,7 @@ class PaymentReceipt {
             FROM payment_receipts pr
             LEFT JOIN cheque_inventory ci ON ci.receipt_id = pr.id
             LEFT JOIN banks b ON pr.bank_id = b.id
-            WHERE pr.id = :id LIMIT 1
+            WHERE pr.id = :id OR pr.receipt_no = :id LIMIT 1
         ");
         $this->db->bind(':id', $id);
         return $this->db->single();

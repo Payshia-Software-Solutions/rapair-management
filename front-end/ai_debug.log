@@ -179,3 +179,7 @@
 [2026-04-28T21:53:01.517Z] API RESPONSE [SUCCESS]: {"status":"success","message":"Success","data":{"invoices":["id","invoice_no","order_id","online_order_id","location_id","customer_id","billing_address","shipping_address","issue_date","due_date","sub
 [2026-04-28T21:53:22.035Z] API REQUEST: http://localhost/rapair-management/server/public/api/intelligence/query
 [2026-04-28T21:53:22.676Z] API RESPONSE [SUCCESS]: {"status":"success","message":"Success","data":[{"id":80,"invoice_no":"INV-FO-20260427-4069","issue_date":"2026-04-27","grand_total":"50000.00","paid_amount":"0.00","status":"Unpaid"},{"id":81,"invoic
+[2026-04-30T09:14:50.425Z] API REQUEST: http://localhost/rapair-management/server/public/api/intelligence/schema
+[2026-04-30T09:14:51.086Z] API RESPONSE [SUCCESS]: {"status":"success","message":"Success","data":{"invoices":["id","invoice_no","order_id","online_order_id","reservation_id","location_id","customer_id","billing_address","shipping_address","issue_date
+[2026-04-30T09:15:15.969Z] API REQUEST: http://localhost/rapair-management/server/public/api/intelligence/query
+[2026-04-30T09:15:16.522Z] API RESPONSE [SUCCESS]: {"status":"success","message":"Success","data":[{"forecast_start_date":"2026-05-01","forecast_end_date":"2026-05-31","forecast_revenue":null}]}

@@ -89,7 +89,7 @@ export default function StockTransfersPage() {
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="border-b bg-muted/20">
           <CardTitle className="text-lg">Requests</CardTitle>
-          <CardDescription>Transfers between service centers and warehouses</CardDescription>
+          <CardDescription>Transfers between fleet hubs and warehouses</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           {loading ? (

@@ -38,11 +38,15 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 group transition-all">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform shadow-[0_0_20px_rgba(79,70,229,0.3)]">
-            <Zap className="text-white fill-white" size={24} />
+        <Link href="/" className="flex items-center gap-3 group transition-all">
+          <div className="w-10 h-10 shrink-0 relative group-hover:scale-110 transition-transform">
+             <img 
+               src="/icon-bizzflow-logo-optimized.webp" 
+               alt="BizzFlow" 
+               className="w-full h-full object-contain"
+             />
           </div>
-          <span className="text-2xl font-extrabold tracking-tighter text-gradient">NEXUS ERP</span>
+          <span className="text-2xl font-black tracking-tighter text-gradient">BIZZFLOW</span>
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm font-bold uppercase tracking-widest text-foreground/60">
           {links.map((link) => (

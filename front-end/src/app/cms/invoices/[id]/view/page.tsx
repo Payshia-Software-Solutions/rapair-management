@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { fetchInvoiceDetails, createPaymentReceipt, fetchCompany, contentUrl, type CompanyRow } from "@/lib/api";
+import { api, fetchInvoiceDetails, createPaymentReceipt, fetchCompany, contentUrl, type CompanyRow } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,8 +19,13 @@ import {
   CheckCircle2,
   Mail,
   Phone,
-  MapPin
+  MapPin,
+  Globe,
+  Truck,
+  History,
+  RotateCw
 } from "lucide-react";
+import { convertInvoiceToRecurring } from "@/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +65,13 @@ function InvoiceContent() {
   const [chequePayee, setChequePayee] = useState("");
   const [lastReceiptId, setLastReceiptId] = useState<string | null>(null);
 
+  // Recurring Template State
+  const [recurringDialogOpen, setRecurringDialogOpen] = useState(false);
+  const [recurringSubmitting, setRecurringSubmitting] = useState(false);
+  const [frequency, setFrequency] = useState("Monthly");
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [templateName, setTemplateName] = useState("");
+
   const loadInvoice = async () => {
     setError(null);
     try {
@@ -82,6 +94,30 @@ function InvoiceContent() {
       toast({ title: "Error", description: msg, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (invoice && !templateName) {
+      setTemplateName(`Template for ${invoice.invoice_no}`);
+    }
+  }, [invoice]);
+
+  const handleConvertToRecurring = async () => {
+    setRecurringSubmitting(true);
+    try {
+      await convertInvoiceToRecurring(id, {
+        template_name: templateName,
+        frequency,
+        start_date: startDate
+      });
+      toast({ title: "Success", description: "Recurring template created successfully." });
+      setRecurringDialogOpen(false);
+      router.push("/cms/invoices/recurring");
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to convert.", variant: "destructive" });
+    } finally {
+      setRecurringSubmitting(false);
     }
   };
 
@@ -142,6 +178,25 @@ function InvoiceContent() {
       toast({ title: "Error", description: error.message || "Failed to add payment.", variant: "destructive" });
     } finally {
       setPaymentSubmitting(false);
+    }
+  };
+
+  const [emailSubmitting, setEmailSubmitting] = useState(false);
+
+  const handleResendEmail = async () => {
+    setEmailSubmitting(true);
+    try {
+      const res = await api(`/api/invoice/send-email/${id}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'success') {
+        toast({ title: "Success", description: data.message });
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to resend email.", variant: "destructive" });
+    } finally {
+      setEmailSubmitting(false);
     }
   };
 
@@ -276,6 +331,59 @@ function InvoiceContent() {
               </DialogContent>
             </Dialog>
           )}
+          <Dialog open={recurringDialogOpen} onOpenChange={setRecurringDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="text-amber-600 border-amber-200 bg-amber-50/50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 transition-all">
+                <History className="w-4 h-4 mr-2" />
+                Make Recurring
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create Recurring Template</DialogTitle>
+                <DialogDescription>
+                  Convert this invoice into a template for automated generation.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Template Name</Label>
+                  <Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Monthly Maintenance" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Frequency</Label>
+                    <select 
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={frequency}
+                      onChange={e => setFrequency(e.target.value)}
+                    >
+                      <option>Daily</option>
+                      <option>Weekly</option>
+                      <option>Monthly</option>
+                      <option>Yearly</option>
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Next Run Date</Label>
+                    <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleConvertToRecurring} disabled={recurringSubmitting} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold">
+                  {recurringSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RotateCw className="w-4 h-4 mr-2" />}
+                  Save Recurring Template
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          <Button variant="outline" onClick={handleResendEmail} disabled={emailSubmitting} className="text-slate-600 border-slate-200 hover:bg-slate-50 transition-all">
+            {emailSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
+            Resend Email
+          </Button>
+
           <Button onClick={() => window.open(`/cms/invoices/${id}/print?autoprint=1`, '_blank')} className="bg-primary hover:bg-primary/90 shadow-sm">
             <Printer className="w-4 h-4 mr-2" />
             Print Invoice
@@ -347,7 +455,21 @@ function InvoiceContent() {
                   {invoice.billing_address && (
                     <p className="text-sm text-muted-foreground/80 mt-3 whitespace-pre-line border-t pt-3 border-border/40 leading-relaxed">{invoice.billing_address}</p>
                   )}
-                  {invoice.shipping_address && invoice.shipping_address !== invoice.billing_address && (
+                  {invoice.is_international === 1 && (
+                    <div className="mt-4 pt-4 border-t border-border/40 bg-blue-50/30 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                      <div className="flex items-center justify-between mb-2">
+                        <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 dark:text-blue-400/60">International Delivery</h5>
+                        <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 text-[9px] h-4">
+                          <Globe className="w-3 h-3 mr-1" /> {invoice.shipping_country || 'Global'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 font-bold mb-1 flex items-center gap-2">
+                        <Truck className="w-3.5 h-3.5" /> {invoice.provider_name || 'Shipping Provider'}
+                      </p>
+                      <p className="text-sm text-muted-foreground/80 whitespace-pre-line leading-relaxed">{invoice.shipping_address}</p>
+                    </div>
+                  )}
+                  {invoice.shipping_address && invoice.shipping_address !== invoice.billing_address && invoice.is_international !== 1 && (
                     <div className="mt-4 pt-4 border-t border-border/40 bg-muted/20 p-3 rounded-lg">
                       <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2">Shipping Address</h5>
                       <p className="text-sm text-muted-foreground/80 whitespace-pre-line leading-relaxed">{invoice.shipping_address}</p>
@@ -375,7 +497,7 @@ function InvoiceContent() {
               <div className="space-y-4 text-right md:text-left">
                 {invoice.location_name && (
                   <div className="flex justify-between items-start text-sm">
-                    <span className="text-muted-foreground/70 font-medium">Service Center</span>
+                    <span className="text-muted-foreground/70 font-medium">Fleet Management</span>
                     <div className="text-right">
                       <span className="font-bold text-foreground/90 block">{invoice.location_name}</span>
                       {invoice.location_phone && <span className="text-[10px] text-muted-foreground tabular-nums">{invoice.location_phone}</span>}
@@ -586,6 +708,12 @@ function InvoiceContent() {
                             <span className="font-bold tabular-nums">+LKR {Number(invoice.tax_total).toFixed(2)}</span>
                           </div>
                         )
+                      )}
+                      {invoice.is_international === 1 && (
+                        <div className="flex justify-between items-center text-sm text-indigo-600 dark:text-indigo-400">
+                          <span className="font-medium">Shipping ({invoice.provider_name || 'International'})</span>
+                          <span className="font-bold tabular-nums">+LKR {Number(invoice.shipping_cost || 0).toFixed(2)}</span>
+                        </div>
                       )}
                     </>
                   )}

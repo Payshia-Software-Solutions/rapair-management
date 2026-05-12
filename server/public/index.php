@@ -17,9 +17,8 @@ $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = [
     'http://localhost:9003',
     'http://localhost:3000',
-    // Production frontend (Netlify)
+    'http://localhost:9002',
     'https://kdu-service.netlify.app',
-    // If you later use a custom frontend domain, add it here as well.
 ];
 
 if ($origin && in_array($origin, $allowedOrigins, true)) {
@@ -83,14 +82,12 @@ require_once '../app/helpers/HotelSchema.php';
 require_once '../app/helpers/SystemSchema.php';
 require_once '../app/helpers/QuotationSchema.php';
 require_once '../app/helpers/AccountingSchema.php';
+require_once '../app/helpers/BanquetSchema.php';
+require_once '../app/helpers/ShippingSchema.php';
+require_once '../app/helpers/CRMSchema.php';
+require_once '../app/helpers/CityPostalSchema.php';
 
-// Ensure schema is up to date on every request
-InventorySchema::ensure();
-PromotionSchema::ensure();
-ApiClientsSchema::ensure();
-HotelSchema::ensure();
-SystemSchema::ensure();
-QuotationSchema::ensure();
-AccountingSchema::ensure();
+// Ensure schema is up to date
+CityPostalSchema::ensure();
 
 $init = new App();

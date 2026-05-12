@@ -24,6 +24,7 @@ import {
   frontOfficeItems,
   type NavItem 
 } from "@/lib/nav-items";
+import { Settings } from "lucide-react";
 
 function decodeJwtPayload(token: string): any | null {
   try {
@@ -116,7 +117,7 @@ export default function MenuPage() {
 
     return [
       { title: "Core Features", tone: "bg-blue-600", items: core },
-      { title: "Service Center", tone: "bg-orange-600", items: service },
+      { title: "Fleet Management", tone: "bg-orange-600", items: service },
       { title: "Vendors", tone: "bg-slate-600", items: vendors },
       { title: "Inventory", tone: "bg-emerald-600", items: inv },
       { title: "CRM", tone: "bg-pink-600", items: crm },
@@ -176,6 +177,12 @@ export default function MenuPage() {
             <Link href="/profile">
               <User className="w-4 h-4" />
               Profile
+            </Link>
+          </Button>
+          <Button variant="outline" className="h-12 rounded-xl justify-start gap-2" asChild>
+            <Link href="/settings/mobile-dock">
+                <Settings className="w-4 h-4" />
+                Customize Dock
             </Link>
           </Button>
         </div>

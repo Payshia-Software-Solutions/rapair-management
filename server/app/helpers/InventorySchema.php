@@ -100,7 +100,8 @@ class InventorySchema {
                 ('GRN', 'GRN-', 1, 6),
                 ('TR', 'TR-', 1, 6),
                 ('REQ', 'REQ-', 1, 6),
-                ('INV', 'INV/', 1, 6)
+                ('INV', 'INV/', 1, 6),
+                ('QT', 'EXPQT-', 1, 6)
             ");
 
             // If this is an existing install, bump next_number to (MAX(id)+1) as a sensible default.
@@ -163,7 +164,9 @@ class InventorySchema {
                     ('taxes.read', 'View taxes master'),
                     ('taxes.write', 'Create/update/delete taxes master'),
                     ('production.read', 'View BOMs and Production Orders'),
-                    ('production.write', 'Create/update BOMs and Production Orders')
+                    ('production.write', 'Create/update BOMs and Production Orders'),
+                    ('ecommerce.read', 'View e-commerce settings and orders'),
+                    ('ecommerce.write', 'Manage storefront, menus and e-com settings')
                 ");
 
                 // Best-effort grants to default roles (non-admin). Admin is implicit superuser.
@@ -202,6 +205,41 @@ class InventorySchema {
             // ignore
         }
 
+        // Item Breakdown Master Data
+        try {
+            $pdo = self::pdo();
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS item_sections (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_item_sections_name (name)
+                )
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS item_departments (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    section_id INT NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_item_dept_name (section_id, name),
+                    INDEX idx_item_dept_section (section_id),
+                    FOREIGN KEY (section_id) REFERENCES item_sections(id) ON DELETE CASCADE
+                )
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS item_categories (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_item_cats_name (name)
+                )
+            ");
+        } catch (Exception $e) {}
+
         // Parts table upgrades
         try {
             if (self::hasTable($pdo, 'parts')) {
@@ -211,6 +249,9 @@ class InventorySchema {
                     'barcode_number' => "VARCHAR(64) NULL",
                     'unit' => "VARCHAR(32) NULL",
                     'brand_id' => "INT NULL",
+                    'item_section_id' => "INT NULL",
+                    'item_department_id' => "INT NULL",
+                    'item_category_id' => "INT NULL",
                     'cost_price' => "DECIMAL(10,2) NULL",
                     'reorder_level' => "INT NULL",
                     'is_active' => "TINYINT(1) NOT NULL DEFAULT 1",
@@ -224,6 +265,22 @@ class InventorySchema {
                     'wholesale_price' => "DECIMAL(10,2) NULL",
                     'min_selling_price' => "DECIMAL(10,2) NULL",
                     'price_2' => "DECIMAL(10,2) NULL",
+                    'net_weight_kg' => "DECIMAL(12,3) NULL DEFAULT 0",
+                    'gross_weight_kg' => "DECIMAL(12,3) NULL DEFAULT 0",
+                    'units_per_carton' => "INT NOT NULL DEFAULT 1",
+                    'packing_type' => "VARCHAR(50) NULL",
+                    'hs_code' => "VARCHAR(50) NULL",
+                    'carton_length_cm' => "DECIMAL(12,2) NULL DEFAULT 0",
+                    'carton_width_cm' => "DECIMAL(12,2) NULL DEFAULT 0",
+                    'carton_height_cm' => "DECIMAL(12,2) NULL DEFAULT 0",
+                    'volume_cbm' => "DECIMAL(15,6) NULL DEFAULT 0",
+                    'carton_tare_weight_kg' => "DECIMAL(12,3) NULL DEFAULT 0",
+                    'out_of_stock' => "TINYINT(1) NOT NULL DEFAULT 0",
+                    'is_online' => "TINYINT(1) NOT NULL DEFAULT 0",
+                    'public_description' => "TEXT NULL",
+                    'slug' => "VARCHAR(255) NULL",
+                    'discount_type' => "ENUM('None', 'Percentage', 'Fixed') DEFAULT 'None'",
+                    'discount_value' => "DECIMAL(10,2) DEFAULT 0.00",
                 ];
                 foreach ($cols as $col => $def) {
                     if (!self::hasColumn($pdo, 'parts', $col)) {
@@ -234,7 +291,11 @@ class InventorySchema {
                 try { $pdo->exec("ALTER TABLE parts MODIFY COLUMN stock_quantity DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
                 // Unique SKU if possible (ignore duplicates / existing index)
                 try { $pdo->exec("ALTER TABLE parts ADD UNIQUE KEY uq_parts_sku (sku)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE parts ADD UNIQUE KEY uq_parts_slug (slug)"); } catch (Exception $e2) {}
                 try { $pdo->exec("ALTER TABLE parts ADD INDEX idx_parts_brand (brand_id)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE parts ADD INDEX idx_parts_section (item_section_id)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE parts ADD INDEX idx_parts_dept (item_department_id)"); } catch (Exception $e2) {}
+                try { $pdo->exec("ALTER TABLE parts ADD INDEX idx_parts_cat (item_category_id)"); } catch (Exception $e2) {}
             }
         } catch (Exception $e) {
             // ignore
@@ -275,6 +336,8 @@ class InventorySchema {
                     address VARCHAR(255) NULL,
                     tax_reg_no VARCHAR(100) NULL,
                     is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    is_inventory_vendor TINYINT(1) NOT NULL DEFAULT 1,
+                    is_banquet_vendor TINYINT(1) NOT NULL DEFAULT 0,
                     created_by INT NULL,
                     updated_by INT NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -287,6 +350,12 @@ class InventorySchema {
             try {
                 if (!self::hasColumn($pdo, 'suppliers', 'tax_reg_no')) {
                     $pdo->exec("ALTER TABLE suppliers ADD COLUMN tax_reg_no VARCHAR(100) NULL");
+                }
+                if (!self::hasColumn($pdo, 'suppliers', 'is_inventory_vendor')) {
+                    $pdo->exec("ALTER TABLE suppliers ADD COLUMN is_inventory_vendor TINYINT(1) NOT NULL DEFAULT 1");
+                }
+                if (!self::hasColumn($pdo, 'suppliers', 'is_banquet_vendor')) {
+                    $pdo->exec("ALTER TABLE suppliers ADD COLUMN is_banquet_vendor TINYINT(1) NOT NULL DEFAULT 0");
                 }
             } catch (Exception $e2) {}
         } catch (Exception $e) {}
@@ -771,6 +840,89 @@ class InventorySchema {
                     $pdo->exec("ALTER TABLE order_parts ADD COLUMN batch_id INT NULL AFTER part_id");
                 }
             }
+
+            // E-Commerce Rich Data Support
+            if (!self::hasColumn($pdo, 'parts', 'is_online')) {
+                $pdo->exec("ALTER TABLE parts ADD COLUMN is_online TINYINT(1) NOT NULL DEFAULT 1");
+            }
+            if (!self::hasColumn($pdo, 'parts', 'public_description')) {
+                $pdo->exec("ALTER TABLE parts ADD COLUMN public_description TEXT NULL");
+            }
+
+            // Product Gallery
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS part_images (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    part_id INT NOT NULL,
+                    filename VARCHAR(255) NOT NULL,
+                    label VARCHAR(100) NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE
+                )
+            ");
+
+            // Custom Attributes
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS attribute_groups (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    name VARCHAR(100) NOT NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS attributes (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    group_id INT NOT NULL,
+                    name VARCHAR(100) NOT NULL,
+                    type ENUM('text', 'number', 'boolean', 'selection') NOT NULL DEFAULT 'text',
+                    sort_order INT NOT NULL DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (group_id) REFERENCES attribute_groups(id) ON DELETE CASCADE
+                )
+            ");
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS part_attribute_values (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    part_id INT NOT NULL,
+                    attribute_id INT NOT NULL,
+                    value TEXT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_part_attr (part_id, attribute_id),
+                    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+                    FOREIGN KEY (attribute_id) REFERENCES attributes(id) ON DELETE CASCADE
+                )
+            ");
+            
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS part_attribute_groups (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    part_id INT NOT NULL,
+                    group_id INT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uq_part_group (part_id, group_id),
+                    FOREIGN KEY (part_id) REFERENCES parts(id) ON DELETE CASCADE,
+                    FOREIGN KEY (group_id) REFERENCES attribute_groups(id) ON DELETE CASCADE
+                )
+            ");
+
+            // Storefront Menus (Nav Bar)
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS storefront_menus (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    parent_id INT NULL,
+                    label VARCHAR(100) NOT NULL,
+                    link_type ENUM('Internal', 'External', 'Category', 'Collection') NOT NULL DEFAULT 'Internal',
+                    link_value VARCHAR(255) NULL,
+                    sort_order INT NOT NULL DEFAULT 0,
+                    is_active TINYINT(1) NOT NULL DEFAULT 1,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    FOREIGN KEY (parent_id) REFERENCES storefront_menus(id) ON DELETE CASCADE
+                )
+            ");
+
         } catch (Exception $e) {}
 
         @touch($flagFile);

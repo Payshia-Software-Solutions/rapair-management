@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Utensils, ShoppingBag, Store, ArrowRight, ChevronLeft, User, LayoutGrid, Clock, FilePlus, History, FileText, Undo2, Banknote, MoreHorizontal, LayoutDashboard } from "lucide-react";
+import { Utensils, ShoppingBag, Store, ArrowRight, ChevronLeft, User, LayoutGrid, Clock, FilePlus, History, FileText, Undo2, Banknote, MoreHorizontal, LayoutDashboard, Home } from "lucide-react";
 import { usePOS } from "../context/POSContext";
 import {
     Dialog,
@@ -28,7 +28,9 @@ export const OrderTypeSelector: React.FC = () => {
         setSelectedSteward,
         setLedgerDialogOpen,
         setReturnDialogOpen,
-        setRefundDialogOpen
+        setRefundDialogOpen,
+        setPendingInvoicesDialogOpen,
+        setReservationDialogOpen
     } = usePOS();
 
     const [step, setStep] = useState<'choice' | 'mode' | 'table' | 'steward' | 'held'>('choice');
@@ -195,12 +197,14 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
                                 </div>
 
-                                <div className="grid grid-cols-4 gap-3">
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                                     {[
                                         { label: 'ERP Hub', icon: <LayoutDashboard className="w-5 h-5" />, color: 'indigo', action: () => { window.location.href = '../../dashboard'; } },
                                         { label: 'Summary', icon: <FileText className="w-5 h-5" />, color: 'blue', action: () => { setOrderTypeDialogOpen(false); setLedgerDialogOpen(true); } },
+                                        { label: 'Pending', icon: <FileText className="w-5 h-5" />, color: 'amber', action: () => { setOrderTypeDialogOpen(false); setPendingInvoicesDialogOpen(true); } },
                                         { label: 'Return', icon: <Undo2 className="w-5 h-5" />, color: 'purple', action: () => { setOrderTypeDialogOpen(false); setReturnDialogOpen(true); } },
-                                        { label: 'Refund', icon: <Banknote className="w-5 h-5" />, color: 'rose', action: () => { setOrderTypeDialogOpen(false); setRefundDialogOpen(true); } }
+                                        { label: 'Refund', icon: <Banknote className="w-5 h-5" />, color: 'rose', action: () => { setOrderTypeDialogOpen(false); setRefundDialogOpen(true); } },
+                                        { label: 'Reservation', icon: <Home className="w-5 h-5" />, color: 'sky', action: () => { setOrderTypeDialogOpen(false); setReservationDialogOpen(true); } }
                                     ].map((item, idx) => (
                                         <button
                                             key={idx}
@@ -221,12 +225,27 @@ export const OrderTypeSelector: React.FC = () => {
                     {step === 'held' && (
                         <div className="grid grid-cols-1 gap-3">
                             {heldOrders.length === 0 ? (
-                                <div className="py-12 text-center opacity-40">
-                                    <Clock className="w-12 h-12 mx-auto mb-4 text-slate-300" />
-                                    <p className="text-lg font-bold text-slate-500">No held bills</p>
-                                    <Button variant="link" className="mt-2 text-indigo-500" onClick={() => setStep('choice')}>
-                                        Go Back
-                                    </Button>
+                                <div className="py-12 text-center">
+                                    <div className="relative inline-block mb-4">
+                                        <Clock className="w-12 h-12 text-slate-200 dark:text-slate-800" />
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-2 h-2 bg-orange-500 rounded-full animate-ping" />
+                                        </div>
+                                    </div>
+                                    <p className="text-lg font-bold text-slate-500 dark:text-slate-400">No held bills found</p>
+                                    <p className="text-xs text-slate-400 dark:text-slate-500 mb-6">Bills you put on hold will appear here.</p>
+                                    <div className="flex flex-col gap-2 max-w-[200px] mx-auto">
+                                        <Button 
+                                            variant="outline" 
+                                            className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 hover:border-orange-200 transition-all"
+                                            onClick={() => refreshHeldOrders()}
+                                        >
+                                            Retry Sync
+                                        </Button>
+                                        <Button variant="ghost" className="text-slate-400 hover:text-slate-600" onClick={() => setStep('choice')}>
+                                            Go Back
+                                        </Button>
+                                    </div>
                                 </div>
                             ) : (
                                 heldOrders.map((order) => (

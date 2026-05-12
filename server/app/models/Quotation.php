@@ -43,10 +43,14 @@ class Quotation extends Model {
         $this->db->query("
             SELECT q.*, c.name as customer_name, c.phone as customer_phone, c.address as customer_address, 
                    c.tax_number as customer_tax_no,
-                   sl.name as location_name, sl.address as location_address, sl.phone as location_phone
+                   sl.name as location_name, sl.address as location_address, sl.phone as location_phone,
+                   sp.name as shipping_provider_name,
+                   sct.name as costing_template_name
             FROM quotations q
             JOIN customers c ON q.customer_id = c.id
             LEFT JOIN service_locations sl ON q.location_id = sl.id
+            LEFT JOIN shipping_providers sp ON q.shipping_provider_id = sp.id
+            LEFT JOIN shipping_costing_templates sct ON q.shipping_costing_template_id = sct.id
             WHERE q.id = :id
         ");
         $this->db->bind(':id', $id);
@@ -64,10 +68,14 @@ class Quotation extends Model {
             INSERT INTO quotations (
                 quotation_no, location_id, customer_id, issue_date, expiry_date, 
                 subtotal, tax_total, discount_total, grand_total, status, notes,
+                is_international, shipping_provider_id, shipping_cost, shipping_country, shipping_address,
+                shipping_costing_template_id,
                 created_by, updated_by
             ) VALUES (
                 :quotation_no, :location_id, :customer_id, :issue_date, :expiry_date, 
                 :subtotal, :tax_total, :discount_total, :grand_total, :status, :notes,
+                :is_international, :shipping_provider_id, :shipping_cost, :shipping_country, :shipping_address,
+                :shipping_costing_template_id,
                 :created_by, :updated_by
             )
         ");
@@ -82,6 +90,12 @@ class Quotation extends Model {
         $this->db->bind(':grand_total', $data['grand_total']);
         $this->db->bind(':status', $data['status'] ?? 'Draft');
         $this->db->bind(':notes', $data['notes'] ?? null);
+        $this->db->bind(':is_international', !empty($data['is_international']) ? 1 : 0);
+        $this->db->bind(':shipping_provider_id', $data['shipping_provider_id'] ?? null);
+        $this->db->bind(':shipping_cost', $data['shipping_cost'] ?? 0);
+        $this->db->bind(':shipping_country', $data['shipping_country'] ?? null);
+        $this->db->bind(':shipping_address', $data['shipping_address'] ?? null);
+        $this->db->bind(':shipping_costing_template_id', $data['shipping_costing_template_id'] ?? null);
         $this->db->bind(':created_by', $data['userId']);
         $this->db->bind(':updated_by', $data['userId']);
 

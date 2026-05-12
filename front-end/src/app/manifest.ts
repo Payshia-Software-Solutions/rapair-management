@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "BizFlow | Business ERP System",
-    short_name: "BizFlow",
-    description: "Vehicle repair management for workshops.",
+    name: "BizzFlow | Business ERP System",
+    short_name: "BizzFlow",
+    description: "Modern enterprise resource planning and management.",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -12,17 +12,17 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0b1220",
     icons: [
       {
-        src: "/android-chrome-192x192.png",
+        src: "/app-icon.png",
         sizes: "192x192",
         type: "image/png",
       },
       {
-        src: "/android-chrome-512x512.png",
+        src: "/app-icon.png",
         sizes: "512x512",
         type: "image/png",
       },
       {
-        src: "/android-chrome-512x512.png",
+        src: "/app-icon.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

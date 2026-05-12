@@ -39,7 +39,10 @@ import {
   ShoppingCart,
   MessageSquare,
   Mail,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  Utensils,
+  Calculator,
+  FolderTree
 } from "lucide-react";
 
 export type NavItem = {
@@ -51,6 +54,7 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Executive Dashboard", href: "/dashboard/overall" },
   { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard" },
   { icon: MessageSquare, label: "AI Business Intelligence", href: "/ai/insights", perm: "reports.read" },
   { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },
@@ -91,6 +95,7 @@ export const inventoryItems: NavItem[] = [
 ];
 
 export const crmItems: NavItem[] = [
+  { icon: MessageSquare, label: "Inquiries (Leads)", href: "/crm/inquiries", perm: "crm.inquiries.view" },
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
 ];
@@ -105,13 +110,17 @@ export const marketingItems: NavItem[] = [
 export const salesItems: NavItem[] = [
   { icon: FileText, label: "Quotations", href: "/sales/quotations", perm: "sales.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
-  { icon: ShoppingCart, label: "Online Orders", href: "/sales/online-orders", perm: "invoices.read" },
+  { icon: History, label: "Recurring Invoices", href: "/cms/invoices/recurring", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },
 ];
 
 export const masterDataItems: NavItem[] = [
   { icon: LayoutGrid, label: "Product Collections", href: "/master-data/collections", perm: "parts.read" },
+  { icon: LayoutGrid, label: "Item Sections", href: "/master-data/item-sections", perm: "parts.read" },
+  { icon: Layers, label: "Item Departments", href: "/master-data/item-departments", perm: "parts.read" },
+  { icon: Grid, label: "Item Categories", href: "/master-data/item-categories", perm: "parts.read" },
+  { icon: Settings, label: "Technical Specifications", href: "/master-data/attributes", perm: "parts.read" },
   { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
@@ -129,6 +138,8 @@ export const accountingItems: NavItem[] = [
   { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
   { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
   { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet" },
+  { icon: Calculator, label: "Product Costing Templates", href: "/admin/shipping/templates", perm: "costing.manage" },
+  { icon: FileText, label: "Product & Export Costing", href: "/accounts/costing-sheet", perm: "costing.manage" },
   { icon: Settings, label: "Accounting Settings", href: "/accounting/settings" },
 ];
 
@@ -155,6 +166,28 @@ export const frontOfficeItems: NavItem[] = [
   { icon: Building2, label: "Rooms & Rates", href: "/front-office/rooms", perm: "parts.read" },
 ];
 
+export const banquetItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Banquet Overview", href: "/banquet/dashboard", perm: "orders.read" },
+  { icon: CalendarIcon, label: "Event Calendar", href: "/banquet/calendar", perm: "orders.read" },
+  { icon: ClipboardList, label: "Banquet Bookings", href: "/banquet/bookings", perm: "orders.read" },
+  { icon: LayoutGrid, label: "Banquet Halls", href: "/banquet/halls", perm: "orders.read" },
+  { icon: Utensils, label: "Banquet Menus", href: "/banquet/menus", perm: "orders.read" },
+  { icon: Boxes, label: "Banquet Resources", href: "/banquet/resources", perm: "orders.read" },
+  { icon: Truck, label: "Banquet Vendors", href: "/banquet/vendors", perm: "orders.read" },
+];
+
+export const ecommerceItems: NavItem[] = [
+  { icon: ShoppingCart, label: "Online Orders", href: "/ecommerce/orders", perm: "invoices.read" },
+  { icon: Users, label: "Storefront Customers", href: "/ecommerce/customers", perm: "customers.read" },
+  { icon: History, label: "Payment Webhook Logs", href: "/ecommerce/payment-logs", perm: "invoices.read" },
+  { icon: LayoutGrid, label: "Content Management", href: "/ecommerce/content", perm: "promotions.write" },
+  { icon: FolderTree, label: "Navigation Menu", href: "/ecommerce/navigation", perm: "promotions.write" },
+  { icon: Boxes, label: "Storefront Products", href: "/ecommerce/products", perm: "parts.read" },
+  { icon: MessageSquare, label: "Product Reviews", href: "/ecommerce/reviews", perm: "promotions.write" },
+  { icon: Settings, label: "E-commerce Settings", href: "/ecommerce/settings", perm: "promotions.write" },
+  { icon: Calculator, label: "Developer Options", href: "/ecommerce/developer", perm: "promotions.write" },
+];
+
 export const adminNavItems: NavItem[] = [
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: Shield, label: "RBAC Roles", href: "/admin/rbac" },
@@ -167,3 +200,4 @@ export const adminNavItems: NavItem[] = [
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
   { icon: FileX, label: "Document Cancellations", href: "/accounting/cancellations", perm: "accounting.write" },
 ];
+

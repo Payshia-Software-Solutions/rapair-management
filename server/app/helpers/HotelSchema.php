@@ -3,7 +3,12 @@
  * HotelSchema - Database structure for front office
  */
 class HotelSchema {
+    private static $done = false;
+
     public static function ensure() {
+        if (self::$done) return;
+        self::$done = true;
+
         $db = new Database();
 
         // 1. Room Types

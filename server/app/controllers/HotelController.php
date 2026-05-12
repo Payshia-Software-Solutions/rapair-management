@@ -244,9 +244,25 @@ class HotelController extends Controller {
     }
 
     public function remove_item($id) {
-        $u = $this->requirePermission('orders.write');
+        $this->requirePermission('orders.write');
         if ($this->resModel->removeItem($id)) {
             $this->success(null, 'Item removed');
+        }
+    }
+
+    public function items_bulk($id) {
+        $this->requirePermission('orders.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        if (empty($data['items'])) {
+            $this->error('No items provided');
+        }
+
+        if ($this->resModel->addItemsBulk($id, $data['items'])) {
+            $this->success(null, 'Items added to reservation bill');
+        } else {
+            $this->error('Failed to add items');
         }
     }
 

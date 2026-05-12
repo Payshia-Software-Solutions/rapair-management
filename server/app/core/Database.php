@@ -5,7 +5,7 @@
  */
 
 class Database {
-    private $host = DB_HOST;
+    private $host;
     private $user = DB_USER;
     private $pass = DB_PASS;
     private $dbname = DB_NAME;
@@ -16,6 +16,7 @@ class Database {
     private $error;
 
     public function __construct() {
+        $this->host = defined('DB_HOST_OVERRIDE') ? DB_HOST_OVERRIDE : DB_HOST;
         if (self::$sharedDbh) {
             $this->dbh = self::$sharedDbh;
             return;

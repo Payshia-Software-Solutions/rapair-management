@@ -16,7 +16,7 @@ class PosHeldOrder extends Model {
         $this->db->query("
             SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name
             FROM {$this->table} i
-            JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN customers c ON i.customer_id = c.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
             LEFT JOIN users u ON i.steward_id = u.id
             WHERE i.location_id = :locId AND i.status = 'pending'
@@ -30,7 +30,7 @@ class PosHeldOrder extends Model {
         $this->db->query("
             SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name
             FROM {$this->table} i
-            JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN customers c ON i.customer_id = c.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
             LEFT JOIN users u ON i.steward_id = u.id
             WHERE i.id = :id

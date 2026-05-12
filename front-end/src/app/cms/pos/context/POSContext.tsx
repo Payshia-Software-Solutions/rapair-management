@@ -103,6 +103,8 @@ interface POSContextType {
   setRefundDialogOpen: (val: boolean) => void;
   ledgerDialogOpen: boolean;
   setLedgerDialogOpen: (val: boolean) => void;
+  pendingInvoicesDialogOpen: boolean;
+  setPendingInvoicesDialogOpen: (val: boolean) => void;
   activeMobileTab: 'shelf' | 'bill';
   setActiveMobileTab: (tab: 'shelf' | 'bill') => void;
 
@@ -171,6 +173,11 @@ interface POSContextType {
   setPrintSelectionOpen: (val: boolean) => void;
   lastInvoiceId: number | null;
   setLastInvoiceId: (val: number | null) => void;
+
+  // Reservation Link
+  reservationDialogOpen: boolean;
+  setReservationDialogOpen: (val: boolean) => void;
+  handleAddToReservation: (resId: number, items: any[]) => Promise<void>;
 }
 
 
@@ -223,6 +230,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [returnDialogOpen, setReturnDialogOpen] = useState(false);
   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
   const [ledgerDialogOpen, setLedgerDialogOpen] = useState(false);
+  const [pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen] = useState(false);
   const [activeMobileTab, setActiveMobileTab] = useState<'shelf' | 'bill'>('shelf');
 
   // Product Modal State
@@ -272,6 +280,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [printSelectionOpen, setPrintSelectionOpen] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState<number | null>(null);
 
+  // Reservation State
+  const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
+
 
   const updateAppliedPromotion = (promo: any | null) => {
     // Cleanup old reward items if we are clearing or changing promo
@@ -314,11 +325,19 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const refreshHeldOrders = async () => {
-    if (!selectedLocation) return;
+    const lid = selectedLocation || window?.localStorage?.getItem('location_id');
+    if (!lid) return;
     try {
-      const res = await fetchHeldOrders(selectedLocation);
+      const res = await fetchHeldOrders(Number(lid));
       setHeldOrders(Array.isArray(res) ? res : []);
-    } catch (err) {}
+    } catch (err: any) {
+      console.error("Failed to refresh held orders:", err);
+      toast({ 
+        title: "Sync Error", 
+        description: "Could not retrieve held bills. Check your connection.",
+        variant: "destructive" 
+      });
+    }
   };
 
   const reloadData = async () => {
@@ -365,6 +384,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const loadContext = async () => {
       try {
+        setLoading(true);
         const [partsRes, taxesRes, locsRes, custsRes, compRes, banksRes, collRes] = await Promise.all([
           fetchParts().catch(() => []),
           fetchTaxes('', { all: true }).catch(() => []),
@@ -394,17 +414,32 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCustomers(custsRes || []);
         setCompany(compRes);
 
+        // Hydrate Location
         const lsLocId = window?.localStorage?.getItem('location_id');
+        let activeLocId = "";
+        
         if (lsLocId && (locsRes || []).some((l: any) => String(l.id) === lsLocId)) {
-          setSelectedLocation(lsLocId);
+          activeLocId = lsLocId;
         } else if (locsRes?.length === 1) {
-          setSelectedLocation(String(locsRes[0].id));
+          activeLocId = String(locsRes[0].id);
+        }
+
+        if (activeLocId) {
+          _setSelectedLocation(activeLocId);
+          // Fetch location-dependent data BEFORE clearing the loading state
+          await Promise.all([
+            refreshTablesAndStewards(activeLocId),
+            fetchHeldOrders(Number(activeLocId))
+              .then(res => setHeldOrders(Array.isArray(res) ? res : []))
+              .catch(() => {})
+          ]);
         }
 
         // Auto-select first customer as default (Walk-In)
         if (custsRes?.length > 0) {
           setSelectedCustomer(String(custsRes[0].id));
         }
+
         // Keyboard preference
         const lsKeyboard = window?.localStorage?.getItem('v_keyboard_enabled');
         if (lsKeyboard === '1') setVKeyboardEnabledState(true);
@@ -412,14 +447,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Open Order Type Dialog on load
         setOrderTypeDialogOpen(true);
 
-        if (lsLocId) {
-            await Promise.all([
-              refreshTablesAndStewards(lsLocId),
-              fetchHeldOrders(lsLocId).then(res => setHeldOrders(Array.isArray(res) ? res : [])).catch(() => {})
-            ]);
-        }
-
       } catch (err) {
+        console.error("POS Initialization Failed:", err);
         toast({ title: "Initialization Error", description: "Failed to load POS context.", variant: "destructive" });
       } finally {
         setLoading(false);
@@ -432,15 +461,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
     setTheme(current);
   }, []);
-
-  // Reactive Data Refresh when Location changes
-  useEffect(() => {
-    if (selectedLocation && !loading) {
-        // @ts-ignore
-        refreshTablesAndStewards(selectedLocation);
-        refreshHeldOrders();
-    }
-  }, [selectedLocation, loading]);
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.contains('dark');
@@ -465,6 +485,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         !returnDialogOpen && 
         !refundDialogOpen && 
         !ledgerDialogOpen && 
+        !pendingInvoicesDialogOpen &&
         !guideModalOpen &&
         !checkoutOpen
     ) {
@@ -915,6 +936,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handleAddToReservation = async (resId: number, items: any[]) => {
+    if (items.length === 0) return;
+    setSubmitting(true);
+    try {
+        const response = await apiHelper(`/api/hotel/items-bulk/${resId}`, {
+            method: "POST",
+            body: JSON.stringify({ items: items })
+        });
+        if (response.ok) {
+            toast({ title: "Success", description: "Items added to guest reservation bill." });
+            setReservationDialogOpen(false);
+        } else {
+            const data = await response.json();
+            throw new Error(data.message || "Transfer failed");
+        }
+    } catch (err: any) {
+        toast({ title: "Transfer Error", description: err.message, variant: "destructive" });
+    } finally {
+        setSubmitting(false);
+    }
+  };
+
   const value = {
       inventory, systemTaxes, locations, customers, banks, bankBranches, company, loading, submitting, setSubmitting,
       cart, selectedLocation, setSelectedLocation, selectedCustomer, setSelectedCustomer, 
@@ -927,6 +970,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToCartWithQty, updateCartLine, removeCartLine, handleCheckoutProcess, holdPOSBill, loadPOSBill, reloadData,
       totals, theme, toggleTheme, searchQuery, setSearchQuery,
       returnDialogOpen, setReturnDialogOpen, refundDialogOpen, setRefundDialogOpen, ledgerDialogOpen, setLedgerDialogOpen,
+      pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen,
       activeMobileTab, setActiveMobileTab,
       productModalOpen, setProductModalOpen, selectedProduct, setSelectedProduct,
       addCustomerOpen, setAddCustomerOpen, addingCustomer, setAddingCustomer, newCustomer, setNewCustomer, handleQuickAddCustomer,
@@ -948,7 +992,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       printSelectionOpen,
       setPrintSelectionOpen,
       lastInvoiceId,
-      setLastInvoiceId
+      setLastInvoiceId,
+      reservationDialogOpen,
+      setReservationDialogOpen,
+      handleAddToReservation
     };
   
     return (

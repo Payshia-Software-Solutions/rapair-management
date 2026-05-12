@@ -3,7 +3,12 @@
  * Quotation Schema Helper
  */
 class QuotationSchema {
+    private static $done = false;
+
     public static function ensure() {
+        if (self::$done) return;
+        self::$done = true;
+
         $db = new Database();
         
         // Quotations Table
@@ -20,6 +25,12 @@ class QuotationSchema {
             discount_total DECIMAL(15,2) NOT NULL DEFAULT 0,
             grand_total DECIMAL(15,2) NOT NULL DEFAULT 0,
             notes TEXT,
+            is_international TINYINT(1) DEFAULT 0,
+            shipping_provider_id INT,
+            shipping_cost DECIMAL(15,2) DEFAULT 0,
+            shipping_country VARCHAR(100),
+            shipping_address TEXT,
+            shipping_costing_template_id INT,
             converted_invoice_id INT,
             created_by INT,
             updated_by INT,
@@ -28,6 +39,25 @@ class QuotationSchema {
             FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
         ) ENGINE=InnoDB;");
         $db->execute();
+
+        // Add columns if they don't exist (for existing tables)
+        $columns = [
+            'is_international' => "TINYINT(1) DEFAULT 0",
+            'shipping_provider_id' => "INT",
+            'shipping_cost' => "DECIMAL(15,2) DEFAULT 0",
+            'shipping_country' => "VARCHAR(100)",
+            'shipping_address' => "TEXT",
+            'shipping_costing_template_id' => "INT"
+        ];
+
+        foreach ($columns as $col => $def) {
+            try {
+                $db->query("ALTER TABLE quotations ADD COLUMN $col $def");
+                $db->execute();
+            } catch (Exception $e) {
+                // Column might already exist
+            }
+        }
 
         // Quotation Items Table
         $db->query("CREATE TABLE IF NOT EXISTS quotation_items (

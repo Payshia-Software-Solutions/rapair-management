@@ -85,7 +85,7 @@ export default function SelectLocationPage() {
     if (!loading && locations.length === 1 && selectedId) {
       window.localStorage.setItem("location_id", String(locations[0].id));
       window.localStorage.setItem("location_name", String(locations[0].name));
-      const ret = searchParams?.get("return") ?? "/dashboard";
+      const ret = searchParams?.get("return") ?? "/dashboard/overall";
       // Full reload so all modules re-initialize with X-Location-Id context.
       window.location.href = ret;
     }
@@ -102,18 +102,21 @@ export default function SelectLocationPage() {
     const loc = locations.find((l) => l.id === id);
     window.localStorage.setItem("location_id", String(selectedId));
     if (loc?.name) window.localStorage.setItem("location_name", String(loc.name));
-    const ret = searchParams?.get("return") ?? "/dashboard";
+    const ret = searchParams?.get("return") ?? "/dashboard/overall";
     window.location.href = ret;
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       <Card className="w-full max-w-lg border-none shadow-xl rounded-2xl overflow-hidden">
-        <CardHeader className="text-center pb-4">
-          <div className="w-14 h-14 bg-primary/10 text-primary rounded-2xl flex items-center justify-center mx-auto mb-3">
-            <MapPin className="w-7 h-7" />
+        <CardHeader className="text-center pb-4 space-y-2">
+          <div className="w-64 h-24 mx-auto">
+            <img 
+              src="/bizzflow-logo.png" 
+              alt="BizzFlow Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
-          <CardTitle className="text-2xl">Choose Location</CardTitle>
           <CardDescription>Select the location you want to work in</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

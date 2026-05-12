@@ -25,11 +25,212 @@ export type PartRow = {
   is_expiry?: number;
   wholesale_price?: number;
   image_filename?: string | null;
+  slug?: string | null;
   item_type: "Part" | "Service";
   recipe_type: "Standard" | "A La Carte" | "Recipe";
+  allowed_locations?: string | null;
+  
+  // Shipping & Packing Defaults
+  net_weight_kg?: number;
+  gross_weight_kg?: number;
+  units_per_carton?: number;
+  packing_type?: string;
+  carton_length_cm?: number;
+  carton_width_cm?: number;
+  carton_height_cm?: number;
+  volume_cbm?: number;
+  carton_tare_weight_kg?: number;
+
+  // E-Commerce Rich Data
+  is_online?: number;
+  out_of_stock?: number;
+  discount_type?: 'None' | 'Percentage' | 'Fixed';
+  discount_value?: number;
+  public_description?: string | null;
+  item_section_id?: number | null;
+  section_name?: string | null;
+  item_department_id?: number | null;
+  department_name?: string | null;
+  item_category_id?: number | null;
+  category_name?: string | null;
+  gallery?: Array<{ id: number; filename: string; label: string | null; sort_order: number }>;
+  attributes_grouped?: Array<{ id: number; name: string; attributes: any[] }>;
 };
 
+export type ItemSection = { id: number; name: string; };
+export type ItemDepartment = { id: number; section_id: number; name: string; };
+export type ItemCategory = { id: number; name: string; };
 
+// Collections
+export const fetchInventoryCollections = async () => {
+  const res = await api('/api/inventory/collections');
+  if (!res.ok) throw new Error('Failed to load collections');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchItemSections = async () => {
+  const res = await api('/api/item-breakdown/sections');
+  if (!res.ok) throw new Error('Failed to load sections');
+  const data = await res.json();
+  return data.status === 'success' ? data.data as ItemSection[] : data as ItemSection[];
+};
+
+export const createItemSection = async (payload: { name: string }) => {
+  const res = await api('/api/item-breakdown/create_section', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateItemSection = async (id: number | string, payload: { name: string }) => {
+  const res = await api(`/api/item-breakdown/update_section/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteItemSection = async (id: number | string) => {
+  const res = await api(`/api/item-breakdown/delete_section/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+export const fetchItemDepartments = async (sectionId?: number | string) => {
+  const qs = sectionId ? `?section_id=${sectionId}` : '';
+  const res = await api(`/api/item-breakdown/departments${qs}`);
+  if (!res.ok) throw new Error('Failed to load departments');
+  const data = await res.json();
+  return data.status === 'success' ? data.data as ItemDepartment[] : data as ItemDepartment[];
+};
+
+export const createItemDepartment = async (payload: { section_id: number; name: string }) => {
+  const res = await api('/api/item-breakdown/create_department', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateItemDepartment = async (id: number | string, payload: { section_id: number; name: string }) => {
+  const res = await api(`/api/item-breakdown/update_department/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteItemDepartment = async (id: number | string) => {
+  const res = await api(`/api/item-breakdown/delete_department/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+export const fetchItemCategories = async () => {
+  const res = await api('/api/item-breakdown/categories');
+  if (!res.ok) throw new Error('Failed to load categories');
+  const data = await res.json();
+  return data.status === 'success' ? data.data as ItemCategory[] : data as ItemCategory[];
+};
+
+export const createItemCategory = async (payload: { name: string }) => {
+  const res = await api('/api/item-breakdown/create_category', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateItemCategory = async (id: number | string, payload: { name: string }) => {
+  const res = await api(`/api/item-breakdown/update_category/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteItemCategory = async (id: number | string) => {
+  const res = await api(`/api/item-breakdown/delete_category/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+// Attributes Groups
+export const fetchAttributeGroups = async () => {
+  const res = await api('/api/attribute/list_groups');
+  if (!res.ok) throw new Error('Failed to load attribute groups');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createAttributeGroup = async (payload: any) => {
+  const res = await api('/api/attribute/create_group', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateAttributeGroup = async (id: number | string, payload: any) => {
+  const res = await api(`/api/attribute/update_group/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteAttributeGroup = async (id: number | string) => {
+  const res = await api(`/api/attribute/delete_group/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+// Attributes
+export const fetchAttributes = async (groupId?: number | string) => {
+  const url = groupId ? `/api/attribute/list/${groupId}` : '/api/attribute/list';
+  const res = await api(url);
+  if (!res.ok) throw new Error('Failed to load attributes');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createAttribute = async (payload: any) => {
+  const res = await api('/api/attribute/create', { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const updateAttribute = async (id: number | string, payload: any) => {
+  const res = await api(`/api/attribute/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  return res.json();
+};
+
+export const deleteAttribute = async (id: number | string) => {
+  const res = await api(`/api/attribute/delete/${id}`, { method: 'DELETE' });
+  return res.json();
+};
+
+export const assignAttributeGroupToPart = async (partId: number, groupId: number) => {
+  const res = await api('/api/attribute/assign_to_part', {
+    method: 'POST',
+    body: JSON.stringify({ part_id: partId, group_id: groupId })
+  });
+  return res.json();
+};
+
+export const unassignAttributeGroupFromPart = async (partId: number, groupId: number) => {
+  const res = await api('/api/attribute/unassign_from_part', {
+    method: 'POST',
+    body: JSON.stringify({ part_id: partId, group_id: groupId })
+  });
+  return res.json();
+};
+
+// Gallery
+export const uploadPartGalleryImage = async (partId: string | number, file: File, label?: string) => {
+  const formData = new FormData();
+  formData.append('image', file);
+  if (label) formData.append('label', label);
+  formData.append('part_id', String(partId));
+
+  const res = await api('/api/upload/part_gallery', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Upload failed');
+  }
+  return res.json();
+};
+
+export const deletePartGalleryImage = async (id: number | string) => {
+  const res = await api(`/api/part/gallery_delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete gallery image');
+  return res.json();
+};
+
+export const updatePartGallery = async (partId: number | string, images: any[]) => {
+  const res = await api(`/api/part/gallery_update/${partId}`, {
+    method: 'POST',
+    body: JSON.stringify({ images })
+  });
+  return res.json();
+};
 
 export const fetchParts = async (q: string = '') => {
   const qs = q ? `?q=${encodeURIComponent(q)}` : '';
@@ -64,6 +265,15 @@ export const updatePart = async (id: string | number, payload: Partial<PartRow> 
   const res = await api(`/api/part/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to update part');
   return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const bulkUpdatePartDiscount = async (payload: { ids: number[], discount_type: string, discount_value: number }) => {
+    const res = await api('/api/part/bulk_update_discount', { 
+        method: 'POST', 
+        body: JSON.stringify(payload) 
+    });
+    if (!res.ok) throw new Error('Failed to bulk update discounts');
+    return res.json() as Promise<ApiSuccess<null>>;
 };
 
 export const deletePart = async (id: string | number) => {
