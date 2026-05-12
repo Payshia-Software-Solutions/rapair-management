@@ -1,4 +1,5 @@
 "use client";
+import { API_BASE } from '@/config';
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -52,7 +53,7 @@ export default function GlobalInvoicesPage() {
     results: { created: 0, skipped: 0, details: [] as any[] }
   });
 
-  const API_BASE = 'http://localhost/rapair-management/nexus-portal-server/public/api';
+  
 
   const fetchData = async () => {
     setLoading(true);
@@ -223,7 +224,7 @@ export default function GlobalInvoicesPage() {
       
       let created = 0;
       let skipped = 0;
-      const details = [];
+      const details: any[] = [];
       
       // 2. Process one by one
       for (let i = 0; i < activeTenants.length; i++) {
