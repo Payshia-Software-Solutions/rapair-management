@@ -81,6 +81,7 @@ class PubliclocationController extends Controller {
      * Returns analytics and pixel codes for the location associated with the API key.
      */
     public function settings() {
+        $this->handlePublicCors();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
         }
@@ -91,16 +92,27 @@ class PubliclocationController extends Controller {
             $this->error('API Client is not linked to any location', 400);
         }
 
+        require_once '../app/models/Tax.php';
+        require_once '../app/models/StorefrontSetting.php';
+        $taxModel = new Tax();
+        $settingsModel = new StorefrontSetting();
+
         $location = $this->locationModel->getById($client->location_id);
         if (!$location) {
             $this->error('Location not found', 404);
         }
 
+        $taxIds = !empty($location->allowed_taxes_json) ? json_decode($location->allowed_taxes_json, true) : [];
+        $taxes = $taxModel->getByIds($taxIds);
+        $settings = $settingsModel->getAll($client->location_id);
+
         $this->success([
             'location_id' => (int)$location->id,
             'location_name' => (string)$location->name,
             'google_analytics_code' => (string)$location->google_analytics_code,
-            'facebook_pixel_code' => (string)$location->facebook_pixel_code
+            'facebook_pixel_code' => (string)$location->facebook_pixel_code,
+            'taxes' => $taxes,
+            'tax_inclusive' => ($settings['ecom_tax_inclusive'] ?? '0') === '1'
         ]);
     }
 }

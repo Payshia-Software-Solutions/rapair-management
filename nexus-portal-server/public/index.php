@@ -63,6 +63,13 @@ if (empty($_GET['url']) || $_GET['url'] === '/') {
     exit;
 }
 
+// Test Route
+if ($_GET['url'] === 'api/test') {
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'success', 'message' => 'API Routing is working!']);
+    exit;
+}
+
 // Routes
 $router->add('api/request', ['controller' => 'PortalController', 'action' => 'submitRequest'], 'POST');
 $router->add('api/auth/register', ['controller' => 'AuthController', 'action' => 'register'], 'POST');
@@ -104,8 +111,34 @@ $router->add('api/admin/billing/run-cycle', ['controller' => 'BillingController'
 $router->add('api/admin/billing/list', ['controller' => 'BillingController', 'action' => 'listAll']);
 $router->add('api/admin/billing/download', ['controller' => 'BillingController', 'action' => 'download']);
 $router->add('api/admin/billing/resend', ['controller' => 'BillingController', 'action' => 'resend']);
+$router->add('api/admin/billing/delete', ['controller' => 'BillingController', 'action' => 'deleteInvoice'], 'POST');
+$router->add('api/admin/billing/pay', ['controller' => 'BillingController', 'action' => 'processPayment'], 'POST');
+$router->add('api/admin/billing/payments/all', ['controller' => 'BillingController', 'action' => 'listAllPayments']);
+$router->add('api/admin/billing/payments/delete', ['controller' => 'BillingController', 'action' => 'deletePayment'], 'POST');
+$router->add('api/admin/billing/email-logs', ['controller' => 'BillingController', 'action' => 'getEmailLogs']);
+$router->add('api/admin/communication/recipients', ['controller' => 'CommunicationController', 'action' => 'getRecipients']);
+$router->add('api/admin/communication/send-custom', ['controller' => 'CommunicationController', 'action' => 'sendCustom'], 'POST');
 $router->add('api/admin/billing/update', ['controller' => 'BillingController', 'action' => 'update'], 'POST');
+$router->add('api/admin/billing/payments', ['controller' => 'BillingController', 'action' => 'getPayments']);
 $router->add('api/client/billing/history', ['controller' => 'BillingController', 'action' => 'getMyHistory']);
+
+// Settings & Exchange Rates
+$router->add('api/admin/settings/exchange-rates', ['controller' => 'SettingsController', 'action' => 'getExchangeRates']);
+$router->add('api/admin/settings/exchange-rates/update', ['controller' => 'SettingsController', 'action' => 'updateExchangeRate'], 'POST');
+$router->add('api/admin/settings/exchange-rates/reset', ['controller' => 'SettingsController', 'action' => 'resetExchangeRate'], 'POST');
+$router->add('api/admin/settings/exchange-rates/source', ['controller' => 'SettingsController', 'action' => 'updateSyncSource'], 'POST');
+$router->add('api/admin/settings/exchange-rates/preview', ['controller' => 'SettingsController', 'action' => 'previewSync'], 'POST');
+$router->add('api/admin/settings/exchange-rates/apply', ['controller' => 'SettingsController', 'action' => 'applySync'], 'POST');
+
+// Company Settings
+$router->add('api/admin/settings/company', ['controller' => 'SettingsController', 'action' => 'getCompanyInfo']);
+$router->add('api/admin/settings/company/update', ['controller' => 'SettingsController', 'action' => 'updateCompanyInfo'], 'POST');
+$router->add('api/admin/settings/company/logos', ['controller' => 'SettingsController', 'action' => 'getAvailableLogos']);
+
+// Mail Settings
+$router->add('api/admin/settings/mail', ['controller' => 'SettingsController', 'action' => 'getMailSettings']);
+$router->add('api/admin/settings/mail/update', ['controller' => 'SettingsController', 'action' => 'updateMailSettings'], 'POST');
+$router->add('api/admin/settings/mail/test', ['controller' => 'SettingsController', 'action' => 'testMailConnection'], 'POST');
 
 // Match and Dispatch
 $url = $_GET['url'] ?? '';

@@ -66,11 +66,6 @@ export function BizFlowAiAssistant() {
     const [snapshot, setSnapshot] = useState<BusinessSnapshot | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Hide assistant in POS and Print Pages
-    if (pathname?.includes('/cms/pos') || pathname?.includes('/shipping/costing/print')) {
-        return null;
-    }
-
     useEffect(() => {
         if (isOpen && messages.length === 0) {
             setMessages([
@@ -90,6 +85,11 @@ export function BizFlowAiAssistant() {
             scrollRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages]);
+
+    // Hide assistant in POS and Print Pages
+    if (pathname?.includes('/cms/pos') || pathname?.includes('/shipping/costing/print')) {
+        return null;
+    }
 
     const loadInitialData = async () => {
         try {

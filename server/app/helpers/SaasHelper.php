@@ -7,6 +7,21 @@ class SaasHelper {
     private static $config = null;
     private static $cache_ttl = 3600;
 
+    public static function getApiKey() {
+        try {
+            // Using a raw PDO connection to avoid potential circular dependencies if Database class is complex
+            $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS);
+            $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'nexus_api_key' LIMIT 1");
+            $stmt->execute();
+            $row = $stmt->fetch(PDO::FETCH_OBJ);
+            if ($row && !empty($row->setting_value)) return $row->setting_value;
+        } catch (Exception $e) {}
+        
+        if (defined('NEXUS_API_KEY') && !empty(NEXUS_API_KEY)) return NEXUS_API_KEY;
+        if (defined('NEXUS_LICENSE_KEY') && !empty(NEXUS_LICENSE_KEY)) return NEXUS_LICENSE_KEY;
+        return '';
+    }
+
     public static function getConfig($force = false) {
         if (!$force && self::$config !== null) return self::$config;
         if (!$force) {
@@ -15,7 +30,8 @@ class SaasHelper {
         }
 
         try {
-            $masterApiUrl = NEXUS_PORTAL_URL . "/api/saas/license/check?key=" . NEXUS_API_KEY;
+            $apiKey = self::getApiKey();
+            $masterApiUrl = NEXUS_PORTAL_URL . "/api/saas/license/check?key=" . $apiKey;
             $ctx = stream_context_create(['http' => ['timeout' => 8, 'ignore_errors' => true]]);
             $json = @file_get_contents($masterApiUrl, false, $ctx);
             
