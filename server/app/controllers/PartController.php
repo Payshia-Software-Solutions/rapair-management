@@ -246,6 +246,122 @@ class PartController extends Controller {
         $this->error('Stock adjustment failed (insufficient stock or invalid part)', 400);
     }
 
+    // POST /api/part/classify_batch
+    public function classify_batch() {
+        $u = $this->requirePermission('stock.adjust');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $partId = (int)($data['part_id'] ?? 0);
+        $locId = (int)($data['location_id'] ?? $this->currentLocationId($u));
+        $qty = (float)($data['qty'] ?? 0);
+        $sourceBatchId = isset($data['source_batch_id']) ? (int)$data['source_batch_id'] : null;
+        if ($sourceBatchId === 0) $sourceBatchId = null;
+        
+        if ($partId <= 0 || $locId <= 0 || $qty <= 0) {
+            $this->error('Invalid classification data', 400);
+        }
+
+        // Validate unclassified quantity using the same logic as UI
+        $inventoryBatchModel = $this->model('InventoryBatch');
+        $batches = $inventoryBatchModel->getAvailableBatches($partId, $locId);
+        $unclassifiedBatches = [];
+        $unclassified = 0;
+        foreach ($batches as $b) {
+            $match = false;
+            if ($sourceBatchId !== null) {
+                if ($b->id == $sourceBatchId) $match = true;
+            } else {
+                if ($b->id == 0 || $b->batch_number === 'UNBATCHED' || $b->batch_number === 'UNCLASSIFIED') $match = true;
+            }
+            
+            if ($match) {
+                $unclassifiedBatches[] = $b;
+                $unclassified += (float)$b->quantity_on_hand;
+                if ($sourceBatchId !== null) break;
+            }
+        }
+        
+        if ($qty > $unclassified) {
+            $this->error('Quantity exceeds available unclassified stock', 400);
+        }
+
+        $batchNumber = trim((string)($data['batch_number'] ?? ''));
+        if ($batchNumber === '') {
+            $batchNumber = 'B-' . $partId . '-' . date('YmdHis');
+        }
+        
+        $mfgDate = !empty($data['mfg_date']) ? trim($data['mfg_date']) : null;
+        $expDate = !empty($data['expiry_date']) ? trim($data['expiry_date']) : null;
+
+        try {
+            $db = new Database();
+            $db->exec("START TRANSACTION");
+
+            // Create batch
+            $db->query("
+                INSERT INTO inventory_batches (part_id, location_id, batch_number, mfg_date, expiry_date, quantity_received, quantity_on_hand)
+                VALUES (:part_id, :loc, :bnum, :mfg, :exp, :qty, :qty)
+            ");
+            $db->bind(':part_id', $partId);
+            $db->bind(':loc', $locId);
+            $db->bind(':bnum', $batchNumber);
+            $db->bind(':mfg', $mfgDate);
+            $db->bind(':exp', $expDate);
+            $db->bind(':qty', $qty);
+            $db->execute();
+            $newBatchId = $db->lastInsertId();
+
+            $notes = 'Classified to ' . $batchNumber;
+            
+            // Deduct unclassified stock
+            $remainingToDeduct = $qty;
+            foreach ($unclassifiedBatches as $ub) {
+                if ($remainingToDeduct <= 0.0001) break;
+                
+                $take = min($remainingToDeduct, (float)$ub->quantity_on_hand);
+                if ($take > 0.0001) {
+                    $sbid = $ub->id > 0 ? $ub->id : null;
+                    $db->query("
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                        VALUES (:loc, :part_id, :sbid, :qty, 'ADJUSTMENT', 'inventory_batches', :ref_id, :notes, :created_by)
+                    ");
+                    $db->bind(':loc', $locId);
+                    $db->bind(':part_id', $partId);
+                    $db->bind(':sbid', $sbid);
+                    $db->bind(':qty', -$take);
+                    $db->bind(':ref_id', $newBatchId);
+                    $db->bind(':notes', $notes);
+                    $db->bind(':created_by', (int)$u['sub']);
+                    $db->execute();
+                    
+                    $remainingToDeduct -= $take;
+                }
+            }
+
+            // Add to new batch
+            $db->query("
+                INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                VALUES (:loc, :part_id, :batch_id, :qty, 'ADJUSTMENT', 'inventory_batches', :ref_id, :notes, :created_by)
+            ");
+            $db->bind(':loc', $locId);
+            $db->bind(':part_id', $partId);
+            $db->bind(':batch_id', $newBatchId);
+            $db->bind(':qty', $qty);
+            $db->bind(':ref_id', $newBatchId);
+            $db->bind(':notes', $notes);
+            $db->bind(':created_by', (int)$u['sub']);
+            $db->execute();
+
+            $db->exec("COMMIT");
+            $this->success(['batch_id' => $newBatchId, 'batch_number' => $batchNumber], 'Stock classified successfully');
+            
+        } catch (Exception $e) {
+            if (isset($db)) $db->exec("ROLLBACK");
+            $this->error('Failed to classify stock: ' . $e->getMessage(), 500);
+        }
+    }
+
     // GET /api/part/movements/1
     public function movements($id = null) {
         $this->requirePermission('stock.read');
@@ -261,8 +377,9 @@ class PartController extends Controller {
         if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $fromDt = $from . ' 00:00:00';
         if ($to !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $toDt = $to . ' 23:59:59';
 
-        $rows = $this->partModel->listMovements($id, $_GET['limit'] ?? 200, $locId, $fromDt, $toDt);
-        $this->success($rows);
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        $result = $this->partModel->listMovements($id, $_GET['limit'] ?? 200, $locId, $fromDt, $toDt, $offset);
+        $this->success($result);
     }
 
     // GET /api/part/location_balances?location_id=1&q=
