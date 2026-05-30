@@ -10,8 +10,8 @@ class OrderTypeSelector extends StatefulWidget {
 
   const OrderTypeSelector({Key? key, required this.activeLocation}) : super(key: key);
 
-  static Future<void> show(BuildContext context, ServiceLocation activeLocation) async {
-    await showModalBottomSheet(
+  static Future<Map<String, dynamic>?> show(BuildContext context, ServiceLocation activeLocation) async {
+    return await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -37,7 +37,13 @@ class _OrderTypeSelectorState extends State<OrderTypeSelector> {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: Theme.of(context).brightness == Brightness.dark
+              ? [const Color(0xFF1E293B), const Color(0xFF000000)]
+              : [const Color(0xFFE0E7FF), const Color(0xFFF8FAFC)],
+        ),
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
@@ -77,19 +83,11 @@ class _OrderTypeSelectorState extends State<OrderTypeSelector> {
 
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: const BorderRadius.only(
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.only(
           topLeft: Radius.circular(24),
           topRight: Radius.circular(24),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -325,17 +323,11 @@ class _OrderTypeSelectorState extends State<OrderTypeSelector> {
   }
 
   void _finishSelection({int? stewardId}) {
-    Navigator.pop(context); // Close the bottom sheet
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CustomerSelectionScreen(
-          orderType: _selectedMode,
-          tableId: _selectedTableId,
-          stewardId: stewardId,
-        ),
-      ),
-    );
+    Navigator.pop(context, {
+      'orderType': _selectedMode,
+      'tableId': _selectedTableId,
+      'stewardId': stewardId,
+    });
   }
 
   Widget _buildOptionCard({

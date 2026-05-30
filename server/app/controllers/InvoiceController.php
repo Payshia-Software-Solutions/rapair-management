@@ -18,9 +18,14 @@ class InvoiceController extends Controller {
             return;
         }
 
+        $startDate = $_GET['start_date'] ?? $_GET['date'] ?? null;
+        $endDate = $_GET['end_date'] ?? $_GET['date'] ?? null;
+
         $filters = [
             'status' => $_GET['status'] ?? null,
-            'customer_id' => $_GET['customer_id'] ?? null
+            'customer_id' => $_GET['customer_id'] ?? null,
+            'start_date' => $startDate,
+            'end_date' => $endDate
         ];
 
         $invoices = $this->invoiceModel->getAll($filters);
@@ -45,6 +50,13 @@ class InvoiceController extends Controller {
         $invoice['payments'] = $this->invoiceModel->getPayments($id);
         $invoice['applied_taxes'] = $this->invoiceModel->getAppliedTaxes($id);
         $invoice['batch_movements'] = $this->invoiceModel->getBatchMovements($id);
+
+        if (!empty($invoice['created_by'])) {
+            $userRow = $this->db->query("SELECT name FROM users WHERE id = :id", [':id' => $invoice['created_by']])->fetch();
+            if ($userRow) {
+                $invoice['created_by_name'] = $userRow['name'];
+            }
+        }
 
         $this->success($invoice);
     }
@@ -94,7 +106,15 @@ class InvoiceController extends Controller {
             }
             
             if (!$found) {
-                $this->error('The applied promotion is no longer valid for this cart. Please refresh and try again.', 400);
+                $reason = $promoModel->getPromotionRejectionReason(
+                    $data['applied_promotion_id'],
+                    $itemsObj,
+                    $subtotal,
+                    $data['bank_id'] ?? null,
+                    $data['card_category'] ?? null,
+                    $data['location_id'] ?? null
+                );
+                $this->error('The applied promotion is no longer valid for this cart: ' . $reason . ' Please refresh and try again.', 400);
                 return;
             }
         }
@@ -210,7 +230,16 @@ class InvoiceController extends Controller {
             }
 
             $db->commit();
-            $this->success(['id' => $invoiceId, 'message' => 'Invoice created successfully']);
+            
+            $userRow = $this->db->query("SELECT name FROM users WHERE id = :id", [':id' => $u['sub']])->fetch();
+            $createdBy = $userRow ? $userRow['name'] : 'System';
+
+            $this->success([
+                'id' => $invoiceId, 
+                'invoice_no' => $invoiceNo, 
+                'created_by' => $createdBy,
+                'message' => 'Invoice created successfully'
+            ]);
         } catch (Exception $e) {
             try {
                 $db->rollBack();

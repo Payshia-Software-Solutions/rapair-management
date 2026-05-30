@@ -3,6 +3,9 @@
  * Entry Point for the Repair Management API
  */
 
+// Set Server Timezone to Sri Lanka (LK)
+date_default_timezone_set('Asia/Colombo');
+
 // Load Configuration
 require_once '../config/config.php';
 
@@ -89,9 +92,10 @@ require_once '../app/helpers/ShippingSchema.php';
 require_once '../app/helpers/CRMSchema.php';
 require_once '../app/helpers/ShippingCarrierSchema.php';
 
-// Ensure schema is up to date
-CityPostalSchema::ensure();
-ShippingCarrierSchema::ensure();
-SystemSchema::ensure();
+// Schema checks should be run via a dedicated migration script or endpoint.
+// Running them on every request causes massive performance issues and DB locks.
+// // // // // // CityPostalSchema::ensure();
+// // // // // // ShippingCarrierSchema::ensure();
+// // // // // // SystemSchema::ensure();
 
 $init = new App();

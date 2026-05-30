@@ -11,7 +11,7 @@ class Invoice extends Model {
         $this->db = $this->db_ref;
     }
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         require_once __DIR__ . '/../helpers/InvoiceSchema.php';
         InvoiceSchema::ensure();
         
@@ -170,12 +170,19 @@ class Invoice extends Model {
         if (!empty($filters['customer_id'])) {
             $sql .= " AND i.customer_id = :customer_id";
         }
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $sql .= " AND i.issue_date >= :start_date AND i.issue_date <= :end_date";
+        }
 
         $sql .= " ORDER BY i.created_at DESC";
 
         $this->db->query($sql);
         if (!empty($filters['status'])) $this->db->bind(':status', $filters['status']);
         if (!empty($filters['customer_id'])) $this->db->bind(':customer_id', $filters['customer_id']);
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $this->db->bind(':start_date', $filters['start_date']);
+            $this->db->bind(':end_date', $filters['end_date']);
+        }
 
         return $this->db->resultSet();
     }
@@ -233,12 +240,12 @@ class Invoice extends Model {
                 invoice_no, order_id, online_order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
                 subtotal, tax_total, discount_total, shipping_fee, grand_total, order_type, table_id, steward_id, notes,
                 is_international, shipping_provider_id, shipping_country,
-                applied_promotion_id, applied_promotion_name, created_by, updated_by
+                applied_promotion_id, applied_promotion_name, offline_id, device_id, created_by, updated_by
             ) VALUES (
                 :invoice_no, :order_id, :online_order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
                 :subtotal, :tax_total, :discount_total, :shipping_fee, :grand_total, :order_type, :table_id, :steward_id, :notes,
                 :is_international, :shipping_provider_id, :shipping_country,
-                :applied_promo_id, :applied_promo_name, :created_by, :updated_by
+                :applied_promo_id, :applied_promo_name, :offline_id, :device_id, :created_by, :updated_by
             )
         ");
         $this->db->bind(':invoice_no', $data['invoice_no']);
@@ -264,6 +271,8 @@ class Invoice extends Model {
         $this->db->bind(':shipping_country', $data['shipping_country'] ?? null);
         $this->db->bind(':applied_promo_id', $data['applied_promotion_id'] ?? null);
         $this->db->bind(':applied_promo_name', $data['applied_promotion_name'] ?? null);
+        $this->db->bind(':offline_id', $data['offline_id'] ?? null);
+        $this->db->bind(':device_id', $data['device_id'] ?? null);
         $this->db->bind(':created_by', $data['userId']);
         $this->db->bind(':updated_by', $data['userId']);
 

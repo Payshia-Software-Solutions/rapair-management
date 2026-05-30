@@ -8,10 +8,10 @@ class ProductionOrder extends Model {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
     }
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         try {
             // Production Order Table
             // Statuses: Planned, InProgress, Completed, Cancelled

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_pos/models/customer.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_pos/screens/dashboard_screen.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:image/image.dart' as img;
@@ -7,25 +8,44 @@ import 'dart:typed_data';
 import '../models/cart_item.dart';
 import '../services/api_service.dart';
 import '../services/printer_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 class CheckoutPaymentScreen extends StatefulWidget {
   final Customer customer;
   final List<CartItem> cart;
   final double grandTotal;
+  final double subtotal;
+  final double taxTotal;
+  final List<dynamic> appliedTaxes;
+  final double discountTotal;
+  final String discountType;
+  final double discountValue;
   final String? orderType;
   final int? tableId;
   final int? stewardId;
   final int? heldOrderId;
+  final int? appliedPromotionId;
+  final String? appliedPromotionName;
+  final bool isReturnMode;
 
   const CheckoutPaymentScreen({
     super.key,
     required this.customer,
     required this.cart,
     required this.grandTotal,
+    required this.subtotal,
+    required this.taxTotal,
+    required this.appliedTaxes,
+    this.discountTotal = 0.0,
+    this.discountType = 'fixed',
+    this.discountValue = 0.0,
     this.orderType,
     this.tableId,
     this.stewardId,
     this.heldOrderId,
+    this.appliedPromotionId,
+    this.appliedPromotionName,
+    this.isReturnMode = false,
   });
 
   @override
@@ -62,6 +82,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
   String _chequeDate = DateTime.now().toIso8601String().split('T')[0];
   String? _chequeBankName;
   String _chequeBranchName = '';
+  String _receiptMode = 'standard';
 
   @override
   void initState() {
@@ -69,6 +90,16 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
     _amountTendered = widget.grandTotal;
     _amountController.text = _amountTendered.toStringAsFixed(0);
     _loadBanks();
+    _loadReceiptMode();
+  }
+
+  Future<void> _loadReceiptMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        _receiptMode = prefs.getString('receipt_mode') ?? 'standard';
+      });
+    }
   }
 
   @override
@@ -130,58 +161,112 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           'item_type': cartItem.item.itemType ?? 'Part',
           'quantity': cartItem.quantity,
           'unit_price': cartItem.item.price,
-          'discount': cartItem.discount,
+          'discount': (cartItem.discount + cartItem.promoDiscount) / (cartItem.quantity > 0 ? cartItem.quantity : 1),
           'tax_amount': 0,
           'line_total': cartItem.subtotal,
         };
       }).toList();
 
-      final payload = {
-        'location_id': activeLocation['id'],
-        'customer_id': widget.customer.id,
-        'billing_address': '',
-        'shipping_address': '',
-        'issue_date': DateTime.now().toIso8601String().split('T')[0],
-        'due_date': DateTime.now().toIso8601String().split('T')[0],
-        'subtotal': widget.grandTotal,
-        'tax_total': 0,
-        'discount_total': 0,
-        'grand_total': widget.grandTotal,
-        'order_type': widget.orderType ?? 'retail',
-        'table_id': widget.tableId,
-        'steward_id': widget.stewardId,
-        'held_order_id': widget.heldOrderId,
-        'discount_type': 'fixed',
-        'notes': 'POS Mobile App Sale',
-        'items': items,
-        'payments': [
-          {
-            'method': _paymentMethod,
+      Map<String, dynamic> payload;
+      
+      if (widget.isReturnMode) {
+        payload = {
+          'location_id': activeLocation['id'],
+          'customer_id': widget.customer.id,
+          'invoice_id': null, // Blind return
+          'total_amount': widget.grandTotal,
+          'reason': 'Mobile App Blind Return',
+          'items': items,
+          'refund': {
+            'payment_method': _paymentMethod,
             'amount': _paymentMethod == 'Credit' ? 0 : widget.grandTotal,
-            'cardLast4': _cardLast4,
-            'cardType': _cardType,
-            'cardAuthCode': _cardAuthCode,
-            'bankId': _cardBankId,
-            'cardCategory': _cardCategory,
-            'chequeNo': _chequeNo,
-            'chequeBankName': _chequeBankName,
-            'chequeBranchName': _chequeBranchName,
-            'chequeDate': _chequeDate,
-            'chequePayee': '',
           }
-        ]
-      };
+        };
+      } else {
+        payload = {
+          'location_id': activeLocation['id'],
+          'customer_id': widget.customer.id,
+          'billing_address': '',
+          'shipping_address': '',
+          'issue_date': DateTime.now().toIso8601String().split('T')[0],
+          'due_date': DateTime.now().toIso8601String().split('T')[0],
+          'subtotal': widget.subtotal,
+          'tax_total': widget.taxTotal,
+          'applied_taxes': widget.appliedTaxes,
+          'discount_total': widget.discountTotal,
+          'grand_total': widget.grandTotal,
+          'order_type': widget.orderType ?? 'retail',
+          'table_id': widget.tableId,
+          'steward_id': widget.stewardId,
+          'held_order_id': widget.heldOrderId,
+          'applied_promotion_id': widget.appliedPromotionId,
+          'applied_promotion_name': widget.appliedPromotionName,
+          'discount_type': widget.discountType,
+          'discount_value': widget.discountValue,
+          'notes': 'POS Mobile App Sale',
+          'items': items,
+          'payments': [
+            {
+              'method': _paymentMethod,
+              'amount': _paymentMethod == 'Credit' ? 0 : widget.grandTotal,
+              'cardLast4': _cardLast4,
+              'cardType': _cardType,
+              'cardAuthCode': _cardAuthCode,
+              'bankId': _cardBankId,
+              'cardCategory': _cardCategory,
+              'chequeNo': _chequeNo,
+              'chequeBankName': _chequeBankName,
+              'chequeBranchName': _chequeBranchName,
+              'chequeDate': _chequeDate,
+              'chequePayee': '',
+            }
+          ]
+        };
+      }
 
-      final response = await _apiService.createInvoice(payload);
+      final response = widget.isReturnMode 
+          ? await _apiService.processReturn(payload)
+          : await _apiService.createInvoice(payload);
 
       if (response['success']) {
+        // Auto log a visit so the shop is removed from the To Visit list 
+        // even if the user didn't explicitly check in via GPS/QR.
+        if (widget.customer.id != 0) {
+          double lat = 0.0;
+          double lng = 0.0;
+          try {
+            Position? pos = await Geolocator.getLastKnownPosition();
+            pos ??= await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium, timeLimit: const Duration(seconds: 3));
+            lat = pos.latitude;
+            lng = pos.longitude;
+          } catch (_) {}
+
+          await _apiService.logVisit({
+            'customer_id': widget.customer.id,
+            'visit_type': 'SALE',
+            'reason': 'Invoice Created',
+            'latitude': lat,
+            'longitude': lng,
+          });
+        }
+
         final orderData = {
-          'id': response['data']['id'].toString(),
+          'id': widget.isReturnMode 
+              ? (response['data']['return_no']?.toString() ?? response['data']['id']?.toString() ?? 'N/A')
+              : (response['data']['invoice_no']?.toString() ?? response['data']['id']?.toString() ?? 'N/A'),
+          'createdBy': response['data']['created_by']?.toString() ?? 'System',
+          'location': activeLocation?['name']?.toString() ?? 'N/A',
           'customer': widget.customer.name,
           'total': widget.grandTotal.toStringAsFixed(2),
           'paymentMethod': _paymentMethod,
           'amountTendered': _amountTendered,
           'grandTotal': widget.grandTotal,
+          'subtotal': widget.subtotal,
+          'tax_total': widget.taxTotal,
+          'discount_total': widget.discountTotal,
+          'discount_type': widget.discountType,
+          'discount_value': widget.discountValue,
+          'applied_taxes': widget.appliedTaxes,
           'items': items.map((i) => {
             'name': i['description'],
             'price': i['unit_price'],
@@ -216,8 +301,15 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
         bool isPrinted = false;
         final screenshotController = ScreenshotController();
         
-        return StatefulBuilder(
-          builder: (context, setState) {
+        return PopScope(
+          canPop: false,
+          onPopInvoked: (didPop) {
+            if (didPop) return;
+            Navigator.pop(ctx);
+            Navigator.pop(this.context, true);
+          },
+          child: StatefulBuilder(
+            builder: (context, setState) {
             if (isPrinted) {
               return Dialog.fullscreen(
                 backgroundColor: Colors.grey[200],
@@ -234,7 +326,7 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                                 color: Colors.white,
                                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
                               ),
-                              child: ReceiptView(orderData: orderData),
+                              child: ReceiptView(orderData: orderData, receiptMode: _receiptMode),
                             ),
                           ),
                         ),
@@ -272,17 +364,19 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
               ? SizedBox(
                   width: 300,
                   height: 350,
-                  child: PrintingAnimation(orderData: orderData),
+                  child: PrintingAnimation(orderData: orderData, receiptMode: _receiptMode),
                 )
               : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(Icons.check_circle, color: Colors.green, size: 60),
                   const SizedBox(height: 16),
-                  Text('CHECKOUT SUCCESSFUL!', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(widget.isReturnMode ? 'RETURN SUCCESSFUL!' : 'CHECKOUT SUCCESSFUL!', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 20, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(
-                    'Invoice #${orderData['id']} has been processed.\nSelect your preferred receipt format to print.',
+                    widget.isReturnMode
+                      ? 'Return #${orderData['id']} has been processed.\nSelect your preferred receipt format to print.'
+                      : 'Invoice #${orderData['id']} has been processed.\nSelect your preferred receipt format to print.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color),
                   ),
@@ -296,12 +390,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: isPrinting ? null : () async {
+                      this.setState(() => _receiptMode = 'standard');
                       setState(() => isPrinting = true);
                       try {
                         final widgetToCapture = Container(
                           width: 384, // Logical width (makes text wrap properly)
                           color: Colors.white,
-                          child: ReceiptView(orderData: orderData),
+                          child: ReceiptView(orderData: orderData, receiptMode: 'standard'),
                         );
                         final imageBytes = await screenshotController.captureFromWidget(
                           widgetToCapture, 
@@ -359,12 +454,13 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     onPressed: isPrinting ? null : () async {
+                      this.setState(() => _receiptMode = 'inclusive');
                       setState(() => isPrinting = true);
                       try {
                         final widgetToCapture = Container(
-                          width: 384, // Logical width (makes text wrap properly)
+                          width: 384,
                           color: Colors.white,
-                          child: ReceiptView(orderData: orderData),
+                          child: ReceiptView(orderData: orderData, receiptMode: 'inclusive'),
                         );
                         final imageBytes = await screenshotController.captureFromWidget(
                           widgetToCapture, 
@@ -425,10 +521,11 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
               ),
             );
           }
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   Widget _buildMethodButton(String method, IconData icon) {
     final isSelected = _paymentMethod == method;
@@ -605,10 +702,12 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    return PopScope(
+      canPop: !_isProcessing,
+      child: Scaffold(
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('POS CHECKOUT', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(widget.isReturnMode ? 'RETURN REFUND' : 'POS CHECKOUT', style: const TextStyle(fontWeight: FontWeight.w900)),
         centerTitle: true,
         elevation: 0,
       ),
@@ -802,8 +901,9 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildQuickAddButton(String label, double amount, bool isExact) {
     return OutlinedButton(
@@ -826,7 +926,8 @@ class _CheckoutPaymentScreenState extends State<CheckoutPaymentScreen> {
 
 class PrintingAnimation extends StatefulWidget {
   final Map<String, dynamic>? orderData;
-  const PrintingAnimation({super.key, this.orderData});
+  final String receiptMode;
+  const PrintingAnimation({super.key, this.orderData, this.receiptMode = 'standard'});
 
   @override
   State<PrintingAnimation> createState() => _PrintingAnimationState();
@@ -898,7 +999,7 @@ class _PrintingAnimationState extends State<PrintingAnimation> with SingleTicker
                             alignment: Alignment.topCenter,
                             child: SizedBox(
                               width: 400, // Fixed width for scaling
-                              child: ReceiptView(orderData: widget.orderData!),
+                              child: ReceiptView(orderData: widget.orderData!, receiptMode: widget.receiptMode),
                             ),
                           )
                         : Column(
@@ -962,24 +1063,25 @@ class _PrintingAnimationState extends State<PrintingAnimation> with SingleTicker
                             boxShadow: [
                               BoxShadow(color: Colors.greenAccent.withOpacity(0.5), blurRadius: 5)
                             ]
-                          ),
-                        );
-                      }
-                    ),
-                  ],
+                            ),
+                          );
+                        }
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
     );
   }
 }
 
 class ReceiptView extends StatelessWidget {
   final Map<String, dynamic> orderData;
-  const ReceiptView({super.key, required this.orderData});
+  final String receiptMode;
+  const ReceiptView({super.key, required this.orderData, this.receiptMode = 'standard'});
 
   String _formatCurrency(dynamic amount) {
     double val = double.tryParse(amount?.toString() ?? '0') ?? 0.0;
@@ -1015,7 +1117,7 @@ class ReceiptView extends StatelessWidget {
     );
   }
 
-  Widget _buildRow(String label, String value, {bool isBold = false, double fontSize = 12}) {
+  Widget _buildRow(String label, String value, {bool isBold = false, double fontSize = 16}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
@@ -1034,50 +1136,142 @@ class ReceiptView extends StatelessWidget {
     final grandTotal = orderData['grandTotal'] as double;
     final paymentMethod = orderData['paymentMethod'] as String;
     
+    // Taxes processing
+    final List<dynamic> appliedTaxes = orderData['applied_taxes'] ?? [];
+    final double taxTotal = double.tryParse(orderData['tax_total']?.toString() ?? '0') ?? 0.0;
+    final double grandDiscountTotal = orderData['discount_total'] != null 
+        ? (double.tryParse(orderData['discount_total'].toString()) ?? 0.0) 
+        : 0.0;
+    final double subtotal = double.tryParse(orderData['subtotal']?.toString() ?? '0') ?? grandTotal;
+
+    // Detect if the incoming data is already inclusive of tax.
+    double exclusiveExpected = subtotal - grandDiscountTotal + taxTotal;
+    double inclusiveExpected = subtotal - grandDiscountTotal;
+    bool isIncomingInclusive = (grandTotal - inclusiveExpected).abs() < (grandTotal - exclusiveExpected).abs();
+
+    bool renderInclusive = receiptMode == 'inclusive';
+
+    double sumLineTotals = items.fold(0.0, (sum, i) => sum + (double.tryParse(i['subtotal']?.toString() ?? '0') ?? 0.0));
+    
+    double priceScaleFactor = 1.0;
+    if (sumLineTotals > 0) {
+      double targetItemSum;
+      if (renderInclusive) {
+        targetItemSum = isIncomingInclusive ? sumLineTotals : (sumLineTotals + taxTotal);
+      } else {
+        targetItemSum = isIncomingInclusive ? (sumLineTotals - taxTotal) : sumLineTotals;
+      }
+      priceScaleFactor = targetItemSum / sumLineTotals;
+    }
+
     return Padding(
       padding: const EdgeInsets.all(0.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text('KDU Group', textAlign: TextAlign.center, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black)),
+          const Text('KDU Group', textAlign: TextAlign.center, style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: Colors.black)),
           const SizedBox(height: 4),
-          const Text('Nebulync Restaurant', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87)),
-          const Text('Tel: 0770481363', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87)),
-          const Text('Rathnapura Rd, Lellopitiya', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87)),
+          const Text('Nebulync Restaurant', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.black87)),
+          const Text('Tel: 0770481363', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.black87)),
+          const Text('Rathnapura Rd, Lellopitiya', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.black87)),
+          const SizedBox(height: 8),
+          Text(
+            orderData['isReprint'] == true 
+                ? 'INVOICE REPRINT\n(${renderInclusive ? "Tax Inclusive" : "Tax Exclusive"})' 
+                : 'INVOICE\n(${renderInclusive ? "Tax Inclusive" : "Tax Exclusive"})',
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black, letterSpacing: 1.2),
+          ),
           const SizedBox(height: 8),
           _buildDivider(),
           _buildRow('Invoice#', orderData['id'].toString(), isBold: true),
           _buildRow('Date', DateTime.now().toString().substring(0, 16)),
           _buildRow('Customer', orderData['customer'].toString()),
+          _buildRow('Location', orderData['location']?.toString() ?? 'N/A'),
+          _buildRow('Created By', orderData['createdBy']?.toString() ?? 'System'),
           _buildDivider(isDashed: true),
-          const Text('ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black)),
+          const Text('ITEMS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
           const SizedBox(height: 8),
-          
+
           ...items.map((item) {
+            double lineTotal = double.tryParse(item['subtotal']?.toString() ?? '0') ?? 0.0;
+            double qty = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0;
+            double discountPerUnit = double.tryParse(item['discount']?.toString() ?? '0') ?? 0.0;
+            double baseUnitPrice = double.tryParse(item['price']?.toString() ?? '0') ?? 0.0;
+            
+            // Apply our intelligent scaling factor
+            double scaledUnitPrice = baseUnitPrice * priceScaleFactor;
+            double scaledDiscountPerUnit = discountPerUnit * priceScaleFactor;
+            double scaledLineDiscountTotal = scaledDiscountPerUnit * qty;
+            double scaledLineTotal = lineTotal * priceScaleFactor;
+
             return Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(item['name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black)),
+                  Text(item['name'].toString(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${item['quantity']} × @ ${_formatCurrency(item['price'])}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                      Text(_formatCurrency(item['subtotal']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black)),
+                      Text('${item['quantity']} × @ ${_formatCurrency(scaledUnitPrice)}', style: const TextStyle(fontSize: 16, color: Colors.black87)),
+                      Text(_formatCurrency(scaledLineTotal + scaledLineDiscountTotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
                     ],
+                  ),
+                  if (scaledLineDiscountTotal > 0)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Discount:', style: TextStyle(fontSize: 14, color: Colors.black87)),
+                        Text('-${_formatCurrency(scaledLineDiscountTotal)}', style: TextStyle(fontSize: 14, color: Colors.black87)),
+                      ],
                   ),
                 ],
               ),
             );
-          }),
+          }).toList(),
           
           _buildDivider(isDashed: true),
           
-          _buildRow('Subtotal', _formatCurrency(grandTotal)),
-          const SizedBox(height: 4),
-          _buildRow('TOTAL', _formatCurrency(grandTotal), isBold: true, fontSize: 18),
+          Builder(
+            builder: (context) {
+              double scaledSubtotal = subtotal * priceScaleFactor;
+              return _buildRow('Subtotal', _formatCurrency(scaledSubtotal));
+            }
+          ),
+          
+          Builder(
+            builder: (context) {
+              double totalScaledLineDiscounts = items.fold(0.0, (sum, item) {
+                double q = double.tryParse(item['quantity']?.toString() ?? '1') ?? 1.0;
+                double d = double.tryParse(item['discount']?.toString() ?? '0') ?? 0.0;
+                return sum + (d * q * priceScaleFactor);
+              });
+              
+              double scaledGrandDiscount = grandDiscountTotal * priceScaleFactor;
+              double billDiscount = scaledGrandDiscount - totalScaledLineDiscounts;
+              if (billDiscount < 0.01) billDiscount = 0.0;
+              
+              return Column(
+                children: [
+                  if (totalScaledLineDiscounts > 0)
+                    _buildRow('Line Discounts Total', '-${_formatCurrency(totalScaledLineDiscounts)}'),
+                  if (billDiscount > 0)
+                    _buildRow('Bill Discount (${orderData['discount_type'] == 'percentage' && orderData['discount_value'] != null ? '${orderData['discount_value']}%' : (orderData['discount_type'] ?? 'fixed')})', '-${_formatCurrency(billDiscount)}'),
+                  if (!renderInclusive) ...[
+                    for (var tax in appliedTaxes)
+                      _buildRow(
+                        '${tax['name']?.toString() ?? 'Tax'}${tax['rate_percent'] != null ? ' (${tax['rate_percent']}%)' : ''}',
+                        _formatCurrency(tax['amount'])
+                      ),
+                  ]
+                ],
+              );
+            }
+          ),
+
+          _buildRow('TOTAL', _formatCurrency(grandTotal), isBold: true, fontSize: 22),
           
           _buildDivider(),
           
@@ -1093,9 +1287,9 @@ class ReceiptView extends StatelessWidget {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check, size: 16, color: Colors.black),
+                  Icon(Icons.check, size: 20, color: Colors.black),
                   SizedBox(width: 8),
-                  Text('PAID', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.black, letterSpacing: 2)),
+                  Text('PAID', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20, color: Colors.black, letterSpacing: 2)),
                 ],
               ),
             ),
@@ -1103,10 +1297,10 @@ class ReceiptView extends StatelessWidget {
           const SizedBox(height: 8),
           _buildDivider(isDashed: true),
           const SizedBox(height: 8),
-          const Text('Thank you for your purchase!', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black87)),
+          const Text('Thank you for your purchase!', textAlign: TextAlign.center, style: TextStyle(fontSize: 16, color: Colors.black87)),
           const SizedBox(height: 8),
-          const Text('BizFlow ERP System', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black)),
-          const Text('Developed by Nebulync.com', textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.black54)),
+          const Text('BizFlow ERP System', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.black)),
+          const Text('Developed by Nebulync.com', textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.black54)),
           const SizedBox(height: 16),
           const Text('* * * * * * * * *', textAlign: TextAlign.center, style: TextStyle(letterSpacing: 4, color: Colors.black54)),
         ],

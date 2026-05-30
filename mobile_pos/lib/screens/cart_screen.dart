@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import '../models/customer.dart';
 import '../models/cart_item.dart';
 import '../models/item.dart';
+import '../models/tax.dart';
+import '../models/service_location.dart';
+import 'dart:convert';
+import 'dart:async';
 import '../services/printer_service.dart';
 import '../services/api_service.dart';
+import '../services/db_service.dart';
+import '../services/promotion_service.dart';
 import 'products_screen.dart';
 import 'checkout_payment_screen.dart';
 import 'held_bills_screen.dart';
@@ -18,6 +24,7 @@ class CartScreen extends StatefulWidget {
   final int? stewardId;
   final Map<String, dynamic>? initialHeldBill;
   final CartItem? initialCartItem;
+  final bool isReturnMode;
 
   const CartScreen({
     super.key, 
@@ -27,6 +34,7 @@ class CartScreen extends StatefulWidget {
     this.stewardId,
     this.initialHeldBill,
     this.initialCartItem,
+    this.isReturnMode = false,
   });
 
   @override
@@ -39,11 +47,24 @@ class _CartScreenState extends State<CartScreen> {
   int _heldOrdersCount = 0;
   final Map<int, double> _initialQuantities = {};
   final ApiService _apiService = ApiService();
+  List<ServiceLocation> _locations = [];
+  ServiceLocation? _activeLocation;
+  List<Tax> _systemTaxes = [];
+  
+  String _billDiscountType = 'fixed';
+  double _billDiscountValue = 0.0;
+
+  List<dynamic> _cachedPromotions = [];
+  Map<String, dynamic>? _appliedPromotion;
+  bool _isPromotionPromptOpen = false;
+  Timer? _promotionTimer;
 
   @override
   void initState() {
     super.initState();
     _fetchHeldOrdersCount();
+    _fetchTaxesAndLocation();
+    _fetchPromotions();
     
     if (widget.initialHeldBill != null) {
       _heldOrderId = widget.initialHeldBill!['id'] is int 
@@ -94,23 +115,312 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
+  Future<void> _fetchTaxesAndLocation() async {
+    final taxes = await _apiService.fetchTaxes();
+    final locations = await _apiService.fetchLocations();
+    final activeLocJson = await _apiService.getActiveLocation();
+    ServiceLocation? activeLoc;
+    
+    if (activeLocJson != null) {
+      final locId = activeLocJson['id'];
+      try {
+        activeLoc = locations.firstWhere((l) => l.id == locId);
+      } catch (e) {
+        if (locations.isNotEmpty) activeLoc = locations.first;
+      }
+    } else if (locations.isNotEmpty) {
+      activeLoc = locations.first;
+    }
+
+    if (mounted) {
+      setState(() {
+        _systemTaxes = taxes;
+        _activeLocation = activeLoc;
+      });
+      _triggerPromotionValidation();
+    }
+  }
+
+  Future<void> _fetchPromotions() async {
+    _cachedPromotions = await _apiService.fetchPromotions();
+    _triggerPromotionValidation();
+  }
+
+  void _triggerPromotionValidation() {
+    for (var item in _cart) {
+      item.promoDiscount = 0.0;
+    }
+    
+    _promotionTimer?.cancel();
+    _promotionTimer = Timer(const Duration(milliseconds: 600), () {
+      _validatePromotions();
+    });
+  }
+
+  void _validatePromotions() {
+    final regularItems = _cart.where((i) => !i.isReward).toList();
+    if (regularItems.isEmpty) {
+      if (mounted) setState(() { _appliedPromotion = null; });
+      return;
+    }
+
+    double subtotal = 0;
+    for (var item in regularItems) {
+      subtotal += item.subtotal;
+    }
+
+    final matches = PromotionService().validatePromotionsLocal(
+      cachedPromotions: _cachedPromotions,
+      cartItems: regularItems,
+      subtotal: subtotal,
+      locationId: _activeLocation?.id,
+    );
+
+    if (matches.isNotEmpty) {
+      final bestMatch = matches.first;
+
+      if (_appliedPromotion != null && _appliedPromotion!['promotion_id'] != bestMatch['promotion_id']) {
+        _removePromotionRewards();
+        _appliedPromotion = null;
+      }
+
+      if (_appliedPromotion == null && !_isPromotionPromptOpen && bestMatch.containsKey('missing_rewards')) {
+        _promptMissingReward(bestMatch);
+      } else if (_appliedPromotion == null && (bestMatch['discount_value'] as double) > 0 && !bestMatch.containsKey('missing_rewards')) {
+         setState(() {
+           _appliedPromotion = bestMatch;
+         });
+      }
+    } else {
+       if (_appliedPromotion != null) {
+          _removePromotionRewards();
+          setState(() { _appliedPromotion = null; });
+       }
+    }
+  }
+
+  void _removePromotionRewards() {
+     _cart.removeWhere((i) => i.isReward);
+  }
+
+  void _promptMissingReward(Map<String, dynamic> promo) {
+     setState(() { _isPromotionPromptOpen = true; });
+     final missing = promo['missing_rewards'];
+     showDialog(
+       context: context,
+       barrierDismissible: false,
+       builder: (ctx) => AlertDialog(
+         title: const Text('Promotion Available!'),
+         content: Text('Customer qualifies for a reward (Qty: ${missing['qty']}). How would you like to apply it?'),
+         actions: [
+           TextButton(
+             onPressed: () {
+               setState(() { _isPromotionPromptOpen = false; });
+               Navigator.pop(ctx);
+             },
+             child: const Text('Dismiss', style: TextStyle(color: Colors.grey))
+           ),
+           TextButton(
+             onPressed: () async {
+                Navigator.pop(ctx);
+                await _applyMissingRewardAsDiscount(promo);
+             },
+             child: const Text('Apply as Discount', style: TextStyle(color: Colors.orange))
+           ),
+           ElevatedButton(
+             onPressed: () async {
+                Navigator.pop(ctx);
+                await _applyMissingReward(promo);
+             },
+             style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+             child: const Text('Add Reward Item', style: TextStyle(color: Colors.white))
+           ),
+         ]
+       )
+     );
+  }
+
+  Future<void> _applyMissingRewardAsDiscount(Map<String, dynamic> promo) async {
+     final missing = promo['missing_rewards'];
+     final itemId = missing['item_id'];
+     final qty = missing['qty'] as int;
+     final pct = (missing['potential_discount_pct'] as num).toDouble();
+
+     final cachedProducts = await DbService().getCachedProducts();
+     final productJson = cachedProducts.firstWhere((p) => p['id']?.toString() == itemId?.toString(), orElse: () => null);
+     
+     if (productJson != null) {
+        final itemPrice = double.tryParse(productJson['price']?.toString() ?? '0') ?? 0.0;
+        final totalRewardValue = itemPrice * qty * (pct / 100);
+
+        final benefits = promo['benefits'] as List<dynamic>? ?? [];
+        List<int> tIds = [];
+        for (var b in benefits) {
+          if (b['trigger_items'] != null) {
+             try {
+               tIds.addAll((jsonDecode(b['trigger_items'].toString()) as List).map((e) => int.parse(e.toString())));
+             } catch (_) {}
+          }
+        }
+        
+        List<CartItem> triggerItemsInCart = _cart.where((c) => !c.isReward && (tIds.isEmpty || tIds.contains(c.item.id))).toList();
+        if (triggerItemsInCart.isEmpty) triggerItemsInCart = _cart.where((c) => !c.isReward).toList();
+
+        double totalTrigQty = triggerItemsInCart.fold(0.0, (sum, c) => sum + c.quantity);
+        if (totalTrigQty > 0) {
+           double discountPerUnit = totalRewardValue / totalTrigQty;
+           setState(() {
+              for (var c in triggerItemsInCart) {
+                 c.promoDiscount += (discountPerUnit * c.quantity); 
+              }
+              _appliedPromotion = promo;
+              _isPromotionPromptOpen = false;
+           });
+        }
+     }
+  }
+
+  Future<void> _applyMissingReward(Map<String, dynamic> promo) async {
+     final missing = promo['missing_rewards'];
+     final itemId = missing['item_id'];
+     final qty = missing['qty'] as int;
+     final pct = (missing['potential_discount_pct'] as num).toDouble();
+
+     final cachedProducts = await DbService().getCachedProducts();
+     final productJson = cachedProducts.firstWhere((p) => p['id']?.toString() == itemId?.toString(), orElse: () => null);
+     
+     if (productJson != null) {
+        final item = Item.fromJson(productJson);
+        setState(() {
+           _cart.add(CartItem(
+              item: Item(
+                id: item.id,
+                name: item.name,
+                price: 0.0,
+                stockLevel: item.stockLevel,
+                imageUrl: item.imageUrl,
+                sku: item.sku,
+                itemType: item.itemType,
+              ),
+              quantity: qty.toDouble(),
+              discount: 0,
+              isReward: true,
+           ));
+           _appliedPromotion = promo;
+           _isPromotionPromptOpen = false;
+        });
+        _triggerPromotionValidation();
+     }
+  }
+
+  Map<String, dynamic> _calculateTotals() {
+    double grossSubtotal = 0;
+    double lineDiscountTotal = 0;
+    double promoDiscountTotal = 0;
+
+    for (var cartItem in _cart) {
+      grossSubtotal += (cartItem.item.price * cartItem.quantity);
+      lineDiscountTotal += cartItem.discount; // discount is total line discount
+      promoDiscountTotal += cartItem.promoDiscount; // promoDiscount is total line promo discount
+    }
+
+    // The subtotal displayed in the UI usually means Gross Subtotal
+    double netSubtotal = grossSubtotal - lineDiscountTotal - promoDiscountTotal;
+
+    double billDiscountAmt = 0;
+    if (_billDiscountValue > 0) {
+      if (_billDiscountType == 'percentage') {
+        billDiscountAmt = netSubtotal * (_billDiscountValue / 100);
+      } else {
+        billDiscountAmt = _billDiscountValue;
+      }
+    }
+
+    double taxableAmount = netSubtotal - billDiscountAmt;
+    if (taxableAmount < 0) taxableAmount = 0;
+    double currentBase = taxableAmount;
+    double taxSum = 0;
+    List<Map<String, dynamic>> appliedTaxes = [];
+
+    List<Tax> applicableTaxes = [];
+    if (_activeLocation != null && _activeLocation!.allowedTaxesJson != null) {
+      try {
+        List<dynamic> decodedIds = jsonDecode(_activeLocation!.allowedTaxesJson!);
+        List<int> allowedIds = decodedIds.map((e) => int.tryParse(e.toString()) ?? -1).toList();
+        applicableTaxes = _systemTaxes.where((t) => t.isActive && allowedIds.contains(t.id)).toList();
+      } catch (e) {
+        applicableTaxes = [];
+      }
+    }
+
+    applicableTaxes.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    for (var tax in applicableTaxes) {
+      double applyTo = tax.applyOn == 'base_plus_previous' ? currentBase : taxableAmount;
+      double taxAmt = applyTo * (tax.ratePercent / 100);
+      taxSum += taxAmt;
+      appliedTaxes.add({
+        'name': tax.name,
+        'code': tax.code,
+        'rate_percent': tax.ratePercent,
+        'amount': taxAmt,
+      });
+      currentBase += taxAmt;
+    }
+
+    double serviceChargeAmt = 0;
+    if ((widget.orderType?.toLowerCase() == 'dine in' || widget.orderType?.toLowerCase() == 'dine_in') && 
+        _activeLocation != null && 
+        _activeLocation!.allowServiceCharge) {
+      if (_activeLocation!.serviceChargeRate > 0) {
+        serviceChargeAmt = taxableAmount * (_activeLocation!.serviceChargeRate / 100);
+        appliedTaxes.add({
+          'name': 'Service Charge',
+          'code': 'SC',
+          'rate_percent': _activeLocation!.serviceChargeRate,
+          'amount': serviceChargeAmt,
+          'is_sc': true,
+        });
+        taxSum += serviceChargeAmt;
+      }
+    }
+
+    double grandTotal = taxableAmount + taxSum;
+
+    return {
+      'subtotal': grossSubtotal,
+      'net_subtotal': netSubtotal, // keep this if needed elsewhere
+      'line_discount_total': lineDiscountTotal,
+      'discount_total': billDiscountAmt,
+      'discount_type': _billDiscountType,
+      'discount_value': _billDiscountValue,
+      'promo_discount': promoDiscountTotal,
+      'tax_total': taxSum,
+      'grand_total': grandTotal,
+      'applied_taxes': appliedTaxes,
+    };
+  }
+
   void _holdAndPrintOrder() async {
     if (_cart.isEmpty) return;
 
     final location = await _apiService.getActiveLocation();
     final locId = location != null ? location['id'] as int : 1;
 
+    final totals = _calculateTotals();
+
     final payload = {
-      'id': _heldOrderId, // update if it was already held
+      'id': _heldOrderId,
       'location_id': locId,
       'customer_id': widget.customer.id,
       'order_type': widget.orderType ?? 'Retail',
       'table_id': widget.tableId,
-      'steward_id': widget.stewardId,
-      'subtotal': _cartTotal,
-      'tax_total': 0.0,
-      'discount_total': 0.0,
-      'grand_total': _cartTotal,
+      'subtotal': (totals['subtotal'] as double) - (totals['line_discount_total'] as double),
+      'tax_total': totals['tax_total'],
+      'applied_taxes': totals['applied_taxes'],
+      'discount_total': (totals['subtotal'] as double) - (totals['net_subtotal'] as double) + (totals['discount_total'] as double),
+      'grand_total': totals['grand_total'],
+      'applied_promotion_id': _appliedPromotion != null ? int.tryParse(_appliedPromotion!['promotion_id']?.toString() ?? '') : null,
+      'applied_promotion_name': _appliedPromotion != null ? _appliedPromotion!['name'] : null,
       'notes': '',
       'items': _cart.map((c) => {
         'item_id': c.item.id,
@@ -118,7 +428,8 @@ class _CartScreenState extends State<CartScreen> {
         'item_type': c.item.itemType ?? 'Part',
         'quantity': c.quantity,
         'unit_price': c.item.price,
-        'discount': c.discount,
+        'discount': (c.discount + c.promoDiscount) / (c.quantity > 0 ? c.quantity : 1),
+        'is_reward': c.isReward ? 1 : 0,
         'line_total': c.subtotal,
       }).toList(),
     };
@@ -134,10 +445,12 @@ class _CartScreenState extends State<CartScreen> {
       final fullOrderData = {
         'id': 'KOT-${res['id'] ?? payload['id'] ?? '1'}',
         'customer': widget.customer.name,
-        'total': _cartTotal.toStringAsFixed(2),
+        'total': (totals['grand_total'] as double).toStringAsFixed(2),
         'paymentMethod': 'Hold (Unpaid)',
         'amountTendered': 0.0,
-        'grandTotal': _cartTotal,
+        'grandTotal': totals['grand_total'],
+        'applied_taxes': totals['applied_taxes'],
+        'tax_total': totals['tax_total'],
         'items': _cart.map((c) => {
           'name': c.item.name,
           'price': c.item.price,
@@ -218,27 +531,33 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   double get _cartTotal {
-    double total = 0;
-    for (var cartItem in _cart) {
-      total += cartItem.subtotal;
-    }
-    return total;
+    return _calculateTotals()['grand_total'] as double;
   }
 
   void _checkout() async {
     if (_cart.isEmpty) return;
 
+    final totals = _calculateTotals();
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => CheckoutPaymentScreen(
           customer: widget.customer,
           cart: _cart,
-          grandTotal: _cartTotal,
+          grandTotal: totals['grand_total'],
+          subtotal: (totals['subtotal'] as double) - (totals['line_discount_total'] as double),
+          taxTotal: totals['tax_total'],
+          appliedTaxes: totals['applied_taxes'],
+          discountTotal: (totals['subtotal'] as double) - (totals['net_subtotal'] as double) + (totals['discount_total'] as double),
+          discountType: totals['discount_type'] ?? 'fixed',
+          discountValue: totals['discount_value'] ?? 0.0,
+          appliedPromotionId: _appliedPromotion != null ? int.tryParse(_appliedPromotion!['promotion_id']?.toString() ?? '') : null,
+          appliedPromotionName: _appliedPromotion != null ? _appliedPromotion!['name'] : null,
           orderType: widget.orderType,
           tableId: widget.tableId,
           stewardId: widget.stewardId,
           heldOrderId: _heldOrderId,
+          isReturnMode: widget.isReturnMode,
         ),
       ),
     );
@@ -287,7 +606,7 @@ class _CartScreenState extends State<CartScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Shopping Cart', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            Text(widget.isReturnMode ? 'Process Return' : 'Shopping Cart', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
             Row(
               children: [
                 const Icon(Icons.person, size: 12, color: Colors.blueAccent),
@@ -407,6 +726,7 @@ class _CartScreenState extends State<CartScreen> {
                         setState(() {
                           _cart.removeAt(index);
                         });
+                        _triggerPromotionValidation();
                       },
                       background: Container(
                         alignment: Alignment.centerRight,
@@ -461,9 +781,9 @@ class _CartScreenState extends State<CartScreen> {
                                       '${_formatCurrency(cartItem.item.price)} x ${_formatQty(cartItem.quantity)}',
                                       style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.7), fontSize: 13)
                                     ),
-                                    if (cartItem.discount > 0)
+                                    if ((cartItem.discount + cartItem.promoDiscount) > 0)
                                       Text(
-                                        'Discount: -${_formatCurrency(cartItem.discount)}',
+                                        'Discount: -${_formatCurrency((cartItem.discount + cartItem.promoDiscount) / (cartItem.quantity > 0 ? cartItem.quantity : 1))}',
                                         style: const TextStyle(color: Colors.redAccent, fontSize: 12)
                                       ),
                                   ],
@@ -513,6 +833,7 @@ class _CartScreenState extends State<CartScreen> {
                         setState(() {
                           _cart.add(result);
                         });
+                        _triggerPromotionValidation();
                       }
                     },
                     icon: const Icon(Icons.add, color: Colors.blueAccent),
@@ -525,42 +846,107 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Grand Total', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6), fontSize: 16, fontWeight: FontWeight.w600)),
-                      Text(_formatCurrency(_cartTotal), style: const TextStyle(color: Colors.blueAccent, fontSize: 32, fontWeight: FontWeight.w900)),
-                    ],
+                  Builder(
+                    builder: (context) {
+                      final totals = _calculateTotals();
+                      final subtotal = totals['subtotal'] as double;
+                      final grandTotal = totals['grand_total'] as double;
+                      final appliedTaxes = totals['applied_taxes'] as List<dynamic>;
+
+                      final discountTotal = totals['discount_total'] as double;
+                      final discountType = totals['discount_type'] as String;
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Subtotal :', style: TextStyle(color: Theme.of(context).textTheme.bodyMedium?.color?.withOpacity(0.6), fontSize: 16)),
+                              Text(_formatCurrency(subtotal), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          if (_appliedPromotion != null || totals['promo_discount'] > 0)
+                             Row(
+                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                               children: [
+                                 Text(
+                                   _appliedPromotion != null ? 'Promo: ${_appliedPromotion!['name']} :' : 'Promo Discount :',
+                                   style: const TextStyle(color: Colors.green, fontSize: 15, fontWeight: FontWeight.bold),
+                                 ),
+                                 Text('-${_formatCurrency(totals['promo_discount'])}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 15)),
+                               ],
+                             ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              InkWell(
+                                onTap: _showBillDiscountDialog,
+                                child: Text(
+                                  discountTotal > 0 ? 'Discount ($discountType) :' : '+ Add Bill Discount',
+                                  style: const TextStyle(color: Colors.orange, fontSize: 15, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              if (discountTotal > 0)
+                                Text('-${_formatCurrency(discountTotal)}', style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
+                          if (appliedTaxes.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 12,
+                              runSpacing: 4,
+                              children: appliedTaxes.map((tax) {
+                                return Text(
+                                  '${tax['code'] ?? tax['name']}: ${_formatCurrency(tax['amount'])}',
+                                  style: const TextStyle(color: Colors.blueAccent, fontSize: 13, fontWeight: FontWeight.bold),
+                                );
+                              }).toList(),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('TOTAL', style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color, fontSize: 16, fontWeight: FontWeight.bold)),
+                              Text(_formatCurrency(grandTotal), style: const TextStyle(color: Colors.teal, fontSize: 32, fontWeight: FontWeight.w900)),
+                            ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
                   Row(
                     children: [
-                      Expanded(
-                        flex: 1,
-                        child: OutlinedButton(
-                          onPressed: _cart.isEmpty ? null : _holdAndPrintOrder,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 18),
-                            side: const BorderSide(color: Colors.orange, width: 2),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            backgroundColor: Colors.orange.withOpacity(0.05),
-                            foregroundColor: Colors.orange,
+                      if (!widget.isReturnMode)
+                        Expanded(
+                          flex: 1,
+                          child: OutlinedButton(
+                            onPressed: _cart.isEmpty ? null : _holdAndPrintOrder,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 18),
+                              side: const BorderSide(color: Colors.orange, width: 2),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              backgroundColor: Colors.orange.withOpacity(0.05),
+                              foregroundColor: Colors.orange,
+                            ),
+                            child: const Text('HOLD & PRINT ORDER', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                           ),
-                          child: const Text('HOLD & PRINT ORDER', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         ),
-                      ),
-                      const SizedBox(width: 12),
+                      if (!widget.isReturnMode) const SizedBox(width: 12),
                       Expanded(
                         flex: 1,
                         child: ElevatedButton(
                           onPressed: _cart.isEmpty ? null : _checkout,
                           style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 18),
-                            backgroundColor: Colors.blueAccent,
+                            backgroundColor: widget.isReturnMode ? Colors.redAccent : Colors.blueAccent,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             elevation: 4,
                           ),
-                          child: const Text('CHECKOUT', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
+                          child: Text(widget.isReturnMode ? 'PROCEED TO REFUND' : 'CHECKOUT', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
                         ),
                       ),
                     ],
@@ -571,6 +957,58 @@ class _CartScreenState extends State<CartScreen> {
           )
         ],
       ),
+    );
+  }
+
+  void _showBillDiscountDialog() {
+    String tempType = _billDiscountType;
+    String tempVal = _billDiscountValue == 0 ? '' : _billDiscountValue.toString();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text('Add Bill Discount'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: tempType,
+                  items: const [
+                    DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount')),
+                    DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) setDialogState(() => tempType = val);
+                  },
+                  decoration: const InputDecoration(labelText: 'Discount Type'),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(labelText: 'Discount Value', prefixIcon: Icon(Icons.money_off)),
+                  onChanged: (val) => tempVal = val,
+                  controller: TextEditingController(text: tempVal)..selection = TextSelection.collapsed(offset: tempVal.length),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _billDiscountType = tempType;
+                    _billDiscountValue = double.tryParse(tempVal) ?? 0.0;
+                  });
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Apply'),
+              ),
+            ],
+          );
+        }
+      )
     );
   }
 }

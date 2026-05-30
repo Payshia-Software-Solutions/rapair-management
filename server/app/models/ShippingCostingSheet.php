@@ -7,7 +7,7 @@ class ShippingCostingSheet extends Model {
     private $itemsTable = 'shipping_costing_sheet_items';
     private $productsTable = 'shipping_costing_sheet_products';
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         require_once '../app/helpers/ShippingSchema.php';
         ShippingSchema::ensure();
         require_once '../app/helpers/InventorySchema.php';
@@ -64,7 +64,7 @@ class ShippingCostingSheet extends Model {
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
             $costingNumber = trim((string)($data['costing_number'] ?? ''));
@@ -164,7 +164,7 @@ class ShippingCostingSheet extends Model {
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
             $this->db->query("
@@ -296,7 +296,7 @@ class ShippingCostingSheet extends Model {
         $sheet = $this->getById($id);
         if (!$sheet) return false;
 
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
             $costingNumber = $this->nextDocNumber('EXPQT');

@@ -6,7 +6,10 @@ import 'screens/login_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/location_selection_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/api_service.dart';
 import 'services/tracking_service.dart';
+
+import 'components/location_enforcer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +28,31 @@ void main() async {
 class MobilePOSApp extends StatelessWidget {
   const MobilePOSApp({super.key});
 
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
+    // Set session expiration handler
+    ApiService.onUnauthorized = () {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Session expired. Please log in again.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    };
+
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'BizPOS',
           themeMode: themeProvider.themeMode,
           theme: ThemeData(
@@ -38,7 +61,11 @@ class MobilePOSApp extends StatelessWidget {
               seedColor: Colors.blueAccent,
               brightness: Brightness.light,
             ),
-            scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+            scaffoldBackgroundColor: Colors.transparent,
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+            ),
           ),
           darkTheme: ThemeData(
             useMaterial3: true,
@@ -46,9 +73,9 @@ class MobilePOSApp extends StatelessWidget {
               seedColor: Colors.blueAccent,
               brightness: Brightness.dark,
             ),
-            scaffoldBackgroundColor: const Color(0xFF0A0A0A),
+            scaffoldBackgroundColor: Colors.transparent,
             appBarTheme: const AppBarTheme(
-              backgroundColor: Color(0xFF141414),
+              backgroundColor: Colors.transparent,
               foregroundColor: Colors.white,
               elevation: 0,
             ),
@@ -60,6 +87,21 @@ class MobilePOSApp extends StatelessWidget {
           ),
           home: const SplashScreen(),
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: isDark
+                      ? [const Color(0xFF1E293B), const Color(0xFF000000)] // Premium dark gradient
+                      : [const Color(0xFFE0E7FF), const Color(0xFFF8FAFC)], // Premium light gradient
+                ),
+              ),
+              child: LocationEnforcer(child: child!),
+            );
+          },
         );
       },
     );

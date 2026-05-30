@@ -5,7 +5,7 @@
 class GoodsReceiveNote extends Model {
     private $table = 'goods_receive_notes';
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         InventorySchema::ensure();
         // Add cancellation columns if missing
         $cols = [
@@ -150,7 +150,7 @@ class GoodsReceiveNote extends Model {
     }
 
     public function list($q = '', $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $q = is_string($q) ? trim($q) : '';
@@ -186,7 +186,7 @@ class GoodsReceiveNote extends Model {
     }
 
     public function getById($id, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $this->db->query("
@@ -224,7 +224,7 @@ class GoodsReceiveNote extends Model {
     }
 
     public function create($data, $userId = null, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $supplierId = (int)($data['supplier_id'] ?? 0);

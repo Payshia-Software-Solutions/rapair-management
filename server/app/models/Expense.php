@@ -8,10 +8,10 @@ class Expense extends Model {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
     }
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         $this->db->query("
             CREATE TABLE IF NOT EXISTS {$this->table} (
                 id              INT AUTO_INCREMENT PRIMARY KEY,

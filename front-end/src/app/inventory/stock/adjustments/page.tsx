@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { fetchLocations, fetchStockAdjustmentBatchesForLocation, type StockAdjustmentBatchRow } from "@/lib/api";
 import { ArrowLeftRight, Loader2, MapPin, Plus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 const LS_SIZE_KEY = "stock_adj_batches_page_size";
 const LS_LOC_KEY = "stock_adj_location_id";
@@ -28,6 +30,7 @@ function decodeJwtPayload(token: string): any | null {
 }
 
 export default function StockAdjustmentsListPage() {
+  const router = useRouter();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -43,7 +46,7 @@ export default function StockAdjustmentsListPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetchStockAdjustmentBatchesForLocation(query.trim(), locationId ?? undefined);
+      const data = await fetchStockAdjustmentBatchesForLocation(query.trim(), locationId ?? undefined, "Approved");
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load adjustments", variant: "destructive" });
@@ -148,14 +151,14 @@ export default function StockAdjustmentsListPage() {
               <ArrowLeftRight className="w-6 h-6 text-primary" />
               Stock Adjustments
             </h1>
-            <p className="text-muted-foreground mt-1">Batch adjustments with one adjustment number per operation</p>
+            <p className="text-muted-foreground mt-1">Officially committed stock adjustments history logs</p>
           </div>
-          <Button asChild className="gap-2">
-            <Link href="/inventory/stock/adjustments/new">
+          <div className="flex shrink-0">
+            <Button onClick={() => router.push('/inventory/stock/adjustments/new')} className="gap-2">
               <Plus className="w-4 h-4" />
-              New Adjustment
-            </Link>
-          </Button>
+              New Direct Adjustment
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -262,6 +265,7 @@ export default function StockAdjustmentsListPage() {
                         <TableHead className="hidden md:table-cell">Reason</TableHead>
                         <TableHead className="w-[120px]">Lines</TableHead>
                         <TableHead className="w-[120px]">Total Qty</TableHead>
+                        <TableHead className="w-[120px]">Status</TableHead>
                         <TableHead className="hidden lg:table-cell">By</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -283,6 +287,19 @@ export default function StockAdjustmentsListPage() {
                           <TableCell className="font-semibold">{Number(r.line_count ?? 0).toLocaleString()}</TableCell>
                           <TableCell className={`font-bold ${Number(r.total_qty_change ?? 0) < 0 ? "text-destructive" : Number(r.total_qty_change ?? 0) > 0 ? "text-green-700" : "text-muted-foreground"}`}>
                             {Number(r.total_qty_change ?? 0).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "font-semibold capitalize px-2 py-0.5 text-xs rounded-full",
+                                (r as any).status === "Approved" && "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+                                ((r as any).status === "Pending" || !(r as any).status) && "bg-amber-500/10 text-amber-600 border-amber-500/20",
+                                (r as any).status === "Rejected" && "bg-rose-500/10 text-rose-600 border-rose-500/20"
+                              )}
+                            >
+                              {(r as any).status || "Pending"}
+                            </Badge>
                           </TableCell>
                           <TableCell className="hidden lg:table-cell text-sm text-muted-foreground">{r.created_by_name ?? "-"}</TableCell>
                         </TableRow>
