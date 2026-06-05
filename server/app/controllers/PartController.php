@@ -165,12 +165,18 @@ class PartController extends Controller {
                 'public_description' => isset($item['public_description']) ? trim((string)$item['public_description']) : null,
             ];
 
-            $newId = $this->partModel->create($payload, (int)$u['sub']);
-            if ($newId) {
-                if (isset($item['supplier_id']) && $item['supplier_id']) {
-                    $this->partModel->setSuppliers((int)$newId, [(int)$item['supplier_id']], (int)$u['sub']);
+            try {
+                $newId = $this->partModel->create($payload, (int)$u['sub']);
+                if ($newId) {
+                    if (isset($item['supplier_id']) && $item['supplier_id']) {
+                        $this->partModel->setSuppliers((int)$newId, [(int)$item['supplier_id']], (int)$u['sub']);
+                    }
+                    $importedCount++;
                 }
-                $importedCount++;
+            } catch (Exception $e) {
+                // Log and bypass duplicate error or other creation exceptions
+                error_log("Import item exception bypassed: " . $e->getMessage());
+                continue;
             }
         }
 
@@ -375,7 +381,7 @@ class PartController extends Controller {
 
         try {
             $db = new Database();
-            $db->exec("START TRANSACTION");
+            $db->beginTransaction();
 
             // Create batch
             $db->query("
@@ -432,11 +438,14 @@ class PartController extends Controller {
             $db->bind(':created_by', (int)$u['sub']);
             $db->execute();
 
-            $db->exec("COMMIT");
+            $db->commit();
             $this->success(['batch_id' => $newBatchId, 'batch_number' => $batchNumber], 'Stock classified successfully');
             
         } catch (Exception $e) {
-            if (isset($db)) $db->exec("ROLLBACK");
+            error_log("Error in PartController::classify_batch: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            if (isset($db)) {
+                try { $db->rollBack(); } catch (Exception $e2) {}
+            }
             $this->error('Failed to classify stock: ' . $e->getMessage(), 500);
         }
     }
