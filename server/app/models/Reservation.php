@@ -7,10 +7,11 @@ class Reservation extends Model {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureSchema();
+        // Schema migrations should not run on every instantiation
+        // // // // // // // $this->ensureSchema();
     }
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         // Add status enum value 'Cancelled' if missing (MySQL might need ALTER)
         try {
             $this->db->query("ALTER TABLE {$this->table} MODIFY COLUMN status ENUM('Confirmed', 'CheckedIn', 'CheckedOut', 'Cancelled') DEFAULT 'Confirmed'");

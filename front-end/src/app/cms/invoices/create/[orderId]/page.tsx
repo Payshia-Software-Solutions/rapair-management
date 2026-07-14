@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { fetchOrder, createInvoice, fetchOrderParts, fetchParts, fetchTaxes, fetchLocations, fetchCustomers, createCustomer, fetchCompany, fetchBanks, fetchPartBatches, api as apiHelper } from "@/lib/api";
+import { fetchOrder, createInvoice, fetchOrderParts, fetchParts, fetchTaxes, fetchLocations, fetchCustomers, createCustomer, fetchCompany, fetchBanks, fetchPartBatches, api as apiHelper , formatPartLabel } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -321,8 +321,8 @@ export default function CreateInvoicePage() {
         description: (product.part_name || product.description) + " (Reward)",
         item_type: product.item_type === "Service" ? "Service" : "Part",
         quantity: reward.qty,
-        unit_price: Number(product.price || 0),
-        discount: Number(product.price || 0),
+        unit_price: 0,
+        discount: 0,
         line_total: 0,
         is_reward: true,
         is_fifo: isFifo,
@@ -363,20 +363,18 @@ export default function CreateInvoicePage() {
   const promoDiscountAmt = appliedPromotion ? Number(appliedPromotion.discount_value) : 0;
   const taxableAmount = Math.max(0, totals.line_totals_sum - globalDiscount - promoDiscountAmt);
   
-  let currentBase = taxableAmount;
-  let taxSum = 0;
-  const appliedTaxes: { name: string, code: string, amount: number }[] = [];
-  
-  const sortedTaxes = [...systemTaxes].sort((a, b) => a.sort_order - b.sort_order);
-  sortedTaxes.forEach(tax => {
-    const applyTo = tax.apply_on === 'base_plus_previous' ? currentBase : taxableAmount;
-    const taxAmt = applyTo * (Number(tax.rate_percent) / 100);
-    taxSum += taxAmt;
-    appliedTaxes.push({ name: tax.name, code: tax.code, amount: taxAmt });
-    if (tax.apply_on === 'base_plus_previous') {
+    let currentBase = taxableAmount;
+    let taxSum = 0;
+    const appliedTaxes: { name: string, code: string, amount: number }[] = [];
+    
+    const sortedTaxes = [...systemTaxes].sort((a, b) => a.sort_order - b.sort_order);
+    sortedTaxes.forEach(tax => {
+      const applyTo = tax.apply_on === 'base_plus_previous' ? currentBase : taxableAmount;
+      const taxAmt = applyTo * (Number(tax.rate_percent) / 100);
+      taxSum += taxAmt;
+      appliedTaxes.push({ name: tax.name, code: tax.code, amount: taxAmt });
       currentBase += taxAmt;
-    }
-  });
+    });
 
   const grandTotal = taxableAmount + taxSum;
   const totalDiscount = totals.line_discount + globalDiscount + promoDiscountAmt;
@@ -746,7 +744,7 @@ export default function CreateInvoicePage() {
                     }}
                     options={allParts.map(p => ({
                       value: String(p.id),
-                      label: `${p.part_name}${p.sku ? ` (${p.sku})` : ''}`,
+                      label: formatPartLabel(p),
                       keywords: `${p.part_name} ${p.sku || ''}`
                     }))}
                     placeholder="🔍 Select from inventory to add item..."

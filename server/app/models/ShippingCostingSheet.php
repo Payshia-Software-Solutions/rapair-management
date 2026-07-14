@@ -7,46 +7,16 @@ class ShippingCostingSheet extends Model {
     private $itemsTable = 'shipping_costing_sheet_items';
     private $productsTable = 'shipping_costing_sheet_products';
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         require_once '../app/helpers/ShippingSchema.php';
         ShippingSchema::ensure();
         require_once '../app/helpers/InventorySchema.php';
         InventorySchema::ensure();
     }
 
-    private function nextDocNumber($docType) {
-        $this->ensureSchema();
-        $type = strtoupper(trim((string)$docType));
-        if ($type === '') $type = 'QT';
-
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-        $this->db->bind(':t', $type);
-        $row = $this->db->single();
-        if (!$row) {
-            try {
-                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
-                $this->db->bind(':t', $type);
-                $this->db->bind(':p', 'EXPQT-');
-                $this->db->execute();
-            } catch (Exception $e) {}
-
-            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-            $this->db->bind(':t', $type);
-            $row = $this->db->single();
-            if (!$row) return $type . "-000001";
-        }
-
-        $prefix = (string)($row->prefix ?? ($type . '-'));
-        $next = (int)($row->next_number ?? 1);
-        $pad = (int)($row->padding ?? 6);
-        if ($next <= 0) $next = 1;
-        if ($pad <= 0) $pad = 6;
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
-        $this->db->bind(':t', $type);
-        $this->db->execute();
-
-        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    private function nextDocNumber($docType, $locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo($docType, $locationId);
     }
 
     public function list($customerId = null) {
@@ -94,12 +64,12 @@ class ShippingCostingSheet extends Model {
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
             $costingNumber = trim((string)($data['costing_number'] ?? ''));
             if ($costingNumber === '') {
-                $costingNumber = $this->nextDocNumber('QT');
+                $costingNumber = $this->nextDocNumber('EXPQT');
             }
 
             $this->db->query("
@@ -194,7 +164,7 @@ class ShippingCostingSheet extends Model {
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
             $this->db->query("
@@ -326,10 +296,10 @@ class ShippingCostingSheet extends Model {
         $sheet = $this->getById($id);
         if (!$sheet) return false;
 
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->beginTransaction();
         try {
-            $costingNumber = $this->nextDocNumber('QT');
+            $costingNumber = $this->nextDocNumber('EXPQT');
             
             $this->db->query("
                 INSERT INTO {$this->table} (

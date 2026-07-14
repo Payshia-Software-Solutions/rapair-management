@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Grid,
   Car,
+  Search,
   Tag,
   Layers,
   Users,
@@ -42,7 +43,11 @@ import {
   Calendar as CalendarIcon,
   Utensils,
   Calculator,
-  FolderTree
+  FolderTree,
+  Ticket,
+  Printer,
+  AlertCircle,
+  Target
 } from "lucide-react";
 
 export type NavItem = {
@@ -65,17 +70,29 @@ export const mainNavItems: NavItem[] = [
 export const serviceCenterItems: NavItem[] = [
   { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.write" },
   { icon: ClipboardList, label: "Order Queue", href: "/orders", perm: "orders.read" },
+  { icon: CalendarIcon, label: "Service Calendar", href: "/orders/calendar", perm: "orders.read" },
+  { icon: AlertCircle, label: "Upcoming Services", href: "/reports/vehicles/upcoming", perm: "vehicles.read" },
   { icon: PlayCircle, label: "Active Jobs", href: "/orders/active", perm: "orders.read" },
   { icon: CheckCircle2, label: "Completed Orders", href: "/orders/completed", perm: "orders.read" },
   { icon: Grid, label: "Bays Board", href: "/dashboard/bays", perm: "bays.read" },
   { icon: Car, label: "Vehicles List", href: "/master-data/vehicles", perm: "vehicles.read" },
-  { icon: Tag, label: "Brands", href: "/master-data/brands", perm: "brands.read" },
-  { icon: Tag, label: "Vehicle Makes", href: "/master-data/makes", perm: "makes.read" },
-  { icon: Layers, label: "Vehicle Models", href: "/master-data/models", perm: "models.read" },
+  { icon: Search, label: "Vehicle Lookup", href: "/vehicles/lookup", perm: "vehicles.read" },
   { icon: Users, label: "Technicians", href: "/master-data/technicians", perm: "technicians.read" },
   { icon: Grid, label: "Service Bays", href: "/master-data/bays", perm: "bays.read" },
   { icon: Tags, label: "Repair Categories", href: "/master-data/categories", perm: "categories.read" },
   { icon: CheckSquare, label: "Checklist Items", href: "/master-data/checklists", perm: "checklists.read" },
+  { icon: Tag, label: "Vehicle Makes", href: "/master-data/makes", perm: "makes.read" },
+  { icon: Layers, label: "Vehicle Models", href: "/master-data/models", perm: "models.read" },
+  { icon: Grid, label: "Departments", href: "/master-data/departments", perm: "departments.read" },
+  { icon: Receipt, label: "Fuel Orders", href: "/fleet/fuel", perm: "vehicles.read" },
+  { icon: Settings, label: "Fuel Settings", href: "/fleet/fuel/settings", perm: "vehicles.write" },
+];
+
+export const kioskItems: NavItem[] = [
+  { icon: Ticket, label: "Experience Bookings", href: "/kiosk/bookings", perm: "orders.read" },
+  { icon: Ticket, label: "Order Requests", href: "/kiosk/orders", perm: "orders.read" },
+  { icon: FileText, label: "Kiosk Content", href: "/kiosk/content", perm: "ecommerce.write" },
+  { icon: Settings, label: "Settings", href: "/kiosk/settings", perm: "ecommerce.write" },
 ];
 
 export const vendorItems: NavItem[] = [
@@ -86,9 +103,12 @@ export const vendorItems: NavItem[] = [
 
 export const inventoryItems: NavItem[] = [
   { icon: Boxes, label: "Items", href: "/inventory/items", perm: "parts.read" },
+  { icon: Printer, label: "Barcode Printer", href: "/inventory/barcode-printer", perm: "parts.read" },
   { icon: History, label: "Stock Balance", href: "/inventory/stock", perm: "stock.read" },
+  { icon: ClipboardListIcon, label: "Stock Counts", href: "/inventory/stock/counts", perm: "stock.read" },
   { icon: ArrowLeftRight, label: "Stock Adjustments", href: "/inventory/stock/adjustments", perm: "stock.read" },
   { icon: ArrowLeftRight, label: "Stock Transfers", href: "/inventory/transfers", perm: "transfer.read" },
+  { icon: ClipboardListIcon, label: "Issue Notes", href: "/inventory/issue-notes", perm: "parts.read" },
   { icon: FileText, label: "Purchase Orders", href: "/inventory/purchase-orders", perm: "purchase.read" },
   { icon: PackageCheck, label: "GRN", href: "/inventory/grn", perm: "grn.read" },
   { icon: ClipboardListIcon, label: "Stock Requests", href: "/inventory/stock-requests", perm: "transfer.read" },
@@ -98,6 +118,7 @@ export const crmItems: NavItem[] = [
   { icon: MessageSquare, label: "Inquiries (Leads)", href: "/crm/inquiries", perm: "crm.inquiries.view" },
   { icon: Users, label: "Customers", href: "/cms/customers", perm: "customers.read" },
   { icon: Car, label: "Customer Vehicles", href: "/cms/vehicles", perm: "vehicles.read" },
+  { icon: Grid, label: "Routes", href: "/cms/routes", perm: "customers.read" },
 ];
 
 export const marketingItems: NavItem[] = [
@@ -108,9 +129,11 @@ export const marketingItems: NavItem[] = [
 ];
 
 export const salesItems: NavItem[] = [
+  { icon: Target, label: "Sales Targets", href: "/sales/targets", perm: "sales.read" },
   { icon: FileText, label: "Quotations", href: "/sales/quotations", perm: "sales.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
   { icon: History, label: "Recurring Invoices", href: "/cms/invoices/recurring", perm: "invoices.read" },
+  { icon: FileText, label: "Customer Notes", href: "/sales/notes", perm: "invoices.create" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },
 ];
@@ -124,8 +147,9 @@ export const masterDataItems: NavItem[] = [
   { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
-  { icon: Grid, label: "Departments", href: "/master-data/departments", perm: "departments.read" },
+  { icon: Truck, label: "Shipping Carriers", href: "/master-data/shipping-carriers", perm: "parts.read" },
   { icon: Grid, label: "Restaurant Tables", href: "/master-data/tables", perm: "tables.read" },
+  { icon: Tag, label: "Brands", href: "/master-data/brands", perm: "brands.read" },
 ];
 
 export const accountingItems: NavItem[] = [
@@ -184,6 +208,7 @@ export const ecommerceItems: NavItem[] = [
   { icon: FolderTree, label: "Navigation Menu", href: "/ecommerce/navigation", perm: "promotions.write" },
   { icon: Boxes, label: "Storefront Products", href: "/ecommerce/products", perm: "parts.read" },
   { icon: MessageSquare, label: "Product Reviews", href: "/ecommerce/reviews", perm: "promotions.write" },
+  { icon: Ticket, label: "Coupons & Discounts", href: "/ecommerce/coupons", perm: "promotions.write" },
   { icon: Settings, label: "E-commerce Settings", href: "/ecommerce/settings", perm: "promotions.write" },
   { icon: Calculator, label: "Developer Options", href: "/ecommerce/developer", perm: "promotions.write" },
 ];
@@ -194,6 +219,7 @@ export const adminNavItems: NavItem[] = [
   { icon: Database, label: "Locations", href: "/admin/locations" },
   { icon: Settings, label: "Company", href: "/admin/company" },
   { icon: Settings, label: "System Settings", href: "/admin/settings/system" },
+  { icon: Printer, label: "Printer Setup", href: "/admin/settings/printers" },
   { icon: Truck, label: "Shipping Management", href: "/admin/shipping" },
   { icon: Layers, label: "Database Schema", href: "/admin/schema" },
   { icon: ShieldCheck, label: "Table Verification", href: "/reports/database" },

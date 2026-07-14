@@ -11,9 +11,9 @@ class Customer extends Model {
             SELECT c.*, 
                    (SELECT COALESCE(SUM(i.grand_total - i.paid_amount), 0) 
                     FROM invoices i 
-                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding
+                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding,
+                   (SELECT MAX(cv.created_at) FROM customer_visits cv WHERE cv.customer_id = c.id) as last_visit_date
             FROM {$this->table} c 
-            WHERE c.is_ecommerce_user = 0
             ORDER BY c.name ASC
         ");
         return $this->db->resultSet();
@@ -35,7 +35,8 @@ class Customer extends Model {
             SELECT c.*, 
                    (SELECT COALESCE(SUM(i.grand_total - i.paid_amount), 0) 
                     FROM invoices i 
-                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding
+                    WHERE i.customer_id = c.id AND i.status != 'Cancelled') as total_outstanding,
+                   (SELECT MAX(cv.created_at) FROM customer_visits cv WHERE cv.customer_id = c.id) as last_visit_date
             FROM {$this->table} c 
             WHERE c.id = :id
         ");
@@ -46,45 +47,9 @@ class Customer extends Model {
     public function create($data, $userId = null) {
         $this->db->query("
             INSERT INTO {$this->table} 
-            (name, phone, email, address, nic, tax_number, order_type, is_active, is_unsubscribed, credit_limit, credit_days, is_ecommerce_user, created_by, updated_by) 
+            (name, phone, email, address, nic, tax_number, order_type, is_active, is_unsubscribed, credit_limit, credit_days, is_ecommerce_user, created_by, updated_by, latitude, longitude, photo_url, qr_code_hash, route_id) 
             VALUES 
-            (:name, :phone, :email, :address, :nic, :tax_number, :order_type, :is_active, :is_unsubscribed, :credit_limit, :credit_days, :is_ecommerce_user, :created_by, :updated_by)
-        ");
-        
-        $this->db->bind(':name', $data['name']);
-        $this->db->bind(':phone', $data['phone'] ?? null);
-        $this->db->bind(':email', $data['email'] ?? null);
-        $this->db->bind(':address', $data['address'] ?? null);
-        $this->db->bind(':nic', $data['nic'] ?? null);
-        $this->db->bind(':tax_number', $data['tax_number'] ?? null);
-        $this->db->bind(':order_type', $data['order_type'] ?? 'External');
-        $this->db->bind(':is_active', isset($data['is_active']) ? (int)$data['is_active'] : 1);
-        $this->db->bind(':is_unsubscribed', isset($data['is_unsubscribed']) ? (int)$data['is_unsubscribed'] : 0);
-        $this->db->bind(':credit_days', $data['credit_days'] ?? 0);
-        $this->db->bind(':is_ecommerce_user', isset($data['is_ecommerce_user']) ? (int)$data['is_ecommerce_user'] : 0);
-        $this->db->bind(':created_by', $userId);
-        $this->db->bind(':updated_by', $userId);
-
-        return $this->db->execute();
-    }
-
-    public function update($id, $data, $userId = null) {
-        $this->db->query("
-            UPDATE {$this->table} 
-            SET name = :name, 
-                phone = :phone, 
-                email = :email, 
-                address = :address, 
-                nic = :nic, 
-                tax_number = :tax_number, 
-                order_type = :order_type, 
-                is_active = :is_active, 
-                is_unsubscribed = :is_unsubscribed,
-                credit_limit = :credit_limit,
-                credit_days = :credit_days,
-                is_ecommerce_user = :is_ecommerce_user,
-                updated_by = :updated_by 
-            WHERE id = :id
+            (:name, :phone, :email, :address, :nic, :tax_number, :order_type, :is_active, :is_unsubscribed, :credit_limit, :credit_days, :is_ecommerce_user, :created_by, :updated_by, :latitude, :longitude, :photo_url, :qr_code_hash, :route_id)
         ");
         
         $this->db->bind(':name', $data['name']);
@@ -99,6 +64,76 @@ class Customer extends Model {
         $this->db->bind(':credit_limit', $data['credit_limit'] ?? 0);
         $this->db->bind(':credit_days', $data['credit_days'] ?? 0);
         $this->db->bind(':is_ecommerce_user', isset($data['is_ecommerce_user']) ? (int)$data['is_ecommerce_user'] : 0);
+        $this->db->bind(':created_by', $userId);
+        $this->db->bind(':updated_by', $userId);
+
+        $this->db->bind(':latitude', $data['latitude'] ?? null);
+        $this->db->bind(':longitude', $data['longitude'] ?? null);
+        $this->db->bind(':photo_url', $data['photo_url'] ?? null);
+        $this->db->bind(':qr_code_hash', $data['qr_code_hash'] ?? null);
+        $this->db->bind(':route_id', !empty($data['route_id']) ? (int)$data['route_id'] : null);
+
+        if ($this->db->execute()) {
+            return $this->db->lastInsertId();
+        }
+        return false;
+    }
+
+    public function update($id, $data, $userId = null) {
+        $updateQuery = "
+            UPDATE {$this->table} 
+            SET name = :name, 
+                phone = :phone, 
+                email = :email, 
+                address = :address, 
+                nic = :nic, 
+                tax_number = :tax_number, 
+                order_type = :order_type, 
+                is_active = :is_active, 
+                is_unsubscribed = :is_unsubscribed,
+                credit_limit = :credit_limit,
+                credit_days = :credit_days,
+                is_ecommerce_user = :is_ecommerce_user,
+                latitude = :latitude,
+                longitude = :longitude,
+                route_id = :route_id,
+                updated_by = :updated_by";
+                
+        if (isset($data['photo_url'])) {
+            $updateQuery .= ", photo_url = :photo_url";
+        }
+        if (isset($data['qr_code_hash'])) {
+            $updateQuery .= ", qr_code_hash = :qr_code_hash";
+        }
+                
+        $updateQuery .= " WHERE id = :id";
+        
+        $this->db->query($updateQuery);
+        
+        $this->db->bind(':name', $data['name']);
+        $this->db->bind(':phone', $data['phone'] ?? null);
+        $this->db->bind(':email', $data['email'] ?? null);
+        $this->db->bind(':address', $data['address'] ?? null);
+        $this->db->bind(':nic', $data['nic'] ?? null);
+        $this->db->bind(':tax_number', $data['tax_number'] ?? null);
+        $this->db->bind(':order_type', $data['order_type'] ?? 'External');
+        $this->db->bind(':is_active', isset($data['is_active']) ? (int)$data['is_active'] : 1);
+        $this->db->bind(':is_unsubscribed', isset($data['is_unsubscribed']) ? (int)$data['is_unsubscribed'] : 0);
+        $this->db->bind(':credit_limit', $data['credit_limit'] ?? 0);
+        $this->db->bind(':credit_days', $data['credit_days'] ?? 0);
+        $this->db->bind(':is_ecommerce_user', isset($data['is_ecommerce_user']) ? (int)$data['is_ecommerce_user'] : 0);
+        
+        $this->db->bind(':latitude', $data['latitude'] ?? null);
+        $this->db->bind(':longitude', $data['longitude'] ?? null);
+        $this->db->bind(':route_id', !empty($data['route_id']) ? (int)$data['route_id'] : null);
+        
+        if (isset($data['photo_url'])) {
+            $this->db->bind(':photo_url', $data['photo_url']);
+        }
+        if (isset($data['qr_code_hash'])) {
+            $this->db->bind(':qr_code_hash', $data['qr_code_hash']);
+        }
+        
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', $id);
 

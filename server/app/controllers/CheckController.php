@@ -46,7 +46,9 @@ class CheckController extends Controller {
         'customers',
         'invoices',
         'invoice_items',
-        'invoice_payments'
+        'invoice_payments',
+        'issue_notes',
+        'issue_note_items'
     ];
 
     public function __construct() {
@@ -117,6 +119,64 @@ class CheckController extends Controller {
             'checks' => $checks,
             'missingTables' => $missing
         ], 200);
+    }
+
+    public function migrate() {
+        $u = $this->requirePermission('company.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        try {
+            require_once '../app/helpers/InventorySchema.php';
+            require_once '../app/helpers/ShippingSchema.php';
+            require_once '../app/helpers/AccountingSchema.php';
+            require_once '../app/helpers/PromotionSchema.php';
+            require_once '../app/helpers/SystemSchema.php';
+
+            InventorySchema::ensure(true);
+            ShippingSchema::ensure();
+            AccountingSchema::ensure();
+            PromotionSchema::ensure();
+            SystemSchema::ensure();
+
+            // Log the migration action
+            $db = new Database();
+            $db->query("
+                INSERT INTO audit_logs (user_id, action, entity, method, path, ip, user_agent, details)
+                VALUES (:user_id, 'migrate', 'system', 'POST', '/api/check/migrate', :ip, :ua, :details)
+            ");
+            $db->bind(':user_id', isset($u['sub']) ? (int)$u['sub'] : null);
+            $db->bind(':ip', $_SERVER['REMOTE_ADDR'] ?? null);
+            $db->bind(':ua', $_SERVER['HTTP_USER_AGENT'] ?? null);
+            $db->bind(':details', json_encode(['status' => 'success', 'message' => 'Schema migrations executed successfully.']));
+            $db->execute();
+
+            $this->success([], 'Database schema migrations completed successfully.');
+        } catch (Exception $e) {
+            $this->error('Migration failed: ' . $e->getMessage(), 500);
+        }
+    }
+
+    public function logs() {
+        $u = $this->requirePermission('company.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        $db = new Database();
+        $db->query("
+            SELECT al.*, u.name AS user_name
+            FROM audit_logs al
+            LEFT JOIN users u ON u.id = al.user_id
+            WHERE al.action = 'migrate' OR al.action = 'system_update'
+            ORDER BY al.id DESC
+            LIMIT 50
+        ");
+        $rows = $db->resultSet() ?: [];
+        $this->success($rows);
     }
 }
 ?>

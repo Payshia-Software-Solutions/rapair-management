@@ -11,7 +11,7 @@ class Invoice extends Model {
         $this->db = $this->db_ref;
     }
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         require_once __DIR__ . '/../helpers/InvoiceSchema.php';
         InvoiceSchema::ensure();
         
@@ -155,10 +155,12 @@ class Invoice extends Model {
 
     public function getAll($filters = []) {
         $sql = "
-            SELECT i.*, c.name as customer_name, ro.customer_name as order_customer_name
+            SELECT i.*, c.name as customer_name, ro.customer_name as order_customer_name,
+                   oo.order_no as online_order_no
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
             LEFT JOIN repair_orders ro ON i.order_id = ro.id
+            LEFT JOIN online_orders oo ON i.online_order_id = oo.id
             WHERE i.status != 'Cancelled'
         ";
 
@@ -168,12 +170,19 @@ class Invoice extends Model {
         if (!empty($filters['customer_id'])) {
             $sql .= " AND i.customer_id = :customer_id";
         }
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $sql .= " AND i.issue_date >= :start_date AND i.issue_date <= :end_date";
+        }
 
         $sql .= " ORDER BY i.created_at DESC";
 
         $this->db->query($sql);
         if (!empty($filters['status'])) $this->db->bind(':status', $filters['status']);
         if (!empty($filters['customer_id'])) $this->db->bind(':customer_id', $filters['customer_id']);
+        if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
+            $this->db->bind(':start_date', $filters['start_date']);
+            $this->db->bind(':end_date', $filters['end_date']);
+        }
 
         return $this->db->resultSet();
     }
@@ -185,9 +194,11 @@ class Invoice extends Model {
                    sl.name as location_name, sl.address as location_address, sl.phone as location_phone,
                    sl.tax_no as location_tax_no, sl.tax_label as location_tax_label,
                    rt.name as table_name, u.name as steward_name,
-                   sp.name as shipping_provider_name
+                   sp.name as shipping_provider_name,
+                   oo.order_no as web_order_no
             FROM invoices i
             JOIN customers c ON i.customer_id = c.id
+            LEFT JOIN online_orders oo ON i.online_order_id = oo.id
             LEFT JOIN repair_orders ro ON i.order_id = ro.id
             LEFT JOIN service_locations sl ON i.location_id = sl.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
@@ -229,12 +240,12 @@ class Invoice extends Model {
                 invoice_no, order_id, online_order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
                 subtotal, tax_total, discount_total, shipping_fee, grand_total, order_type, table_id, steward_id, notes,
                 is_international, shipping_provider_id, shipping_country,
-                applied_promotion_id, applied_promotion_name, created_by, updated_by
+                applied_promotion_id, applied_promotion_name, offline_id, device_id, created_by, updated_by
             ) VALUES (
                 :invoice_no, :order_id, :online_order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
                 :subtotal, :tax_total, :discount_total, :shipping_fee, :grand_total, :order_type, :table_id, :steward_id, :notes,
                 :is_international, :shipping_provider_id, :shipping_country,
-                :applied_promo_id, :applied_promo_name, :created_by, :updated_by
+                :applied_promo_id, :applied_promo_name, :offline_id, :device_id, :created_by, :updated_by
             )
         ");
         $this->db->bind(':invoice_no', $data['invoice_no']);
@@ -260,6 +271,8 @@ class Invoice extends Model {
         $this->db->bind(':shipping_country', $data['shipping_country'] ?? null);
         $this->db->bind(':applied_promo_id', $data['applied_promotion_id'] ?? null);
         $this->db->bind(':applied_promo_name', $data['applied_promotion_name'] ?? null);
+        $this->db->bind(':offline_id', $data['offline_id'] ?? null);
+        $this->db->bind(':device_id', $data['device_id'] ?? null);
         $this->db->bind(':created_by', $data['userId']);
         $this->db->bind(':updated_by', $data['userId']);
 
@@ -295,7 +308,7 @@ class Invoice extends Model {
                     if ($shouldDeduct) {
                         $qty = (float)$item['quantity'];
                         $recipeType = $part->recipe_type ?? 'Standard';
-                        if ($recipeType === 'A La Carte') {
+                        if ($recipeType === 'A La Carte' || $recipeType === 'Buffet') {
                             // 1. Process Ingredients (only if BOM exists)
                             $bom = $bomModel->getActiveBOMForPart($pid);
                             if ($bom && !empty($bom->items)) {
@@ -306,12 +319,12 @@ class Invoice extends Model {
                                 }
                             }
                             
-                            // 2. Always log the "Assembly" (Plus entry) for A La Carte items
-                            $this->deductStock($pid, -1 * $qty, $invoiceLocationId, $invoiceId, $costPrice, null, 'A La Carte Assembly', 'PRODUCTION_RECEIPT', $userId);
+                            // 2. Always log the "Assembly" (Plus entry) for A La Carte/Buffet items
+                            $this->deductStock($pid, -1 * $qty, $invoiceLocationId, $invoiceId, $costPrice, null, $recipeType . ' Assembly', 'PRODUCTION_RECEIPT', $userId);
                         }
 
                         // Always deduct the main item if it's a part and $shouldDeduct is true
-                        // This handles both Standard and A La Carte (which now has an offsetting plus entry above)
+                        // This handles Standard, A La Carte, and Buffet (which now has an offsetting plus entry above)
                         $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null, 'Retail Sale', 'SALE', $userId);
                     }
                 }

@@ -16,11 +16,16 @@ import {
   fetchPartsForSupplier, 
   fetchSupplier, 
   fetchSuppliers, 
+  fetchLocations,
   type PartRow, 
   type PurchaseOrderItemRow, 
+  type ServiceLocationRow,
   type SupplierRow, 
-  type TaxRow 
+  type TaxRow,
+  type InventoryCollectionRow,
+  formatPartLabel
 } from "@/lib/api";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { calculateTaxes } from "@/lib/tax-calc";
 import { FileText, Loader2, Plus, Trash2, Save, Printer } from "lucide-react";
 
@@ -56,10 +61,14 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
   const [saving, setSaving] = useState(false);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [parts, setParts] = useState<PartRow[]>([]);
+  const [locations, setLocations] = useState<ServiceLocationRow[]>([]);
+  const [currentLocation, setCurrentLocation] = useState<ServiceLocationRow | null>(null);
+  const [originalSupplierTaxes, setOriginalSupplierTaxes] = useState<TaxRow[]>([]);
   const [supplierTaxes, setSupplierTaxes] = useState<TaxRow[]>([]);
 
   const [form, setForm] = useState({
     supplier_id: initialData?.supplier_id || "",
+    location_id: initialData?.location_id || "",
     notes: initialData?.notes || "",
     ordered_at: initialData?.ordered_at || todayLocalDate(),
     expected_at: initialData?.expected_at || "",
@@ -77,8 +86,19 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
     const run = async () => {
       setLoading(true);
       try {
-        const [supRows] = await Promise.all([fetchSuppliers()]);
+        const [supRows, locRows] = await Promise.all([fetchSuppliers(), fetchLocations()]);
         setSuppliers(Array.isArray(supRows) ? supRows : []);
+        setLocations(Array.isArray(locRows) ? locRows : []);
+        
+        // Identify current location
+        const lsLocId = initialData?.location_id || (typeof window !== 'undefined' ? window.localStorage.getItem("location_id") : null);
+        if (lsLocId && Array.isArray(locRows)) {
+           const found = (locRows as ServiceLocationRow[]).find(l => String(l.id) === lsLocId);
+           if (found) {
+             setCurrentLocation(found);
+             setForm(p => ({ ...p, location_id: String(found.id) }));
+           }
+        }
       } catch (e: any) {
         toast({ title: "Error", description: e?.message || "Failed to load suppliers", variant: "destructive" });
       } finally {
@@ -99,14 +119,28 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
       try {
         const [partRows, sup] = await Promise.all([fetchPartsForSupplier(sid, ""), fetchSupplier(String(sid))]);
         setParts(Array.isArray(partRows) ? partRows : []);
-        setSupplierTaxes(Array.isArray((sup as any)?.taxes) ? ((sup as any).taxes as TaxRow[]) : []);
+        setOriginalSupplierTaxes(Array.isArray((sup as any)?.taxes) ? ((sup as any).taxes as TaxRow[]) : []);
       } catch (e: any) {
         setParts([]);
-        setSupplierTaxes([]);
+        setOriginalSupplierTaxes([]);
         toast({ title: "Error", description: e?.message || "Failed to load supplier details", variant: "destructive" });
       }
     })();
   }, [form.supplier_id]);
+
+  useEffect(() => {
+    setSupplierTaxes(originalSupplierTaxes);
+  }, [originalSupplierTaxes]);
+
+  // Sync currentLocation when form.location_id changes
+  useEffect(() => {
+    if (!form.location_id) {
+      setCurrentLocation(null);
+      return;
+    }
+    const found = locations.find(l => String(l.id) === form.location_id);
+    if (found) setCurrentLocation(found);
+  }, [form.location_id, locations]);
 
   const partById = useMemo(() => {
     const m = new Map<number, PartRow>();
@@ -176,6 +210,7 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
     try {
       const payload = {
         supplier_id: supplierId,
+        location_id: Number(form.location_id) || undefined,
         notes: form.notes?.trim() ? form.notes.trim() : undefined,
         ordered_at: toMysqlDatetimeFromDate(form.ordered_at),
         expected_at: toMysqlDatetimeFromDate(form.expected_at),
@@ -222,13 +257,26 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Supplier</Label>
-                <Select value={form.supplier_id} onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v }))}>
+                <SearchableSelect 
+                  value={form.supplier_id} 
+                  onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v }))}
+                  options={suppliers.map(s => ({
+                    value: String(s.id),
+                    label: s.name,
+                    keywords: s.email || ""
+                  }))}
+                  placeholder="Select supplier..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Delivery Location</Label>
+                <Select value={form.location_id} onValueChange={(v) => setForm((p) => ({ ...p, location_id: v }))}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select supplier..." />
+                    <SelectValue placeholder="Select location..." />
                   </SelectTrigger>
-                  <SelectContent className="max-h-[280px]">
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                  <SelectContent>
+                    {locations.map((loc) => (
+                      <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -239,7 +287,6 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
                   type="date"
                   value={form.ordered_at.split(' ')[0]}
                   onChange={(e) => setForm((p) => ({ ...p, ordered_at: e.target.value }))}
-                  disabled={!!editId} // Only allow changing date on new POs usually
                 />
               </div>
               <div className="space-y-2">
@@ -291,7 +338,7 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
                     <TableRow key={idx} className="align-top">
                       <TableCell>
                         <div className="space-y-2">
-                          <Select
+                          <SearchableSelect
                             value={String(it.part_id || "")}
                             onValueChange={(v) => {
                               const partId = Number(v);
@@ -307,18 +354,27 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
                                 ),
                               }));
                             }}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select item..." />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[280px]">
-                              {parts.map((p) => (
-                                <SelectItem key={p.id} value={String(p.id)} disabled={selectedPartIds.has(Number(p.id)) && Number(p.id) !== Number(it.part_id)}>
-                                  {p.sku ? `${p.part_name} (${p.sku})` : p.part_name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                            options={parts.map(p => {
+                              const title = formatPartLabel(p);
+                              const brand = p.brand_name || p.brand || "";
+                              const price = p.price || p.cost_price || 0;
+                              return {
+                                value: String(p.id),
+                                displayLabel: title,
+                                label: (
+                                  <div className="flex flex-col w-full text-left">
+                                    <div className="flex justify-between items-start w-full gap-2">
+                                      <div className="font-semibold text-sm truncate">{title}</div>
+                                      <div className="font-bold text-sm tabular-nums shrink-0">LKR {Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                    </div>
+                                    {brand && <div className="text-xs text-muted-foreground mt-0.5 font-normal">{brand}</div>}
+                                  </div>
+                                ),
+                                keywords: `${title} ${brand} ${p.sku ?? ""} ${p.part_number ?? ""} ${p.barcode_number ?? ""}`,
+                              };
+                            })}
+                            placeholder="Search item..."
+                          />
                           {selected && <div className="text-[11px] text-muted-foreground">Unit Cost hint: {selected.cost_price?.toLocaleString()}</div>}
                         </div>
                       </TableCell>
@@ -353,6 +409,7 @@ export function PurchaseOrderForm({ editId, initialData }: PurchaseOrderFormProp
                   <span className="font-semibold tabular-nums">{money(t.amount)}</span>
                 </div>
               ))}
+              
               <div className="pt-2 border-t flex justify-between">
                 <span className="font-bold">Grand Total</span>
                 <span className="font-bold text-xl text-primary tabular-nums">{money(taxCalc.grandTotal)}</span>

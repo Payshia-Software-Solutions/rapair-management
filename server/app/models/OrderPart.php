@@ -3,12 +3,12 @@
  * OrderPart Model - parts issued to a repair order.
  */
 class OrderPart extends Model {
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
     public function listByOrder($orderId) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $oid = (int)$orderId;
         $this->db->query("
             SELECT op.*, p.part_name, p.sku, p.unit
@@ -22,21 +22,21 @@ class OrderPart extends Model {
     }
 
     public function addLine($orderId, $partId, $qty, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $oid = (int)$orderId;
         $pid = (int)$partId;
         $qty = (float)$qty;
         if ($oid <= 0 || $pid <= 0 || $qty <= 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // Lock part and get metadata
             $this->db->query("SELECT item_type, cost_price, price, is_fifo, is_expiry, recipe_type, part_name, default_location_id FROM parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $p = $this->db->single();
             if (!$p) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
@@ -53,7 +53,7 @@ class OrderPart extends Model {
             $recipeType = (string)($p->recipe_type ?? 'Standard');
 
             // Stock Check for physical items
-            if (!$isService && $recipeType !== 'A La Carte') {
+            if (!$isService && $recipeType !== 'A La Carte' && $recipeType !== 'Buffet') {
                 $this->db->query("
                     SELECT COALESCE(SUM(qty_change), 0) AS qty
                     FROM stock_movements
@@ -64,7 +64,7 @@ class OrderPart extends Model {
                 $ledgerTotal = (float)($this->db->single()->qty ?? 0);
 
                 if ($ledgerTotal < $qty) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => "Insufficient stock. (Available: " . number_format($ledgerTotal, 3) . ")"];
                 }
             }
@@ -74,8 +74,8 @@ class OrderPart extends Model {
 
             $isFifo = ($itemType !== 'Service' && ((int)($p->is_fifo ?? 0) === 1 || (int)($p->is_expiry ?? 0) === 1));
             
-            // A La Carte handling: Consume ingredients and offset main item stock
-            if ($recipeType === 'A La Carte') {
+            // A La Carte/Buffet handling: Consume ingredients and offset main item stock
+            if ($recipeType === 'A La Carte' || $recipeType === 'Buffet') {
                 require_once 'ProductionBOM.php';
                 $bomModel = new ProductionBOM();
                 $bom = $bomModel->getActiveBOMForPart($pid);
@@ -104,7 +104,7 @@ class OrderPart extends Model {
                     }
                 }
                 
-                // Always add main item (Assembly Offset) for A La Carte items
+                // Always add main item (Assembly Offset) for A La Carte / Buffet items
                 $this->db->query("
                     INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
                     VALUES (:loc, :part_id, :qty_change, 'PRODUCTION_RECEIPT', 'repair_orders', :ref_id, :unit_cost, :notes, :created_by)
@@ -114,7 +114,7 @@ class OrderPart extends Model {
                 $this->db->bind(':qty_change', $qty);
                 $this->db->bind(':ref_id', $oid);
                 $this->db->bind(':unit_cost', $unitCost);
-                $this->db->bind(':notes', 'A La Carte Assembly');
+                $this->db->bind(':notes', $recipeType . ' Assembly');
                 $this->db->bind(':created_by', $userId);
                 $this->db->execute();
                 
@@ -129,7 +129,7 @@ class OrderPart extends Model {
                 $batchModel = new InventoryBatch();
                 $deductions = $batchModel->deductStockFIFO($pid, $locationId, $qty);
                 if (count($deductions) === 0 && $qty > 0) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'No available batches found for this product (though ledger shows stock)'];
                 }
 
@@ -182,7 +182,7 @@ class OrderPart extends Model {
                     $this->db->execute();
                 }
 
-                $this->db->exec("COMMIT");
+                $this->db->commit();
                 return $lastLineId;
 
             } else {
@@ -227,36 +227,37 @@ class OrderPart extends Model {
                 $this->db->execute();
                 $lineId = (int)$this->db->lastInsertId();
 
-                $this->db->exec("COMMIT");
+                $this->db->commit();
                 return $lineId;
             }
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in OrderPart::addLine: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function updateQty($lineId, $newQty, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $lid = (int)$lineId;
         $newQty = (float)$newQty;
         if ($lid <= 0 || $newQty <= 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $this->db->query("SELECT * FROM order_parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $lid);
             $line = $this->db->single();
             if (!$line) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
             $oldQty = (float)$line->quantity;
             $diff = $newQty - $oldQty;
             if (abs($diff) < 0.0001) {
-                $this->db->exec("COMMIT");
+                $this->db->commit();
                 return true;
             }
 
@@ -280,7 +281,7 @@ class OrderPart extends Model {
                 $ledgerTotal = (float)($this->db->single()->qty ?? 0);
 
                 if ($ledgerTotal < $diff) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'Insufficient stock.'];
                 }
             }
@@ -327,27 +328,28 @@ class OrderPart extends Model {
             $this->db->bind(':id', $lid);
             $this->db->execute();
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in OrderPart::updateQty: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function deleteLine($lineId, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $lid = (int)$lineId;
         if ($lid <= 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $this->db->query("SELECT * FROM order_parts WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $lid);
             $line = $this->db->single();
             if (!$line) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
@@ -394,10 +396,11 @@ class OrderPart extends Model {
             $this->db->bind(':id', $lid);
             $this->db->execute();
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in OrderPart::deleteLine: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }

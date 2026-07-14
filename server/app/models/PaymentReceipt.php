@@ -7,7 +7,7 @@ class PaymentReceipt {
     }
 
     // ── Schema Bootstrap ────────────────────────────────────────────────────
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         // payment_receipts
         $this->db->query("
             CREATE TABLE IF NOT EXISTS payment_receipts (
@@ -127,31 +127,14 @@ class PaymentReceipt {
     }
 
     // ── Receipt Number Generation ────────────────────────────────────────────
-    private function generateReceiptNo() {
-        $this->db->query("SELECT next_number, prefix, padding FROM document_sequences WHERE doc_type = 'RCP' FOR UPDATE");
-        $row = $this->db->single();
-        if (!$row) {
-            $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES ('RCP', 'RCP-', 1, 5)");
-            $this->db->execute();
-            $next = 1;
-            $prefix = 'RCP-';
-            $padding = 5;
-        } else {
-            $next    = intval($row->next_number);
-            $prefix  = $row->prefix;
-            $padding = intval($row->padding);
-        }
-
-        $this->db->query("UPDATE document_sequences SET next_number = :next, updated_at = NOW() WHERE doc_type = 'RCP'");
-        $this->db->bind(':next', $next + 1);
-        $this->db->execute();
-
-        return $prefix . str_pad($next, $padding, '0', STR_PAD_LEFT);
+    private function generateReceiptNo($locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo('RCP', $locationId);
     }
 
     // ── Create Receipt (+ optional Cheque) ──────────────────────────────────
     public function create($data) {
-        $receiptNo = $this->generateReceiptNo();
+        $receiptNo = $this->generateReceiptNo($data['location_id'] ?? 1);
 
         // Auto-fetch customer name if missing
         $customerName = $data['customer_name'] ?? '';
@@ -241,6 +224,7 @@ class PaymentReceipt {
             FROM payment_receipts pr
             LEFT JOIN cheque_inventory ci ON pr.id = ci.receipt_id
             WHERE pr.invoice_id = :id 
+            AND pr.status != 'Cancelled'
             AND (pr.payment_method != 'Cheque' OR (ci.status IS NOT NULL AND ci.status NOT IN ('Bounced', 'Cancelled')))
         ");
         $this->db->bind(':id', $invoiceId);
@@ -451,6 +435,21 @@ class PaymentReceipt {
             $this->db->bind(':user', $userId);
             $this->db->bind(':reason', $reason);
             $this->db->bind(':id', $id);
+            $this->db->execute();
+
+            // Delete mirrored record from invoice_payments to keep tables in sync
+            $this->db->query("
+                DELETE FROM invoice_payments 
+                WHERE invoice_id = :invoice_id 
+                  AND amount = :amount 
+                  AND DATE(payment_date) = :payment_date 
+                  AND payment_method = :payment_method
+                LIMIT 1
+            ");
+            $this->db->bind(':invoice_id',     $receipt->invoice_id);
+            $this->db->bind(':amount',         $receipt->amount);
+            $this->db->bind(':payment_date',   $receipt->payment_date);
+            $this->db->bind(':payment_method', $receipt->payment_method);
             $this->db->execute();
 
             // 2. If it has a cheque, cancel the cheque too

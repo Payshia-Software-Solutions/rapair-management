@@ -16,7 +16,6 @@ export default function ActiveJobsPage() {
   const { toast } = useToast();
   const [orders, setOrders] = useState<RepairOrder[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = async () => {
@@ -46,19 +45,6 @@ export default function ActiveJobsPage() {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return value;
     return d.toLocaleString();
-  };
-
-  const markComplete = async (order: RepairOrder) => {
-    setCompletingId(order.id);
-    try {
-      await updateOrder(order.id, { status: "Completed" });
-      toast({ title: "Completed", description: `Job finished for ${order.vehicleId}.` });
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? { ...o, status: "Completed" } : o)));
-    } catch (err) {
-      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
-    } finally {
-      setCompletingId(null);
-    }
   };
 
   return (
@@ -106,8 +92,13 @@ export default function ActiveJobsPage() {
           {active.map((o) => (
             <Card key={o.id} className="border-none shadow-md hover:shadow-lg transition-all overflow-hidden">
               <CardHeader className="bg-muted/30 border-b">
-                <CardTitle className="text-base font-bold">{o.vehicleId || `Order #${o.id}`}</CardTitle>
-                <CardDescription className="line-clamp-2">{o.problemDescription || "No description"}</CardDescription>
+                <div className="flex items-start justify-between gap-2">
+                  <CardTitle className="text-base font-bold">{o.vehicleId || `Order #${o.id}`}</CardTitle>
+                  {o.vehicleNumber && (
+                    <Badge variant="outline" className="shrink-0 bg-background">{o.vehicleNumber}</Badge>
+                  )}
+                </div>
+                <CardDescription className="line-clamp-2 mt-1">{o.problemDescription || "No description"}</CardDescription>
               </CardHeader>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
@@ -141,10 +132,9 @@ export default function ActiveJobsPage() {
                   </Button>
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700 gap-2"
-                    disabled={completingId === o.id}
-                    onClick={() => void markComplete(o)}
+                    onClick={() => router.push(`/orders/${o.id}`)}
                   >
-                    {completingId === o.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    <CheckCircle2 className="w-4 h-4" />
                     Complete
                   </Button>
                 </div>

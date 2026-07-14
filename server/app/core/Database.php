@@ -37,6 +37,12 @@ class Database {
         // Create PDO instance
         try {
             $this->dbh = new PDO($dsn, $this->user, $this->pass, $options);
+            // Ensure MySQL uses Sri Lanka time, catching errors to prevent crashes
+            try {
+                $this->dbh->exec("SET time_zone = '+05:30'");
+            } catch (Exception $tzException) {
+                // Fall back to MySQL default timezone if SET time_zone is blocked or fails
+            }
             self::$sharedDbh = $this->dbh;
         } catch (PDOException $e) {
             $this->error = $e->getMessage();
@@ -107,6 +113,12 @@ class Database {
     public function single() {
         $this->execute();
         return $this->stmt->fetch(PDO::FETCH_OBJ);
+    }
+
+    // Get single value (first column of first row)
+    public function singleColumn() {
+        $this->execute();
+        return $this->stmt->fetchColumn();
     }
 
     // Get row count

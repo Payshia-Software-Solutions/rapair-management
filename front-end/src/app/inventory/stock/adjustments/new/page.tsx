@@ -9,15 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { createStockAdjustmentBatchForLocation, fetchLocations, fetchParts, fetchPartBatches, fetchLocationStockBalances, type PartRow } from "@/lib/api";
+import { createStockAdjustmentBatch, fetchLocations, fetchParts, fetchPartBatches, fetchLocationStockBalances, type PartRow } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
-  ArrowLeftRight,
+  ClipboardList,
   CheckCircle2,
   ChevronsUpDown,
   Loader2,
@@ -26,6 +27,7 @@ import {
   Plus,
   Search,
   Trash2,
+  Printer,
 } from "lucide-react";
 
 function nowLocalDatetime() {
@@ -49,10 +51,26 @@ function fmt3(n: number) {
 
 function newKey() {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
     return (globalThis as any)?.crypto?.randomUUID?.() ?? `k_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   } catch {
     return `k_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  }
+}
+
+function playBeep() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.value = 850;
+    gain.gain.setValueAtTime(0.08, ctx.currentTime);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.08);
+  } catch (err) {
+    console.error("Audio Context is blocked.", err);
   }
 }
 
@@ -75,14 +93,14 @@ export default function NewStockAdjustmentPage() {
   const [activeLineKey, setActiveLineKey] = useState<string | null>(null);
   const [itemBatches, setItemBatches] = useState<Record<number, any[]>>({});
   const [fetchingBatches, setFetchingBatches] = useState<Record<number, boolean>>({});
+  const [batchPrompt, setBatchPrompt] = useState<{key: string | null, pid: number, name: string, batches: any[], isScan?: boolean, totalStock?: number} | null>(null);
 
-  // Add-item picker (adds a new line)
   const [addOpen, setAddOpen] = useState(false);
   const [addQuery, setAddQuery] = useState("");
 
-  // Row editor picker (changes item for an existing line)
   const [editKey, setEditKey] = useState<string | null>(null);
   const [editQuery, setEditQuery] = useState("");
+  const [barcodeInput, setBarcodeInput] = useState("");
 
   const preselectPartId = useMemo(() => {
     const raw = sp?.get("part_id") ?? "";
@@ -91,7 +109,6 @@ export default function NewStockAdjustmentPage() {
   }, [sp]);
 
   useEffect(() => {
-    // Load allowed locations (admin: all locations; non-admin: allowed_locations from JWT)
     const LS_LOC_KEY = "stock_adj_location_id";
     const decodeJwtPayload = (token: string) => {
       try {
@@ -164,28 +181,109 @@ export default function NewStockAdjustmentPage() {
 
   useEffect(() => {
     if (!preselectPartId) return;
-    setLines([{ key: newKey(), part_id: preselectPartId, physical_stock: "", notes: "" }]);
+    setLines([{ key: newKey(), part_id: preselectPartId, batch_id: null, physical_stock: "", notes: "" }]);
   }, [preselectPartId]);
 
   const addEmptyLine = () => setLines((p) => [...p, { key: newKey(), part_id: 0, batch_id: null, physical_stock: "", notes: "" }]);
   const removeLine = (key: string) => setLines((p) => p.filter((x) => x.key !== key));
 
+  const handleScannedBarcode = (barcodeVal: string) => {
+    const cleaned = barcodeVal.trim().toLowerCase();
+    if (!cleaned) return;
+
+    const part = parts.find((p) => 
+      String(p.barcode_number || "").toLowerCase() === cleaned ||
+      String(p.sku || "").toLowerCase() === cleaned ||
+      String(p.part_number || "").toLowerCase() === cleaned ||
+      String(p.id) === cleaned
+    );
+
+    if (!part) {
+      toast({
+        title: "Item Not Found",
+        description: `Barcode "${barcodeVal}" does not match any product in inventory.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    playBeep();
+
+    const incrementOrAdd = (batchId: number | null) => {
+      const existingIndex = lines.findIndex((l) => Number(l.part_id) === Number(part.id) && l.batch_id === batchId);
+      if (existingIndex > -1) {
+        const existingLine = lines[existingIndex];
+        const newStock = existingLine.physical_stock === "" ? 1 : Number(existingLine.physical_stock) + 1;
+        setLines((prev) => 
+          prev.map((line, idx) => idx === existingIndex ? { ...line, physical_stock: newStock } : line)
+        );
+        toast({ title: "Quantity Incremented", description: `${part.part_name} count increased to ${newStock}.` });
+        setActiveLineKey(existingLine.key);
+      } else {
+        const key = newKey();
+        setLines((prev) => [...prev, { key, part_id: Number(part.id), batch_id: batchId, physical_stock: 1, notes: "" }]);
+        setActiveLineKey(key);
+        toast({ title: "Item Added", description: `${part.part_name} added to count list.` });
+      }
+    };
+
+      void loadBatchesForPart(Number(part.id)).then((batches) => {
+        if (batches && batches.length > 0) {
+          setBatchPrompt({ key: null, pid: Number(part.id), name: part.part_name, batches, isScan: true, totalStock: Number(part.stock_quantity ?? 0) });
+        } else {
+          incrementOrAdd(null);
+        }
+      });
+  };
+
+  useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = Date.now();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+      if (isInput) return;
+      
+      const now = Date.now();
+      const diff = now - lastKeyTime;
+      lastKeyTime = now;
+
+      if (diff > 50) {
+        buffer = "";
+      }
+
+      if (e.key === "Enter") {
+        if (buffer.length > 2) {
+          handleScannedBarcode(buffer);
+          e.preventDefault();
+        }
+        buffer = "";
+      } else if (e.key.length === 1) {
+        buffer += e.key;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [parts, lines]);
+
   const loadBatchesForPart = async (pid: number) => {
-    if (!pid || !locationId || itemBatches[pid]) return;
+    if (!pid || !locationId) return null;
+    if (itemBatches[pid]) return itemBatches[pid];
     setFetchingBatches(prev => ({ ...prev, [pid]: true }));
     try {
       const b = await fetchPartBatches(pid, locationId);
       setItemBatches(prev => ({ ...prev, [pid]: b }));
+      return b;
     } catch {
-      // ignore
+      return null;
     } finally {
       setFetchingBatches(prev => ({ ...prev, [pid]: false }));
     }
   };
 
   const setOtherItemsToZero = (keepKey?: string | null) => {
-    // This is meant for full stock-take style adjustments:
-    // keep the selected line's physical stock as-is, and ensure every other product exists with physical stock = 0.
     const fallbackKey =
       keepKey ??
       activeLineKey ??
@@ -193,14 +291,13 @@ export default function NewStockAdjustmentPage() {
       (lines[0]?.key ?? null);
 
     if (!fallbackKey) {
-      toast({ title: "Add an item first", description: "Add at least 1 item before using this action.", variant: "destructive" });
+      toast({ title: "Add an item first", description: "Add at least 1 item first.", variant: "destructive" });
       return;
     }
 
     const keep = lines.find((l) => l.key === fallbackKey) ?? null;
     if (!keep) return;
 
-    // If the "keep" line doesn't have an item yet, fall back to the first item line.
     const keepFinalKey =
       Number(keep.part_id) > 0 ? keep.key : (lines.find((l) => Number(l.part_id) > 0)?.key ?? keep.key);
 
@@ -212,10 +309,8 @@ export default function NewStockAdjustmentPage() {
     const keepLine = lines.find((l) => l.key === keepFinalKey) ?? keep;
     const keepPartId = Number(keepLine.part_id) > 0 ? Number(keepLine.part_id) : null;
 
-    // Build the next lines list in one pass to avoid many state updates.
     const out: (typeof lines)[number][] = [];
 
-    // 1) Ensure every part exists
     for (const p of parts) {
       const pid = Number((p as any)?.id);
       if (!Number.isFinite(pid) || pid <= 0) continue;
@@ -239,12 +334,10 @@ export default function NewStockAdjustmentPage() {
       }
     }
 
-    // 2) Preserve any "empty" (part_id=0) lines the user added manually, but put them at the end.
     for (const ln of lines) {
       if (!(Number(ln.part_id) > 0)) out.push(ln);
     }
 
-    // Keep selection stable.
     setActiveLineKey(keepFinalKey);
     setLines(out);
     toast({ title: "Updated", description: `Added ${Math.max(0, out.length - lines.length)} items and set others to 0` });
@@ -279,25 +372,19 @@ export default function NewStockAdjustmentPage() {
 
   const addPart = (pid: number) => {
     if (pid <= 0) return;
-    const exists = lines.some((l) => String(l.part_id) === String(pid));
-    if (exists) {
-      toast({ title: "Already added", description: "That item is already in this adjustment." });
-      setAddOpen(false);
-      return;
-    }
-    setLines((p) => [...p, { key: newKey(), part_id: pid, batch_id: null, physical_stock: "", notes: "" }]);
+    const pInfo = parts.find(x => Number(x.id) === pid);
+    const key = newKey();
+    setLines((p) => [...p, { key, part_id: pid, batch_id: null, physical_stock: "", notes: "" }]);
     setAddOpen(false);
-    void loadBatchesForPart(pid);
+    void loadBatchesForPart(pid).then((batches) => {
+      if (batches && batches.length > 0) {
+        setBatchPrompt({ key, pid, name: pInfo?.part_name ?? "Item", batches, totalStock: Number(pInfo?.stock_quantity ?? 0) });
+      }
+    });
   };
 
   const changePart = (key: string, pid: number) => {
     if (pid <= 0) return;
-    const exists = lines.some((l) => l.key !== key && String(l.part_id) === String(pid));
-    if (exists) {
-      toast({ title: "Already added", description: "That item is already in this adjustment." });
-      setEditKey(null);
-      return;
-    }
     setLines((p) => p.map((x) => (x.key === key ? { ...x, part_id: pid, batch_id: null } : x)));
     setEditKey(null);
     void loadBatchesForPart(pid);
@@ -308,10 +395,7 @@ export default function NewStockAdjustmentPage() {
       .map((l) => ({
         part_id: Number(l.part_id),
         batch_id: l.batch_id,
-        physical_stock:
-          l.physical_stock === ""
-            ? null
-            : Math.round(Number(l.physical_stock) * 1000) / 1000,
+        physical_stock: l.physical_stock === "" ? null : Math.round(Number(l.physical_stock) * 1000) / 1000,
         notes: l.notes?.trim() ? l.notes.trim() : undefined,
         include_when_zero: Boolean(l.include_when_zero),
       }))
@@ -331,7 +415,7 @@ export default function NewStockAdjustmentPage() {
 
     setSaving(true);
     try {
-      const res = await createStockAdjustmentBatchForLocation(
+      const res = await createStockAdjustmentBatch(
         {
           adjusted_at: adjustedAt ? adjustedAt : undefined,
           reason: reason.trim() || undefined,
@@ -340,36 +424,11 @@ export default function NewStockAdjustmentPage() {
         },
         locationId ?? undefined
       );
-      const id = (res as any)?.data?.id;
-      toast({ title: "Created", description: "Stock adjustment created" });
-
-      if (id) {
-        const url = `/inventory/stock/adjustments/print/${encodeURIComponent(String(id))}?autoprint=1${
-          locationId ? `&loc=${encodeURIComponent(String(locationId))}` : ""
-        }`;
-        
-        // Try to open it now. Since this is still within a few seconds of 
-        // the user's click gesture, most modern browsers will allow it.
-        const win = window.open(url, "_blank", "noopener,noreferrer");
-        if (!win) {
-          toast({
-            title: "Popup blocked",
-            description: "The print page was blocked by your browser. Please click the 'Print' button on the adjustment page.",
-            variant: "destructive",
-          });
-        }
-      }
-
+      const id = (res as any)?.data?.id ?? (res as any)?.id;
+      toast({ title: "Adjustment Created", description: "Stock adjustment was directly committed to ledger." });
       router.push(`/inventory/stock/adjustments/${encodeURIComponent(String(id))}`);
     } catch (e: any) {
-      if (printTab && !printTab.closed) {
-        try {
-          printTab.close();
-        } catch {
-          // ignore
-        }
-      }
-      toast({ title: "Error", description: e?.message || "Create failed", variant: "destructive" });
+      toast({ title: "Error", description: e?.message || "Submit failed", variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -386,10 +445,10 @@ export default function NewStockAdjustmentPage() {
             </Button>
             <div>
               <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-                <ArrowLeftRight className="w-6 h-6 text-primary" />
-                New Stock Adjustment
+                <ClipboardList className="w-6 h-6 text-primary" />
+                New Direct Stock Adjustment
               </h1>
-              <p className="text-muted-foreground mt-1">One adjustment number, multiple items</p>
+              <p className="text-muted-foreground mt-1">Make a direct manual stock adjustment</p>
             </div>
           </div>
           <Button asChild variant="outline">
@@ -399,8 +458,8 @@ export default function NewStockAdjustmentPage() {
 
         <Card className="border-none shadow-md overflow-hidden">
           <CardHeader>
-            <CardTitle>Header</CardTitle>
-            <CardDescription>Set reason and notes for audit</CardDescription>
+            <CardTitle>Session Header</CardTitle>
+            <CardDescription>Define auditing context</CardDescription>
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -427,44 +486,29 @@ export default function NewStockAdjustmentPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <div className="text-[11px] text-muted-foreground">This adjustment will be saved under the selected location.</div>
             </div>
             <div className="space-y-2">
-              <Label>Adjusted At</Label>
+              <Label>Count Taken At</Label>
               <Input type="datetime-local" value={adjustedAt} onChange={(e) => setAdjustedAt(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Reason</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g., Stock count correction" />
+              <Label>Session Title / Reason</Label>
+              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g., Annual stock take 2026" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <Label>Notes</Label>
+              <Label>Aduiting Notes</Label>
               <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
-            </div>
-            <div className="md:col-span-3 text-xs text-muted-foreground">
-              Adjustment number will be generated automatically when you create the batch.
             </div>
           </CardContent>
         </Card>
 
         <Card className="border-none shadow-md overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
             <div>
-              <CardTitle>Lines</CardTitle>
-              <CardDescription>Enter physical stock. Variance is calculated as Physical minus System.</CardDescription>
+              <CardTitle>Count Lines</CardTitle>
+              <CardDescription>Scan barcodes or select items to enter physical counts.</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                className="gap-2"
-                onClick={() => setOtherItemsToZero(null)}
-                disabled={saving || loading || parts.length === 0 || lines.length === 0}
-                title="Keep the selected line, set all other item quantities to 0"
-              >
-                <MinusCircle className="w-4 h-4" />
-                Set Other Items to 0
-              </Button>
+            <div className="flex items-center gap-2 flex-wrap">
               <Popover open={addOpen} onOpenChange={setAddOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" onClick={openAddItem} className="gap-2">
@@ -479,46 +523,36 @@ export default function NewStockAdjustmentPage() {
                       <Input
                         value={addQuery}
                         onChange={(e) => setAddQuery(e.target.value)}
-                        placeholder="Search item name, SKU, unit, or ID..."
+                        placeholder="Search item..."
                         className="pl-8 h-10"
                       />
                     </div>
-                    <Button type="button" variant="ghost" onClick={() => setAddQuery("")} className="h-10">
-                      Clear
-                    </Button>
                   </div>
-
                   <ScrollArea className="h-[320px] pr-2">
                     <div className="space-y-1">
                       {filteredAddParts.length === 0 ? (
-                        <div className="text-sm text-muted-foreground py-10 text-center">No items match your search.</div>
+                        <div className="text-sm text-muted-foreground py-10 text-center">No items found</div>
                       ) : (
                         filteredAddParts.map((p) => {
                           const label = p.sku ? `${p.part_name} (${p.sku})` : p.part_name;
-                          const sub = [p.unit ? `Unit: ${p.unit}` : null]
-                            .filter(Boolean)
-                            .join("  ");
                           const selected = lines.some((l) => String(l.part_id) === String(p.id));
+                          const brand = p.brand_name || p.brand || "";
+                          const price = p.price || p.cost_price || 0;
                           return (
                             <button
                               key={p.id}
                               type="button"
                               onClick={() => addPart(Number(p.id))}
                               className={cn(
-                                "w-full text-left rounded-xl border px-3 py-3 transition-colors",
+                                "w-full flex flex-col text-left rounded-xl border px-3 py-2 transition-colors",
                                 selected ? "bg-primary/5 border-primary/40" : "hover:bg-muted/40 border-transparent"
                               )}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="font-semibold truncate">{label}</div>
-                                  {sub ? <div className="text-xs text-muted-foreground mt-0.5 truncate">{sub}</div> : null}
-                                  <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                                    ID: {p.id}
-                                  </div>
-                                </div>
-                                {selected ? <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" /> : null}
+                              <div className="flex justify-between items-start w-full">
+                                <div className="font-semibold text-sm">{label}</div>
+                                <div className="font-bold text-sm tabular-nums">LKR {Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                               </div>
+                              {brand && <div className="text-xs text-muted-foreground mt-0.5">{brand}</div>}
                             </button>
                           );
                         })
@@ -527,11 +561,6 @@ export default function NewStockAdjustmentPage() {
                   </ScrollArea>
                 </PopoverContent>
               </Popover>
-
-              <Button variant="ghost" onClick={addEmptyLine} className="gap-2">
-                <ChevronsUpDown className="w-4 h-4" />
-                Empty Line
-              </Button>
             </div>
           </CardHeader>
           <CardContent>
@@ -541,257 +570,295 @@ export default function NewStockAdjustmentPage() {
                 Loading...
               </div>
             ) : (
-              <div className="rounded-md border overflow-hidden">
-                <Table>
-                  <TableHeader className="bg-muted/30">
-                    <TableRow>
-                      <TableHead>Item</TableHead>
-                      <TableHead>Batch</TableHead>
-                      <TableHead className="w-[140px]">System Stock</TableHead>
-                      <TableHead className="w-[160px]">Physical Stock</TableHead>
-                      <TableHead className="w-[140px]">Variance</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead className="w-[80px]" />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {lines.length === 0 ? (
+              <>
+                <div className="flex items-center gap-2 mb-4 bg-muted/10 p-2.5 rounded-lg border border-dashed">
+                  <div className="relative w-full max-w-sm">
+                    <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Scan barcode or type SKU..."
+                      className="pl-8 h-9 text-xs bg-background"
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleScannedBarcode(barcodeInput);
+                          setBarcodeInput("");
+                          e.preventDefault();
+                        }
+                      }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-muted-foreground italic">
+                    (Keyboard scanning is active. Standard USB/Wireless barcode guns function automatically)
+                  </span>
+                </div>
+
+                <div className="rounded-md border overflow-hidden">
+                  <Table>
+                    <TableHeader className="bg-muted/30">
                       <TableRow>
-                        <TableCell colSpan={4} className="py-10 text-center text-sm text-muted-foreground">
-                          Add items to start this adjustment.
-                        </TableCell>
+                        <TableHead>Item</TableHead>
+                        <TableHead>Batch</TableHead>
+                        <TableHead className="w-[140px]">Location Stock</TableHead>
+                        <TableHead className="w-[160px]">Physical Count</TableHead>
+                        <TableHead className="w-[140px]">Variance</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead className="w-[80px]" />
                       </TableRow>
-                    ) : null}
+                    </TableHeader>
+                    <TableBody>
+                      {lines.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                            Start adding items using "Add Item", barcode scanning, or "Set Other Items to 0" to initialize counts.
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
 
-                    {lines.map((l) => {
-                      const part = parts.find((p) => String(p.id) === String(l.part_id));
-                      const label = part ? (part.sku ? `${part.part_name} (${part.sku})` : part.part_name) : null;
-                      const sub = part ? [part.unit ? `Unit: ${part.unit}` : null].filter(Boolean).join("  ") : null;
-                      
-                      const batches = part ? (itemBatches[part.id] || []) : [];
-                      const isFetching = part ? fetchingBatches[part.id] : false;
-                      const selectedBatch = l.batch_id ? batches.find((b: any) => b.id === l.batch_id) : null;
+                      {lines.map((l) => {
+                        const part = parts.find((p) => String(p.id) === String(l.part_id));
+                        const label = part ? (part.sku ? `${part.part_name} (${part.sku})` : part.part_name) : null;
+                        
+                        const batches = part ? (itemBatches[part.id] || []) : [];
+                        const selectedBatch = l.batch_id ? batches.find((b: any) => b.id === l.batch_id) : null;
 
-                      const systemStock = selectedBatch 
-                        ? Number(selectedBatch.quantity_on_hand ?? 0)
-                        : Number(part?.stock_quantity ?? 0);
+                        const systemStock = selectedBatch 
+                          ? Number(selectedBatch.quantity_on_hand ?? 0)
+                          : (batches.length > 0 ? Number(batches.find(b => Number(b.id) === 0)?.quantity_on_hand ?? 0) : Number(part?.stock_quantity ?? 0));
 
-                      const physical = l.physical_stock === "" ? null : Number(l.physical_stock);
-                      const variance = physical === null ? null : Number((physical - systemStock).toFixed(3));
-                      return (
-                        <TableRow
-                          key={l.key}
-                          className={cn(activeLineKey === l.key ? "bg-muted/20" : "")}
-                          onClick={() => {
-                            setActiveLineKey(l.key);
-                            if (part && !itemBatches[part.id]) void loadBatchesForPart(part.id);
-                          }}
-                        >
-                          <TableCell>
-                            <Popover
-                              open={editKey === l.key}
-                              onOpenChange={(open) => {
-                                setEditKey(open ? l.key : null);
-                                if (open) setActiveLineKey(l.key);
-                                if (open) setEditQuery("");
-                              }}
-                            >
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  className={cn("w-full justify-between gap-2", !label && "border-dashed text-muted-foreground")}
-                                >
-                                  <span className="truncate">{label || "Select item..."}</span>
-                                  <ChevronsUpDown className="w-4 h-4 opacity-70" />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent align="start" className="w-[520px] p-3">
-                                <div className="flex items-center gap-2 pb-3">
-                                  <div className="relative flex-1">
-                                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        const physical = l.physical_stock === "" ? null : Number(l.physical_stock);
+                        const variance = physical === null ? null : Number((physical - systemStock).toFixed(3));
+                        return (
+                          <TableRow
+                            key={l.key}
+                            className={cn(activeLineKey === l.key ? "bg-muted/20" : "")}
+                            onClick={() => {
+                              setActiveLineKey(l.key);
+                              if (part && !itemBatches[part.id]) void loadBatchesForPart(part.id);
+                            }}
+                          >
+                            <TableCell>
+                              <Popover
+                                open={editKey === l.key}
+                                onOpenChange={(open) => {
+                                  setEditKey(open ? l.key : null);
+                                  if (open) setActiveLineKey(l.key);
+                                  if (open) setEditQuery("");
+                                }}
+                              >
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    className={cn("w-full justify-between gap-2 text-left font-normal", !label && "border-dashed text-muted-foreground")}
+                                  >
+                                    <span className="truncate">{label || "Select item..."}</span>
+                                    <ChevronsUpDown className="w-4 h-4 opacity-70" />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="start" className="w-[520px] p-3">
+                                  <div className="flex items-center gap-2 pb-3">
                                     <Input
                                       value={editQuery}
                                       onChange={(e) => setEditQuery(e.target.value)}
-                                      placeholder="Search item name, SKU, unit, or ID..."
-                                      className="pl-8 h-10"
+                                      placeholder="Search item..."
+                                      className="h-10"
                                     />
                                   </div>
-                                  <Button type="button" variant="ghost" onClick={() => setEditQuery("")} className="h-10">
-                                    Clear
-                                  </Button>
-                                </div>
-
-                                <ScrollArea className="h-[320px] pr-2">
-                                  <div className="space-y-1">
-                                    {filteredEditParts.length === 0 ? (
-                                      <div className="text-sm text-muted-foreground py-10 text-center">No items match your search.</div>
-                                    ) : (
-                                      filteredEditParts.map((p) => {
-                                        const itemLabel = p.sku ? `${p.part_name} (${p.sku})` : p.part_name;
-                                        const itemSub = [p.unit ? `Unit: ${p.unit}` : null]
-                                          .filter(Boolean)
-                                          .join("  ");
-                                        const selected = String(l.part_id) === String(p.id);
+                                  <ScrollArea className="h-[320px] pr-2">
+                                    <div className="space-y-1">
+                                      {filteredEditParts.map((p) => {
+                                        const label = p.sku ? `${p.part_name} (${p.sku})` : p.part_name;
+                                        const brand = p.brand_name || p.brand || "";
+                                        const price = p.price || p.cost_price || 0;
                                         return (
-                                          <button
-                                            key={p.id}
-                                            type="button"
-                                            onClick={() => changePart(l.key, Number(p.id))}
-                                            className={cn(
-                                              "w-full text-left rounded-xl border px-3 py-3 transition-colors",
-                                              selected ? "bg-primary/5 border-primary/40" : "hover:bg-muted/40 border-transparent"
-                                            )}
-                                          >
-                                            <div className="flex items-start justify-between gap-3">
-                                              <div className="min-w-0">
-                                                <div className="font-semibold truncate">{itemLabel}</div>
-                                                {itemSub ? (
-                                                  <div className="text-xs text-muted-foreground mt-0.5 truncate">{itemSub}</div>
-                                                ) : null}
-                                                <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold mt-1">
-                                                  ID: {p.id}
-                                                </div>
-                                              </div>
-                                              {selected ? (
-                                                <CheckCircle2 className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                                              ) : null}
-                                            </div>
-                                          </button>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                </ScrollArea>
-                              </PopoverContent>
-                            </Popover>
-                            {sub ? <div className="text-xs text-muted-foreground mt-1 truncate">{sub}</div> : null}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={l.batch_id ? String(l.batch_id) : "0"}
-                              onValueChange={(v) => {
-                                const id = Number(v);
-                                setLines((p) => p.map((x) => (x.key === l.key ? { ...x, batch_id: id > 0 ? id : null } : x)));
-                              }}
-                              disabled={!part || (batches.length === 0 && !isFetching)}
-                            >
-                              <SelectTrigger className="w-full">
-                                <SelectValue placeholder={isFetching ? "Loading..." : "Total Stock"} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="0">Total Stock (Unbatched)</SelectItem>
-                                {batches.map((b: any) => (
-                                  <SelectItem key={b.id} value={String(b.id)}>
-                                    {b.batch_number} {b.expiry_date ? `(Exp: ${b.expiry_date})` : ""} - {fmt3(Number(b.quantity_on_hand))}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                          <TableCell>
-                            <div className="h-10 flex items-center">
-                              <span className="text-sm font-semibold">{fmt3(systemStock)}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              type="number"
-                              step="0.001"
-                              inputMode="decimal"
-                              value={l.physical_stock === "" ? "" : String(l.physical_stock)}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setLines((p) =>
-                                  p.map((x) =>
-                                    x.key === l.key
-                                      ? { ...x, physical_stock: v === "" ? "" : Number(v), include_when_zero: x.include_when_zero }
-                                      : x
-                                  )
-                                );
-                              }}
-                              onFocus={() => setActiveLineKey(l.key)}
-                              placeholder="Enter count"
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="h-10 flex items-center">
-                              {variance === null ? (
-                                <span className="text-sm text-muted-foreground">-</span>
-                              ) : (
-                                <span
-                                  className={cn(
-                                    "text-sm font-bold",
-                                    variance === 0 ? "text-muted-foreground" : variance < 0 ? "text-destructive" : "text-green-700"
-                                  )}
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          onClick={() => changePart(l.key, Number(p.id))}
+                                          className="w-full flex flex-col text-left rounded-xl border px-3 py-2 hover:bg-muted/40 border-transparent transition-colors"
+                                        >
+                                          <div className="flex justify-between items-start w-full">
+                                            <div className="font-semibold text-sm">{label}</div>
+                                            <div className="font-bold text-sm tabular-nums">LKR {Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                          </div>
+                                          {brand && <div className="text-xs text-muted-foreground mt-0.5">{brand}</div>}
+                                        </button>
+                                      )})}
+                                    </div>
+                                  </ScrollArea>
+                                </PopoverContent>
+                              </Popover>
+                            </TableCell>
+                            <TableCell>
+                              {part ? (
+                                <Select
+                                  value={l.batch_id ? String(l.batch_id) : "unbatched"}
+                                  onValueChange={(v) => {
+                                    const bid = v === "unbatched" ? null : Number(v);
+                                    setLines(prev => prev.map(x => x.key === l.key ? { ...x, batch_id: bid } : x));
+                                  }}
                                 >
-                                  {variance > 0 ? "+" : ""}
-                                  {fmt3(variance)}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Input
-                              value={l.notes ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setLines((p) => p.map((x) => (x.key === l.key ? { ...x, notes: v } : x)));
-                              }}
-                              onFocus={() => setActiveLineKey(l.key)}
-                              placeholder="Optional line note"
-                            />
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1">
+                                  <SelectTrigger className="w-[180px] h-9">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="unbatched">Total/Unbatched</SelectItem>
+                                    {batches.map((b: any) => (
+                                      <SelectItem key={b.id} value={String(b.id)}>
+                                        {b.batch_number} (stock: {fmt3(Number(b.quantity_on_hand))})
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : "-"}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm font-semibold">{fmt3(systemStock)}</TableCell>
+                            <TableCell>
+                              <Input
+                                type="number"
+                                step="any"
+                                className="h-9 font-semibold"
+                                placeholder="0"
+                                value={l.physical_stock}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setLines(prev => prev.map(x => x.key === l.key ? { ...x, physical_stock: val === "" ? "" : Number(val) } : x));
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className={cn(
+                              "font-mono text-sm font-bold",
+                              variance === null && "text-muted-foreground",
+                              variance !== null && variance < 0 && "text-destructive",
+                              variance !== null && variance > 0 && "text-emerald-700",
+                              variance === 0 && "text-muted-foreground"
+                            )}>
+                              {variance === null ? "-" : (variance > 0 ? `+${fmt3(variance)}` : fmt3(variance))}
+                            </TableCell>
+                            <TableCell>
+                              <Input
+                                className="h-9 text-xs"
+                                placeholder="Notes"
+                                value={l.notes || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setLines(prev => prev.map(x => x.key === l.key ? { ...x, notes: val } : x));
+                                }}
+                              />
+                            </TableCell>
+                            <TableCell className="text-right">
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                              onClick={() => {
-                                // Keep this line as-is, zero all other qty fields.
-                                setActiveLineKey(l.key);
-                                setOtherItemsToZero(l.key);
-                              }}
-                              disabled={saving || lines.length <= 1}
-                              title="Set other items to zero"
-                            >
-                              <MinusCircle className="w-4 h-4" />
-                            </Button>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 onClick={() => removeLine(l.key)}
-                                disabled={saving}
-                                title="Remove"
                               >
                                 <Trash2 className="w-4 h-4" />
                               </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
 
-            <div className="flex items-center justify-end gap-2 mt-4">
-              <Button variant="outline" onClick={() => router.push("/inventory/stock/adjustments")} disabled={saving}>
-                Cancel
-              </Button>
-              <Button className="gap-2" onClick={() => void submit()} disabled={saving || loading || !locationId}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                Create
-              </Button>
-            </div>
+                <div className="flex justify-end gap-3 mt-6">
+                  <Button type="button" variant="outline" onClick={() => router.back()} disabled={saving}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={submit} className="bg-primary hover:bg-primary/95 text-white" disabled={saving || lines.length === 0}>
+                    {saving && <Loader2 className="w-4 h-4 animate-spin mr-2" />}
+                    Commit Adjustment
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!batchPrompt} onOpenChange={(o) => { if (!o) setBatchPrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Select Batch for {batchPrompt?.name}</DialogTitle>
+            <DialogDescription>
+              This item tracks FIFO/Expiry. Please select the correct batch to record the count.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 mt-2 max-h-[300px] overflow-auto">
+            <Button
+              variant="outline"
+              className="w-full justify-start text-left h-auto py-2 border-primary/20 bg-primary/5"
+              onClick={() => {
+                if (batchPrompt?.isScan) {
+                  const existingIndex = lines.findIndex((l) => Number(l.part_id) === batchPrompt.pid && l.batch_id === null);
+                  if (existingIndex > -1) {
+                    const existingLine = lines[existingIndex];
+                    const newStock = existingLine.physical_stock === "" ? 1 : Number(existingLine.physical_stock) + 1;
+                    setLines((prev) => prev.map((line, idx) => idx === existingIndex ? { ...line, physical_stock: newStock } : line));
+                    toast({ title: "Quantity Incremented", description: `${batchPrompt.name} (Unbatched) count increased to ${newStock}.` });
+                    setActiveLineKey(existingLine.key);
+                  } else {
+                    const key = newKey();
+                    setLines((prev) => [...prev, { key, part_id: batchPrompt.pid, batch_id: null, physical_stock: 1, notes: "" }]);
+                    setActiveLineKey(key);
+                    toast({ title: "Item Added", description: `${batchPrompt.name} (Unbatched) added to count list.` });
+                  }
+                } else {
+                  if (batchPrompt?.key) {
+                    setLines(prev => prev.map(l => l.key === batchPrompt.key ? { ...l, batch_id: null } : l));
+                  }
+                }
+                setBatchPrompt(null);
+              }}
+            >
+              <div className="flex flex-col">
+                <span className="font-semibold text-sm">Total/Unbatched</span>
+                <span className="text-xs text-muted-foreground mt-0.5">
+                  Location Stock: {batchPrompt ? fmt3(Number(batchPrompt.batches.find(b => Number(b.id) === 0)?.quantity_on_hand ?? 0)) : "0.000"}
+                </span>
+              </div>
+            </Button>
+            {batchPrompt?.batches.filter(b => Number(b.id) !== 0).map(b => (
+              <Button
+                key={b.id}
+                variant="outline"
+                className="w-full justify-start text-left h-auto py-2"
+                onClick={() => {
+                  if (batchPrompt.isScan) {
+                    const existingIndex = lines.findIndex((l) => Number(l.part_id) === batchPrompt.pid && l.batch_id === b.id);
+                    if (existingIndex > -1) {
+                      const existingLine = lines[existingIndex];
+                      const newStock = existingLine.physical_stock === "" ? 1 : Number(existingLine.physical_stock) + 1;
+                      setLines((prev) => prev.map((line, idx) => idx === existingIndex ? { ...line, physical_stock: newStock } : line));
+                      toast({ title: "Quantity Incremented", description: `${batchPrompt.name} count increased to ${newStock}.` });
+                      setActiveLineKey(existingLine.key);
+                    } else {
+                      const key = newKey();
+                      setLines((prev) => [...prev, { key, part_id: batchPrompt.pid, batch_id: b.id, physical_stock: 1, notes: "" }]);
+                      setActiveLineKey(key);
+                      toast({ title: "Item Added", description: `${batchPrompt.name} added to count list.` });
+                    }
+                  } else {
+                    if (batchPrompt.key) {
+                      setLines(prev => prev.map(l => l.key === batchPrompt.key ? { ...l, batch_id: b.id } : l));
+                    }
+                  }
+                  setBatchPrompt(null);
+                }}
+              >
+                <div className="flex flex-col">
+                  <span className="font-semibold text-sm">Batch: {b.batch_number}</span>
+                  <span className="text-xs text-muted-foreground mt-0.5">Location Stock: {fmt3(Number(b.quantity_on_hand ?? 0))}</span>
+                </div>
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

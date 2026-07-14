@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
@@ -135,6 +136,7 @@ export default function ItemDetailPage() {
     item_category_id: "",
     discount_type: "None",
     discount_value: "0",
+    kiosk_module: "None",
   });
 
   const [attrGroups, setAttrGroups] = useState<any[]>([]);
@@ -146,13 +148,15 @@ export default function ItemDetailPage() {
   const [supplierIds, setSupplierIds] = useState<number[]>([]);
   const [collectionIds, setCollectionIds] = useState<number[]>([]);
   const [allowedLocationIds, setAllowedLocationIds] = useState<number[]>([]);
+  const [supplierQuery, setSupplierQuery] = useState("");
+  const [collectionQuery, setCollectionQuery] = useState("");
 
   useEffect(() => {
     if (!id) return;
     setLoading(true);
     setError(null);
-    try {
-      const loadData = async () => {
+    const loadData = async () => {
+      try {
         // Use individual catch blocks to ensure one failing call doesn't block everything
         const [p, u, b, s, c, locationsRes, batchesRes, attrRes, pkgsRes, sectionsRes, deptsRes, catsRes] = await Promise.all([
           fetchPart(String(id)),
@@ -242,6 +246,7 @@ export default function ItemDetailPage() {
             item_category_id: p.item_category_id ? String(p.item_category_id) : "",
             discount_type: p.discount_type || "None",
             discount_value: p.discount_value !== null && p.discount_value !== undefined ? String(p.discount_value) : "0",
+            kiosk_module: p.kiosk_module || "None",
           });
           const sIds = Array.isArray(p.supplier_ids) ? p.supplier_ids.map(Number) : [];
           setSupplierIds(sIds);
@@ -250,14 +255,14 @@ export default function ItemDetailPage() {
           const aLocs = p.allowed_locations ? String(p.allowed_locations).split(",").map(Number).filter(n => !isNaN(n)) : [];
           setAllowedLocationIds(aLocs);
         }
-      };
-      loadData();
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "An unexpected error occurred while loading product data.");
-    } finally {
-      setLoading(false);
-    }
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || "An unexpected error occurred while loading product data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
   }, [id, toast]);
 
   const load = async () => {
@@ -345,6 +350,9 @@ export default function ItemDetailPage() {
         item_section_id: form.item_section_id ? parseInt(form.item_section_id) : null,
         item_department_id: form.item_department_id ? parseInt(form.item_department_id) : null,
         item_category_id: form.item_category_id ? parseInt(form.item_category_id) : null,
+        discount_type: form.discount_type,
+        discount_value: asNumOrNull(form.discount_value) ?? 0,
+        kiosk_module: form.kiosk_module,
         attributes: attrValues
       };
 
@@ -408,12 +416,9 @@ export default function ItemDetailPage() {
       <div className="flex flex-col gap-6 w-full">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => router.back()}>
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </Button>
+            <Button variant="ghost" size="icon" onClick={() => router.push('/inventory/items')}><ArrowLeft className="w-5 h-5" /></Button>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Product #{id}</h1>
+              <h1 className="text-2xl font-bold tracking-tight">Edit Product</h1>
               <p className="text-muted-foreground mt-1">{part?.part_name ? part.part_name : "Product"}</p>
             </div>
           </div>
@@ -523,21 +528,82 @@ export default function ItemDetailPage() {
                       </div>
                     </div>
                     <div className="space-y-2">
+                      <Label>Part Number</Label>
+                      <Input value={form.part_number} onChange={(e) => setForm((p) => ({ ...p, part_number: e.target.value }))} placeholder="Optional part number..." />
+                    </div>
+                    <div className="space-y-2">
                       <Label>Brand</Label>
-                      <Select value={form.brand_id} onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}>
-                        <SelectTrigger><SelectValue placeholder="Select brand..." /></SelectTrigger>
-                        <SelectContent>
-                          {brands.map((b) => <SelectItem key={b.id} value={String(b.id)}>{b.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <SearchableSelect
+                        value={form.brand_id}
+                        onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}
+                        options={brands.map((b) => ({ value: String(b.id), label: b.name }))}
+                        placeholder="Select brand..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Barcode</Label>
+                      <Input value={form.barcode_number} onChange={(e) => setForm((p) => ({ ...p, barcode_number: e.target.value }))} placeholder="Optional barcode number..." />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Collections (for POS)</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button type="button" variant="outline" className="w-full justify-between">
+                            <span className="truncate">
+                              {collectionIds.length === 0 ? "Select collections..." : `${collectionIds.length} selected`}
+                            </span>
+                            <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[300px] p-3" align="start">
+                          <div className="space-y-2">
+                            <Input 
+                              placeholder="Search collections..." 
+                              value={collectionQuery} 
+                              onChange={(e) => setCollectionQuery(e.target.value)} 
+                              className="h-8 text-sm"
+                            />
+                            <ScrollArea className="h-[200px] pr-2">
+                              <div className="space-y-2">
+                                {collections
+                                  .filter((c) => (c.name ?? "").toLowerCase().includes(collectionQuery.trim().toLowerCase()))
+                                  .map((c) => {
+                                    const cid = Number(c.id);
+                                    const checked = collectionIds.includes(cid);
+                                    return (
+                                      <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer select-none hover:bg-muted/50 p-1 rounded transition-colors">
+                                        <Checkbox
+                                          checked={checked}
+                                          onCheckedChange={(v) => {
+                                            setCollectionIds((prev) => {
+                                              const next = new Set(prev);
+                                              if (v) next.add(cid);
+                                              else next.delete(cid);
+                                              return Array.from(next).sort((a, b) => a - b);
+                                            });
+                                          }}
+                                        />
+                                        <span className="truncate flex-1">{c.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                {collections.length === 0 ? (
+                                  <div className="text-xs text-muted-foreground py-4 text-center">No collections found</div>
+                                ) : null}
+                              </div>
+                            </ScrollArea>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <Label>Item Type</Label>
                       <Select value={form.item_type} onValueChange={(v: any) => setForm((p) => ({ ...p, item_type: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="Part">Part (Physical)</SelectItem>
-                          <SelectItem value="Service">Service (Labor)</SelectItem>
+                          <SelectItem value="Part">Product (Physical)</SelectItem>
+                          <SelectItem value="Service">Service</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -549,6 +615,49 @@ export default function ItemDetailPage() {
                           {units.map((u) => <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>)}
                         </SelectContent>
                       </Select>
+                    </div>
+
+                    <div className="space-y-2 col-span-full border-t pt-4">
+                      <Label className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-muted-foreground" /> Associated Suppliers
+                      </Label>
+                      <div className="rounded-xl border bg-background p-4 space-y-3">
+                        <Input 
+                          placeholder="Search suppliers..." 
+                          value={supplierQuery} 
+                          onChange={(e) => setSupplierQuery(e.target.value)} 
+                          className="h-8 text-sm"
+                        />
+                        <ScrollArea className="h-[140px] pr-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {suppliers
+                              .filter((s) => (s.name ?? "").toLowerCase().includes(supplierQuery.trim().toLowerCase()))
+                              .map((s) => {
+                                const sid = Number(s.id);
+                                const checked = supplierIds.includes(sid);
+                                return (
+                                  <label key={s.id} className="flex items-center gap-2 text-xs cursor-pointer select-none hover:bg-muted/50 p-2 rounded-md transition-colors border border-muted-foreground/5 bg-muted/5">
+                                    <Checkbox
+                                      checked={checked}
+                                      onCheckedChange={(v) => {
+                                        setSupplierIds((prev) => {
+                                          const next = new Set(prev);
+                                          if (v) next.add(sid);
+                                          else next.delete(sid);
+                                          return Array.from(next).sort((a, b) => a - b);
+                                        });
+                                      }}
+                                    />
+                                    <span className="truncate flex-1 font-medium">{s.name}</span>
+                                  </label>
+                                );
+                              })}
+                            {suppliers.length === 0 ? (
+                              <div className="text-xs text-muted-foreground py-4 text-center col-span-full">No suppliers found</div>
+                            ) : null}
+                          </div>
+                        </ScrollArea>
+                      </div>
                     </div>
                     
                     <div className="col-span-full grid grid-cols-1 md:grid-cols-3 gap-5 border-t pt-5 mt-2">
@@ -581,7 +690,7 @@ export default function ItemDetailPage() {
                           <Select value={form.item_department_id} onValueChange={(v) => setForm(p => ({ ...p, item_department_id: v }))}>
                             <SelectTrigger><SelectValue placeholder="Select Department" /></SelectTrigger>
                             <SelectContent>
-                              {departments.filter(d => !form.item_section_id || d.section_id === parseInt(form.item_section_id)).map(d => (
+                              {departments.filter(d => !form.item_section_id || String(d.section_id) === String(form.item_section_id)).map(d => (
                                 <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
                               ))}
                             </SelectContent>
@@ -622,6 +731,7 @@ export default function ItemDetailPage() {
                               <SelectItem value="Standard">Standard</SelectItem>
                               <SelectItem value="A La Carte">A La Carte</SelectItem>
                               <SelectItem value="Recipe">Recipe</SelectItem>
+                              <SelectItem value="Buffet">Buffet</SelectItem>
                             </SelectContent>
                           </Select>
                        </div>
@@ -719,6 +829,10 @@ export default function ItemDetailPage() {
                       <Input type="number" step="0.001" value={form.gross_weight_kg} onChange={(e) => setForm(p => ({ ...p, gross_weight_kg: e.target.value }))} />
                    </div>
                    <div className="space-y-2">
+                      <Label>Units / Carton</Label>
+                      <Input type="number" step="1" value={form.units_per_carton} onChange={(e) => setForm(p => ({ ...p, units_per_carton: e.target.value }))} />
+                   </div>
+                   <div className="space-y-2">
                       <Label>Packing Type</Label>
                       <Select value={form.packing_type} onValueChange={(v) => setForm(p => ({ ...p, packing_type: v }))}>
                         <SelectTrigger><SelectValue placeholder="Select Packing" /></SelectTrigger>
@@ -736,15 +850,74 @@ export default function ItemDetailPage() {
                       <Label>HS Code</Label>
                       <Input value={form.hs_code} onChange={(e) => setForm(p => ({ ...p, hs_code: e.target.value }))} />
                    </div>
-                   <div className="space-y-2 lg:col-span-2">
-                      <Label>Volume (CBM)</Label>
-                      <div className="flex gap-2">
-                        <Input type="number" step="0.000001" value={form.volume_cbm} onChange={(e) => setForm(p => ({ ...p, volume_cbm: e.target.value }))} />
-                        <div className="flex items-center gap-1 text-[10px] bg-background border px-2 rounded-md whitespace-nowrap">
-                          {form.carton_length_cm} × {form.carton_width_cm} × {form.carton_height_cm}
-                        </div>
-                      </div>
+                   <div className="space-y-2">
+                      <Label>Carton Tare Wt (kg)</Label>
+                      <Input type="number" step="0.001" value={form.carton_tare_weight_kg} onChange={(e) => setForm(p => ({ ...p, carton_tare_weight_kg: e.target.value }))} />
                    </div>
+                    <div className="space-y-2">
+                      <Label>Length (cm)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={form.carton_length_cm} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm(p => {
+                            const next = { ...p, carton_length_cm: val };
+                            const l = parseFloat(val) || 0;
+                            const w = parseFloat(next.carton_width_cm) || 0;
+                            const h = parseFloat(next.carton_height_cm) || 0;
+                            const vol = (l * w * h) / 1000000;
+                            if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                            return next;
+                          });
+                        }} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Width (cm)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={form.carton_width_cm} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm(p => {
+                            const next = { ...p, carton_width_cm: val };
+                            const l = parseFloat(next.carton_length_cm) || 0;
+                            const w = parseFloat(val) || 0;
+                            const h = parseFloat(next.carton_height_cm) || 0;
+                            const vol = (l * w * h) / 1000000;
+                            if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                            return next;
+                          });
+                        }} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Height (cm)</Label>
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        value={form.carton_height_cm} 
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm(p => {
+                            const next = { ...p, carton_height_cm: val };
+                            const l = parseFloat(next.carton_length_cm) || 0;
+                            const w = parseFloat(next.carton_width_cm) || 0;
+                            const h = parseFloat(val) || 0;
+                            const vol = (l * w * h) / 1000000;
+                            if (vol > 0) next.volume_cbm = vol.toFixed(6);
+                            return next;
+                          });
+                        }} 
+                      />
+                    </div>
+                    <div className="space-y-2">
+                       <Label>Volume (CBM)</Label>
+                       <Input type="number" step="0.000001" value={form.volume_cbm} onChange={(e) => setForm(p => ({ ...p, volume_cbm: e.target.value }))} />
+                    </div>
                 </CardContent>
               </Card>
             </TabsContent>
@@ -773,6 +946,21 @@ export default function ItemDetailPage() {
                           <p className="text-xs text-muted-foreground">Force out of stock status</p>
                         </div>
                         <Switch checked={form.out_of_stock} onCheckedChange={(v) => setForm(p => ({ ...p, out_of_stock: v }))} />
+                      </div>
+
+                      <div className="space-y-2 pt-4">
+                        <Label>Kiosk Module</Label>
+                        <p className="text-xs text-muted-foreground mb-2">Display this item in the room kiosk</p>
+                        <Select value={form.kiosk_module} onValueChange={(v: any) => setForm(p => ({ ...p, kiosk_module: v }))}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="None">Hide from Kiosk</SelectItem>
+                            <SelectItem value="Dining">In-Room Dining</SelectItem>
+                            <SelectItem value="Experience">Experience Booking</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                       
                       <div className="space-y-2 pt-4">

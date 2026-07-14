@@ -232,9 +232,14 @@ export const updatePartGallery = async (partId: number | string, images: any[]) 
   return res.json();
 };
 
-export const fetchParts = async (q: string = '') => {
+export const fetchParts = async (q: string = '', locationIdOverride?: number | string | null) => {
   const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-  const res = await api(`/api/part/list${qs}`);
+  const headers: Record<string, string> = {};
+  if (locationIdOverride) headers["X-Location-Id"] = String(locationIdOverride);
+
+  const res = await api(`/api/part/list${qs}`, {
+    ...(Object.keys(headers).length ? { headers } : {}),
+  });
   if (!res.ok) throw new Error('Failed to load parts');
   const data = await res.json();
   return data.status === 'success' ? (data.data as PartRow[]) : data;
@@ -296,17 +301,19 @@ export const fetchPartMovements = async (
   limit: number = 200,
   locationId?: number | string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  offset: number = 0
 ) => {
   const qs = new URLSearchParams();
   qs.set('limit', String(limit));
+  qs.set('offset', String(offset));
   if (locationId) qs.set('location_id', String(locationId));
   if (fromDate) qs.set('from', fromDate);
   if (toDate) qs.set('to', toDate);
   const res = await api(`/api/part/movements/${id}?${qs.toString()}`);
   if (!res.ok) throw new Error('Failed to load stock movements');
   const data = await res.json();
-  return data.status === 'success' ? data.data : data;
+  return data.status === 'success' ? data.data : { data: [], total: 0 };
 };
 
 export type LocationStock = {
@@ -344,7 +351,7 @@ export const fetchLocationStockBalances = async (locationId: number, q: string =
 
 // Batch & Stock Adjustment Sub-module
 export const fetchInventoryBatches = async (partId: string | number, locationId: string | number) => {
-  const res = await api(`/api/part/batches/${partId}?location_id=${locationId}`);
+  const res = await api(`/api/part/batches/${partId}?location_id=${locationId}&all=1`);
   if (!res.ok) throw new Error('Failed to load inventory batches');
   const data = await res.json();
   return data.status === 'success' ? data.data : [];
@@ -386,19 +393,7 @@ export interface StockAdjustmentBatchRow {
 }
 
 
-export const fetchStockAdjustmentBatchForLocation = async (id: number | string) => {
 
-  const res = await api(`/api/inventory/adjustment_batch/${id}`);
-  if (!res.ok) throw new Error('Failed to load adjustment batch');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const createStockAdjustmentBatchForLocation = async (payload: any) => {
-  const res = await api('/api/inventory/adjustment_batch/create', { method: 'POST', body: JSON.stringify(payload) });
-  if (!res.ok) throw new Error('Failed to create adjustment batch');
-  return res.json();
-};
 
 
 export interface StockAdjustmentBatchItem {
@@ -421,9 +416,10 @@ export const fetchStockAdjustmentBatches = async (q: string = '') => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const fetchStockAdjustmentBatchesForLocation = async (q: string = '', locationId?: number | string) => {
+export const fetchStockAdjustmentBatchesForLocation = async (q: string = '', locationId?: number | string, status?: string) => {
   const qs = new URLSearchParams();
   if (q) qs.set('q', q);
+  if (status) qs.set('status', status);
   
   const headers: Record<string, string> = {};
   if (locationId) headers['X-Location-Id'] = String(locationId);
@@ -443,13 +439,32 @@ export const fetchStockAdjustmentBatch = async (id: string | number) => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const createStockAdjustmentBatch = async (payload: any) => {
-  const res = await api('/api/stockadjustment/create', { method: 'POST', body: JSON.stringify(payload) });
+export const createStockAdjustmentBatch = async (payload: any, locationId?: number) => {
+  const url = locationId ? `/api/stockadjustment/create?location_id=${locationId}` : '/api/stockadjustment/create';
+  const res = await api(url, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) {
     const j = await res.json().catch(() => null);
     throw new Error(j?.message || 'Failed to create stock adjustment');
   }
   return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const approveStockAdjustment = async (id: string | number) => {
+  const res = await api(`/api/stockadjustment/approve/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to approve stock adjustment');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const rejectStockAdjustment = async (id: string | number) => {
+  const res = await api(`/api/stockadjustment/reject/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to reject stock adjustment');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
 };
 
 // Suppliers
@@ -643,9 +658,16 @@ export const updatePurchaseOrderStatus = async (id: string | number, status: str
 };
 
 // Good Receive Note (GRN)
-export const fetchGrns = async (q: string = '') => {
+export const fetchGrns = async (q: string = '', locationIdOverride?: number | string | null) => {
   const qs = q ? `?q=${encodeURIComponent(q)}` : '';
-  const res = await api(`/api/grn/list${qs}`);
+  const headers: Record<string, string> = {};
+  if (locationIdOverride !== undefined && locationIdOverride !== null) {
+    headers["X-Location-Id"] = String(locationIdOverride);
+  }
+
+  const res = await api(`/api/grn/list${qs}`, {
+    ...(Object.keys(headers).length ? { headers } : {}),
+  });
   if (!res.ok) throw new Error('Failed to load GRNs');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
@@ -786,4 +808,151 @@ export const setPartImage = async (id: string | number, filename: string) => {
   });
   if (!res.ok) throw new Error('Failed to set part image');
   return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Physical Stock Counts (Stock Take / Session Sheets)
+export const fetchStockCounts = async (q: string = '', locationId?: number | string, status?: string) => {
+  const qs = new URLSearchParams();
+  if (q) qs.set('q', q);
+  if (status) qs.set('status', status);
+
+  const headers: Record<string, string> = {};
+  if (locationId) headers['X-Location-Id'] = String(locationId);
+
+  const res = await api(`/api/stockcount/list?${qs.toString()}`, {
+    headers: Object.keys(headers).length ? headers : undefined,
+  });
+  if (!res.ok) throw new Error('Failed to load stock counts');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const fetchStockCount = async (id: string | number, locationId?: number | string) => {
+  const headers: Record<string, string> = {};
+  if (locationId) headers['X-Location-Id'] = String(locationId);
+
+  const res = await api(`/api/stockcount/get/${id}`, {
+    headers: Object.keys(headers).length ? headers : undefined,
+  });
+  if (!res.ok) throw new Error('Failed to load stock count');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const createStockCount = async (payload: any, locationId?: number | string) => {
+  const headers: Record<string, string> = {};
+  if (locationId) headers['X-Location-Id'] = String(locationId);
+
+  const res = await api('/api/stockcount/create', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: Object.keys(headers).length ? headers : undefined,
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create stock count');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const approveStockCount = async (id: string | number) => {
+  const res = await api(`/api/stockcount/approve/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to approve stock count');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+export const rejectStockCount = async (id: string | number) => {
+  const res = await api(`/api/stockcount/reject/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to reject stock count');
+  }
+  return res.json() as Promise<ApiSuccess<null>>;
+};
+
+// Issue Notes
+export interface IssueNoteRow {
+  id: number;
+  location_id: number;
+  issue_number: string;
+  cost_center: string;
+  status: 'Draft' | 'Issued' | 'Cancelled';
+  notes: string | null;
+  issued_at: string | null;
+  created_at: string;
+  created_by?: number;
+  created_by_name?: string;
+  location_name?: string;
+  line_count?: number;
+  total_qty_issued?: number;
+  total_amount?: number;
+}
+
+export interface IssueNoteItemRow {
+  id: number;
+  issue_note_id: number;
+  part_id: number;
+  batch_id: number | null;
+  qty_issued: number;
+  unit_cost: number;
+  line_total: number;
+  notes: string | null;
+  part_name?: string;
+  sku?: string;
+  unit?: string;
+  batch_number?: string | null;
+}
+
+export const fetchIssueNotes = async (q: string = '') => {
+  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+  const res = await api(`/api/issuenote/list${qs}`);
+  if (!res.ok) throw new Error('Failed to load issue notes');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as IssueNoteRow[]) : data;
+};
+
+export const fetchIssueNote = async (id: string | number) => {
+  const res = await api(`/api/issuenote/get/${id}`);
+  if (!res.ok) throw new Error('Failed to load issue note');
+  const data = await res.json();
+  return data.status === 'success' ? (data.data as { issue_note: IssueNoteRow; items: IssueNoteItemRow[] }) : data;
+};
+
+export const createIssueNote = async (payload: any) => {
+  const res = await api('/api/issuenote/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to create issue note');
+  }
+  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+};
+
+export const commitIssueNote = async (id: string | number) => {
+  const res = await api(`/api/issuenote/commit/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to commit issue note');
+  }
+  return res.json();
+};
+
+export const cancelIssueNote = async (id: string | number) => {
+  const res = await api(`/api/issuenote/cancel/${id}`, { method: 'POST' });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to cancel issue note');
+  }
+  return res.json();
+};
+
+export const formatPartLabel = (p: PartRow) => {
+  const brand = p.brand_name ? ` - ${p.brand_name}` : '';
+  const price = p.price !== undefined && p.price !== null ? ` - LKR ${Number(p.price).toLocaleString()}` : '';
+  const unit = p.unit ? ` - ${p.unit}` : '';
+  const barcode = p.barcode_number ? `, ${p.barcode_number}` : '';
+  const sku = p.sku ? ` (${p.sku})` : '';
+  return `${p.part_name}${sku}${brand}${price}${unit}${barcode}`;
 };

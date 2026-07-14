@@ -10,7 +10,7 @@ class PartController extends Controller {
         $this->partModel = $this->model('Part');
         $this->auditModel = $this->model('AuditLog');
         require_once '../app/helpers/InventorySchema.php';
-        InventorySchema::ensure();
+        // InventorySchema::ensure();
     }
 
     // GET /api/part/list?q=
@@ -87,6 +87,7 @@ class PartController extends Controller {
             'carton_tare_weight_kg' => $data['carton_tare_weight_kg'] ?? 0,
             'is_online' => $data['is_online'] ?? 0,
             'public_description' => $data['public_description'] ?? null,
+            'kiosk_module' => $data['kiosk_module'] ?? 'None',
         ];
 
         $newId = $this->partModel->create($payload, (int)$u['sub']);
@@ -107,8 +108,93 @@ class PartController extends Controller {
                 'details' => json_encode(['part_name' => $name]),
             ]);
             $this->success(['id' => (int)$newId], 'Part created');
+        } else {
+            $this->error('Failed to create part', 500);
         }
-        $this->error('Failed to create part', 500);
+    }
+
+    public function import() {
+        $u = $this->requirePermission('parts.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+
+        $items = isset($data['items']) && is_array($data['items']) ? $data['items'] : [];
+        if (empty($items)) {
+            $this->error('No items provided for import', 400);
+        }
+
+        $importedCount = 0;
+        foreach ($items as $item) {
+            $name = isset($item['part_name']) ? trim((string)$item['part_name']) : '';
+            $price = isset($item['price']) ? (float)$item['price'] : null;
+            
+            if ($name === '' || $price === null) continue;
+
+            $payload = [
+                'part_name' => $name,
+                'price' => $price,
+                'sku' => isset($item['sku']) && trim((string)$item['sku']) !== '' ? trim((string)$item['sku']) : null,
+                'part_number' => isset($item['part_number']) && trim((string)$item['part_number']) !== '' ? trim((string)$item['part_number']) : null,
+                'barcode_number' => isset($item['barcode_number']) && trim((string)$item['barcode_number']) !== '' ? trim((string)$item['barcode_number']) : null,
+                'unit' => isset($item['unit']) ? trim((string)$item['unit']) : null,
+                'brand_id' => isset($item['brand_id']) ? (int)$item['brand_id'] : null,
+                'item_section_id' => isset($item['item_section_id']) ? (int)$item['item_section_id'] : null,
+                'item_department_id' => isset($item['item_department_id']) ? (int)$item['item_department_id'] : null,
+                'item_category_id' => isset($item['item_category_id']) ? (int)$item['item_category_id'] : null,
+                'stock_quantity' => isset($item['stock_quantity']) ? (float)$item['stock_quantity'] : 0,
+                'cost_price' => isset($item['cost_price']) ? (float)$item['cost_price'] : null,
+                'reorder_level' => isset($item['reorder_level']) ? (float)$item['reorder_level'] : null,
+                'is_active' => isset($item['is_active']) ? (int)$item['is_active'] : 1,
+                'is_fifo' => isset($item['is_fifo']) ? (int)$item['is_fifo'] : 0,
+                'is_expiry' => isset($item['is_expiry']) ? (int)$item['is_expiry'] : 0,
+                'item_type' => isset($item['item_type']) ? trim((string)$item['item_type']) : 'Part',
+                'recipe_type' => isset($item['recipe_type']) ? trim((string)$item['recipe_type']) : 'Standard',
+                'wholesale_price' => isset($item['wholesale_price']) ? (float)$item['wholesale_price'] : null,
+                'min_selling_price' => isset($item['min_selling_price']) ? (float)$item['min_selling_price'] : null,
+                'price_2' => isset($item['price_2']) ? (float)$item['price_2'] : null,
+                'net_weight_kg' => isset($item['net_weight_kg']) ? (float)$item['net_weight_kg'] : 0,
+                'gross_weight_kg' => isset($item['gross_weight_kg']) ? (float)$item['gross_weight_kg'] : 0,
+                'units_per_carton' => isset($item['units_per_carton']) ? (int)$item['units_per_carton'] : 1,
+                'packing_type' => isset($item['packing_type']) ? trim((string)$item['packing_type']) : null,
+                'hs_code' => isset($item['hs_code']) ? trim((string)$item['hs_code']) : null,
+                'carton_length_cm' => isset($item['carton_length_cm']) ? (float)$item['carton_length_cm'] : 0,
+                'carton_width_cm' => isset($item['carton_width_cm']) ? (float)$item['carton_width_cm'] : 0,
+                'carton_height_cm' => isset($item['carton_height_cm']) ? (float)$item['carton_height_cm'] : 0,
+                'volume_cbm' => isset($item['volume_cbm']) ? (float)$item['volume_cbm'] : 0,
+                'carton_tare_weight_kg' => isset($item['carton_tare_weight_kg']) ? (float)$item['carton_tare_weight_kg'] : 0,
+                'is_online' => isset($item['is_online']) ? (int)$item['is_online'] : 0,
+                'public_description' => isset($item['public_description']) ? trim((string)$item['public_description']) : null,
+            ];
+
+            try {
+                $newId = $this->partModel->create($payload, (int)$u['sub']);
+                if ($newId) {
+                    if (isset($item['supplier_id']) && $item['supplier_id']) {
+                        $this->partModel->setSuppliers((int)$newId, [(int)$item['supplier_id']], (int)$u['sub']);
+                    }
+                    $importedCount++;
+                }
+            } catch (Exception $e) {
+                // Log and bypass duplicate error or other creation exceptions
+                error_log("Import item exception bypassed: " . $e->getMessage());
+                continue;
+            }
+        }
+
+        $this->auditModel->write([
+            'user_id' => (int)$u['sub'],
+            'location_id' => $this->currentLocationId($u),
+            'action' => 'import',
+            'entity' => 'part',
+            'entity_id' => null,
+            'method' => 'POST',
+            'path' => $_SERVER['REQUEST_URI'] ?? '',
+            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            'details' => json_encode(['imported_count' => $importedCount]),
+        ]);
+
+        $this->success(['count' => $importedCount], "Successfully imported $importedCount items");
     }
 
     // POST /api/part/update/1
@@ -162,6 +248,8 @@ class PartController extends Controller {
             'is_online' => isset($data['is_online']) ? $data['is_online'] : $existing->is_online,
             'out_of_stock' => isset($data['out_of_stock']) ? $data['out_of_stock'] : ($existing->out_of_stock ?? 0),
             'public_description' => array_key_exists('public_description', $data) ? $data['public_description'] : $existing->public_description,
+            'kiosk_module' => array_key_exists('kiosk_module', $data) ? $data['kiosk_module'] : ($existing->kiosk_module ?? 'None'),
+            'collection_ids' => $collectionIds,
         ];
 
         if ($this->partModel->update($id, $payload, (int)$u['sub'])) {
@@ -245,6 +333,125 @@ class PartController extends Controller {
         $this->error('Stock adjustment failed (insufficient stock or invalid part)', 400);
     }
 
+    // POST /api/part/classify_batch
+    public function classify_batch() {
+        $u = $this->requirePermission('stock.adjust');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $partId = (int)($data['part_id'] ?? 0);
+        $locId = (int)($data['location_id'] ?? $this->currentLocationId($u));
+        $qty = (float)($data['qty'] ?? 0);
+        $sourceBatchId = isset($data['source_batch_id']) ? (int)$data['source_batch_id'] : null;
+        if ($sourceBatchId === 0) $sourceBatchId = null;
+        
+        if ($partId <= 0 || $locId <= 0 || $qty <= 0) {
+            $this->error('Invalid classification data', 400);
+        }
+
+        // Validate unclassified quantity using the same logic as UI
+        $inventoryBatchModel = $this->model('InventoryBatch');
+        $batches = $inventoryBatchModel->getAvailableBatches($partId, $locId);
+        $unclassifiedBatches = [];
+        $unclassified = 0;
+        foreach ($batches as $b) {
+            $match = false;
+            if ($sourceBatchId !== null) {
+                if ($b->id == $sourceBatchId) $match = true;
+            } else {
+                if ($b->id == 0 || $b->batch_number === 'UNBATCHED' || $b->batch_number === 'UNCLASSIFIED') $match = true;
+            }
+            
+            if ($match) {
+                $unclassifiedBatches[] = $b;
+                $unclassified += (float)$b->quantity_on_hand;
+                if ($sourceBatchId !== null) break;
+            }
+        }
+        
+        if ($qty > $unclassified) {
+            $this->error('Quantity exceeds available unclassified stock', 400);
+        }
+
+        $batchNumber = trim((string)($data['batch_number'] ?? ''));
+        if ($batchNumber === '') {
+            $batchNumber = 'B-' . $partId . '-' . date('YmdHis');
+        }
+        
+        $mfgDate = !empty($data['mfg_date']) ? trim($data['mfg_date']) : null;
+        $expDate = !empty($data['expiry_date']) ? trim($data['expiry_date']) : null;
+
+        try {
+            $db = new Database();
+            $db->beginTransaction();
+
+            // Create batch
+            $db->query("
+                INSERT INTO inventory_batches (part_id, location_id, batch_number, mfg_date, expiry_date, quantity_received, quantity_on_hand)
+                VALUES (:part_id, :loc, :bnum, :mfg, :exp, :qty, :qty)
+            ");
+            $db->bind(':part_id', $partId);
+            $db->bind(':loc', $locId);
+            $db->bind(':bnum', $batchNumber);
+            $db->bind(':mfg', $mfgDate);
+            $db->bind(':exp', $expDate);
+            $db->bind(':qty', $qty);
+            $db->execute();
+            $newBatchId = $db->lastInsertId();
+
+            $notes = 'Classified to ' . $batchNumber;
+            
+            // Deduct unclassified stock
+            $remainingToDeduct = $qty;
+            foreach ($unclassifiedBatches as $ub) {
+                if ($remainingToDeduct <= 0.0001) break;
+                
+                $take = min($remainingToDeduct, (float)$ub->quantity_on_hand);
+                if ($take > 0.0001) {
+                    $sbid = $ub->id > 0 ? $ub->id : null;
+                    $db->query("
+                        INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                        VALUES (:loc, :part_id, :sbid, :qty, 'ADJUSTMENT', 'inventory_batches', :ref_id, :notes, :created_by)
+                    ");
+                    $db->bind(':loc', $locId);
+                    $db->bind(':part_id', $partId);
+                    $db->bind(':sbid', $sbid);
+                    $db->bind(':qty', -$take);
+                    $db->bind(':ref_id', $newBatchId);
+                    $db->bind(':notes', $notes);
+                    $db->bind(':created_by', (int)$u['sub']);
+                    $db->execute();
+                    
+                    $remainingToDeduct -= $take;
+                }
+            }
+
+            // Add to new batch
+            $db->query("
+                INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
+                VALUES (:loc, :part_id, :batch_id, :qty, 'ADJUSTMENT', 'inventory_batches', :ref_id, :notes, :created_by)
+            ");
+            $db->bind(':loc', $locId);
+            $db->bind(':part_id', $partId);
+            $db->bind(':batch_id', $newBatchId);
+            $db->bind(':qty', $qty);
+            $db->bind(':ref_id', $newBatchId);
+            $db->bind(':notes', $notes);
+            $db->bind(':created_by', (int)$u['sub']);
+            $db->execute();
+
+            $db->commit();
+            $this->success(['batch_id' => $newBatchId, 'batch_number' => $batchNumber], 'Stock classified successfully');
+            
+        } catch (Exception $e) {
+            error_log("Error in PartController::classify_batch: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            if (isset($db)) {
+                try { $db->rollBack(); } catch (Exception $e2) {}
+            }
+            $this->error('Failed to classify stock: ' . $e->getMessage(), 500);
+        }
+    }
+
     // GET /api/part/movements/1
     public function movements($id = null) {
         $this->requirePermission('stock.read');
@@ -260,8 +467,9 @@ class PartController extends Controller {
         if ($from !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $from)) $fromDt = $from . ' 00:00:00';
         if ($to !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) $toDt = $to . ' 23:59:59';
 
-        $rows = $this->partModel->listMovements($id, $_GET['limit'] ?? 200, $locId, $fromDt, $toDt);
-        $this->success($rows);
+        $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
+        $result = $this->partModel->listMovements($id, $_GET['limit'] ?? 200, $locId, $fromDt, $toDt, $offset);
+        $this->success($result);
     }
 
     // GET /api/part/location_balances?location_id=1&q=
@@ -295,7 +503,7 @@ class PartController extends Controller {
         $this->requirePermission('stock.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
 
-        InventorySchema::ensure();
+        // InventorySchema::ensure();
 
         $partId = isset($_GET['part_id']) ? (int)$_GET['part_id'] : 0;
         $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 200;
@@ -339,8 +547,9 @@ class PartController extends Controller {
         require_once '../app/models/InventoryBatch.php';
         $batchModel = new InventoryBatch();
         $locationId = (int)($_GET['location_id'] ?? 1);
+        $includeNegative = isset($_GET['all']) && $_GET['all'] === '1';
         
-        $rows = $batchModel->getAvailableBatches($id, $locationId);
+        $rows = $batchModel->getAvailableBatches($id, $locationId, $includeNegative);
         $this->success($rows);
     }
 

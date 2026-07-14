@@ -3,6 +3,9 @@
  * Entry Point for the Repair Management API
  */
 
+// Set Server Timezone to Sri Lanka (LK)
+date_default_timezone_set('Asia/Colombo');
+
 // Load Configuration
 require_once '../config/config.php';
 
@@ -15,13 +18,34 @@ if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
 // NOTE: When the frontend sends cookies (`credentials: 'include'`), we cannot use `*` for Allow-Origin.
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = [
+    'http://localhost:9005',
     'http://localhost:9003',
     'http://localhost:3000',
     'http://localhost:9002',
     'https://kdu-service.netlify.app',
+    'https://bizzflow.nebulync.com',
+    'http://bizzflow.nebulync.com',
+    'https://tea-jar-ceylon-erp.netlify.app',
+    'https://admin-teajarceylon.nebulync.com',
+    'http://admin-teajarceylon.nebulync.com',
+    'https://tea-jar-by-the-lake-kiosk.netlify.app',
 ];
 
-if ($origin && in_array($origin, $allowedOrigins, true)) {
+$isAllowed = false;
+if ($origin) {
+    if (in_array($origin, $allowedOrigins, true)) {
+        $isAllowed = true;
+    } else {
+        $host = parse_url($origin, PHP_URL_HOST);
+        if ($host) {
+            if ($host === 'nebulync.com' || preg_match('/\.nebulync\.com$/', $host)) {
+                $isAllowed = true;
+            }
+        }
+    }
+}
+
+if ($origin && $isAllowed) {
     header('Access-Control-Allow-Origin: ' . $origin);
     header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
@@ -85,9 +109,12 @@ require_once '../app/helpers/AccountingSchema.php';
 require_once '../app/helpers/BanquetSchema.php';
 require_once '../app/helpers/ShippingSchema.php';
 require_once '../app/helpers/CRMSchema.php';
-require_once '../app/helpers/CityPostalSchema.php';
+require_once '../app/helpers/ShippingCarrierSchema.php';
 
-// Ensure schema is up to date
-CityPostalSchema::ensure();
+// Schema checks should be run via a dedicated migration script or endpoint.
+// Running them on every request causes massive performance issues and DB locks.
+// // // // // // CityPostalSchema::ensure();
+// // // // // // ShippingCarrierSchema::ensure();
+// // // // // // SystemSchema::ensure();
 
 $init = new App();

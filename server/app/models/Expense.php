@@ -8,10 +8,10 @@ class Expense extends Model {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
     }
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         $this->db->query("
             CREATE TABLE IF NOT EXISTS {$this->table} (
                 id              INT AUTO_INCREMENT PRIMARY KEY,
@@ -95,31 +95,16 @@ class Expense extends Model {
         }
     }
 
-    private function generateVoucherNo() {
-        $this->db->query("SELECT next_number, prefix, padding FROM document_sequences WHERE doc_type = 'PV' FOR UPDATE");
-        $row = $this->db->single();
-        if (!$row) {
-            $next = 1;
-            $prefix = 'PV-';
-            $padding = 5;
-        } else {
-            $next    = intval($row->next_number);
-            $prefix  = $row->prefix;
-            $padding = intval($row->padding);
-        }
-
-        $this->db->query("UPDATE document_sequences SET next_number = :next WHERE doc_type = 'PV'");
-        $this->db->bind(':next', $next + 1);
-        $this->db->execute();
-
-        return $prefix . str_pad($next, $padding, '0', STR_PAD_LEFT);
+    private function generateVoucherNo($locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo('PV', $locationId);
     }
 
     public function create($data) {
         try {
             $this->db->beginTransaction();
 
-            $voucherNo = $this->generateVoucherNo();
+            $voucherNo = $this->generateVoucherNo($data['location_id'] ?? 1);
 
             $this->db->query("
                 INSERT INTO {$this->table} 
