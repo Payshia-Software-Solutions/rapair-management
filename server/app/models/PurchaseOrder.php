@@ -5,49 +5,17 @@
 class PurchaseOrder extends Model {
     private $table = 'purchase_orders';
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
-    private function nextDocNumber($docType) {
-        // Short sequential number allocation using document_sequences (safe under concurrency).
-        $this->ensureSchema();
-        $type = strtoupper(trim((string)$docType));
-        if ($type === '') $type = 'PO';
-
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-        $this->db->bind(':t', $type);
-        $row = $this->db->single();
-        if (!$row) {
-            // Best-effort seed, then retry.
-            try {
-                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
-                $this->db->bind(':t', $type);
-                $this->db->bind(':p', $type . '-');
-                $this->db->execute();
-            } catch (Exception $e) {}
-
-            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-            $this->db->bind(':t', $type);
-            $row = $this->db->single();
-            if (!$row) return $type . "-000001";
-        }
-
-        $prefix = (string)($row->prefix ?? ($type . '-'));
-        $next = (int)($row->next_number ?? 1);
-        $pad = (int)($row->padding ?? 6);
-        if ($next <= 0) $next = 1;
-        if ($pad <= 0) $pad = 6;
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
-        $this->db->bind(':t', $type);
-        $this->db->execute();
-
-        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    private function nextDocNumber($docType, $locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo($docType, $locationId);
     }
 
     public function list($q = '', $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $q = is_string($q) ? trim($q) : '';
@@ -82,7 +50,7 @@ class PurchaseOrder extends Model {
     }
 
     public function getById($id, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $this->db->query("
@@ -125,7 +93,7 @@ class PurchaseOrder extends Model {
     }
 
     public function create($data, $userId = null, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $supplierId = (int)($data['supplier_id'] ?? 0);
@@ -151,11 +119,11 @@ class PurchaseOrder extends Model {
         if (count($mergedItems) === 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $poNumber = trim((string)($data['po_number'] ?? ''));
             if ($poNumber === '') {
-                $poNumber = $this->nextDocNumber('PO');
+                $poNumber = $this->nextDocNumber('PO', $locId);
             }
 
             $this->db->query("
@@ -175,7 +143,7 @@ class PurchaseOrder extends Model {
             $this->db->bind(':updated_by', $userId);
             $ok = $this->db->execute();
             if (!$ok) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
             $poId = (int)$this->db->lastInsertId();
@@ -200,16 +168,17 @@ class PurchaseOrder extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return $poId;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("PurchaseOrder::create error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $poId = (int)$id;
         if ($poId <= 0) return false;
 
@@ -236,19 +205,19 @@ class PurchaseOrder extends Model {
         if (count($mergedItems) === 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // Only allow editing if not received/cancelled
             $this->db->query("SELECT status FROM {$this->table} WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $poId);
             $row = $this->db->single();
             if (!$row) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
             $status = (string)($row->status ?? '');
             if (in_array($status, ['Received', 'Cancelled'], true)) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
@@ -294,16 +263,17 @@ class PurchaseOrder extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("PurchaseOrder::update error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function setStatus($id, $status, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $poId = (int)$id;
         // "Cancelled" status marking is intentionally disabled in the UI and API.
         $allowed = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received'];
@@ -318,7 +288,7 @@ class PurchaseOrder extends Model {
 
     public function applyReceipt($poId) {
         // Recompute PO status based on received_qty vs qty_ordered.
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $id = (int)$poId;
         if ($id <= 0) return false;
         $this->db->query("

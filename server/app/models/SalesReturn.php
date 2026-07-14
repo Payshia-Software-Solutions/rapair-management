@@ -55,10 +55,10 @@ class SalesReturn extends Model {
 
     public function create($data) {
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // 1. Generate Return Number
-            $returnNo = $this->generateReturnNo();
+            $returnNo = $this->generateReturnNo($data['location_id'] ?? 1);
             
             // 2. Create Return Header
             $this->db->query("
@@ -78,7 +78,7 @@ class SalesReturn extends Model {
             $this->db->bind(':created_by', $data['userId']);
 
             if (!$this->db->execute()) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
@@ -166,25 +166,17 @@ class SalesReturn extends Model {
             require_once '../app/helpers/AccountingHelper.php';
             AccountingHelper::postSalesReturn($returnId, $data);
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return ['id' => $returnId, 'return_no' => $returnNo];
         } catch (Exception $e) {
             error_log("RETURN_CREATE_ERROR: " . $e->getMessage());
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $ex) {}
+            try { $this->db->rollBack(); } catch (Exception $ex) {}
             return ['error' => $e->getMessage()];
         }
     }
 
-    private function generateReturnNo() {
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = 'SR' FOR UPDATE");
-        $seq = $this->db->single();
-        if (!$seq) return 'SR-' . time();
-
-        $returnNo = $seq->prefix . str_pad($seq->next_number, $seq->padding, '0', STR_PAD_LEFT);
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = 'SR'");
-        $this->db->execute();
-
-        return $returnNo;
+    private function generateReturnNo($locationId = 1) {
+        require_once '../app/helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo('SR', $locationId);
     }
 }

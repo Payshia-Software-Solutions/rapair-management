@@ -9,8 +9,14 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { createLocation, updateLocation, ServiceLocation } from "@/lib/api";
-import { Loader2, MapPin, Store, Users, ShoppingBag, Factory, Percent, ArrowLeft, Code2 } from "lucide-react";
+import { fetchCustomers } from "@/lib/api/master-data";
+import { Loader2, MapPin, Store, Users, ShoppingBag, Factory, Percent, ArrowLeft, Code2, User } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { fetchTaxes, TaxRow } from "@/lib/api/finance";
+import { Badge } from "@/components/ui/badge";
+import { Check, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface LocationFormProps {
   initialData?: ServiceLocation;
@@ -24,7 +30,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
 
   // Form State
   const [name, setName] = useState("");
-  const [locationType, setLocationType] = useState<"service" | "warehouse">("service");
+  const [locationType, setLocationType] = useState<string>("service");
   const [address, setAddress] = useState("");
   const [phone, setPhone] = useState("");
   const [taxNo, setTaxNo] = useState("");
@@ -40,6 +46,10 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
   const [allowOnline, setAllowOnline] = useState(false);
   const [googleAnalyticsCode, setGoogleAnalyticsCode] = useState("");
   const [facebookPixelCode, setFacebookPixelCode] = useState("");
+  const [availableTaxes, setAvailableTaxes] = useState<TaxRow[]>([]);
+  const [taxIds, setTaxIds] = useState<number[]>([]);
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [defaultCustomerId, setDefaultCustomerId] = useState<string>("");
 
   useEffect(() => {
     if (initialData) {
@@ -59,8 +69,26 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       setAllowOnline(Boolean(initialData.allow_online));
       setGoogleAnalyticsCode(initialData.google_analytics_code || "");
       setFacebookPixelCode(initialData.facebook_pixel_code || "");
+      setDefaultCustomerId(initialData.default_customer_id ? String(initialData.default_customer_id) : "");
+      
+      // Handle allowed_taxes_json
+      try {
+        if (initialData.allowed_taxes_json) {
+          const ids = JSON.parse(initialData.allowed_taxes_json);
+          if (Array.isArray(ids)) setTaxIds(ids);
+        } else {
+          setTaxIds([]);
+        }
+      } catch (e) {
+        setTaxIds([]);
+      }
     }
   }, [initialData]);
+
+  useEffect(() => {
+    fetchTaxes('', { all: true }).then(setAvailableTaxes).catch(() => {});
+    fetchCustomers().then(setCustomers).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,6 +113,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
         allow_online: allowOnline ? 1 : 0,
         google_analytics_code: googleAnalyticsCode.trim() || undefined,
         facebook_pixel_code: facebookPixelCode.trim() || undefined,
+        default_customer_id: defaultCustomerId ? Number(defaultCustomerId) : null,
+        tax_ids: taxIds,
       };
 
       if (isEdit && initialData) {
@@ -142,24 +172,19 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                 </div>
                 <div className="space-y-2">
                   <Label>Type</Label>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant={locationType === "service" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setLocationType("service")}
-                    >
-                      Fleet Management Hub
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={locationType === "warehouse" ? "default" : "outline"}
-                      className="flex-1"
-                      onClick={() => setLocationType("warehouse")}
-                    >
-                      Warehouse
-                    </Button>
-                  </div>
+                  <Select value={locationType} onValueChange={setLocationType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fleet">Fleet Management Hub</SelectItem>
+                      <SelectItem value="warehouse">Warehouse</SelectItem>
+                      <SelectItem value="sales">Sales Outlet</SelectItem>
+                      <SelectItem value="service">Service Center</SelectItem>
+                      <SelectItem value="factory">Factory / Production</SelectItem>
+                      <SelectItem value="hq">Headquarters</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="loc-phone">Phone Number</Label>
@@ -201,6 +226,56 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                     onChange={(e) => setTaxLabel(e.target.value)}
                   />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-amber-100 dark:border-amber-500/20 bg-amber-50/30 dark:bg-amber-500/5">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                 <div className="p-2 bg-amber-100 dark:bg-amber-500/20 rounded-lg">
+                    <Percent className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                 </div>
+                 <div>
+                    <CardTitle className="text-amber-900 dark:text-amber-100">Tax Configuration</CardTitle>
+                    <CardDescription>Select which taxes apply to transactions at this location.</CardDescription>
+                 </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <Label>Allowed Taxes</Label>
+                <div className="flex flex-wrap gap-2">
+                  {availableTaxes.map((tax) => {
+                    const isSelected = taxIds.includes(tax.id);
+                    return (
+                      <Badge
+                        key={tax.id}
+                        variant={isSelected ? "default" : "outline"}
+                        className={cn(
+                          "px-3 py-1.5 cursor-pointer transition-all flex items-center gap-2 text-xs font-bold",
+                          isSelected ? "bg-amber-600 hover:bg-amber-700" : "hover:bg-amber-50 dark:hover:bg-amber-900/20"
+                        )}
+                        onClick={() => {
+                          if (isSelected) {
+                            setTaxIds(prev => prev.filter(id => id !== tax.id));
+                          } else {
+                            setTaxIds(prev => [...prev, tax.id]);
+                          }
+                        }}
+                      >
+                        {isSelected ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3 opacity-50" />}
+                        {tax.code || tax.name} ({tax.rate_percent}%)
+                      </Badge>
+                    );
+                  })}
+                  {availableTaxes.length === 0 && (
+                    <p className="text-sm text-muted-foreground italic">No taxes found. Please create taxes in the Finance section first.</p>
+                  )}
+                </div>
+                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest pt-2">
+                  Selected IDs: {taxIds.length > 0 ? taxIds.join(', ') : 'NONE'}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -280,6 +355,26 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
               <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
                 <Label className="font-bold cursor-pointer" htmlFor="pos-active">Global POS Enabled</Label>
                 <Switch id="pos-active" checked={isPosActive} onCheckedChange={setIsPosActive} />
+              </div>
+
+              <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                <div className="flex items-center gap-2 mb-1">
+                   <User className="w-4 h-4 text-primary" />
+                   <Label className="font-bold">Default POS Customer</Label>
+                </div>
+                <p className="text-[10px] text-muted-foreground mb-2">Used for walk-in sales if no customer is selected.</p>
+                <select
+                  className="w-full bg-white dark:bg-slate-950 border rounded-md h-9 px-3 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  value={defaultCustomerId}
+                  onChange={(e) => setDefaultCustomerId(e.target.value)}
+                >
+                  <option value="">-- No Default Customer --</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.phone ? `(${c.phone})` : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="space-y-4 pt-2">

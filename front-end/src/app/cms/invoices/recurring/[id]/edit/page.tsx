@@ -31,7 +31,8 @@ import {
   fetchCustomers, 
   updateRecurringInvoice,
   fetchRecurringInvoiceDetails,
-  fetchCompany
+  fetchCompany,
+  formatPartLabel
 } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -442,23 +443,8 @@ export default function EditRecurringTemplatePage() {
                               }}
                               options={allParts.map(p => ({
                                 value: String(p.id),
-                                label: `${p.part_name}${p.sku ? ` (${p.sku})` : ''}`
+                                label: formatPartLabel(p)
                               }))}
-                              placeholder="Select or Search Item..."
-                              className="border-none shadow-none bg-transparent"
-                            />
-                            {item.item_id && (
-                              <div className="text-[10px] text-muted-foreground mt-1 px-3 flex items-center gap-2">
-                                <Badge variant="secondary" className="text-[8px] h-3 px-1">MASTER</Badge>
-                                SKU: {allParts.find(p => p.id === item.item_id)?.sku || 'N/A'}
-                              </div>
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <Input 
-                              type="number" 
-                              value={item.quantity} 
-                              onChange={e => handleItemChange(index, 'quantity', e.target.value)}
                               className="text-right border-none shadow-none focus-visible:ring-1"
                             />
                           </td>

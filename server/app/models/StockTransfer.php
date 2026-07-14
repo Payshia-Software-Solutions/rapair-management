@@ -4,45 +4,13 @@
  * Handles stock transfer requests between locations.
  */
 class StockTransfer extends Model {
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
-    private function nextDocNumber($docType) {
-        // Short sequential number allocation using document_sequences (safe under concurrency).
-        $this->ensureSchema();
-        $type = strtoupper(trim((string)$docType));
-        if ($type === '') $type = 'TR';
-
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-        $this->db->bind(':t', $type);
-        $row = $this->db->single();
-        if (!$row) {
-            // Best-effort seed, then retry.
-            try {
-                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
-                $this->db->bind(':t', $type);
-                $this->db->bind(':p', $type . '-');
-                $this->db->execute();
-            } catch (Exception $e) {}
-
-            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-            $this->db->bind(':t', $type);
-            $row = $this->db->single();
-            if (!$row) return $type . "-000001";
-        }
-
-        $prefix = (string)($row->prefix ?? ($type . '-'));
-        $next = (int)($row->next_number ?? 1);
-        $pad = (int)($row->padding ?? 6);
-        if ($next <= 0) $next = 1;
-        if ($pad <= 0) $pad = 6;
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
-        $this->db->bind(':t', $type);
-        $this->db->execute();
-
-        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    private function nextDocNumber($docType, $locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo($docType, $locationId);
     }
 
     private function movementQtyIfAny($locationId, $partId) {
@@ -111,10 +79,10 @@ class StockTransfer extends Model {
         return $avail;
     }
 
-    private function genNumber() {
+    private function genNumber($locationId = 1) {
         // Keep old method as a fallback; prefer sequential doc numbers.
         try {
-            return $this->nextDocNumber('TR');
+            return $this->nextDocNumber('TR', $locationId);
         } catch (Exception $e) {
             $dt = new DateTime('now');
             $stamp = $dt->format('Ymd');
@@ -124,7 +92,7 @@ class StockTransfer extends Model {
     }
 
     public function listByLocations($locationIds = []) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $ids = array_values(array_filter(array_map('intval', (array)$locationIds), function($x) { return $x > 0; }));
         if (count($ids) === 0) return [];
         $in = implode(',', array_fill(0, count($ids), '?'));
@@ -160,7 +128,7 @@ class StockTransfer extends Model {
     }
 
     public function getById($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("
             SELECT r.*, 
                    lf.name AS from_location_name,
@@ -192,7 +160,7 @@ class StockTransfer extends Model {
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $fromId = (int)($data['from_location_id'] ?? $data['fromLocationId'] ?? 0);
         $toId = (int)($data['to_location_id'] ?? $data['toLocationId'] ?? 0);
         $reqId = (int)($data['requisition_id'] ?? $data['requisitionId'] ?? 0);
@@ -219,7 +187,7 @@ class StockTransfer extends Model {
         if (count($processedItems) === 0) return ['error' => 'No valid items provided for transfer'];
 
         $num = trim((string)($data['transfer_number'] ?? ''));
-        if ($num === '') $num = $this->genNumber();
+        if ($num === '') $num = $this->genNumber($fromId);
         $requestedAt = $data['requested_at'] ?? null;
         if (!$requestedAt) $requestedAt = (new DateTime('now'))->format('Y-m-d H:i:s');
 
@@ -227,7 +195,7 @@ class StockTransfer extends Model {
             require_once __DIR__ . '/InventoryBatch.php';
             $batchModel = new InventoryBatch();
 
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // If created from a requisition, validate it and lock destination.
             if ($reqId > 0) {
@@ -235,16 +203,16 @@ class StockTransfer extends Model {
                 $this->db->bind(':id', $reqId);
                 $req = $this->db->single();
                 if (!$req) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'Requisition not found'];
                 }
                 if (!in_array((string)$req->status, ['Requested','Approved'], true)) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'Requisition is not in a valid state'];
                 }
                 $toId = (int)$req->to_location_id;
                 if ($toId <= 0) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'Requisition has no valid destination location'];
                 }
             }
@@ -277,7 +245,7 @@ class StockTransfer extends Model {
                         $name = $row ? (string)($row->part_name ?? '') : null;
                     } catch (Exception $e2) {}
                     $label = $name ? $name : ("Item #" . $pid);
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => "Insufficient stock at source for {$label}" . ($bid ? " (Batch #{$bid})" : "") . ". Available: " . number_format(max(0, $avail), 3, '.', '') . ", requested: " . number_format($need, 3, '.', '')];
                 }
             }
@@ -296,7 +264,7 @@ class StockTransfer extends Model {
             $this->db->bind(':u', $userId);
             $ok = $this->db->execute();
             if (!$ok) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return ['error' => 'Failed to insert transfer request into database'];
             }
             $id = (int)$this->db->lastInsertId();
@@ -327,7 +295,7 @@ class StockTransfer extends Model {
                 if ($reqId > 0) {
                     $rem = isset($remaining[$pid]) ? (float)$remaining[$pid] : 0.0;
                     if ($rem <= 0 || $qty > $rem + 0.000001) {
-                        $this->db->exec("ROLLBACK");
+                        $this->db->rollBack();
                         return ['error' => "Quantity for item #{$pid} exceeds the remaining requested amount"];
                     }
                     // Subtract from the local tracker to support multiple lines of same part against one req
@@ -341,16 +309,17 @@ class StockTransfer extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return $id;
         } catch (Throwable $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Throwable $e2) {}
+            error_log("Error in StockTransfer::create: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Throwable $e2) {}
             return ['error' => 'Stock Transfer Error: ' . $e->getMessage() . ' in ' . $e->getFile() . ' on line ' . $e->getLine()];
         }
     }
 
     public function receive($id, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $tid = (int)$id;
         if ($tid <= 0) return ['error' => 'Invalid transfer'];
 
@@ -375,7 +344,7 @@ class StockTransfer extends Model {
         if (!$items || count($items) === 0) return ['error' => 'No transfer items'];
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             require_once 'Part.php';
             require_once 'InventoryBatch.php';
@@ -389,7 +358,7 @@ class StockTransfer extends Model {
 
                 $part = $partModel->getById($pid);
                 if (!$part) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return ['error' => 'Invalid part ID: ' . $pid];
                 }
 
@@ -469,7 +438,7 @@ class StockTransfer extends Model {
             $this->db->bind(':id', $tid);
             $this->db->execute();
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
 
             if ($reqId > 0) {
                 try {
@@ -479,7 +448,8 @@ class StockTransfer extends Model {
             }
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in StockTransfer::receive: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return ['error' => 'Receive failed'];
         }
     }

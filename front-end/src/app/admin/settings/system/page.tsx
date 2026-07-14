@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow, fetchLocations, ServiceLocation } from "@/lib/api";
-import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin } from "lucide-react";
+import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow, fetchLocations, ServiceLocation, syncMorningMileage, checkDatabaseTables, runDatabaseMigrations, TableCheckRow, fetchMigrationLogs, MigrationLog } from "@/lib/api";
+import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin, Filter } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,53 @@ export default function SystemSettingsPage() {
   const [activeGateway, setActiveGateway] = useState<string | null>("payhere");
   const [isAddingGateway, setIsAddingGateway] = useState(false);
   
+  const [checkingTables, setCheckingTables] = useState(false);
+  const [migratingDb, setMigratingDb] = useState(false);
+  const [tableChecks, setTableChecks] = useState<TableCheckRow[]>([]);
+  const [missingTables, setMissingTables] = useState<string[]>([]);
+  const [checkMessage, setCheckMessage] = useState("");
+  const [migrationLogs, setMigrationLogs] = useState<MigrationLog[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
+  const loadMigrationLogs = async () => {
+    setLoadingLogs(true);
+    try {
+      const logs = await fetchMigrationLogs();
+      setMigrationLogs(logs);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
+
+  const runTableChecks = async () => {
+    setCheckingTables(true);
+    try {
+      const res = await checkDatabaseTables();
+      setTableChecks(res.checks || []);
+      setMissingTables(res.missingTables || []);
+      setCheckMessage(res.message);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setCheckingTables(false);
+    }
+  };
+
+  const executeMigration = async () => {
+    setMigratingDb(true);
+    try {
+      const res = await runDatabaseMigrations();
+      toast({ title: "Migration Successful", description: res.message || "Database schema updated successfully." });
+      await Promise.all([runTableChecks(), loadMigrationLogs()]);
+    } catch (err) {
+      toast({ title: "Migration Failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setMigratingDb(false);
+    }
+  };
+
   const [settings, setSettings] = useState<Record<string, string>>({
     mail_host: "",
     mail_port: "",
@@ -68,7 +115,12 @@ export default function SystemSettingsPage() {
     stripe_is_sandbox: "1",
     online_sales_enabled: "0",
     online_sales_cod: "1",
-    online_sales_ipg: "1"
+    online_sales_ipg: "1",
+    FLEET_API_URL: "",
+    FLEET_API_TOKEN: "",
+    MILEAGE_API_URL: "",
+    MILEAGE_API_TOKEN: "",
+    pos_active_filters: "collections,recipe_types"
   });
 
   const loadSettings = async () => {
@@ -96,7 +148,7 @@ export default function SystemSettingsPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([loadSettings(), loadApiClients(), loadLocations()]).finally(() => setLoading(false));
+    Promise.all([loadSettings(), loadApiClients(), loadLocations(), runTableChecks(), loadMigrationLogs()]).finally(() => setLoading(false));
   }, []);
 
   const handleChange = (key: string, val: string) => {
@@ -183,6 +235,19 @@ export default function SystemSettingsPage() {
     toast({ title: "Copied!", description: "API Key copied to clipboard." });
   };
 
+  const [syncingMileage, setSyncingMileage] = useState(false);
+  const handleSyncMorningMileage = async () => {
+    try {
+      setSyncingMileage(true);
+      const res = await syncMorningMileage();
+      toast({ title: "Sync Complete", description: `Morning mileage synced successfully. Updated: ${res.data?.updated || 0} vehicles.` });
+    } catch (err) {
+      toast({ title: "Sync Failed", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSyncingMileage(false);
+    }
+  };
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -205,7 +270,7 @@ export default function SystemSettingsPage() {
       </div>
 
       <Tabs defaultValue="mail" className="space-y-6">
-        <TabsList className="grid grid-cols-4 w-full bg-muted/50 p-1 rounded-xl h-14">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 w-full bg-muted/50 p-1 rounded-xl h-auto md:h-14 gap-1">
           <TabsTrigger value="mail" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
             <Mail className="w-4 h-4" /> Email
           </TabsTrigger>
@@ -218,8 +283,77 @@ export default function SystemSettingsPage() {
           <TabsTrigger value="payments" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
             <CreditCard className="w-4 h-4" /> Payments
           </TabsTrigger>
+          <TabsTrigger value="external-apis" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <Terminal className="w-4 h-4" /> External APIs
+          </TabsTrigger>
+          <TabsTrigger value="updates" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <RotateCw className="w-4 h-4" /> System Updates
+          </TabsTrigger>
+          <TabsTrigger value="pos" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4" /> POS
+          </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="pos">
+          <Card className="border-none shadow-lg overflow-hidden">
+            <CardHeader className="bg-primary/[0.03] border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <ShoppingCart className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">POS Configuration</CardTitle>
+                  <CardDescription>Configure Point of Sale interface settings and filters.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4 max-w-md">
+                <h3 className="text-sm font-black uppercase tracking-widest text-muted-foreground/60 border-b pb-2 flex items-center gap-2">
+                  <Filter className="w-3.5 h-3.5" />
+                  Active Sidebar Filters
+                </h3>
+                <p className="text-xs text-muted-foreground mb-4">Select which filter options are available in the POS left sidebar.</p>
+                
+                <div className="space-y-3">
+                  {[
+                    { id: 'collections', label: 'Collections' },
+                    { id: 'recipe_types', label: 'Recipe Types' },
+                    { id: 'item_type', label: 'Item Type (Part/Service)' },
+                    { id: 'sections', label: 'Sections' },
+                    { id: 'departments', label: 'Departments' },
+                    { id: 'categories', label: 'Categories' },
+                    { id: 'brands', label: 'Brands' },
+                    { id: 'suppliers', label: 'Suppliers' },
+                  ].map(f => {
+                    const isActive = settings.pos_active_filters?.includes(f.id);
+                    return (
+                      <div key={f.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <Label htmlFor={`filter-${f.id}`} className="font-bold cursor-pointer flex-1">{f.label}</Label>
+                        <Switch
+                          id={`filter-${f.id}`}
+                          checked={isActive}
+                          onCheckedChange={(checked) => {
+                            let arr = (settings.pos_active_filters || "").split(",").filter(Boolean);
+                            if (checked && !arr.includes(f.id)) arr.push(f.id);
+                            if (!checked) arr = arr.filter(x => x !== f.id);
+                            handleChange('pos_active_filters', arr.join(','));
+                          }}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="bg-muted/30 border-t p-6 flex justify-end">
+              <Button onClick={save} disabled={saving} size="lg" className="px-8 shadow-md">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save POS Settings
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
         <TabsContent value="mail">
           <Card className="border-none shadow-lg overflow-hidden">
             <CardHeader className="bg-primary/[0.03] border-b pb-4">
@@ -288,11 +422,11 @@ export default function SystemSettingsPage() {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="mail_from_addr">From Email Address</Label>
-                      <Input id="mail_from_addr" placeholder="no-reply@servicebay.com" value={settings.mail_from_addr} onChange={(e) => handleChange('mail_from_addr', e.target.value)} />
+                      <Input id="mail_from_addr" placeholder="no-reply@bizzflow.com" value={settings.mail_from_addr} onChange={(e) => handleChange('mail_from_addr', e.target.value)} />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="mail_from_name">From Name</Label>
-                      <Input id="mail_from_name" placeholder="ServiceBay Notifications" value={settings.mail_from_name} onChange={(e) => handleChange('mail_from_name', e.target.value)} />
+                      <Input id="mail_from_name" placeholder="BizzFlow Notifications" value={settings.mail_from_name} onChange={(e) => handleChange('mail_from_name', e.target.value)} />
                     </div>
                   </div>
                 </div>
@@ -337,7 +471,7 @@ export default function SystemSettingsPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="sms_sender_id">Sender ID</Label>
-                    <Input id="sms_sender_id" placeholder="SERVICEBAY" value={settings.sms_sender_id} onChange={(e) => handleChange('sms_sender_id', e.target.value)} />
+                    <Input id="sms_sender_id" placeholder="BIZZFLOW" value={settings.sms_sender_id} onChange={(e) => handleChange('sms_sender_id', e.target.value)} />
                   </div>
                 </div>
 
@@ -925,7 +1059,275 @@ export default function SystemSettingsPage() {
               </CardFooter>
             </Card>
           </TabsContent>
-        </Tabs>
+        <TabsContent value="external-apis">
+          <Card className="border-none shadow-lg overflow-hidden">
+            <CardHeader className="bg-primary/[0.03] border-b pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg">External API Integrations</CardTitle>
+                  <CardDescription>Manage endpoints and authentication tokens for third-party service connections.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="grid gap-8">
+                <div className="space-y-6">
+                  <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground/60 border-b pb-2">
+                    <Truck className="w-4 h-4" />
+                    Fleet Management (Export API)
+                  </div>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="FLEET_API_URL">API Endpoint URL</Label>
+                      <Input 
+                        id="FLEET_API_URL" 
+                        placeholder="http://220.247.236.239/api/Export_API/vehicales_INFO.php" 
+                        value={settings.FLEET_API_URL} 
+                        onChange={(e) => handleChange('FLEET_API_URL', e.target.value)} 
+                      />
+                      <p className="text-[10px] text-muted-foreground">The base URL for fetching vehicle information from the external fleet system.</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="FLEET_API_TOKEN">Authentication Token</Label>
+                      <div className="relative">
+                        <Input 
+                          id="FLEET_API_TOKEN" 
+                          type="password" 
+                          placeholder="••••••••••••••••" 
+                          value={settings.FLEET_API_TOKEN} 
+                          onChange={(e) => handleChange('FLEET_API_TOKEN', e.target.value)} 
+                        />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">The secure token used to authorize requests to the fleet API.</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6 pt-4">
+                  <div className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-muted-foreground/60 border-b pb-2">
+                    <Smartphone className="w-4 h-4" />
+                    Vehicle Mileage & Odometer API
+                  </div>
+                  
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="MILEAGE_API_URL">Mileage API Endpoint</Label>
+                      <Input 
+                        id="MILEAGE_API_URL" 
+                        placeholder="https://api.gps-provider.com/v1/mileage" 
+                        value={settings.MILEAGE_API_URL} 
+                        onChange={(e) => handleChange('MILEAGE_API_URL', e.target.value)} 
+                      />
+                      <p className="text-[10px] text-muted-foreground">URL to fetch real-time mileage or odometer readings for vehicles.</p>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="MILEAGE_API_TOKEN">Mileage API Token</Label>
+                      <Input 
+                        id="MILEAGE_API_TOKEN" 
+                        type="password" 
+                        placeholder="••••••••••••••••" 
+                        value={settings.MILEAGE_API_TOKEN} 
+                        onChange={(e) => handleChange('MILEAGE_API_TOKEN', e.target.value)} 
+                      />
+                      <p className="text-[10px] text-muted-foreground">Authorization token for the mileage service.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-end pt-2">
+                    <Button onClick={handleSyncMorningMileage} disabled={syncingMileage} variant="secondary" className="gap-2">
+                      {syncingMileage ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+                      Sync Morning Mileage Now
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-muted/20 rounded-xl border border-dashed flex flex-col items-center justify-center py-10 text-center">
+                   <div className="p-3 bg-muted rounded-full mb-3">
+                     <Plus className="w-6 h-6 text-muted-foreground/50" />
+                   </div>
+                   <h4 className="text-sm font-bold text-muted-foreground">Add New Integration</h4>
+                   <p className="text-xs text-muted-foreground max-w-xs mt-1">
+                     Additional API integrations (e.g., GPS tracking, fuel management) can be configured here as they are added to the system.
+                   </p>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="bg-muted/30 border-t p-6 flex justify-end">
+              <Button onClick={save} disabled={saving} size="lg" className="px-8 shadow-md">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                Save API Configurations
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="updates">
+          <Card className="border-none shadow-lg overflow-hidden">
+            <CardHeader className="bg-primary/[0.03] border-b pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                    <RotateCw className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg">System Updates & Database Reconcile</CardTitle>
+                    <CardDescription>
+                      Verify database table structures, check alignment against definitions, and execute updates.
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={runTableChecks} 
+                    disabled={checkingTables}
+                    className="gap-2"
+                  >
+                    {checkingTables ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCw className="w-4 h-4" />}
+                    Verify Tables
+                  </Button>
+                  <Button 
+                    onClick={executeMigration} 
+                    disabled={migratingDb}
+                    className="gap-2 bg-emerald-600 hover:bg-emerald-700 shadow-md text-white border-none"
+                  >
+                    {migratingDb ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                    Run Schema Migrations
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {/* Status Alert */}
+              {missingTables.length > 0 ? (
+                <div className="p-4 bg-rose-50 border-2 border-rose-100 text-rose-700 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 mt-0.5 shrink-0 animate-pulse" />
+                  <div>
+                    <h4 className="font-bold text-sm">Database Schema Mismatch Detected</h4>
+                    <p className="text-xs mt-1 leading-relaxed text-rose-600">
+                      The system detected that {missingTables.length} required database table(s) are missing or outdated: <strong>{missingTables.join(', ')}</strong>. 
+                      Please execute schema migrations to align the database structures.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-100 text-emerald-700 rounded-2xl flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-sm">Database Schema is Up to Date</h4>
+                    <p className="text-xs mt-1 leading-relaxed text-emerald-600">
+                      All required business and administration tables are verified and present in the database.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Table List Checklist */}
+              <div className="space-y-3">
+                <div className="text-sm font-bold text-slate-800">Verified Database Tables ({tableChecks.length})</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                  {tableChecks.map((t) => (
+                    <div 
+                      key={t.name} 
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                        t.available 
+                          ? "bg-emerald-500/[0.02] border-emerald-500/10 hover:border-emerald-500/20" 
+                          : "bg-rose-500/[0.02] border-rose-500/10 hover:border-rose-500/20"
+                      }`}
+                    >
+                      <div className="font-mono text-[11px] font-semibold text-slate-700 truncate mr-2">
+                        {t.name}
+                      </div>
+                      <Badge 
+                        variant="outline" 
+                        className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 shrink-0 ${
+                          t.available 
+                            ? "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" 
+                            : "bg-rose-500/10 text-rose-700 border-rose-500/20"
+                        }`}
+                      >
+                        {t.available ? "OK" : "Missing"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Migration Logs */}
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-bold text-slate-800">Migration & Update Logs</div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={loadMigrationLogs} 
+                    disabled={loadingLogs}
+                    className="h-8 text-xs gap-1.5"
+                  >
+                    <RotateCw className={`w-3.5 h-3.5 ${loadingLogs ? "animate-spin" : ""}`} />
+                    Refresh Logs
+                  </Button>
+                </div>
+
+                {loadingLogs && migrationLogs.length === 0 ? (
+                  <div className="flex justify-center items-center py-10 text-muted-foreground">
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Loading logs...
+                  </div>
+                ) : migrationLogs.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-muted-foreground border border-dashed rounded-xl">
+                    No schema migrations logged yet.
+                  </div>
+                ) : (
+                  <div className="border rounded-xl overflow-hidden bg-card">
+                    <Table>
+                      <TableHeader className="bg-muted/50">
+                        <TableRow>
+                          <TableHead className="w-[120px]">Timestamp</TableHead>
+                          <TableHead className="w-[120px]">Action By</TableHead>
+                          <TableHead className="w-[80px]">IP</TableHead>
+                          <TableHead>Execution Details</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {migrationLogs.map((log) => {
+                          let detailsObj: any = {};
+                          try {
+                            detailsObj = typeof log.details === 'string' ? JSON.parse(log.details) : log.details || {};
+                          } catch (e) {}
+                          return (
+                            <TableRow key={log.id} className="text-[11px] hover:bg-muted/5">
+                              <TableCell className="text-muted-foreground font-mono">
+                                {new Date(log.created_at).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {log.user_name ?? "System / CLI"}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground font-mono">
+                                {log.ip ?? "—"}
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                <span className="text-emerald-600 font-bold bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded mr-2">
+                                  SUCCESS
+                                </span>
+                                {detailsObj.message || "Schema updates executed successfully."}
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </DashboardLayout>
   );
 }

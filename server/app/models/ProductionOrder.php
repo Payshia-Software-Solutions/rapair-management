@@ -8,10 +8,10 @@ class ProductionOrder extends Model {
 
     public function __construct() {
         parent::__construct();
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
     }
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         try {
             // Production Order Table
             // Statuses: Planned, InProgress, Completed, Cancelled
@@ -166,7 +166,7 @@ class ProductionOrder extends Model {
 
     public function create($data, $userId = null) {
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // Generate Order Number
             $orderNumber = $data['order_number'] ?? 'PO-' . date('YmdHis');
@@ -259,10 +259,11 @@ class ProductionOrder extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return $orderId;
         } catch (Exception $e) {
-            $this->db->exec("ROLLBACK");
+            error_log("Error in ProductionOrder::create: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             throw $e;
         }
     }

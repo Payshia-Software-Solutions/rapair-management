@@ -5,12 +5,12 @@
 class Supplier extends Model {
     private $table = 'suppliers';
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
     public function list($q = '', $type = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $q = is_string($q) ? trim($q) : '';
         $sql = "SELECT * FROM {$this->table} WHERE 1=1";
         $params = [];
@@ -33,7 +33,7 @@ class Supplier extends Model {
     }
 
     public function getById($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("SELECT * FROM {$this->table} WHERE id = :id LIMIT 1");
         $this->db->bind(':id', (int)$id);
         $row = $this->db->single();
@@ -61,13 +61,13 @@ class Supplier extends Model {
     }
 
     public function setTaxes($supplierId, $taxIds = [], $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $sid = (int)$supplierId;
         if ($sid <= 0) return false;
         $ids = array_values(array_unique(array_filter(array_map('intval', (array)$taxIds), function($x) { return $x > 0; })));
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
             $this->db->query("DELETE FROM supplier_taxes WHERE supplier_id = :sid");
             $this->db->bind(':sid', $sid);
             $this->db->execute();
@@ -79,16 +79,17 @@ class Supplier extends Model {
                 $this->db->bind(':u', $userId);
                 $this->db->execute();
             }
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in Supplier::setTaxes: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("
             INSERT INTO {$this->table} (name, email, phone, address, tax_reg_no, is_active, is_inventory_vendor, is_banquet_vendor, created_by, updated_by)
             VALUES (:name, :email, :phone, :address, :tax_reg_no, :is_active, :is_inv, :is_ban, :created_by, :updated_by)
@@ -110,7 +111,7 @@ class Supplier extends Model {
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("
             UPDATE {$this->table}
             SET name = :name,
@@ -138,14 +139,14 @@ class Supplier extends Model {
     }
 
     public function delete($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("DELETE FROM {$this->table} WHERE id = :id");
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
 
     public function getPayableSummary($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $sid = (int)$id;
         
         // 1. Get Total Balance from Ledger

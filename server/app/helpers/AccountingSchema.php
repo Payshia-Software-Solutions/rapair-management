@@ -20,6 +20,7 @@ class AccountingSchema {
     }
 
     public static function ensure($force = false) {
+        if (!$force && !defined('FORCE_MIGRATIONS')) return;
         if (self::$done && !$force) return;
         self::$done = true;
 
@@ -209,7 +210,9 @@ class AccountingSchema {
                 ['opening_balance_equity', '3010', 'Opening Balance Equity', 'Equity'],
                 ['production_wip', '1410', 'Work in Progress Account', 'Production'],
                 ['production_inventory', '1400', 'Production Inventory Account', 'Production'],
-                ['production_finished_goods', '1400', 'Finished Goods Inventory Account', 'Production']
+                ['production_finished_goods', '1400', 'Finished Goods Inventory Account', 'Production'],
+                ['issue_note_expense', '5000', 'Issue Note Expense Account', 'Issue Notes'],
+                ['issue_note_inventory', '1400', 'Issue Note Inventory Account', 'Issue Notes']
             ];
 
             foreach ($mappings as $m) {

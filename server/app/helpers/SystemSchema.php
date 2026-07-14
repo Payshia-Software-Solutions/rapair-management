@@ -12,6 +12,7 @@ class SystemSchema {
     }
 
     public static function ensure($force = false) {
+        if (!$force && !defined('FORCE_MIGRATIONS')) return;
         if (self::$done && !$force) return;
         self::$done = true;
 
@@ -167,6 +168,19 @@ class SystemSchema {
                 filename VARCHAR(255) NOT NULL,
                 url VARCHAR(500) NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        ");
+        // 7. Printer Mapping Settings
+        $pdo->exec("
+            CREATE TABLE IF NOT EXISTS printer_settings (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                location_id INT NULL,
+                printer_type VARCHAR(50), 
+                printer_name VARCHAR(255),
+                paper_width VARCHAR(20) DEFAULT '80mm',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uq_location_printer_type (location_id, printer_type)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         ");
     }

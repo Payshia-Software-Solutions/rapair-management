@@ -21,6 +21,7 @@ import {
   holdPOSOrder,
   loadHeldOrder,
   fetchHeldOrders,
+  fetchSystemSettings,
   api as apiHelper
 } from "@/lib/api";
 
@@ -139,7 +140,7 @@ interface POSContextType {
   setGuideModalOpen: (val: boolean) => void;
   
   // Helper for refreshing data
-  refreshInventory: () => Promise<void>;
+  refreshInventory: (locId?: string | number) => Promise<void>;
   refreshCustomers: () => Promise<void>;
 
   // Virtual Keyboard State
@@ -152,6 +153,10 @@ interface POSContextType {
     type?: 'default' | 'numeric';
   } | null;
   setVKeyboardActiveInput: (input: any) => void;
+  
+  // Scanner State
+  autoAddOnScan: boolean;
+  setAutoAddOnScan: (val: boolean) => void;
   
   // Promotion State
   eligiblePromotions: any[];
@@ -174,10 +179,30 @@ interface POSContextType {
   lastInvoiceId: number | null;
   setLastInvoiceId: (val: number | null) => void;
 
+  guestPrintSelectionOpen: boolean;
+  setGuestPrintSelectionOpen: (val: boolean) => void;
+  guestPrintOrderId: number | null;
+  setGuestPrintOrderId: (val: number | null) => void;
+
   // Reservation Link
   reservationDialogOpen: boolean;
   setReservationDialogOpen: (val: boolean) => void;
   handleAddToReservation: (resId: number, items: any[]) => Promise<void>;
+
+  // Filters State
+  posActiveFilters: string[];
+  selectedBrandName: string | null;
+  setSelectedBrandName: (val: string | null) => void;
+  selectedItemType: string | null;
+  setSelectedItemType: (val: string | null) => void;
+  selectedSectionName: string | null;
+  setSelectedSectionName: (val: string | null) => void;
+  selectedDepartmentName: string | null;
+  setSelectedDepartmentName: (val: string | null) => void;
+  selectedCategoryName: string | null;
+  setSelectedCategoryName: (val: string | null) => void;
+  selectedSupplierName: string | null;
+  setSelectedSupplierName: (val: string | null) => void;
 }
 
 
@@ -195,12 +220,22 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Data Context
   const [inventory, setInventory] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [allTaxes, setAllTaxes] = useState<any[]>([]);
   const [systemTaxes, setSystemTaxes] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [banks, setBanks] = useState<any[]>([]);
   const [bankBranches, setBankBranches] = useState<any[]>([]);
   const [company, setCompany] = useState<any>(null);
+
+  // Filters State
+  const [posActiveFilters, setPosActiveFilters] = useState<string[]>(['collections', 'recipe_types']);
+  const [selectedBrandName, setSelectedBrandName] = useState<string | null>(null);
+  const [selectedItemType, setSelectedItemType] = useState<string | null>(null);
+  const [selectedSectionName, setSelectedSectionName] = useState<string | null>(null);
+  const [selectedDepartmentName, setSelectedDepartmentName] = useState<string | null>(null);
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null);
+  const [selectedSupplierName, setSelectedSupplierName] = useState<string | null>(null);
 
   // POS State
   const [cart, setCart] = useState<any[]>([]);
@@ -211,7 +246,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       window.localStorage.setItem('location_id', val);
     }
     // Refresh inventory and tables when location changes
-    refreshInventory();
+    refreshInventory(val);
     refreshTablesAndStewards(val);
   };
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -268,6 +303,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     window?.localStorage?.setItem('v_keyboard_enabled', val ? '1' : '0');
   };
 
+  // Scanner State
+  const [autoAddOnScanState, setAutoAddOnScanState] = useState(false);
+  const setAutoAddOnScan = (val: boolean) => {
+    setAutoAddOnScanState(val);
+    window?.localStorage?.setItem('auto_add_on_scan', val ? '1' : '0');
+  };
+
   const [eligiblePromotions, setEligiblePromotions] = useState<any[]>([]);
   const [appliedPromotion, setAppliedPromotion] = useState<any | null>(null);
   const [isPromotionPromptOpen, setIsPromotionPromptOpen] = useState(false);
@@ -280,9 +322,82 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [printSelectionOpen, setPrintSelectionOpen] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState<number | null>(null);
 
+  // Guest Print Selection State
+  const [guestPrintSelectionOpen, setGuestPrintSelectionOpen] = useState(false);
+  const [guestPrintOrderId, setGuestPrintOrderId] = useState<number | null>(null);
+
   // Reservation State
   const [reservationDialogOpen, setReservationDialogOpen] = useState(false);
 
+  // Global Barcode Scanner Listener
+  useEffect(() => {
+    let buffer = "";
+    let lastKeyTime = 0;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const now = Date.now();
+      
+      // Increased to 2000ms (2 seconds) so you can simulate it by typing manually.
+      if (now - lastKeyTime > 2000) {
+        buffer = "";
+      }
+      
+      if (e.key === 'Enter') {
+        let barcodeToSearch = "";
+
+        if (buffer.length >= 2) {
+          barcodeToSearch = buffer.toLowerCase().trim();
+        } else if (document.activeElement?.tagName === 'INPUT') {
+          // Fallback: If user manually typed it in an input (like search bar) and pressed Enter
+          const inputVal = (document.activeElement as HTMLInputElement).value;
+          if (inputVal && inputVal.length >= 2) {
+            barcodeToSearch = inputVal.toLowerCase().trim();
+          }
+        }
+
+        if (barcodeToSearch.length >= 2) {
+          const product = inventory.find(p => 
+            p.barcode_number?.toString().toLowerCase().trim() === barcodeToSearch ||
+            p.sku?.toString().toLowerCase().trim() === barcodeToSearch ||
+            `item-${p.id}` === barcodeToSearch
+          );
+
+          if (product) {
+            e.preventDefault(); // Prevent form submits
+            const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
+            
+            if (autoAddOnScanState) {
+              if (outOfStock) {
+                toast({ title: "Out of Stock", description: `${product.part_name} is out of stock.`, variant: "destructive" });
+              } else {
+                addToCartWithQty(product, 1, 0);
+                toast({ title: "Scanned & Added", description: `${product.part_name} added to cart.`, duration: 2000 });
+                // Optional: clear search query if we are in it
+                if (document.activeElement?.tagName === 'INPUT') {
+                  setSearchQuery("");
+                  (document.activeElement as HTMLInputElement).value = "";
+                }
+              }
+            } else {
+              if (outOfStock) {
+                toast({ title: "Out of Stock", description: `${product.part_name} is out of stock.`, variant: "destructive" });
+              } else {
+                setSelectedProduct(product);
+                setProductModalOpen(true);
+              }
+            }
+          }
+        }
+        buffer = ""; // Reset after enter
+      } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        buffer += e.key;
+        lastKeyTime = now;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inventory, autoAddOnScanState, orderType, setSearchQuery]); // dependencies
 
   const updateAppliedPromotion = (promo: any | null) => {
     // Cleanup old reward items if we are clearing or changing promo
@@ -310,9 +425,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
     };
 
-    const refreshInventory = async () => {
+    const refreshInventory = async (locId?: string | number) => {
+    const id = locId || selectedLocation || (typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : undefined);
     try {
-      const partsRes = await fetchParts();
+      const partsRes = await fetchParts('', id);
       setInventory(partsRes);
     } catch (err) {}
   };
@@ -349,7 +465,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshCustomers(),
         refreshTablesAndStewards(),
         refreshHeldOrders(),
-        fetchTaxes('', { all: true }).then(t => setSystemTaxes(t || [])).catch(() => {}),
+        fetchTaxes('', { all: true }).then(t => setAllTaxes(t || [])).catch(() => {}),
         fetchCollections(true).then(c => setCollections(c || [])).catch(() => {}),
         fetchCompany().then(c => setCompany(c)).catch(() => {})
       ]);
@@ -385,34 +501,30 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loadContext = async () => {
       try {
         setLoading(true);
-        const [partsRes, taxesRes, locsRes, custsRes, compRes, banksRes, collRes] = await Promise.all([
-          fetchParts().catch(() => []),
+        const initLocId = typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : undefined;
+        const [partsRes, taxesRes, locsRes, custsRes, compRes, banksRes, collRes, sysSettingsRes] = await Promise.all([
+          fetchParts('', initLocId).catch(() => []),
           fetchTaxes('', { all: true }).catch(() => []),
           fetchLocations().catch(() => []),
           fetchCustomers().catch(() => []),
           fetchCompany().catch(() => null),
           fetchBanks().catch(() => []),
-          fetchCollections(true).catch(() => [])
+          fetchCollections(true).catch(() => []),
+          fetchSystemSettings().catch(() => ({}))
         ]);
 
         setInventory(partsRes);
         setBanks(banksRes);
         setCollections(collRes);
         
-        let enabledIds = new Set<number>();
-        if (compRes?.tax_ids_json) {
-          try {
-            const ids = JSON.parse(compRes.tax_ids_json);
-            if (Array.isArray(ids)) enabledIds = new Set(ids);
-          } catch {}
-        }
-        
-        const filteredTaxes = (taxesRes || []).filter((t: any) => t.is_active && enabledIds.has(t.id));
-        setSystemTaxes(filteredTaxes);
-        
+        setAllTaxes(taxesRes || []);
         setLocations(locsRes || []);
         setCustomers(custsRes || []);
         setCompany(compRes);
+
+        // Apply filters setting
+        const filtersStr = sysSettingsRes?.pos_active_filters || "collections,recipe_types";
+        setPosActiveFilters(filtersStr.split(',').filter(Boolean));
 
         // Hydrate Location
         const lsLocId = window?.localStorage?.getItem('location_id');
@@ -444,6 +556,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const lsKeyboard = window?.localStorage?.getItem('v_keyboard_enabled');
         if (lsKeyboard === '1') setVKeyboardEnabledState(true);
 
+        // Auto Add preference
+        const lsAutoAdd = window?.localStorage?.getItem('auto_add_on_scan');
+        if (lsAutoAdd === '1') setAutoAddOnScanState(true);
+
         // Open Order Type Dialog on load
         setOrderTypeDialogOpen(true);
 
@@ -456,6 +572,43 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     loadContext();
   }, [toast]);
+
+  useEffect(() => {
+    if (!selectedLocation || locations.length === 0 || allTaxes.length === 0) return;
+
+    const loc = locations.find(l => String(l.id) === String(selectedLocation));
+    if (!loc) return;
+
+    let allowedIds: number[] = [];
+    let isExplicitlySet = false;
+    try {
+      if (loc.allowed_taxes_json) {
+        allowedIds = JSON.parse(loc.allowed_taxes_json);
+        isExplicitlySet = Array.isArray(allowedIds);
+      }
+    } catch (e) {
+      allowedIds = [];
+    }
+
+    let filtered: any[] = [];
+    if (!isExplicitlySet && loc.allowed_taxes_json === null) {
+       // Legacy fallback: use company taxes if location has no explicit config
+       let companyEnabledIds = new Set<number>();
+       if (company?.tax_ids_json) {
+         try {
+           const ids = JSON.parse(company.tax_ids_json);
+           if (Array.isArray(ids)) companyEnabledIds = new Set(ids);
+         } catch {}
+       }
+       filtered = allTaxes.filter(t => t.is_active && companyEnabledIds.has(t.id));
+    } else {
+       // Location has explicit tax config (even if it's an empty array)
+       const allowedSet = new Set(allowedIds);
+       filtered = allTaxes.filter(t => t.is_active && allowedSet.has(t.id));
+    }
+    
+    setSystemTaxes(filtered);
+  }, [selectedLocation, locations, allTaxes, company]);
 
   useEffect(() => {
     const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
@@ -692,9 +845,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const taxAmt = applyTo * (Number(tax.rate_percent) / 100);
       taxSum += taxAmt;
       appliedTaxes.push({ name: tax.name, code: tax.code, rate_percent: tax.rate_percent, amount: taxAmt });
-      if (tax.apply_on === 'base_plus_previous') {
-        currentBase += taxAmt;
-      }
+      currentBase += taxAmt;
     });
 
     // Service Charge from Location Settings (Decoupled from Taxes)
@@ -732,8 +883,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         description: (product.part_name || product.description) + " (Reward)",
         item_type: product.item_type === "Service" ? "Service" : "Part",
         quantity: reward.qty,
-        unit_price: Number(product.price || 0),
-        discount: Number(product.price || 0), // 100% discount
+        unit_price: 0, // Explicitly zero for easier tracking of free items
+        discount: 0,
         is_reward: true,
         promotion_id: promo.promotion_id
       };
@@ -979,6 +1130,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       guideModalOpen, setGuideModalOpen,
       refreshInventory, refreshCustomers,
       vKeyboardEnabled, setVKeyboardEnabled, vKeyboardActiveInput, setVKeyboardActiveInput,
+      autoAddOnScan: autoAddOnScanState, setAutoAddOnScan,
       collections, selectedCollectionId, setSelectedCollectionId,
       selectedBankId, setSelectedBankId, selectedCardCategory, setSelectedCardCategory,
       // Promotion State
@@ -993,9 +1145,26 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setPrintSelectionOpen,
       lastInvoiceId,
       setLastInvoiceId,
+      guestPrintSelectionOpen,
+      setGuestPrintSelectionOpen,
+      guestPrintOrderId,
+      setGuestPrintOrderId,
       reservationDialogOpen,
       setReservationDialogOpen,
-      handleAddToReservation
+      handleAddToReservation,
+      posActiveFilters,
+      selectedBrandName,
+      setSelectedBrandName,
+      selectedItemType,
+      setSelectedItemType,
+      selectedSectionName,
+      setSelectedSectionName,
+      selectedDepartmentName,
+      setSelectedDepartmentName,
+      selectedCategoryName,
+      setSelectedCategoryName,
+      selectedSupplierName,
+      setSelectedSupplierName
     };
   
     return (

@@ -4,49 +4,17 @@
  * Destination location requests stock; shipments are created separately.
  */
 class StockRequisition extends Model {
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
-    private function nextDocNumber($docType) {
-        // Short sequential number allocation using document_sequences (safe under concurrency).
-        $this->ensureSchema();
-        $type = strtoupper(trim((string)$docType));
-        if ($type === '') $type = 'REQ';
-
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-        $this->db->bind(':t', $type);
-        $row = $this->db->single();
-        if (!$row) {
-            // Best-effort seed, then retry.
-            try {
-                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
-                $this->db->bind(':t', $type);
-                $this->db->bind(':p', $type . '-');
-                $this->db->execute();
-            } catch (Exception $e) {}
-
-            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-            $this->db->bind(':t', $type);
-            $row = $this->db->single();
-            if (!$row) return $type . "-000001";
-        }
-
-        $prefix = (string)($row->prefix ?? ($type . '-'));
-        $next = (int)($row->next_number ?? 1);
-        $pad = (int)($row->padding ?? 6);
-        if ($next <= 0) $next = 1;
-        if ($pad <= 0) $pad = 6;
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
-        $this->db->bind(':t', $type);
-        $this->db->execute();
-
-        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    private function nextDocNumber($docType, $locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo($docType, $locationId);
     }
 
     public function listOpen() {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $sql = "
             SELECT r.*,
                    lf.name AS from_location_name,
@@ -70,10 +38,10 @@ class StockRequisition extends Model {
         return $this->db->resultSet();
     }
 
-    private function genNumber() {
+    private function genNumber($locationId = 1) {
         // Keep old method as fallback; prefer sequential doc numbers.
         try {
-            return $this->nextDocNumber('REQ');
+            return $this->nextDocNumber('REQ', $locationId);
         } catch (Exception $e) {
             $dt = new DateTime('now');
             $stamp = $dt->format('Ymd');
@@ -83,7 +51,7 @@ class StockRequisition extends Model {
     }
 
     public function listByLocations($locationIds = []) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $ids = array_values(array_filter(array_map('intval', (array)$locationIds), function($x) { return $x > 0; }));
         if (count($ids) === 0) return [];
         $in = implode(',', array_fill(0, count($ids), '?'));
@@ -114,7 +82,7 @@ class StockRequisition extends Model {
     }
 
     public function getById($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("
             SELECT r.*, lf.name AS from_location_name, sl.name AS to_location_name
             FROM stock_transfer_requisitions r
@@ -144,7 +112,7 @@ class StockRequisition extends Model {
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $fromId = (int)($data['from_location_id'] ?? $data['fromLocationId'] ?? 0);
         $toId = (int)($data['to_location_id'] ?? $data['toLocationId'] ?? 0);
         if ($toId <= 0) return false;
@@ -166,12 +134,12 @@ class StockRequisition extends Model {
         if (count($merged) === 0) return false;
 
         $num = trim((string)($data['requisition_number'] ?? ''));
-        if ($num === '') $num = $this->genNumber();
+        if ($num === '') $num = $this->genNumber($toId);
         $requestedAt = $data['requested_at'] ?? null;
         if (!$requestedAt) $requestedAt = (new DateTime('now'))->format('Y-m-d H:i:s');
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
             $this->db->query("
                 INSERT INTO stock_transfer_requisitions
                 (requisition_number, from_location_id, to_location_id, status, requested_at, notes, created_by)
@@ -185,7 +153,7 @@ class StockRequisition extends Model {
             $this->db->bind(':u', $userId);
             $ok = $this->db->execute();
             if (!$ok) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
             $id = (int)$this->db->lastInsertId();
@@ -203,16 +171,17 @@ class StockRequisition extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return $id;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in StockRequisition::create: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function approve($id, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $rid = (int)$id;
         if ($rid <= 0) return false;
         $this->db->query("UPDATE stock_transfer_requisitions SET status = 'Approved', approved_by = :u, approved_at = NOW() WHERE id = :id AND status = 'Requested'");
@@ -222,7 +191,7 @@ class StockRequisition extends Model {
     }
 
     public function markFulfilledIfComplete($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $rid = (int)$id;
         if ($rid <= 0) return false;
         $this->db->query("
@@ -240,7 +209,7 @@ class StockRequisition extends Model {
     }
 
     public function addFulfilledQty($id, $partId, $qty) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $rid = (int)$id;
         $pid = (int)$partId;
         $qty = (float)$qty;

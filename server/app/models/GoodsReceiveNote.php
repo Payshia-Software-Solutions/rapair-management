@@ -5,7 +5,7 @@
 class GoodsReceiveNote extends Model {
     private $table = 'goods_receive_notes';
 
-    public function ensureSchema() {
+    public function ensureSchema() { return;
         InventorySchema::ensure();
         // Add cancellation columns if missing
         $cols = [
@@ -144,49 +144,18 @@ class GoodsReceiveNote extends Model {
         }
     }
 
-    private function nextDocNumber($docType) {
-
-        // Short sequential number allocation using document_sequences (safe under concurrency).
-        $this->ensureSchema();
-        $type = strtoupper(trim((string)$docType));
-        if ($type === '') $type = 'GRN';
-
-        $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-        $this->db->bind(':t', $type);
-        $row = $this->db->single();
-        if (!$row) {
-            // Best-effort seed, then retry.
-            try {
-                $this->db->query("INSERT IGNORE INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:t, :p, 1, 6)");
-                $this->db->bind(':t', $type);
-                $this->db->bind(':p', $type . '-');
-                $this->db->execute();
-            } catch (Exception $e) {}
-
-            $this->db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = :t FOR UPDATE");
-            $this->db->bind(':t', $type);
-            $row = $this->db->single();
-            if (!$row) return $type . "-000001";
-        }
-
-        $prefix = (string)($row->prefix ?? ($type . '-'));
-        $next = (int)($row->next_number ?? 1);
-        $pad = (int)($row->padding ?? 6);
-        if ($next <= 0) $next = 1;
-        if ($pad <= 0) $pad = 6;
-
-        $this->db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = :t");
-        $this->db->bind(':t', $type);
-        $this->db->execute();
-
-        return $prefix . str_pad((string)$next, $pad, '0', STR_PAD_LEFT);
+    private function nextDocNumber($docType, $locationId = 1) {
+        require_once __DIR__ . '/../helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo($docType, $locationId);
     }
 
-    public function list($q = '', $locationId = 1) {
-        $this->ensureSchema();
-        $locId = (int)$locationId;
-        if ($locId <= 0) $locId = 1;
+    public function list($q = '', $locationId = null) {
         $q = is_string($q) ? trim($q) : '';
+        $locCondition = "";
+        if ($locationId !== null && (int)$locationId > 0) {
+            $locCondition = " AND g.location_id = :loc ";
+        }
+
         if ($q !== '') {
             $this->db->query("
                 SELECT g.*, s.name AS supplier_name, po.po_number, u.name AS created_by_name,
@@ -196,13 +165,16 @@ class GoodsReceiveNote extends Model {
                 LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
                 LEFT JOIN users u ON u.id = g.created_by
                 LEFT JOIN service_locations sl ON sl.id = g.location_id
-                WHERE g.location_id = :loc AND g.status != 'Cancelled' AND (g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q OR sl.name LIKE :q)
+                WHERE g.status != 'Cancelled' {$locCondition} AND (g.grn_number LIKE :q OR s.name LIKE :q OR po.po_number LIKE :q OR sl.name LIKE :q)
                 ORDER BY g.id DESC
             ");
-            $this->db->bind(':loc', $locId);
+            if ($locationId !== null && (int)$locationId > 0) {
+                $this->db->bind(':loc', (int)$locationId);
+            }
             $this->db->bind(':q', '%' . $q . '%');
             return $this->db->resultSet();
         }
+
         $this->db->query("
             SELECT g.*, s.name AS supplier_name, po.po_number, u.name AS created_by_name,
                    sl.name AS location_name
@@ -211,15 +183,17 @@ class GoodsReceiveNote extends Model {
             LEFT JOIN purchase_orders po ON po.id = g.purchase_order_id
             LEFT JOIN users u ON u.id = g.created_by
             LEFT JOIN service_locations sl ON sl.id = g.location_id
-            WHERE g.location_id = :loc AND g.status != 'Cancelled'
+            WHERE g.status != 'Cancelled' {$locCondition}
             ORDER BY g.id DESC
         ");
-        $this->db->bind(':loc', $locId);
+        if ($locationId !== null && (int)$locationId > 0) {
+            $this->db->bind(':loc', (int)$locationId);
+        }
         return $this->db->resultSet();
     }
 
     public function getById($id, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $this->db->query("
@@ -257,7 +231,7 @@ class GoodsReceiveNote extends Model {
     }
 
     public function create($data, $userId = null, $locationId = 1) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $supplierId = (int)($data['supplier_id'] ?? 0);
@@ -298,13 +272,12 @@ class GoodsReceiveNote extends Model {
             $mergedItems[$key]['qty'] = round(((float)$mergedItems[$key]['qty']) + $qty, 3);
         }
         if (count($mergedItems) === 0) return false;
-
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             $grnNumber = trim((string)($data['grn_number'] ?? ''));
             if ($grnNumber === '') {
-                $grnNumber = $this->nextDocNumber('GRN');
+                $grnNumber = $this->nextDocNumber('GRN', $locId);
             }
 
             // If linked to a PO, lock and validate it up-front so we can reliably close it in this same transaction.
@@ -313,17 +286,17 @@ class GoodsReceiveNote extends Model {
                 $this->db->bind(':id', $poId);
                 $poRow = $this->db->single();
                 if (!$poRow) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return false;
                 }
                 $poStatus = (string)($poRow->status ?? '');
                 if (in_array($poStatus, ['Received', 'Cancelled'], true)) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return false;
                 }
                 $poSupplierId = (int)($poRow->supplier_id ?? 0);
                 if ($poSupplierId > 0 && $supplierId > 0 && $poSupplierId !== $supplierId) {
-                    $this->db->exec("ROLLBACK");
+                    $this->db->rollBack();
                     return false;
                 }
                 $poLocId = (int)($poRow->location_id ?? 0);
@@ -362,7 +335,7 @@ class GoodsReceiveNote extends Model {
             $this->db->bind(':updated_by', $userId);
             $ok = $this->db->execute();
             if (!$ok) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
             $grnId = (int)$this->db->lastInsertId();
@@ -391,7 +364,7 @@ class GoodsReceiveNote extends Model {
 
                 // Increase stock and update avg cost price:
                 // avg_cost = (current_qty*current_cost + received_qty*unit_cost) / (current_qty + received_qty)
-                $this->db->query("SELECT stock_quantity, cost_price FROM parts WHERE id = :id FOR UPDATE");
+                $this->db->query("SELECT stock_quantity, cost_price, is_fifo, is_expiry FROM parts WHERE id = :id FOR UPDATE");
                 $this->db->bind(':id', $partId);
                 $p = $this->db->single();
                 if (!$p) {
@@ -520,8 +493,7 @@ class GoodsReceiveNote extends Model {
                     $this->db->execute();
                 }
             }
-
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             
             // Automated Accounting
             try {
@@ -532,7 +504,8 @@ class GoodsReceiveNote extends Model {
 
             return $grnId;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("GoodsReceiveNote::create error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }

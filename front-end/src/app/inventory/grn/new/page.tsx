@@ -25,6 +25,7 @@ import {
   type ServiceLocationRow,
   type SupplierRow,
   type TaxRow,
+  formatPartLabel
 } from "@/lib/api";
 import { ArrowLeft, ClipboardCheck, Loader2, PackageCheck, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { calculateTaxes } from "@/lib/tax-calc";
@@ -43,7 +44,7 @@ export default function NewGrnPage() {
   const autoLoadedPoIdRef = useRef<number | null>(null);
   const [poLocationId, setPoLocationId] = useState<number | null>(null);
   const [poLocationName, setPoLocationName] = useState<string>("");
-  const [locationOptions, setLocationOptions] = useState<Array<{ id: number; name: string }>>([]);
+  const [locationOptions, setLocationOptions] = useState<ServiceLocationRow[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
@@ -53,6 +54,7 @@ export default function NewGrnPage() {
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [parts, setParts] = useState<PartRow[]>([]);
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrderRow[]>([]);
+  const [originalSupplierTaxes, setOriginalSupplierTaxes] = useState<TaxRow[]>([]);
   const [supplierTaxes, setSupplierTaxes] = useState<TaxRow[]>([]);
 
   const [form, setForm] = useState({
@@ -91,11 +93,25 @@ export default function NewGrnPage() {
   );
   const partOptions = useMemo(
     () =>
-      parts.map((p) => ({
-        value: String(p.id),
-        label: p.sku ? `${p.part_name} (${p.sku})` : p.part_name,
-        keywords: `${p.sku ?? ""} ${p.part_number ?? ""} ${p.barcode_number ?? ""}`,
-      })),
+      parts.map((p) => {
+        const title = formatPartLabel(p);
+        const brand = p.brand_name || p.brand || "";
+        const price = p.price || p.cost_price || 0;
+        return {
+          value: String(p.id),
+          displayLabel: title,
+          label: (
+            <div className="flex flex-col w-full text-left">
+              <div className="flex justify-between items-start w-full gap-2">
+                <div className="font-semibold text-sm truncate">{title}</div>
+                <div className="font-bold text-sm tabular-nums shrink-0">LKR {Number(price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+              </div>
+              {brand && <div className="text-xs text-muted-foreground mt-0.5 font-normal">{brand}</div>}
+            </div>
+          ),
+          keywords: `${title} ${brand} ${p.sku ?? ""} ${p.part_number ?? ""} ${p.barcode_number ?? ""}`,
+        };
+      }),
     [parts]
   );
 
@@ -146,19 +162,13 @@ export default function NewGrnPage() {
         const role = String(tokenJson?.role ?? "");
 
         // Locations for this page selector.
-        let locs: Array<{ id: number; name: string }> = [];
+        let locs: ServiceLocationRow[] = [];
         if (role === "Admin") {
           const rows = await fetchLocations();
-          locs = Array.isArray(rows)
-            ? (rows as ServiceLocationRow[])
-                .map((l) => ({ id: Number(l.id), name: String(l.name ?? "") }))
-                .filter((l) => l.id > 0 && l.name)
-            : [];
+          locs = Array.isArray(rows) ? (rows as ServiceLocationRow[]) : [];
         } else {
           const allowed = Array.isArray(tokenJson?.allowed_locations) ? tokenJson.allowed_locations : [];
-          locs = allowed
-            .map((x: any) => ({ id: Number(x?.id), name: String(x?.name ?? "") }))
-            .filter((l: any) => l.id > 0 && l.name);
+          locs = allowed;
         }
         setLocationOptions(locs);
 
@@ -191,18 +201,22 @@ export default function NewGrnPage() {
   useEffect(() => {
     const sid = Number(form.supplier_id || 0);
     if (!sid || !Number.isFinite(sid)) {
-      setSupplierTaxes([]);
+      setOriginalSupplierTaxes([]);
       return;
     }
     void (async () => {
       try {
         const sup = await fetchSupplier(String(sid));
-        setSupplierTaxes(Array.isArray((sup as any)?.taxes) ? ((sup as any).taxes as TaxRow[]) : []);
+        setOriginalSupplierTaxes(Array.isArray((sup as any)?.taxes) ? ((sup as any).taxes as TaxRow[]) : []);
       } catch {
-        setSupplierTaxes([]);
+        setOriginalSupplierTaxes([]);
       }
     })();
   }, [form.supplier_id]);
+
+  useEffect(() => {
+    setSupplierTaxes(originalSupplierTaxes);
+  }, [originalSupplierTaxes]);
 
   useEffect(() => {
     // Ensure selectedLocationId always points to a valid option (non-PO GRNs must be able to choose locations).
@@ -655,7 +669,7 @@ export default function NewGrnPage() {
                         <TableCell className="p-2 align-middle">
                           {(() => {
                             const p = partsById.get(it.part_id);
-                            const showBatch = !!(p as any)?.is_fifo || !!(p as any)?.is_expiry;
+                            const showBatch = Number((p as any)?.is_fifo) === 1 || Number((p as any)?.is_expiry) === 1;
                             if (!showBatch) return <div className="text-[9px] text-muted-foreground/50 italic px-2 py-1">N/A</div>;
                             
                             const generateBatch = () => {
@@ -700,7 +714,7 @@ export default function NewGrnPage() {
                         <TableCell className="p-2 align-middle">
                           {(() => {
                             const p = partsById.get(it.part_id);
-                            const showExpiry = !!(p as any)?.is_expiry;
+                            const showExpiry = Number((p as any)?.is_expiry) === 1;
                             if (!showExpiry) return <div className="text-[9px] text-muted-foreground/50 italic px-2 py-1">N/A</div>;
                             return (
                               <div className="space-y-1.5 py-0.5">

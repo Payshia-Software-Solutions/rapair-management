@@ -5,12 +5,12 @@
 class Part extends Model {
     private $table = 'parts';
 
-    private function ensureSchema() {
+    private function ensureSchema() { return;
         InventorySchema::ensure();
     }
 
     public function getLocationStock($partId, $locationId) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $pid = (int)$partId;
         $loc = (int)$locationId;
         if ($pid <= 0 || $loc <= 0) return null;
@@ -60,7 +60,7 @@ class Part extends Model {
     }
 
     public function list($q = '', $supplierId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $q = is_string($q) ? trim($q) : '';
         $sid = $supplierId !== null ? (int)$supplierId : 0;
 
@@ -113,7 +113,7 @@ class Part extends Model {
     }
 
     public function listLocationBalances($locationId, $q = '') {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $locId = (int)$locationId;
         if ($locId <= 0) $locId = 1;
         $q = is_string($q) ? trim($q) : '';
@@ -123,6 +123,7 @@ class Part extends Model {
                    p.id AS part_id,
                    p.part_name,
                    p.sku,
+                   p.barcode_number,
                    p.unit,
                    p.brand_id,
                    b.name AS brand_name,
@@ -144,6 +145,7 @@ class Part extends Model {
                    p.is_fifo,
                    p.is_expiry,
                    p.recipe_type,
+                   p.kiosk_module,
                    p.discount_type,
                    p.discount_value,
                    (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS system_stock_quantity,
@@ -159,9 +161,11 @@ class Part extends Model {
             LEFT JOIN stock_movements sm ON sm.part_id = p.id AND sm.location_id = :loc
         ";
 
+        $filterCondition = " AND (p.allowed_locations IS NULL OR p.allowed_locations = '' OR FIND_IN_SET(:loc, p.allowed_locations) > 0) ";
+
         if ($q !== '') {
             $this->db->query($sqlBase . "
-                WHERE (p.part_name LIKE :q OR p.sku LIKE :q OR p.part_number LIKE :q OR p.barcode_number LIKE :q)
+                WHERE (p.part_name LIKE :q OR p.sku LIKE :q OR p.part_number LIKE :q OR p.barcode_number LIKE :q) " . $filterCondition . "
                 GROUP BY p.id
                 ORDER BY p.part_name ASC
             ");
@@ -169,6 +173,7 @@ class Part extends Model {
             $this->db->bind(':q', '%' . $q . '%');
         } else {
             $this->db->query($sqlBase . "
+                WHERE 1=1 " . $filterCondition . "
                 GROUP BY p.id
                 ORDER BY p.part_name ASC
             ");
@@ -194,7 +199,7 @@ class Part extends Model {
     }
 
     public function getById($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("
             SELECT p.*, b.name AS brand_name,
                    s.name AS section_name,
@@ -252,7 +257,7 @@ class Part extends Model {
     }
 
     public function setSuppliers($partId, $supplierIds, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $pid = (int)$partId;
         if ($pid <= 0) return false;
         $ids = is_array($supplierIds) ? $supplierIds : [];
@@ -264,7 +269,7 @@ class Part extends Model {
         $uniqueIds = array_keys($norm);
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
             $this->db->query("DELETE FROM part_suppliers WHERE part_id = :pid");
             $this->db->bind(':pid', $pid);
             $this->db->execute();
@@ -280,16 +285,17 @@ class Part extends Model {
                 $this->db->execute();
             }
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in Part::setSuppliers: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
     public function create($data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         
         $finalSlug = $data['slug'] ?? null;
         if (!$finalSlug) {
@@ -298,9 +304,9 @@ class Part extends Model {
 
         $this->db->query("
             INSERT INTO {$this->table}
-            (sku, part_number, barcode_number, part_name, slug, unit, brand_id, item_section_id, item_department_id, item_category_id, stock_quantity, cost_price, price, discount_type, discount_value, wholesale_price, min_selling_price, price_2, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, default_location_id, allowed_locations, created_by, updated_by, net_weight_kg, gross_weight_kg, units_per_carton, packing_type, hs_code, carton_length_cm, carton_width_cm, carton_height_cm, volume_cbm, carton_tare_weight_kg, is_online, out_of_stock, public_description)
+            (sku, part_number, barcode_number, part_name, slug, unit, brand_id, item_section_id, item_department_id, item_category_id, stock_quantity, cost_price, price, discount_type, discount_value, wholesale_price, min_selling_price, price_2, reorder_level, is_active, is_fifo, is_expiry, image_filename, item_type, recipe_type, default_location_id, allowed_locations, created_by, updated_by, net_weight_kg, gross_weight_kg, units_per_carton, packing_type, hs_code, carton_length_cm, carton_width_cm, carton_height_cm, volume_cbm, carton_tare_weight_kg, is_online, out_of_stock, public_description, kiosk_module)
             VALUES
-            (:sku, :part_number, :barcode_number, :part_name, :slug, :unit, :brand_id, :item_section_id, :item_department_id, :item_category_id, :stock_quantity, :cost_price, :price, :discount_type, :discount_value, :wholesale_price, :min_selling_price, :price_2, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :default_location_id, :allowed_locations, :created_by, :updated_by, :net_weight_kg, :gross_weight_kg, :units_per_carton, :packing_type, :hs_code, :carton_length_cm, :carton_width_cm, :carton_height_cm, :volume_cbm, :carton_tare_weight_kg, :is_online, :out_of_stock, :public_description)
+            (:sku, :part_number, :barcode_number, :part_name, :slug, :unit, :brand_id, :item_section_id, :item_department_id, :item_category_id, :stock_quantity, :cost_price, :price, :discount_type, :discount_value, :wholesale_price, :min_selling_price, :price_2, :reorder_level, :is_active, :is_fifo, :is_expiry, :image_filename, :item_type, :recipe_type, :default_location_id, :allowed_locations, :created_by, :updated_by, :net_weight_kg, :gross_weight_kg, :units_per_carton, :packing_type, :hs_code, :carton_length_cm, :carton_width_cm, :carton_height_cm, :volume_cbm, :carton_tare_weight_kg, :is_online, :out_of_stock, :public_description, :kiosk_module)
         ");
         $this->db->bind(':sku', $data['sku'] ?? null);
         $this->db->bind(':part_number', $data['part_number'] ?? null);
@@ -344,6 +350,7 @@ class Part extends Model {
         $this->db->bind(':is_online', isset($data['is_online']) ? (int)(bool)$data['is_online'] : 1);
         $this->db->bind(':out_of_stock', isset($data['out_of_stock']) ? (int)(bool)$data['out_of_stock'] : 0);
         $this->db->bind(':public_description', $data['public_description'] ?? null);
+        $this->db->bind(':kiosk_module', $data['kiosk_module'] ?? 'None');
         $ok = $this->db->execute();
         if (!$ok) return false;
         $partId = (int)$this->db->lastInsertId();
@@ -365,7 +372,7 @@ class Part extends Model {
     }
 
     public function update($id, $data, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         
         $finalSlug = $data['slug'] ?? null;
         if (!$finalSlug) {
@@ -413,6 +420,7 @@ class Part extends Model {
                 is_online = :is_online,
                 out_of_stock = :out_of_stock,
                 public_description = :public_description,
+                kiosk_module = :kiosk_module,
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -455,6 +463,7 @@ class Part extends Model {
         $this->db->bind(':is_online', isset($data['is_online']) ? (int)(bool)$data['is_online'] : 1);
         $this->db->bind(':out_of_stock', isset($data['out_of_stock']) ? (int)(bool)$data['out_of_stock'] : 0);
         $this->db->bind(':public_description', $data['public_description'] ?? null);
+        $this->db->bind(':kiosk_module', $data['kiosk_module'] ?? 'None');
         $this->db->bind(':updated_by', $userId);
         $this->db->bind(':id', (int)$id);
         $ok = $this->db->execute();
@@ -480,7 +489,7 @@ class Part extends Model {
     }
 
     public function setImage($id, $filename, $userId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("UPDATE {$this->table} SET image_filename = :fn, updated_by = :u WHERE id = :id");
         $this->db->bind(':fn', $filename);
         $this->db->bind(':u', $userId);
@@ -489,28 +498,28 @@ class Part extends Model {
     }
 
     public function delete($id) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("DELETE FROM {$this->table} WHERE id = :id");
         $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
 
     public function adjustStock($partId, $qtyChange, $notes = null, $userId = null, $locationId = 1, $movementType = 'ADJUSTMENT', $batchId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $pid = (int)$partId;
         $delta = (float)$qtyChange;
         $loc = (int)$locationId;
         if ($pid <= 0 || $delta === 0.0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // lock row
             $this->db->query("SELECT stock_quantity, is_fifo FROM {$this->table} WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $row = $this->db->single();
             if (!$row) {
-                $this->db->exec("ROLLBACK");
+                $this->db->rollBack();
                 return false;
             }
 
@@ -543,10 +552,11 @@ class Part extends Model {
             $this->db->bind(':created_by', $userId);
             $this->db->execute();
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in Part::adjustStock: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
@@ -555,14 +565,14 @@ class Part extends Model {
      * Deduct Stock using FIFO logic across batches
      */
     public function deductStockFIFO($partId, $qtyToDeduct, $notes = null, $userId = null, $locationId = 1, $movementType = 'SALE', $refTable = null, $refId = null) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $pid = (int)$partId;
         $totalNeeded = abs((float)$qtyToDeduct);
         $loc = (int)$locationId;
         if ($pid <= 0 || $totalNeeded <= 0) return false;
 
         try {
-            $this->db->exec("START TRANSACTION");
+            $this->db->beginTransaction();
 
             // 1. Get batches ordered by FIFO (oldest first)
             $this->db->query("
@@ -636,21 +646,23 @@ class Part extends Model {
             $this->db->bind(':id', $pid);
             $this->db->execute();
 
-            $this->db->exec("COMMIT");
+            $this->db->commit();
             return true;
         } catch (Exception $e) {
-            try { $this->db->exec("ROLLBACK"); } catch (Exception $e2) {}
-            error_log("FIFO Deduction Error: " . $e->getMessage());
+            error_log("FIFO Deduction Error: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $this->db->rollBack(); } catch (Exception $e2) {}
             return false;
         }
     }
 
-    public function listMovements($partId, $limit = 200, $locationId = 0, $from = null, $to = null) {
-        $this->ensureSchema();
+    public function listMovements($partId, $limit = 200, $locationId = 0, $from = null, $to = null, $offset = 0) {
+        // // // // // // $this->ensureSchema();
         $pid = (int)$partId;
         $lim = (int)$limit;
         if ($lim <= 0) $lim = 200;
         if ($lim > 1000) $lim = 1000;
+        $off = (int)$offset;
+        if ($off < 0) $off = 0;
         $locId = (int)$locationId;
         if ($locId < 0) $locId = 0;
         $fromDt = is_string($from) && trim($from) !== '' ? trim($from) : null;
@@ -659,6 +671,14 @@ class Part extends Model {
         $where = "WHERE sm.part_id = :pid AND (:loc = 0 OR sm.location_id = :loc)";
         if ($fromDt) $where .= " AND sm.created_at >= :from_dt";
         if ($toDt) $where .= " AND sm.created_at <= :to_dt";
+
+        $this->db->query("SELECT COUNT(*) as total FROM stock_movements sm " . $where);
+        $this->db->bind(':pid', $pid);
+        $this->db->bind(':loc', $locId);
+        if ($fromDt) $this->db->bind(':from_dt', $fromDt);
+        if ($toDt) $this->db->bind(':to_dt', $toDt);
+        $totalRow = $this->db->single();
+        $totalCount = $totalRow ? (int)$totalRow->total : 0;
 
         $this->db->query("
             SELECT sm.*,
@@ -722,17 +742,18 @@ class Part extends Model {
             LEFT JOIN invoices inv ON sm.ref_table = 'invoices' AND inv.id = sm.ref_id
             {$where}
             ORDER BY sm.id DESC
-            LIMIT {$lim}
+            LIMIT {$lim} OFFSET {$off}
         ");
         $this->db->bind(':pid', $pid);
         $this->db->bind(':loc', $locId);
         if ($fromDt) $this->db->bind(':from_dt', $fromDt);
         if ($toDt) $this->db->bind(':to_dt', $toDt);
-        return $this->db->resultSet();
+        $rows = $this->db->resultSet();
+        return ['data' => $rows, 'total' => $totalCount];
     }
 
     public function bulkUpdateDiscount($ids, $type, $value) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         if (empty($ids)) return false;
         
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
@@ -768,7 +789,7 @@ class Part extends Model {
     }
 
     public function getBySlug($slug) {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("SELECT id FROM parts WHERE slug = :slug LIMIT 1");
         $this->db->bind(':slug', $slug);
         $row = $this->db->single();
@@ -777,7 +798,7 @@ class Part extends Model {
     }
 
     public function syncSlugs() {
-        $this->ensureSchema();
+        // // // // // // $this->ensureSchema();
         $this->db->query("SELECT id, part_name FROM parts WHERE slug IS NULL OR slug = ''");
         $items = $this->db->resultSet();
         $count = 0;

@@ -88,6 +88,48 @@ class PublicitemController extends Controller {
         // Fetch items for this location
         $items = $this->itemModel->listLocationBalances($locationId);
         
+        // Fetch taxes and tax_inclusive setting
+        require_once '../app/models/Tax.php';
+        require_once '../app/models/ServiceLocation.php';
+        require_once '../app/models/StorefrontSetting.php';
+        
+        $taxModel = new Tax();
+        $locModel = new ServiceLocation();
+        $settingModel = new StorefrontSetting();
+        
+        $location = $locModel->getById($locationId);
+        $taxIds = !empty($location->allowed_taxes_json) ? json_decode($location->allowed_taxes_json, true) : [];
+        $taxes = $taxModel->getByIds($taxIds);
+        $allSettings = $settingModel->getAll($locationId);
+        $taxInclusive = ($allSettings['ecom_tax_inclusive'] ?? '0') === '1';
+        
+        $taxMultiplier = 0; // Cumulative multiplier. 1.0 means 0% tax.
+        $currentMultiplier = 1.0;
+        foreach ($taxes as $tax) {
+            $rate = (float)$tax->rate_percent / 100;
+            if (($tax->apply_on ?? 'base') === 'base_plus_previous') {
+                $currentMultiplier *= (1 + $rate);
+            } else {
+                $taxMultiplier += $rate;
+            }
+        }
+        $finalMultiplier = ($currentMultiplier - 1.0) + $taxMultiplier;
+        // Total price = Base * (1 + finalMultiplier) if only additive.
+        // Wait, the correct way to combine additive and compound:
+        // Price = (Base * (1 + SumOfAdditive)) * (ProductOfCompound)
+        
+        $additiveRate = 0;
+        $compoundMultiplier = 1.0;
+        foreach ($taxes as $tax) {
+            $rate = (float)$tax->rate_percent / 100;
+            if (($tax->apply_on ?? 'base') === 'base_plus_previous') {
+                $compoundMultiplier *= (1 + $rate);
+            } else {
+                $additiveRate += $rate;
+            }
+        }
+        $totalMultiplier = ((1 + $additiveRate) * $compoundMultiplier) - 1;
+
         require_once '../app/models/PartAttribute.php';
         $attrModel = new PartAttribute();
 
@@ -97,8 +139,11 @@ class PublicitemController extends Controller {
 
         $sanitized = [];
         foreach ($items as $item) {
-            // Only online enabled items
-            if ((int)($item->is_online ?? 0) !== 1) continue;
+            // Only online enabled items OR kiosk enabled items
+            $isOnline = (int)($item->is_online ?? 0) === 1;
+            $isKiosk = ($item->kiosk_module ?? 'None') !== 'None';
+            if (!$isOnline && !$isKiosk) continue;
+            
             if ((int)$item->is_active !== 1) continue;
 
             // Optional collection filtering
@@ -117,21 +162,28 @@ class PublicitemController extends Controller {
                 ];
             }, $item->gallery ?: []);
 
+            $displayPrice = (float)$item->price;
+            if ($taxInclusive) {
+                $displayPrice = $displayPrice * (1 + $totalMultiplier);
+            }
+
             $sanitized[] = [
                 'id' => (int)$item->id,
                 'name' => (string)$item->part_name,
                 'slug' => (string)($item->slug ?? ''),
                 'sku' => (string)$item->sku,
-                'price' => (float)$item->price,
+                'price' => $displayPrice,
                 'discount_type' => (string)($item->discount_type ?? 'None'),
                 'discount_value' => (float)($item->discount_value ?? 0),
                 'brand' => (string)($item->brand_name ?? 'Generic'),
+                'description' => (string)($item->public_description ?? ''),
                 'item_type' => (string)$item->item_type,
                 'is_in_stock' => (float)$item->stock_quantity > 0,
                 'stock_qty' => (float)$item->stock_quantity,
                 'image_url' => !empty($item->image_filename) ? $imageBaseUrl . $item->image_filename : null,
                 'gallery' => $sanitizedGallery,
                 'category_ids' => $item->collection_ids ?? [],
+                'kiosk_module' => (string)($item->kiosk_module ?? 'None'),
                 'attributes' => $attrModel->getPartAttributesGrouped($item->id)
             ];
         }
@@ -159,7 +211,11 @@ class PublicitemController extends Controller {
         } else {
             $item = $this->itemModel->getBySlug($id);
         }
-        if (!$item || (int)$item->is_active === 0 || (isset($item->is_online) && (int)$item->is_online !== 1)) {
+        
+        $isOnline = (int)($item->is_online ?? 0) === 1;
+        $isKiosk = ($item->kiosk_module ?? 'None') !== 'None';
+        
+        if (!$item || (int)$item->is_active === 0 || (!$isOnline && !$isKiosk)) {
             $this->error('Product not found', 404);
         }
 
@@ -175,6 +231,41 @@ class PublicitemController extends Controller {
 
         require_once '../app/models/PartAttribute.php';
         $attrModel = new PartAttribute();
+        
+        require_once '../app/models/KioskContent.php';
+        $kioskContentModel = new KioskContent();
+        $kioskContent = $kioskContentModel->getByPartId($item->id);
+
+        require_once '../app/models/Tax.php';
+        require_once '../app/models/ServiceLocation.php';
+        require_once '../app/models/StorefrontSetting.php';
+        
+        $taxModel = new Tax();
+        $locModel = new ServiceLocation();
+        $settingModel = new StorefrontSetting();
+        
+        $location = $locModel->getById($locationId);
+        $taxIds = !empty($location->allowed_taxes_json) ? json_decode($location->allowed_taxes_json, true) : [];
+        $taxes = $taxModel->getByIds($taxIds);
+        $allSettings = $settingModel->getAll($locationId);
+        $taxInclusive = ($allSettings['ecom_tax_inclusive'] ?? '0') === '1';
+        
+        $additiveRate = 0;
+        $compoundMultiplier = 1.0;
+        foreach ($taxes as $tax) {
+            $rate = (float)$tax->rate_percent / 100;
+            if (($tax->apply_on ?? 'base') === 'base_plus_previous') {
+                $compoundMultiplier *= (1 + $rate);
+            } else {
+                $additiveRate += $rate;
+            }
+        }
+        $totalMultiplier = ((1 + $additiveRate) * $compoundMultiplier) - 1;
+
+        $displayPrice = (float)$item->price;
+        if ($taxInclusive) {
+            $displayPrice = $displayPrice * (1 + $totalMultiplier);
+        }
 
         $sanitized = [
             'id' => (int)$item->id,
@@ -183,10 +274,11 @@ class PublicitemController extends Controller {
             'sku' => (string)$item->sku,
             'part_number' => (string)$item->part_number,
             'description' => (string)$item->public_description, 
-            'price' => (float)$item->price,
+            'price' => $displayPrice,
             'discount_type' => (string)($item->discount_type ?? 'None'),
             'discount_value' => (float)($item->discount_value ?? 0),
             'brand' => (string)($item->brand_name ?? 'Generic'),
+            'description' => (string)($item->public_description ?? ''),
             'item_type' => (string)$item->item_type,
             'unit' => (string)$item->unit,
             'is_in_stock' => (float)$item->stock_quantity > 0,
@@ -202,6 +294,9 @@ class PublicitemController extends Controller {
             'collections' => array_map(function($c) {
                 return ['id' => $c->id, 'name' => $c->name];
             }, $item->collections ?: []),
+            'kiosk_module' => (string)($item->kiosk_module ?? 'None'),
+            'kiosk_content_html' => $kioskContent ? (string)$kioskContent->content_html : null,
+            'kiosk_video_url' => $kioskContent ? (string)$kioskContent->video_url : null,
             'attributes' => $attrModel->getPartAttributesGrouped($item->id)
         ];
 

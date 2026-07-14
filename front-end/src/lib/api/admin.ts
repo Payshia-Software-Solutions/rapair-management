@@ -144,6 +144,7 @@ export interface ServiceLocation {
   allow_online?: number;
   google_analytics_code?: string | null;
   facebook_pixel_code?: string | null;
+  default_customer_id?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -261,7 +262,7 @@ export const updateSystemSettings = async (settings: Record<string, string>): Pr
     throw new Error(err.message || 'Failed to update system settings');
   }
 };
-export const fetchStorefrontSettings = async (locationId: string | number) => {
+export const fetchStorefrontSettings = async (locationId: string | number = 1) => {
   const res = await api(`/api/storefront-settings/index?location_id=${locationId}`);
   if (!res.ok) throw new Error('Failed to load storefront settings');
   const data = await res.json();
@@ -303,3 +304,52 @@ export const uploadStorefrontIcon = async (formData: FormData) => {
   if (!res.ok) throw new Error('Failed to upload icon');
   return res.json();
 };
+
+export interface TableCheckRow {
+  name: string;
+  available: boolean;
+  message: string;
+}
+
+export const checkDatabaseTables = async (): Promise<{ status: string; message: string; checks: TableCheckRow[]; missingTables: string[] }> => {
+  const res = await api('/api/check/check');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to check database tables');
+  }
+  return res.json();
+};
+
+export const runDatabaseMigrations = async (): Promise<any> => {
+  const res = await api('/api/check/migrate', { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to execute database migrations');
+  }
+  return res.json();
+};
+
+export interface MigrationLog {
+  id: number;
+  user_id: number | null;
+  user_name: string | null;
+  action: string;
+  entity: string;
+  method: string;
+  path: string;
+  ip: string | null;
+  user_agent: string | null;
+  details: string | null;
+  created_at: string;
+}
+
+export const fetchMigrationLogs = async (): Promise<MigrationLog[]> => {
+  const res = await api('/api/check/logs');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || 'Failed to fetch migration logs');
+  }
+  const data = await res.json();
+  return data.data || [];
+};
+

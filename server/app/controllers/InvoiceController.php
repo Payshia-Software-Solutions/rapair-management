@@ -18,9 +18,14 @@ class InvoiceController extends Controller {
             return;
         }
 
+        $startDate = $_GET['start_date'] ?? $_GET['date'] ?? null;
+        $endDate = $_GET['end_date'] ?? $_GET['date'] ?? null;
+
         $filters = [
             'status' => $_GET['status'] ?? null,
-            'customer_id' => $_GET['customer_id'] ?? null
+            'customer_id' => $_GET['customer_id'] ?? null,
+            'start_date' => $startDate,
+            'end_date' => $endDate
         ];
 
         $invoices = $this->invoiceModel->getAll($filters);
@@ -45,6 +50,16 @@ class InvoiceController extends Controller {
         $invoice['payments'] = $this->invoiceModel->getPayments($id);
         $invoice['applied_taxes'] = $this->invoiceModel->getAppliedTaxes($id);
         $invoice['batch_movements'] = $this->invoiceModel->getBatchMovements($id);
+
+        if (!empty($invoice['created_by'])) {
+            $db = new Database();
+            $db->query("SELECT name FROM users WHERE id = :id");
+            $db->bind(':id', $invoice['created_by']);
+            $userRow = $db->single();
+            if ($userRow && isset($userRow->name)) {
+                $invoice['created_by_name'] = $userRow->name;
+            }
+        }
 
         $this->success($invoice);
     }
@@ -94,13 +109,21 @@ class InvoiceController extends Controller {
             }
             
             if (!$found) {
-                $this->error('The applied promotion is no longer valid for this cart. Please refresh and try again.', 400);
+                $reason = $promoModel->getPromotionRejectionReason(
+                    $data['applied_promotion_id'],
+                    $itemsObj,
+                    $subtotal,
+                    $data['bank_id'] ?? null,
+                    $data['card_category'] ?? null,
+                    $data['location_id'] ?? null
+                );
+                $this->error('The applied promotion is no longer valid for this cart: ' . $reason . ' Please refresh and try again.', 400);
                 return;
             }
         }
 
         // Generate Invoice Number
-        $invoiceNo = $this->generateInvoiceNo();
+        $invoiceNo = $this->generateInvoiceNo($data['location_id'] ?? $this->currentLocationId($u));
         $data['invoice_no'] = $invoiceNo;
         $data['userId'] = $u['sub'];
 
@@ -129,6 +152,9 @@ class InvoiceController extends Controller {
         
         require_once '../app/models/Tax.php';
         new Tax();
+
+        require_once '../app/models/OnlineOrder.php';
+        $onlineOrderModel = new OnlineOrder();
 
         $db = new Database();
         $db->beginTransaction();
@@ -191,8 +217,6 @@ class InvoiceController extends Controller {
             ]);
             // Optional: Mark online order as completed and link invoice
             if (!empty($data['online_order_id'])) {
-                require_once '../app/models/OnlineOrder.php';
-                $onlineOrderModel = new OnlineOrder();
                 $onlineOrderModel->setInvoiceId($data['online_order_id'], $invoiceId);
                 
                 // Also update status to Completed
@@ -209,7 +233,18 @@ class InvoiceController extends Controller {
             }
 
             $db->commit();
-            $this->success(['id' => $invoiceId, 'message' => 'Invoice created successfully']);
+            
+            $db->query("SELECT name FROM users WHERE id = :id");
+            $db->bind(':id', $u['sub']);
+            $userRow = $db->single();
+            $createdBy = $userRow && isset($userRow->name) ? $userRow->name : 'System';
+
+            $this->success([
+                'id' => $invoiceId, 
+                'invoice_no' => $invoiceNo, 
+                'created_by' => $createdBy,
+                'message' => 'Invoice created successfully'
+            ]);
         } catch (Exception $e) {
             try {
                 $db->rollBack();
@@ -290,6 +325,106 @@ class InvoiceController extends Controller {
         }
     }
 
+    public function addBulkPayment() {
+        $u = $this->requirePermission('invoices.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+            return;
+        }
+
+        $raw = file_get_contents('php://input');
+        $data = json_decode($raw, true);
+        $data['userId'] = $u['sub'];
+
+        if (empty($data['payments']) || !is_array($data['payments'])) {
+            $this->error('Payments array required', 400);
+            return;
+        }
+
+        require_once '../app/models/PaymentReceipt.php';
+        $receiptModel = new PaymentReceipt();
+
+        $db = new Database();
+        try {
+            $db->beginTransaction();
+
+            $receiptIds = [];
+
+            foreach ($data['payments'] as $pay) {
+                $invoiceId = $pay['invoice_id'];
+                $amount = floatval($pay['amount']);
+                if ($amount <= 0) {
+                    continue;
+                }
+
+                $invoice = $this->invoiceModel->getById($invoiceId);
+                if (!$invoice) {
+                    throw new Exception("Invoice ID $invoiceId not found.");
+                }
+
+                $receiptData = [
+                    'invoice_id' => $invoiceId,
+                    'invoice_no' => $invoice->invoice_no,
+                    'customer_id' => $invoice->customer_id,
+                    'customer_name' => $invoice->customer_name,
+                    'location_id' => $this->currentLocationId($u),
+                    'amount' => $amount,
+                    'payment_method' => $data['payment_method'] ?? 'Cash',
+                    'payment_date' => $data['payment_date'],
+                    'reference_no' => $data['reference_no'] ?? $data['cheque_no'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                    'card_type' => $data['card_type'] ?? null,
+                    'card_last4' => $data['card_last4'] ?? null,
+                    'card_auth_code' => $data['card_auth_code'] ?? null,
+                    'bank_id' => $data['bank_id'] ?? null,
+                    'card_category' => $data['card_category'] ?? null,
+                    'cheque' => $data['cheque'] ?? null,
+                    'created_by' => $u['sub']
+                ];
+
+                $receiptNo = $receiptModel->create($receiptData);
+                if (!$receiptNo) {
+                    throw new Exception("Failed to record payment receipt for invoice $invoiceId");
+                }
+
+                $receiptIds[] = $receiptNo;
+
+                $this->auditModel->write([
+                    'user_id' => (int)$u['sub'],
+                    'action' => 'payment',
+                    'entity' => 'invoice',
+                    'entity_id' => (int)$invoiceId,
+                    'method' => 'POST',
+                    'path' => $_SERVER['REQUEST_URI'] ?? '',
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                    'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                    'details' => json_encode([
+                        'amount' => $amount, 
+                        'method' => $data['payment_method'] ?? 'Cash', 
+                        'receipt_id' => $receiptNo,
+                        'is_bulk' => true
+                    ]),
+                ]);
+            }
+
+            $db->commit();
+
+            $this->json([
+                'status' => 'success',
+                'message' => 'Bulk payment processed successfully',
+                'receipt_ids' => $receiptIds
+            ]);
+
+        } catch (Exception $e) {
+            try {
+                $db->rollBack();
+            } catch (Exception $e2) {}
+            error_log("Bulk Checkout Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
+            $this->error($e->getMessage());
+        }
+    }
+
+
     public function cancel($id = null) {
         $u = $this->requirePermission('invoices.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -324,22 +459,9 @@ class InvoiceController extends Controller {
         }
     }
 
-    private function generateInvoiceNo() {
-        $db = new Database();
-        $db->query("SELECT prefix, next_number, padding FROM document_sequences WHERE doc_type = 'INV' FOR UPDATE");
-        $seq = $db->single();
-        
-        if (!$seq) {
-            return 'INV-' . time();
-        }
-
-        $invoiceNo = $seq->prefix . str_pad($seq->next_number, $seq->padding, '0', STR_PAD_LEFT);
-
-        // Update sequence
-        $db->query("UPDATE document_sequences SET next_number = next_number + 1 WHERE doc_type = 'INV'");
-        $db->execute();
-
-        return $invoiceNo;
+    private function generateInvoiceNo($locationId = 1) {
+        require_once '../app/helpers/DocumentSequenceHelper.php';
+        return DocumentSequenceHelper::getStandardDocNo('INV', $locationId);
     }
 
     public function convert_to_recurring($id = null) {

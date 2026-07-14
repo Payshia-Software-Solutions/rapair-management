@@ -1,5 +1,11 @@
 import { api, ApiSuccess, SystemCheckResponse } from './client';
 
+export const updateVehicleSchedule = async (id: number | string, payload: { next_service_mileage?: string | number, next_service_date?: string }) => {
+  const res = await api(`/api/vehicle/updateSchedule/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to update vehicle schedule');
+  return res.json();
+};
+
 // Vehicles, Makes, Models
 export const fetchMakes = async () => {
   const res = await api('/api/make/list');
@@ -16,12 +22,17 @@ export const fetchModels = async (makeId?: number) => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const fetchVehicles = async (filter: string = 'all') => {
-  const qs = filter !== 'all' ? `?filter=${filter}` : '';
-  const res = await api(`/api/vehicle/list${qs}`);
-  if (!res.ok) return [];
+export const fetchVehicles = async (page: number = 1, limit: number = 10, filter: string = 'all', search: string = '') => {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    filter,
+    search
+  });
+  const res = await api(`/api/vehicle/list?${params.toString()}`);
+  if (!res.ok) return { data: [], total: 0, page, limit, pages: 0 };
   const data = await res.json();
-  return data.status === 'success' ? data.data : [];
+  return data.status === 'success' ? data.data : { data: [], total: 0, page, limit, pages: 0 };
 };
 
 // Brands & Units
@@ -96,13 +107,21 @@ export const fetchEcommerceCustomers = async () => {
 };
 
 export const createCustomer = async (payload: any) => {
-  const res = await api('/api/customer/create', { method: 'POST', body: JSON.stringify(payload) });
+  const isFormData = payload instanceof FormData;
+  const res = await api('/api/customer/create', { 
+    method: 'POST', 
+    body: isFormData ? payload : JSON.stringify(payload) 
+  });
   if (!res.ok) throw new Error('Failed to create customer');
   return res.json();
 };
 
 export const updateCustomer = async (id: string | number, payload: any) => {
-  const res = await api(`/api/customer/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  const isFormData = payload instanceof FormData;
+  const res = await api(`/api/customer/update/${id}`, { 
+    method: 'POST', 
+    body: isFormData ? payload : JSON.stringify(payload) 
+  });
   if (!res.ok) throw new Error('Failed to update customer');
   return res.json();
 };
@@ -199,13 +218,13 @@ export const updateBayStatus = async (id: string | number, status: string) => {
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const createChecklistTemplate = async (payload: { description: string }) => {
+export const createChecklistTemplate = async (payload: { description: string; standard_mileage?: number; extended_description?: string }) => {
   const res = await api('/api/checklistrepo/create', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to create checklist item');
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
-export const updateChecklistTemplate = async (id: string | number, payload: { description: string }) => {
+export const updateChecklistTemplate = async (id: string | number, payload: { description: string; standard_mileage?: number; extended_description?: string }) => {
   const res = await api(`/api/checklistrepo/update/${id}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to update checklist item');
   return res.json() as Promise<ApiSuccess<null>>;
@@ -420,6 +439,58 @@ export const uploadVehicleImage = async (file: File) => {
   if (!res.ok) throw new Error('Upload failed');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
+};
+
+export const uploadVehicleDocument = async (file: File) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const res = await api('/api/upload/vehicle_document', { method: 'POST', body: formData });
+  if (!res.ok) throw new Error('Upload failed');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export const syncVehicles = async () => {
+  const res = await api('/api/vehicle-sync/sync', { method: 'POST' });
+  if (!res.ok) throw new Error('Sync failed');
+  return res.json() as Promise<ApiSuccess<{ success: number; failed: number }>>;
+};
+
+export const syncMorningMileage = async (vehicleIds?: number[]) => {
+  const payload = vehicleIds && vehicleIds.length > 0 ? JSON.stringify({ vehicle_ids: vehicleIds }) : undefined;
+  const res = await api('/api/vehicle-sync/morning_fetch', { 
+    method: 'POST',
+    body: payload
+  });
+  if (!res.ok) throw new Error('Morning mileage sync failed');
+  return res.json() as Promise<ApiSuccess<{ updated: number }>>;
+};
+
+// --- Vehicle Documents ---
+export const fetchVehicleDocuments = async (vehicleId: number | string) => {
+  const res = await api(`/api/vehicle-document/list/${vehicleId}`);
+  if (!res.ok) throw new Error('Failed to load documents');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
+};
+
+export const addVehicleDocument = async (payload: any) => {
+  const res = await api('/api/vehicle-document/create', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error('Failed to add document');
+  return res.json();
+};
+
+export const deleteVehicleDocument = async (id: number | string) => {
+  const res = await api(`/api/vehicle-document/delete/${id}`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to delete document');
+  return res.json();
+};
+
+export const fetchExpiringDocuments = async (days: number = 30) => {
+  const res = await api(`/api/vehicle-document/expiring?days=${days}`);
+  if (!res.ok) throw new Error('Failed to load expiring documents');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : [];
 };
 
 // --- Makes ---

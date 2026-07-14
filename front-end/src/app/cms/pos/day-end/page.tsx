@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { fetchPosDayLedger, fetchCompany, fetchLocations } from "@/lib/api";
+import { silentPrint, isPrinterServiceAvailable } from "@/lib/api/silent-print";
 import { Loader2 } from "lucide-react";
 
 function DayEndPrintContent() {
@@ -42,8 +43,54 @@ function DayEndPrintContent() {
   useEffect(() => {
     if (autoPrint && !loading && ledger && !printedRef.current) {
       printedRef.current = true;
-      const timer = setTimeout(() => {
+      
+      const trySilentPrint = async () => {
+        const isAvailable = await isPrinterServiceAvailable();
+        if (isAvailable) {
+          const receiptEl = document.querySelector('.receipt');
+          if (receiptEl) {
+            const html = `
+              <html>
+                <head>
+                  <style>
+                    body { font-family: 'Courier New', Courier, monospace; width: 80mm; margin: 0; padding: 0; color: #000; }
+                    .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 2px; font-size: 11px; }
+                    .center { text-align: center; }
+                    .right { text-align: right; }
+                    .bold { font-weight: bold; }
+                    .hr { border: none; border-top: 1px dashed #000; margin: 6px 0; }
+                    .hr-thick { border: none; border-top: 2px solid #000; margin: 8px 0; }
+                    .row { display: flex; justify-content: space-between; margin: 2px 0; }
+                    .summary-row { display: flex; justify-content: space-between; font-size: 12px; margin: 4px 0; }
+                    .net-intake { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 8px 0; border-top: 1px solid #000; padding-top: 6px; }
+                    .shop-name { font-size: 16px; font-weight: bold; margin-bottom: 2px; text-transform: uppercase; }
+                    .title { font-size: 14px; font-weight: bold; margin: 10px 0; letter-spacing: 2px; }
+                    .event-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 10px; }
+                    .event-table th { border-bottom: 1px solid #000; text-align: left; padding: 4px 0; }
+                    .event-table td { padding: 4px 0; vertical-align: top; }
+                  </style>
+                </head>
+                <body>
+                  <div class="receipt">
+                    ${receiptEl.innerHTML}
+                  </div>
+                </body>
+              </html>
+            `;
+            const success = await silentPrint(html);
+            if (success) {
+              window.close();
+              return;
+            }
+          }
+        }
+        
+        // Fallback
         window.print();
+      };
+
+      const timer = setTimeout(() => {
+        void trySilentPrint();
       }, 1000);
       return () => clearTimeout(timer);
     }
@@ -146,7 +193,7 @@ function ReceiptBody({ ledger, company, locationName, fmt, now }: any) {
   return (
     <>
       <div className="center">
-        <div className="shop-name">{company?.name || "ServiceBay"}</div>
+        <div className="shop-name">{company?.name || "BizzFlow"}</div>
         <div style={{ fontSize: '10px' }}>{locationName}</div>
         {company?.address && <div style={{ fontSize: '9px' }}>{company.address}</div>}
         <div className="hr-thick" />
@@ -224,7 +271,7 @@ function ReceiptBody({ ledger, company, locationName, fmt, now }: any) {
       <div className="hr" />
       <div className="center" style={{ marginTop: '15px', fontSize: '10px' }}>
         <div className="bold italic">--- END OF REPORT ---</div>
-        <div style={{ marginTop: '10px', fontSize: '8px' }}>Printed via ServiceBay POS Management</div>
+        <div style={{ marginTop: '10px', fontSize: '8px' }}>Printed via BizzFlow POS Management</div>
         <div style={{ marginTop: '4px', fontSize: '8px' }}>{now.toLocaleString()}</div>
       </div>
     </>

@@ -43,6 +43,7 @@ export const fetchOrders = async () => {
         ...r,
         id: String(r.id),
         vehicleId: r.vehicle_model ?? '',
+        vehicleNumber: r.vehicle_identifier || r.vehicle_vin || '',
         mileage: typeof r.mileage === 'number' ? r.mileage : (r.mileage ? Number(r.mileage) : 0),
         priority: r.priority || r.priority_level || 'Low',
         expectedTime,
@@ -76,6 +77,12 @@ export const createOrder = async (order: any) => {
   return res.json();
 };
 
+export const deleteOrder = async (id: string) => {
+  const res = await api(`/api/order/delete/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to delete order');
+  return res.json();
+};
+
 export const updateOrder = async (id: string, data: any) => {
   const res = await api(`/api/order/update_status/${id}`, { method: 'POST', body: JSON.stringify(data) });
   if (!res.ok) throw new Error('Failed to update order');
@@ -103,11 +110,35 @@ export const updateOrderRelease = async (id: string, releaseTime: string | null)
   return res.json();
 };
 
+export const rescheduleOrder = async (id: string | number, booking_date: string) => {
+  const res = await api(`/api/order/reschedule/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ booking_date }),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to reschedule order');
+  }
+  return res.json();
+};
+
 export const assignOrder = async (id: string, payload: { bay_name?: string; bay_id?: number; technician?: string; status?: string; release_time?: string | null }) => {
   const res = await api(`/api/order/assign/${encodeURIComponent(String(id))}`, { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) {
     const j = await res.json().catch(() => null);
     throw new Error(j?.message || 'Failed to assign order');
+  }
+  return res.json();
+};
+
+export const updateOrderDetails = async (id: string, payload: { categories?: string[]; checklist?: string[]; attachments?: string[] }) => {
+  const res = await api(`/api/order/update_details/${encodeURIComponent(String(id))}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => null);
+    throw new Error(j?.message || 'Failed to update order details');
   }
   return res.json();
 };

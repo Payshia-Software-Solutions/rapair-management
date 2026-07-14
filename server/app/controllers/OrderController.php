@@ -67,6 +67,9 @@ class OrderController extends Controller {
                 'comments' => $data['comments'] ?? null,
                 'location' => $data['location'] ?? null,
                 'technician' => $data['technician'] ?? null,
+                'from_location_id' => $data['from_location_id'] ?? null,
+                'job_type' => $data['job_type'] ?? $data['jobType'] ?? 'Repair',
+                'booking_date' => $data['booking_date'] ?? $data['bookingDate'] ?? null,
             ];
 
             // Store checklist/categories as JSON strings (TEXT columns).
@@ -87,8 +90,18 @@ class OrderController extends Controller {
             }
 
             $locId = $this->currentLocationId($u);
+            if (!empty($data['to_location_id'])) {
+                $locId = (int)$data['to_location_id'];
+            }
             $newId = $this->orderModel->addOrder($payload, (int)$u['sub'], $locId);
             if ($newId) {
+                if (!empty($payload['vehicle_id']) && !empty($payload['mileage'])) {
+                    $db = new Database();
+                    $db->query("UPDATE vehicles SET current_mileage = GREATEST(COALESCE(current_mileage, 0), :m) WHERE id = :vid");
+                    $db->bind(':m', (int)$payload['mileage']);
+                    $db->bind(':vid', (int)$payload['vehicle_id']);
+                    $db->execute();
+                }
                 $payload['id'] = (int)$newId;
                 $this->auditModel->write([
                     'user_id' => (int)$u['sub'],
@@ -146,7 +159,7 @@ class OrderController extends Controller {
                 if (in_array($newStatus, ['Completed', 'Cancelled'], true)) {
                     try {
                         $db = new Database();
-                        $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc LIMIT 1");
+                        $db->query("SELECT location FROM repair_orders WHERE id = :id AND (location_id = :loc OR from_location_id = :loc) LIMIT 1");
                         $db->bind(':id', (int)$id);
                         $db->bind(':loc', $locId);
                         $row = $db->single();
@@ -202,13 +215,92 @@ class OrderController extends Controller {
         if (!$order) $this->error('Order not found', 404);
 
         $db = new Database();
-        $db->query("UPDATE repair_orders SET release_time = :release_time, updated_by = :u WHERE id = :id AND location_id = :loc");
+        $db->query("UPDATE repair_orders SET release_time = :release_time, updated_by = :u WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)");
         $db->bind(':release_time', $release);
         $db->bind(':u', (int)$u['sub']);
         $db->bind(':id', (int)$id);
         $db->bind(':loc', $locId);
         if ($db->execute()) {
             $this->success(['id' => (int)$id, 'release_time' => $release], 'Release time updated');
+        } else {
+            $this->error('Update failed');
+        }
+    }
+
+    // POST /api/order/reschedule/1
+    public function reschedule($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $bookingDate = $data['booking_date'] ?? null;
+        if (!$bookingDate) $this->error('Booking date required', 400);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $db = new Database();
+        $db->query("UPDATE repair_orders SET booking_date = :bd, updated_by = :u WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)");
+        $db->bind(':bd', $bookingDate);
+        $db->bind(':u', (int)$u['sub']);
+        $db->bind(':id', (int)$id);
+        $db->bind(':loc', $locId);
+        
+        if ($db->execute()) {
+            $this->success(['id' => (int)$id, 'booking_date' => $bookingDate], 'Booking rescheduled');
+        } else {
+            $this->error('Reschedule failed');
+        }
+    }
+
+    // POST /api/order/update_details/1
+    // Body: { categories?: Array, checklist?: Array }
+    public function update_details($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $locId = $this->currentLocationId($u);
+
+        $payload = [];
+        if (isset($data['categories']) && is_array($data['categories'])) {
+            $payload['categories_json'] = json_encode(array_values($data['categories']));
+        }
+        if (isset($data['checklist']) && is_array($data['checklist'])) {
+            $payload['checklist_json'] = json_encode(array_values($data['checklist']));
+        }
+        if (isset($data['attachments']) && is_array($data['attachments'])) {
+            $payload['attachments_json'] = json_encode(array_values($data['attachments']));
+        }
+
+        if (empty($payload)) {
+            $this->error('No fields to update', 400);
+        }
+
+        $setParts = [];
+        foreach ($payload as $key => $val) {
+            $setParts[] = "$key = :$key";
+        }
+        $setStr = implode(', ', $setParts);
+
+        $db = new Database();
+        $db->query("UPDATE repair_orders SET $setStr, updated_by = :u WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)");
+        foreach ($payload as $key => $val) {
+            $db->bind(":$key", $val);
+        }
+        $db->bind(':u', (int)$u['sub']);
+        $db->bind(':id', (int)$id);
+        $db->bind(':loc', $locId);
+
+        if ($db->execute()) {
+            $this->success($payload, 'Order details updated');
         } else {
             $this->error('Update failed');
         }
@@ -235,6 +327,8 @@ class OrderController extends Controller {
         }
 
         $completionComments = isset($data['completion_comments']) ? trim((string)$data['completion_comments']) : null;
+        $nextServiceMileage = $data['next_service_mileage'] ?? null;
+        $nextServiceDate = $data['next_service_date'] ?? null;
 
         $locId = $this->currentLocationId($u);
         $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
@@ -242,7 +336,7 @@ class OrderController extends Controller {
 
         $db = new Database();
         try {
-            $db->exec("START TRANSACTION");
+            $db->beginTransaction();
             $db->query("
                 UPDATE repair_orders
                 SET status = :status,
@@ -250,7 +344,7 @@ class OrderController extends Controller {
                     completion_comments = :completion_comments,
                     completed_at = NOW(),
                     updated_by = :u
-                WHERE id = :id AND location_id = :loc
+                WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)
             ");
             $db->bind(':status', $status);
             $db->bind(':checklist_done_json', $checklistDoneJson);
@@ -260,13 +354,43 @@ class OrderController extends Controller {
             $db->bind(':loc', $locId);
             $ok = $db->execute();
             if (!$ok) {
-                $db->exec("ROLLBACK");
+                $db->rollBack();
                 $this->error('Update failed', 400);
+            }
+
+            // Update vehicle if Service Booking
+            if ($status === 'Completed' && isset($order->job_type) && $order->job_type === 'Service Booking' && !empty($order->vehicle_id)) {
+                $db->query("SELECT service_interval_mileage FROM vehicles WHERE id = :vid");
+                $db->bind(':vid', $order->vehicle_id);
+                $veh = $db->single();
+                
+                $currentMileage = (int)($order->mileage ?? 0);
+                
+                $calcNextMileage = $veh && $veh->service_interval_mileage > 0 ? $currentMileage + (int)$veh->service_interval_mileage : null;
+                $nm = $nextServiceMileage !== null && $nextServiceMileage !== '' ? (int)$nextServiceMileage : $calcNextMileage;
+                
+                $nd = $nextServiceDate !== null && $nextServiceDate !== '' ? $nextServiceDate : null;
+                
+                if ($nm !== null || $nd !== null) {
+                    if ($nm !== null && $nd !== null) {
+                        $db->query("UPDATE vehicles SET next_service_mileage = :nm, next_service_date = :nd WHERE id = :vid");
+                        $db->bind(':nm', $nm);
+                        $db->bind(':nd', $nd);
+                    } elseif ($nm !== null) {
+                        $db->query("UPDATE vehicles SET next_service_mileage = :nm, next_service_date = DATE_ADD(NOW(), INTERVAL 6 MONTH) WHERE id = :vid");
+                        $db->bind(':nm', $nm);
+                    } elseif ($nd !== null) {
+                        $db->query("UPDATE vehicles SET next_service_date = :nd WHERE id = :vid");
+                        $db->bind(':nd', $nd);
+                    }
+                    $db->bind(':vid', $order->vehicle_id);
+                    $db->execute();
+                }
             }
 
             // Release bay if no other active orders remain in that bay.
             if (in_array($status, ['Completed', 'Cancelled'], true)) {
-                $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc LIMIT 1");
+                $db->query("SELECT location FROM repair_orders WHERE id = :id AND (location_id = :loc OR from_location_id = :loc) LIMIT 1");
                 $db->bind(':id', (int)$id);
                 $db->bind(':loc', $locId);
                 $row = $db->single();
@@ -293,9 +417,10 @@ class OrderController extends Controller {
                 }
             }
 
-            $db->exec("COMMIT");
+            $db->commit();
         } catch (Exception $e) {
-            try { $db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in OrderController::complete: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $db->rollBack(); } catch (Exception $e2) {}
             $this->error('Update failed', 400);
         }
 
@@ -386,15 +511,15 @@ class OrderController extends Controller {
         // Persist assignment and update bay status using the SAME DB connection/transaction.
         $db = new Database();
         try {
-            $db->exec("START TRANSACTION");
+            $db->beginTransaction();
 
             // Lock the order row and capture old bay name inside the transaction.
-            $db->query("SELECT location FROM repair_orders WHERE id = :id AND location_id = :loc FOR UPDATE");
+            $db->query("SELECT location FROM repair_orders WHERE id = :id AND (location_id = :loc OR from_location_id = :loc) FOR UPDATE");
             $db->bind(':id', (int)$id);
             $db->bind(':loc', $locId);
             $rowOrder = $db->single();
             if (!$rowOrder) {
-                $db->exec("ROLLBACK");
+                $db->rollBack();
                 $this->error('Order not found', 404);
             }
             $oldBay = trim((string)($rowOrder->location ?? ''));
@@ -407,7 +532,7 @@ class OrderController extends Controller {
                     release_time = :release_time,
                     status = :status,
                     updated_by = :u
-                WHERE id = :id AND location_id = :loc
+                WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)
             ");
             $db->bind(':bay', $bayName !== '' ? $bayName : null);
             $db->bind(':technician', $technician !== '' ? $technician : null);
@@ -418,7 +543,7 @@ class OrderController extends Controller {
             $db->bind(':loc', $locId);
             $ok = $db->execute();
             if (!$ok) {
-                $db->exec("ROLLBACK");
+                $db->rollBack();
                 $this->error('Assign failed', 400);
             }
 
@@ -453,9 +578,10 @@ class OrderController extends Controller {
                 }
             }
 
-            $db->exec("COMMIT");
+            $db->commit();
         } catch (Exception $e) {
-            try { $db->exec("ROLLBACK"); } catch (Exception $e2) {}
+            error_log("Error in OrderController::assign: " . $e->getMessage() . "\n" . $e->getTraceAsString());
+            try { $db->rollBack(); } catch (Exception $e2) {}
             $this->error('Assign failed', 400);
         }
 
@@ -582,6 +708,37 @@ class OrderController extends Controller {
 
         $ok = $this->orderPartModel->deleteLine((int)$lineId, (int)$u['sub']);
         if ($ok) $this->success(null, 'Order part deleted');
+        $this->error('Delete failed', 500);
+    }
+
+    // DELETE /api/order/delete/1
+    public function delete($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $ok = $this->orderModel->deleteOrder((int)$id, $locId);
+        if ($ok) {
+            $this->auditModel->write([
+                'user_id' => (int)$u['sub'],
+                'location_id' => $locId,
+                'action' => 'delete',
+                'entity' => 'repair_order',
+                'entity_id' => (int)$id,
+                'method' => $_SERVER['REQUEST_METHOD'] ?? '',
+                'path' => $_SERVER['REQUEST_URI'] ?? '',
+                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                'details' => json_encode(['order_id' => (int)$id]),
+            ]);
+            $this->success(null, 'Order deleted');
+        }
         $this->error('Delete failed', 500);
     }
 }
