@@ -33,7 +33,7 @@ if (isset($_GET['action'])) {
             $columns = $columnsStmt->fetchAll(PDO::FETCH_ASSOC);
             
             $status = 'ok';
-            $message = 'No changes needed (already has auto_increment or no id column)';
+            $message = 'No changes needed (already has primary key & auto_increment)';
             
             // Find the column named 'id' (case-insensitive)
             $idColumn = null;
@@ -49,9 +49,13 @@ if (isset($_GET['action'])) {
                 $colType = $idColumn['Type'];
                 $extra = strtolower($idColumn['Extra']);
                 $isPri = ($idColumn['Key'] === 'PRI');
+                $hasAuto = (strpos($extra, 'auto_increment') !== false);
+                $isInteger = (strpos(strtolower($colType), 'int') !== false);
                 
-                // If it is integer and missing auto_increment
-                if (strpos(strtolower($colType), 'int') !== false && strpos($extra, 'auto_increment') === false) {
+                if (!$isInteger) {
+                    $message = "Skipped: Column 'id' type is '$colType' (not an integer type)";
+                } else if (!$isPri || !$hasAuto) {
+                    $message = "";
                     
                     // Check if a row with id = 0 exists
                     $zeroCheck = $pdo->prepare("SELECT COUNT(*) FROM `$table` WHERE `$colName` = 0");
@@ -67,27 +71,35 @@ if (isset($_GET['action'])) {
                         $updateZero = $pdo->prepare("UPDATE `$table` SET `$colName` = :newId WHERE `$colName` = 0");
                         $updateZero->execute([':newId' => $newId]);
                         $message = "Resolved row with ID 0 to ID $newId. ";
-                    } else {
-                        $message = "";
                     }
                     
-                    // Ensure the 'id' column is the PRIMARY KEY first (without dropping other keys)
+                    $fixes = [];
+                    // Ensure the 'id' column is the PRIMARY KEY first
                     if (!$isPri) {
                         try {
-                            // Simply add PRIMARY KEY constraint to the 'id' column
                             $pdo->exec("ALTER TABLE `$table` ADD PRIMARY KEY (`$colName`)");
+                            $fixes[] = "Added PRIMARY KEY";
                         } catch (Exception $e) {
-                            // Ignore if there is already a primary key
+                            $fixes[] = "Failed to add PRIMARY KEY (" . $e->getMessage() . ")";
                         }
                     }
                     
                     // Alter the column to add AUTO_INCREMENT
-                    $alterSql = "ALTER TABLE `$table` MODIFY COLUMN `$colName` $colType NOT NULL AUTO_INCREMENT";
-                    $pdo->exec($alterSql);
+                    if (!$hasAuto) {
+                        try {
+                            $alterSql = "ALTER TABLE `$table` MODIFY COLUMN `$colName` $colType NOT NULL AUTO_INCREMENT";
+                            $pdo->exec($alterSql);
+                            $fixes[] = "Added AUTO_INCREMENT";
+                        } catch (Exception $e) {
+                            $fixes[] = "Failed to add AUTO_INCREMENT (" . $e->getMessage() . ")";
+                        }
+                    }
                     
                     $status = 'fixed';
-                    $message .= "Successfully added AUTO_INCREMENT to `$colName` ($colType).";
+                    $message .= "Applied fixes: " . implode(', ', $fixes) . " on column `$colName` ($colType).";
                 }
+            } else {
+                $message = "No column named 'id' found (case-insensitive)";
             }
             
             $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
