@@ -54,49 +54,74 @@ if (isset($_GET['action'])) {
                 
                 if (!$isInteger) {
                     $message = "Skipped: Column 'id' type is '$colType' (not an integer type)";
-                } else if (!$isPri || !$hasAuto) {
-                    $message = "";
+                } else {
+                    // Check if any OTHER column has auto_increment
+                    $otherAutoColumn = null;
+                    foreach ($columns as $column) {
+                        if (strtolower($column['Field']) !== 'id' && strpos(strtolower($column['Extra']), 'auto_increment') !== false) {
+                            $otherAutoColumn = $column;
+                            break;
+                        }
+                    }
                     
-                    // Check if a row with id = 0 exists
-                    $zeroCheck = $pdo->prepare("SELECT COUNT(*) FROM `$table` WHERE `$colName` = 0");
-                    $zeroCheck->execute();
-                    $hasZero = $zeroCheck->fetchColumn();
-                    
-                    if ($hasZero > 0) {
-                        // Find maximum ID to safely shift ID 0
-                        $maxCheck = $pdo->query("SELECT MAX(`$colName`) FROM `$table`");
-                        $maxId = (int)$maxCheck->fetchColumn();
-                        $newId = ($maxId > 0) ? $maxId + 1 : 1;
+                    if (!$isPri || !$hasAuto || $otherAutoColumn !== null) {
+                        $message = "";
                         
-                        $updateZero = $pdo->prepare("UPDATE `$table` SET `$colName` = :newId WHERE `$colName` = 0");
-                        $updateZero->execute([':newId' => $newId]);
-                        $message = "Resolved row with ID 0 to ID $newId. ";
-                    }
-                    
-                    $fixes = [];
-                    // Ensure the 'id' column is the PRIMARY KEY first
-                    if (!$isPri) {
-                        try {
-                            $pdo->exec("ALTER TABLE `$table` ADD PRIMARY KEY (`$colName`)");
-                            $fixes[] = "Added PRIMARY KEY";
-                        } catch (Exception $e) {
-                            $fixes[] = "Failed to add PRIMARY KEY (" . $e->getMessage() . ")";
+                        // Check if a row with id = 0 exists
+                        $zeroCheck = $pdo->prepare("SELECT COUNT(*) FROM `$table` WHERE `$colName` = 0");
+                        $zeroCheck->execute();
+                        $hasZero = $zeroCheck->fetchColumn();
+                        
+                        if ($hasZero > 0) {
+                            // Find maximum ID to safely shift ID 0
+                            $maxCheck = $pdo->query("SELECT MAX(`$colName`) FROM `$table`");
+                            $maxId = (int)$maxCheck->fetchColumn();
+                            $newId = ($maxId > 0) ? $maxId + 1 : 1;
+                            
+                            $updateZero = $pdo->prepare("UPDATE `$table` SET `$colName` = :newId WHERE `$colName` = 0");
+                            $updateZero->execute([':newId' => $newId]);
+                            $message = "Resolved row with ID 0 to ID $newId. ";
                         }
-                    }
-                    
-                    // Alter the column to add AUTO_INCREMENT
-                    if (!$hasAuto) {
-                        try {
-                            $alterSql = "ALTER TABLE `$table` MODIFY COLUMN `$colName` $colType NOT NULL AUTO_INCREMENT";
-                            $pdo->exec($alterSql);
-                            $fixes[] = "Added AUTO_INCREMENT";
-                        } catch (Exception $e) {
-                            $fixes[] = "Failed to add AUTO_INCREMENT (" . $e->getMessage() . ")";
+                        
+                        $fixes = [];
+                        
+                        // 1. If another column has auto_increment, we MUST remove it first!
+                        if ($otherAutoColumn !== null) {
+                            $oName = $otherAutoColumn['Field'];
+                            $oType = $otherAutoColumn['Type'];
+                            $oNull = (strtoupper($otherAutoColumn['Null']) === 'YES') ? 'NULL' : 'NOT NULL';
+                            try {
+                                $pdo->exec("ALTER TABLE `$table` MODIFY COLUMN `$oName` $oType $oNull");
+                                $fixes[] = "Removed AUTO_INCREMENT from wrong column `$oName`";
+                            } catch (Exception $e) {
+                                $fixes[] = "Failed to remove AUTO_INCREMENT from wrong column `$oName` (" . $e->getMessage() . ")";
+                            }
                         }
+                        
+                        // 2. Ensure the 'id' column is the PRIMARY KEY first
+                        if (!$isPri) {
+                            try {
+                                $pdo->exec("ALTER TABLE `$table` ADD PRIMARY KEY (`$colName`)");
+                                $fixes[] = "Added PRIMARY KEY";
+                            } catch (Exception $e) {
+                                $fixes[] = "Failed to add PRIMARY KEY (" . $e->getMessage() . ")";
+                            }
+                        }
+                        
+                        // 3. Alter the column to add AUTO_INCREMENT
+                        if (!$hasAuto) {
+                            try {
+                                $alterSql = "ALTER TABLE `$table` MODIFY COLUMN `$colName` $colType NOT NULL AUTO_INCREMENT";
+                                $pdo->exec($alterSql);
+                                $fixes[] = "Added AUTO_INCREMENT to `$colName`";
+                            } catch (Exception $e) {
+                                $fixes[] = "Failed to add AUTO_INCREMENT to `$colName` (" . $e->getMessage() . ")";
+                            }
+                        }
+                        
+                        $status = 'fixed';
+                        $message .= "Applied fixes: " . implode(', ', $fixes) . " on column `$colName` ($colType).";
                     }
-                    
-                    $status = 'fixed';
-                    $message .= "Applied fixes: " . implode(', ', $fixes) . " on column `$colName` ($colType).";
                 }
             } else {
                 $message = "No column named 'id' found (case-insensitive)";
