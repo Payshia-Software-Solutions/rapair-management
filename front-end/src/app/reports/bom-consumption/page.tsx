@@ -7,6 +7,7 @@ import { ReportShell } from "../_components/report-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -57,7 +58,7 @@ type GroupedRow = {
   }>;
 };
 
-async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { location: string; period: string }) {
+async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { location: string; period: string }, summaryOnly: boolean) {
   if (rows.length === 0) return;
 
   const wb = new ExcelJS.Workbook();
@@ -66,7 +67,7 @@ async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { 
   // Title
   ws.mergeCells("A1:E1");
   const titleCell = ws.getCell("A1");
-  titleCell.value = "BOM Stock Consumption Report";
+  titleCell.value = "BOM Stock Consumption Report" + (summaryOnly ? " (Summary)" : "");
   titleCell.font = { name: "Arial", size: 16, bold: true, color: { argb: "FF1e293b" } };
   titleCell.alignment = { vertical: "middle", horizontal: "center" };
 
@@ -107,20 +108,22 @@ async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { 
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0FDF4" } }; // Light emerald tint
     });
 
-    // Breakdown Rows
-    r.breakdown.forEach((b) => {
-      const bRow = ws.addRow([
-        `   └─ ${b.finished_name}`,
-        b.finished_sku || "-",
-        r.ingredient_unit || "-",
-        Number(b.qty),
-        `Finished Sales Qty: ${b.finished_qty_sold}`
-      ]);
-      bRow.getCell(4).numFmt = '#,##0.000';
-      bRow.eachCell((cell) => {
-        cell.font = { size: 10, italic: true, color: { argb: "FF475569" } };
+    if (!summaryOnly) {
+      // Breakdown Rows
+      r.breakdown.forEach((b) => {
+        const bRow = ws.addRow([
+          `   └─ ${b.finished_name}`,
+          b.finished_sku || "-",
+          r.ingredient_unit || "-",
+          Number(b.qty),
+          `Finished Sales Qty: ${b.finished_qty_sold}`
+        ]);
+        bRow.getCell(4).numFmt = '#,##0.000';
+        bRow.eachCell((cell) => {
+          cell.font = { size: 10, italic: true, color: { argb: "FF475569" } };
+        });
       });
-    });
+    }
   });
 
   // Columns Width
@@ -146,6 +149,7 @@ export default function BOMConsumptionReportPage() {
   const [locationId, setLocationId] = useState<string>(() => searchParams?.get("location_id") ?? "all");
   const [from, setFrom] = useState<string>(() => searchParams?.get("from") ?? firstDayOfMonth());
   const [to, setTo] = useState<string>(() => searchParams?.get("to") ?? todayLocalDate());
+  const [summaryOnly, setSummaryOnly] = useState<boolean>(false);
 
   const decodeToken = () => {
     try {
@@ -280,7 +284,7 @@ export default function BOMConsumptionReportPage() {
             <CardTitle className="text-base font-semibold">Report Filters</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
                 <div className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Location</div>
                 <SearchableSelect
@@ -298,6 +302,18 @@ export default function BOMConsumptionReportPage() {
                 <div className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">To Date</div>
                 <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9" />
               </div>
+              <div className="flex items-center gap-2 h-9 mt-auto pb-1">
+                <input
+                  type="checkbox"
+                  id="summary_only"
+                  checked={summaryOnly}
+                  onChange={(e) => setSummaryOnly(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                />
+                <Label htmlFor="summary_only" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider cursor-pointer select-none">
+                  Summary Only
+                </Label>
+              </div>
               <div className="flex items-end gap-2">
                 <Button onClick={() => void load()} className="flex-1 h-9" disabled={loading}>
                   {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
@@ -305,7 +321,7 @@ export default function BOMConsumptionReportPage() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => void downloadExcel(`bom-consumption-${from}-to-${to}.xlsx`, groupedRows, { location: locationLabel, period: `${from} to ${to}` })} 
+                  onClick={() => void downloadExcel(`bom-consumption-${from}-to-${to}.xlsx`, groupedRows, { location: locationLabel, period: `${from} to ${to}` }, summaryOnly)} 
                   className="h-9 gap-1"
                   disabled={loading || groupedRows.length === 0}
                 >
@@ -322,7 +338,7 @@ export default function BOMConsumptionReportPage() {
           <table className="w-full text-sm">
             <thead className="bg-muted/50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left w-12"></th>
+                {!summaryOnly && <th className="px-4 py-3 text-left w-12"></th>}
                 <th className="px-4 py-3 text-left">Material / Ingredient</th>
                 <th className="px-4 py-3 text-left w-36">SKU</th>
                 <th className="px-4 py-3 text-left w-24">Unit</th>
@@ -331,21 +347,23 @@ export default function BOMConsumptionReportPage() {
             </thead>
             <tbody className="divide-y">
               {groupedRows.map((r) => {
-                const isExpanded = expandedIds.has(r.ingredient_id);
+                const isExpanded = expandedIds.has(r.ingredient_id) && !summaryOnly;
                 return (
                   <React.Fragment key={r.ingredient_id}>
                     {/* Ingredient Summary Row */}
                     <tr 
-                      onClick={() => toggleExpand(r.ingredient_id)}
-                      className="hover:bg-muted/10 cursor-pointer transition-colors font-medium bg-emerald-50/20 dark:bg-emerald-950/5"
+                      onClick={() => !summaryOnly && toggleExpand(r.ingredient_id)}
+                      className={`hover:bg-muted/10 transition-colors font-medium bg-emerald-50/20 dark:bg-emerald-950/5 ${!summaryOnly ? "cursor-pointer" : ""}`}
                     >
-                      <td className="px-4 py-3 text-center">
-                        {isExpanded ? (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground inline" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-muted-foreground inline" />
-                        )}
-                      </td>
+                      {!summaryOnly && (
+                        <td className="px-4 py-3 text-center">
+                          {isExpanded ? (
+                            <ChevronDown className="w-4 h-4 text-muted-foreground inline" />
+                          ) : (
+                            <ChevronRight className="w-4 h-4 text-muted-foreground inline" />
+                          )}
+                        </td>
+                      )}
                       <td className="px-4 py-3 text-slate-900 dark:text-white font-semibold">
                         {r.ingredient_name}
                       </td>
@@ -383,7 +401,7 @@ export default function BOMConsumptionReportPage() {
               })}
               {groupedRows.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={summaryOnly ? 4 : 5} className="px-4 py-12 text-center text-muted-foreground italic">
                     {loading ? "Loading data..." : "No material consumption records found for this period and location."}
                   </td>
                 </tr>
