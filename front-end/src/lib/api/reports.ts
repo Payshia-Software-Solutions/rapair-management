@@ -371,3 +371,16 @@ export const fetchBOMConsumptionReport = async (params: { location_id?: string; 
   return data.status === 'success' ? data.data : data;
 };
 
+export const fetchMaterialIssuesSummaryReport = async (params: { location_id?: string; from?: string; to?: string }) => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+
+  const res = await api(`/api/report/material_issues_summary?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load material issues summary report');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+
