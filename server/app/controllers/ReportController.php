@@ -1432,6 +1432,7 @@ class ReportController extends Controller {
         
         $from = $_GET['from'] ?? date('Y-m-01');
         $to = $_GET['to'] ?? date('Y-m-d');
+        $costCenterId = $_GET['cost_center_id'] ?? 'all';
 
         $sql = "
             SELECT 
@@ -1447,7 +1448,13 @@ class ReportController extends Controller {
             JOIN parts p ON ini.part_id = p.id
             WHERE isn.status = 'Issued'
               AND isn.location_id IN ($inLoc)
-              AND DATE(isn.issued_at) BETWEEN :from AND :to
+        ";
+
+        if ($costCenterId !== 'all') {
+            $sql .= " AND isn.cost_center_id = :cost_center_id";
+        }
+
+        $sql .= " AND DATE(isn.issued_at) BETWEEN :from AND :to
             GROUP BY ini.part_id, p.part_name, p.sku, p.unit
             ORDER BY total_cost_value DESC
         ";
@@ -1456,6 +1463,9 @@ class ReportController extends Controller {
         $this->bindInList('loc', $locIds);
         $this->db->bind(':from', $from);
         $this->db->bind(':to', $to);
+        if ($costCenterId !== 'all') {
+            $this->db->bind(':cost_center_id', $costCenterId);
+        }
 
         $this->success($this->db->resultSet());
     }

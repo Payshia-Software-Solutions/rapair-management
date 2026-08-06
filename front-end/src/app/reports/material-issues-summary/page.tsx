@@ -41,7 +41,7 @@ interface IssuedItemRecord {
   total_cost_value: number | string;
 }
 
-async function downloadExcel(filename: string, rows: Array<IssuedItemRecord>, meta: { location: string; period: string }) {
+async function downloadExcel(filename: string, rows: Array<IssuedItemRecord>, meta: { fromLocation: string; toLocation: string; period: string }) {
   if (rows.length === 0) return;
 
   const wb = new ExcelJS.Workbook();
@@ -56,7 +56,7 @@ async function downloadExcel(filename: string, rows: Array<IssuedItemRecord>, me
 
   // Meta
   ws.mergeCells("A2:F2");
-  ws.getCell("A2").value = `Location: ${meta.location}`;
+  ws.getCell("A2").value = `From Location: ${meta.fromLocation} | To Location (Cost Center): ${meta.toLocation}`;
   ws.getCell("A2").font = { name: "Arial", size: 11, bold: true };
   ws.mergeCells("A3:F3");
   ws.getCell("A3").value = `Period: ${meta.period}`;
@@ -137,6 +137,7 @@ export default function MaterialIssuesSummaryReportPage() {
 
   // Filters State
   const [locationId, setLocationId] = useState<string>(() => searchParams?.get("location_id") ?? "all");
+  const [costCenterId, setCostCenterId] = useState<string>(() => searchParams?.get("cost_center_id") ?? "all");
   const [from, setFrom] = useState<string>(() => searchParams?.get("from") ?? firstDayOfMonth());
   const [to, setTo] = useState<string>(() => searchParams?.get("to") ?? todayLocalDate());
 
@@ -180,6 +181,7 @@ export default function MaterialIssuesSummaryReportPage() {
     try {
       const data = await fetchMaterialIssuesSummaryReport({
         location_id: locationId === "all" ? "all" : locationId,
+        cost_center_id: costCenterId,
         from,
         to
       });
@@ -206,14 +208,19 @@ export default function MaterialIssuesSummaryReportPage() {
     qs.set("print", "1");
     qs.set("autoprint", "1");
     qs.set("location_id", locationId);
+    qs.set("cost_center_id", costCenterId);
     qs.set("from", from);
     qs.set("to", to);
     return `/reports/material-issues-summary?${qs.toString()}`;
-  }, [locationId, from, to]);
+  }, [locationId, costCenterId, from, to]);
 
-  const locationLabel = useMemo(() => {
+  const fromLocationLabel = useMemo(() => {
     return locations.find((o) => o.value === locationId)?.label ?? (locationId === "all" ? "All Locations" : locationId);
   }, [locations, locationId]);
+
+  const toLocationLabel = useMemo(() => {
+    return locations.find((o) => o.value === costCenterId)?.label ?? (costCenterId === "all" ? "All Cost Centers" : costCenterId);
+  }, [locations, costCenterId]);
 
   return (
     <ReportShell
@@ -227,7 +234,8 @@ export default function MaterialIssuesSummaryReportPage() {
       }
       printMeta={
         <div className="space-y-1 text-sm">
-          <div><span className="font-semibold">Location:</span> {locationLabel}</div>
+          <div><span className="font-semibold">From Location:</span> {fromLocationLabel}</div>
+          <div><span className="font-semibold">To Location (Cost Center):</span> {toLocationLabel}</div>
           <div><span className="font-semibold">Period:</span> {from} to {to}</div>
         </div>
       }
@@ -238,14 +246,23 @@ export default function MaterialIssuesSummaryReportPage() {
             <CardTitle className="text-base font-semibold">Report Filters</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div>
-                <div className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Location</div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">From Location</div>
                 <SearchableSelect
                   value={locationId}
                   onValueChange={setLocationId}
                   options={locations}
                   placeholder="Select location..."
+                />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">To Location (Cost Center)</div>
+                <SearchableSelect
+                  value={costCenterId}
+                  onValueChange={setCostCenterId}
+                  options={locations.map(o => o.value === "all" ? { value: "all", label: "All Cost Centers" } : o)}
+                  placeholder="Select cost center..."
                 />
               </div>
               <div>
@@ -263,7 +280,7 @@ export default function MaterialIssuesSummaryReportPage() {
                 </Button>
                 <Button 
                   variant="outline" 
-                  onClick={() => void downloadExcel(`material-issues-${from}-to-${to}.xlsx`, rows, { location: locationLabel, period: `${from} to ${to}` })} 
+                  onClick={() => void downloadExcel(`material-issues-${from}-to-${to}.xlsx`, rows, { fromLocation: fromLocationLabel, toLocation: toLocationLabel, period: `${from} to ${to}` })} 
                   className="h-9 gap-1"
                   disabled={loading || rows.length === 0}
                 >

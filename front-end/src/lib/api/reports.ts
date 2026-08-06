@@ -371,9 +371,10 @@ export const fetchBOMConsumptionReport = async (params: { location_id?: string; 
   return data.status === 'success' ? data.data : data;
 };
 
-export const fetchMaterialIssuesSummaryReport = async (params: { location_id?: string; from?: string; to?: string }) => {
+export const fetchMaterialIssuesSummaryReport = async (params: { location_id?: string; cost_center_id?: string; from?: string; to?: string }) => {
   const qs = new URLSearchParams();
   if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.cost_center_id) qs.set('cost_center_id', params.cost_center_id);
   if (params.from) qs.set('from', params.from);
   if (params.to) qs.set('to', params.to);
 
