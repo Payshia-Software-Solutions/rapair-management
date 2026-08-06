@@ -36,6 +36,7 @@ interface RawRecord {
   ingredient_name: string;
   ingredient_sku: string | null;
   ingredient_unit: string | null;
+  ingredient_cost: number | string | null;
   finished_id: number;
   finished_name: string;
   finished_sku: string | null;
@@ -48,6 +49,7 @@ type GroupedRow = {
   ingredient_name: string;
   ingredient_sku: string | null;
   ingredient_unit: string | null;
+  ingredient_cost: number;
   total_qty: number;
   breakdown: Array<{
     finished_id: number;
@@ -65,24 +67,24 @@ async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { 
   const ws = wb.addWorksheet("BOM Stock Consumption");
 
   // Title
-  ws.mergeCells("A1:E1");
+  ws.mergeCells("A1:G1");
   const titleCell = ws.getCell("A1");
   titleCell.value = "BOM Stock Consumption Report" + (summaryOnly ? " (Summary)" : "");
   titleCell.font = { name: "Arial", size: 16, bold: true, color: { argb: "FF1e293b" } };
   titleCell.alignment = { vertical: "middle", horizontal: "center" };
 
   // Meta
-  ws.mergeCells("A2:E2");
+  ws.mergeCells("A2:G2");
   ws.getCell("A2").value = `Location: ${meta.location}`;
   ws.getCell("A2").font = { name: "Arial", size: 11, bold: true };
-  ws.mergeCells("A3:E3");
+  ws.mergeCells("A3:G3");
   ws.getCell("A3").value = `Period: ${meta.period}`;
   ws.getCell("A3").font = { name: "Arial", size: 11, italic: true };
 
   ws.addRow([]); // Spacer
 
   // Header Row
-  const headerRow = ws.addRow(["Material / Ingredient", "SKU", "Unit", "Theoretical Qty Consumed", "Details / Breakdown"]);
+  const headerRow = ws.addRow(["Material / Ingredient", "SKU", "Unit", "Qty Consumed", "Cost Price", "Total Cost", "Details / Breakdown"]);
   headerRow.eachCell((cell) => {
     cell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FFFFFFFF" } };
     cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF10b981" } }; // Emerald bg
@@ -92,17 +94,26 @@ async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { 
     };
   });
 
+  let grandTotal = 0;
+
   // Rows
   rows.forEach((r) => {
+    const itemTotalCost = Number(r.total_qty * r.ingredient_cost);
+    grandTotal += itemTotalCost;
+
     // Ingredient Main Row
     const row = ws.addRow([
       r.ingredient_name,
       r.ingredient_sku || "-",
       r.ingredient_unit || "-",
       Number(r.total_qty),
+      Number(r.ingredient_cost),
+      itemTotalCost,
       "Summary Total"
     ]);
     row.getCell(4).numFmt = '#,##0.000';
+    row.getCell(5).numFmt = '#,##0.00';
+    row.getCell(6).numFmt = '#,##0.00';
     row.eachCell((cell) => {
       cell.font = { bold: true };
       cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF0FDF4" } }; // Light emerald tint
@@ -116,14 +127,34 @@ async function downloadExcel(filename: string, rows: Array<GroupedRow>, meta: { 
           b.finished_sku || "-",
           r.ingredient_unit || "-",
           Number(b.qty),
+          Number(r.ingredient_cost),
+          Number(b.qty * r.ingredient_cost),
           `Finished Sales Qty: ${b.finished_qty_sold}`
         ]);
         bRow.getCell(4).numFmt = '#,##0.000';
+        bRow.getCell(5).numFmt = '#,##0.00';
+        bRow.getCell(6).numFmt = '#,##0.00';
         bRow.eachCell((cell) => {
           cell.font = { size: 10, italic: true, color: { argb: "FF475569" } };
         });
       });
     }
+  });
+
+  // Add Grand Total Row
+  const totalRow = ws.addRow([
+    "Grand Total Cost",
+    "",
+    "",
+    "",
+    "",
+    grandTotal,
+    ""
+  ]);
+  totalRow.getCell(6).numFmt = '#,##0.00';
+  totalRow.eachCell((cell) => {
+    cell.font = { bold: true, name: "Arial", size: 11 };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } }; // Slate-200 tint
   });
 
   // Columns Width
@@ -219,6 +250,7 @@ export default function BOMConsumptionReportPage() {
           ingredient_name: r.ingredient_name,
           ingredient_sku: r.ingredient_sku,
           ingredient_unit: r.ingredient_unit,
+          ingredient_cost: Number(r.ingredient_cost || 0),
           total_qty: 0,
           breakdown: []
         });
@@ -246,6 +278,10 @@ export default function BOMConsumptionReportPage() {
     }
     setExpandedIds(newSet);
   };
+
+  const grandTotalCost = useMemo(() => {
+    return groupedRows.reduce((sum, r) => sum + (r.total_qty * r.ingredient_cost), 0);
+  }, [groupedRows]);
 
   const printHref = useMemo(() => {
     const qs = new URLSearchParams();
@@ -340,9 +376,11 @@ export default function BOMConsumptionReportPage() {
               <tr>
                 {!summaryOnly && <th className="px-4 py-3 text-left w-12"></th>}
                 <th className="px-4 py-3 text-left">Material / Ingredient</th>
-                <th className="px-4 py-3 text-left w-36">SKU</th>
-                <th className="px-4 py-3 text-left w-24">Unit</th>
-                <th className="px-4 py-3 text-right w-48">Theoretical Qty Consumed</th>
+                <th className="px-4 py-3 text-left w-32">SKU</th>
+                <th className="px-4 py-3 text-left w-20">Unit</th>
+                <th className="px-4 py-3 text-right w-40">Qty Consumed</th>
+                <th className="px-4 py-3 text-right w-28">Cost Price</th>
+                <th className="px-4 py-3 text-right w-36">Total Cost</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -369,8 +407,14 @@ export default function BOMConsumptionReportPage() {
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">{r.ingredient_sku || "-"}</td>
                       <td className="px-4 py-3 text-muted-foreground">{r.ingredient_unit || "-"}</td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                      <td className="px-4 py-3 text-right font-bold">
                         {r.total_qty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-slate-700 dark:text-slate-300">
+                        {r.ingredient_cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-4 py-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                        {(r.total_qty * r.ingredient_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
 
@@ -391,8 +435,14 @@ export default function BOMConsumptionReportPage() {
                         <td className="px-4 py-2.5 text-xs text-muted-foreground">
                           Sales Qty: <span className="font-bold text-slate-700 dark:text-slate-300">{b.finished_qty_sold}</span>
                         </td>
-                        <td className="px-4 py-2.5 text-xs text-right text-slate-800 dark:text-slate-200 pr-12 font-medium">
+                        <td className="px-4 py-2.5 text-xs text-right text-slate-800 dark:text-slate-200 font-medium">
                           {b.qty.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-right text-slate-600 dark:text-slate-400">
+                          {r.ingredient_cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-right text-emerald-600 dark:text-emerald-400 font-semibold pr-4">
+                          {(b.qty * r.ingredient_cost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                       </tr>
                     ))}
@@ -401,12 +451,25 @@ export default function BOMConsumptionReportPage() {
               })}
               {groupedRows.length === 0 && (
                 <tr>
-                  <td colSpan={summaryOnly ? 4 : 5} className="px-4 py-12 text-center text-muted-foreground italic">
+                  <td colSpan={summaryOnly ? 6 : 7} className="px-4 py-12 text-center text-muted-foreground italic">
                     {loading ? "Loading data..." : "No material consumption records found for this period and location."}
                   </td>
                 </tr>
               )}
             </tbody>
+            {groupedRows.length > 0 && (
+              <tfoot className="bg-muted/30 border-t font-semibold">
+                <tr>
+                  {!summaryOnly && <td></td>}
+                  <td className="px-4 py-3 text-left" colSpan={3}>Grand Total Cost</td>
+                  <td></td>
+                  <td></td>
+                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400 font-bold text-base">
+                    {grandTotalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
           </table>
         </CardContent>
       </Card>
