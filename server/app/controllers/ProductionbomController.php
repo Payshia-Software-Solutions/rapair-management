@@ -55,4 +55,12 @@ class ProductionbomController extends Controller {
         // Do not error if not found, just return null data so frontend knows no BOM exists
         $this->success($row);
     }
+
+    public function delete($id) {
+        $this->requirePermission('production.write');
+        if ($this->bomModel->delete($id)) {
+            $this->success(null, 'BOM deleted');
+        }
+        $this->error('Failed to delete BOM', 500);
+    }
 }
