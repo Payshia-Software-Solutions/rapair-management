@@ -240,7 +240,10 @@ class ProductionBOM extends Model {
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
-            return false;
+            if ($e->getCode() == '23000' || strpos($e->getMessage(), '1451') !== false) {
+                throw new Exception("Cannot delete this BOM because it is referenced by production orders.");
+            }
+            throw $e;
         }
     }
 }
