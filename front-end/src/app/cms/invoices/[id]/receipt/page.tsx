@@ -73,12 +73,20 @@ function ReceiptContent() {
           margin: 4mm 3mm;
         }
         @media print {
-          html, body { margin: 0; padding: 0; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .no-print { display: none !important; }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background: white; font-family: 'Courier New', Courier, monospace; }
-        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; }
+        html, body { margin: 0; padding: 0; background: white !important; background-color: white !important; font-family: 'Courier New', Courier, monospace; color: #000000 !important; }
+        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; background: white; }
         .center { text-align: center; }
         .right { text-align: right; }
         .bold { font-weight: bold; }

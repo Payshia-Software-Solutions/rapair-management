@@ -129,6 +129,11 @@
 }
 
 @media print {
+  html, body, #__next {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+  }
   .no-print,
   .print-hidden,
   [data-no-print="true"] {

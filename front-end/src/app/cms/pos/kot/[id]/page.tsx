@@ -82,12 +82,20 @@ function KOTContent() {
           margin: 4mm 3mm;
         }
         @media print {
-          html, body { margin: 0; padding: 0; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .no-print { display: none !important; }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background: white; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .kot { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; color: #000; }
+        html, body { margin: 0; padding: 0; background: white !important; background-color: white !important; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #000000 !important; }
+        .kot { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; color: #000; background: white; }
         .center { text-align: center; }
         .bold { font-weight: 800; }
         .hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
