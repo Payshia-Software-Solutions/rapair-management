@@ -228,7 +228,9 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
       <hr className="hr" />
 
       {/* Items */}
-      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Items</div>
+      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Items {taxInclusive ? '(Tax Inclusive)' : ''}
+      </div>
       {(order.items || []).map((item: any, idx: number) => {
         const lineTotal = (Number(item.unit_price) * Number(item.quantity)) - (Number(item.discount) * Number(item.quantity));
         const isFree = lineTotal === 0 && Number(item.quantity) > 0;
@@ -268,7 +270,6 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
               <span className="bold">-LKR {fmt(order.discount_total)}</span>
             </div>
           )}
-          <div className="row"><span>Total (Tax Inclusive)</span><span>LKR {fmt(order.grand_total)}</span></div>
         </>
       ) : (
         <>
@@ -298,7 +299,7 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
       <hr className="hr-solid" />
 
       <div className="grand-total">
-        <span>TOTAL</span>
+        <span>TOTAL {taxInclusive ? '(Tax Inclusive)' : ''}</span>
         <span>LKR {fmt(order.grand_total || 0)}</span>
       </div>
 

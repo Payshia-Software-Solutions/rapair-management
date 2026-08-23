@@ -113,7 +113,7 @@ export const PrintSelectionDialog: React.FC = () => {
 
   return (
     <Dialog open={printSelectionOpen} onOpenChange={setPrintSelectionOpen}>
-      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border-none bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl">
+      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-3xl">
         <div className="p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center">
@@ -131,17 +131,18 @@ export const PrintSelectionDialog: React.FC = () => {
 
           <div className="grid gap-4">
             <Button
+              type="button"
               variant="outline"
-              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group ${
-                isPrinting === 'standard' ? 'border-primary bg-primary/5' : 'hover:border-primary/50 hover:bg-white dark:hover:bg-slate-800'
+              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white ${
+                isPrinting === 'standard' ? 'border-primary ring-2 ring-primary/20' : 'hover:border-primary hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
               onClick={() => handlePrint('standard')}
               disabled={isPrinting !== null}
             >
               <div className={`p-3 rounded-xl transition-colors ${
-                isPrinting === 'standard' ? 'bg-primary/20' : 'bg-slate-100 dark:bg-slate-800 group-hover:bg-primary/10'
+                isPrinting === 'standard' ? 'bg-primary/20' : 'bg-white dark:bg-slate-700 group-hover:bg-primary/10'
               }`}>
-                {isPrinting === 'standard' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <Printer className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-primary" />}
+                {isPrinting === 'standard' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <Printer className="w-6 h-6 text-slate-700 dark:text-slate-300 group-hover:text-primary" />}
               </div>
               <div className="flex flex-col items-start text-left">
                 <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
@@ -152,17 +153,18 @@ export const PrintSelectionDialog: React.FC = () => {
             </Button>
 
             <Button
+              type="button"
               variant="outline"
-              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group ${
-                isPrinting === 'inclusive' ? 'border-primary bg-primary/5' : 'hover:border-primary/50 hover:bg-white dark:hover:bg-slate-800'
+              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white ${
+                isPrinting === 'inclusive' ? 'border-primary ring-2 ring-primary/20' : 'hover:border-primary hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
               onClick={() => handlePrint('inclusive')}
               disabled={isPrinting !== null}
             >
               <div className={`p-3 rounded-xl transition-colors ${
-                isPrinting === 'inclusive' ? 'bg-primary/20' : 'bg-slate-100 dark:bg-slate-800 group-hover:bg-primary/10'
+                isPrinting === 'inclusive' ? 'bg-primary/20' : 'bg-white dark:bg-slate-700 group-hover:bg-primary/10'
               }`}>
-                {isPrinting === 'inclusive' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <FileText className="w-6 h-6 text-slate-600 dark:text-slate-400 group-hover:text-primary" />}
+                {isPrinting === 'inclusive' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <FileText className="w-6 h-6 text-slate-700 dark:text-slate-300 group-hover:text-primary" />}
               </div>
               <div className="flex flex-col items-start text-left">
                 <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">

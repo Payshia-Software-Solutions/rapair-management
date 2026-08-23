@@ -177,7 +177,9 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       <hr className="hr" />
 
       {/* Items */}
-      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Items</div>
+      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Items {taxInclusive ? '(Tax Inclusive)' : ''}
+      </div>
       {(invoice.items || []).map((item: any, idx: number) => {
         const lineTotal = Number(item.line_total);
         const isFree = Number(item.discount) >= Number(item.unit_price) && Number(item.unit_price) > 0;
@@ -226,11 +228,6 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
             }
             return null;
           })()}
-          <div className="row"><span>Total (Tax Inclusive)</span><span>LKR {fmt(invoice.grand_total)}</span></div>
-          <div className="row tag" style={{ fontSize: '9px', fontStyle: 'italic' }}>
-            <span>Includes Total Taxes:</span>
-            <span>LKR {fmt((invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0))}</span>
-          </div>
         </>
       ) : (
         <>
@@ -268,7 +265,7 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       <hr className="hr-solid" />
 
       <div className="grand-total">
-        <span>TOTAL</span>
+        <span>TOTAL {taxInclusive ? '(Tax Inclusive)' : ''}</span>
         <span>LKR {fmt(invoice.grand_total)}</span>
       </div>
 
