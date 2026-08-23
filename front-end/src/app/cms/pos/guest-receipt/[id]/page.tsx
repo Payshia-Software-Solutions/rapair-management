@@ -191,7 +191,9 @@ function GuestReceiptContent() {
 }
 
 function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
-  const totalTaxPercent = (order.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.rate_percent || 0), 0);
+  const taxSum = (order.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+  const orderSubtotal = Number(order.subtotal || 0);
+  const taxRatio = orderSubtotal > 0 ? (taxSum / orderSubtotal) : 0;
 
   const getShortTaxName = (name: string) => {
     const upper = (name || "").toUpperCase();
@@ -246,9 +248,9 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
         let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
         let displayLineTotal = lineTotal;
         
-        if (taxInclusive && totalTaxPercent > 0) {
-          displayUnitPrice = displayUnitPrice * (1 + totalTaxPercent / 100);
-          displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
+        if (taxInclusive && taxRatio > 0) {
+          displayUnitPrice = displayUnitPrice * (1 + taxRatio);
+          displayLineTotal = displayLineTotal * (1 + taxRatio);
         }
 
         const unitDisplay = `@ LKR ${displayUnitPrice.toFixed(2)}`;
