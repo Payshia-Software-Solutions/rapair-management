@@ -114,13 +114,15 @@ function KOTContent() {
       {/* Screen Preview Wrapper (hidden on print) */}
       <div className="no-print preview-wrap">
         <div className="mb-6 text-center">
-            <span className="bg-yellow-100 text-yellow-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block">Kitchen Order</span>
-            <h1 className="text-2xl font-black text-gray-900">KOT Preview</h1>
+            <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-2 inline-block ${isFullKOT ? 'bg-amber-100 text-amber-800' : 'bg-yellow-100 text-yellow-800'}`}>
+              {isFullKOT ? 'Kitchen Order (Reprint)' : 'Kitchen Order'}
+            </span>
+            <h1 className="text-2xl font-black text-gray-900">{isFullKOT ? 'KOT Reprint Preview' : 'KOT Preview'}</h1>
         </div>
         
         <div className="preview-paper">
           <div className="kot">
-            <KOTBody order={order} />
+            <KOTBody order={order} isFullKOT={isFullKOT} />
           </div>
         </div>
 
@@ -129,7 +131,7 @@ function KOTContent() {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
-            Print KOT
+            {isFullKOT ? 'Print KOT (Reprint)' : 'Print KOT'}
           </button>
           <button onClick={() => window.close()} className="btn-secondary">
             Close
@@ -140,7 +142,7 @@ function KOTContent() {
       {/* Print-only version */}
       <div style={{ display: 'none' }} className="print-only">
         <div className="kot">
-          <KOTBody order={order} />
+          <KOTBody order={order} isFullKOT={isFullKOT} />
         </div>
       </div>
 
@@ -154,16 +156,16 @@ function KOTContent() {
   );
 }
 
-function KOTBody({ order }: any) {
+function KOTBody({ order, isFullKOT }: { order: any; isFullKOT?: boolean }) {
   const totalQty = (order.items || []).reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0);
   const itemCount = (order.items || []).length;
 
   return (
     <>
       <div className="center kot-header">
-        <div className="kot-title">K.O.T</div>
+        <div className="kot-title">{isFullKOT ? 'REPRINT - K.O.T' : 'K.O.T'}</div>
         <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', opacity: 0.9 }}>
-          Kitchen Order Ticket
+          {isFullKOT ? 'Kitchen Order Ticket (Duplicate / Reprint)' : 'Kitchen Order Ticket'}
         </div>
       </div>
 
@@ -269,7 +271,9 @@ function KOTBody({ order }: any) {
       )}
 
       <div className="center" style={{ marginTop: '10px', borderTop: '1px solid #000', paddingTop: '6px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>*** KITCHEN COPY ***</div>
+        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>
+          {isFullKOT ? '*** REPRINT - KITCHEN COPY ***' : '*** KITCHEN COPY ***'}
+        </div>
         <div style={{ fontSize: '9px', marginTop: '2px', color: '#555' }}>Printed: {new Date().toLocaleString()}</div>
       </div>
     </>
