@@ -18,7 +18,8 @@ export const PrintSelectionDialog: React.FC = () => {
     printSelectionOpen, 
     setPrintSelectionOpen, 
     lastInvoiceId,
-    reloadData 
+    reloadData,
+    theme
   } = usePOS();
 
   const [isPrinting, setIsPrinting] = React.useState<string | null>(null);
@@ -111,19 +112,23 @@ export const PrintSelectionDialog: React.FC = () => {
     }
   };
 
+  const isDark = theme === 'dark' || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
+
   return (
     <Dialog open={printSelectionOpen} onOpenChange={setPrintSelectionOpen}>
-      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-3xl">
+      <DialogContent className={`sm:max-w-[480px] p-0 overflow-hidden border shadow-2xl rounded-3xl ${
+        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
+      }`}>
         <div className="p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
-            <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-500/10'}`}>
               <CheckCircle2 className="w-10 h-10 text-emerald-500" />
             </div>
             <div className="space-y-1">
-              <DialogTitle className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              <DialogTitle className={`text-2xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
                 CHECKOUT SUCCESSFUL!
               </DialogTitle>
-              <DialogDescription className="text-slate-500 dark:text-slate-400 font-medium">
+              <DialogDescription className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Invoice #{lastInvoiceId} has been processed. Select your preferred receipt format to print.
               </DialogDescription>
             </div>
@@ -133,52 +138,61 @@ export const PrintSelectionDialog: React.FC = () => {
             <Button
               type="button"
               variant="outline"
-              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white ${
-                isPrinting === 'standard' ? 'border-primary ring-2 ring-primary/20' : 'hover:border-primary hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group ${
+                isDark 
+                  ? 'bg-slate-800/90 border-slate-700 text-white hover:bg-slate-800 hover:border-primary' 
+                  : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-100 hover:border-primary'
+              } ${isPrinting === 'standard' ? 'border-primary ring-2 ring-primary/20' : ''}`}
               onClick={() => handlePrint('standard')}
               disabled={isPrinting !== null}
             >
               <div className={`p-3 rounded-xl transition-colors ${
-                isPrinting === 'standard' ? 'bg-primary/20' : 'bg-white dark:bg-slate-700 group-hover:bg-primary/10'
+                isDark ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-700'
               }`}>
-                {isPrinting === 'standard' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <Printer className="w-6 h-6 text-slate-700 dark:text-slate-300 group-hover:text-primary" />}
+                {isPrinting === 'standard' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <Printer className="w-6 h-6 text-primary" />}
               </div>
               <div className="flex flex-col items-start text-left">
-                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'} group-hover:text-primary transition-colors`}>
                   {isPrinting === 'standard' ? `PRINTING TO ${targetPrinter.toUpperCase()}...` : 'STANDARD RECEIPT'}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Item prices shown without tax. Taxes listed separately at bottom.</span>
+                <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'} font-medium`}>
+                  Item prices shown without tax. Taxes listed separately at bottom.
+                </span>
               </div>
             </Button>
 
             <Button
               type="button"
               variant="outline"
-              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group bg-slate-50 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white ${
-                isPrinting === 'inclusive' ? 'border-primary ring-2 ring-primary/20' : 'hover:border-primary hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
+              className={`h-24 justify-start p-6 space-x-6 border-2 transition-all relative overflow-hidden group ${
+                isDark 
+                  ? 'bg-slate-800/90 border-slate-700 text-white hover:bg-slate-800 hover:border-primary' 
+                  : 'bg-slate-50 border-slate-200 text-slate-900 hover:bg-slate-100 hover:border-primary'
+              } ${isPrinting === 'inclusive' ? 'border-primary ring-2 ring-primary/20' : ''}`}
               onClick={() => handlePrint('inclusive')}
               disabled={isPrinting !== null}
             >
               <div className={`p-3 rounded-xl transition-colors ${
-                isPrinting === 'inclusive' ? 'bg-primary/20' : 'bg-white dark:bg-slate-700 group-hover:bg-primary/10'
+                isDark ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-700'
               }`}>
-                {isPrinting === 'inclusive' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <FileText className="w-6 h-6 text-slate-700 dark:text-slate-300 group-hover:text-primary" />}
+                {isPrinting === 'inclusive' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <FileText className="w-6 h-6 text-primary" />}
               </div>
               <div className="flex flex-col items-start text-left">
-                <span className="font-bold text-slate-900 dark:text-white group-hover:text-primary transition-colors">
+                <span className={`font-bold ${isDark ? 'text-white' : 'text-slate-900'} group-hover:text-primary transition-colors`}>
                   {isPrinting === 'inclusive' ? `PRINTING TO ${targetPrinter.toUpperCase()}...` : 'TAX INCLUSIVE RECEIPT'}
                 </span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Each item price includes applicable taxes for clarity.</span>
+                <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'} font-medium`}>
+                  Each item price includes applicable taxes for clarity.
+                </span>
               </div>
             </Button>
           </div>
 
           <div className="flex justify-center pt-2">
             <Button 
+              type="button"
               variant="ghost" 
-              className="text-slate-500 dark:text-slate-400 font-bold hover:text-slate-900 dark:hover:text-white"
+              className={`font-bold ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
               onClick={() => {
                 setPrintSelectionOpen(false);
                 reloadData();

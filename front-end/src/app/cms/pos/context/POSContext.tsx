@@ -625,19 +625,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [selectedLocation, locations, allTaxes, company]);
 
   useEffect(() => {
-    const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-    setTheme(current);
+    const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null;
+    if (savedTheme === 'dark' || (!savedTheme && document.documentElement.classList.contains('dark'))) {
+      document.documentElement.classList.add('dark');
+      setTheme('dark');
+    } else if (savedTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+      setTheme('light');
+    } else {
+      const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      setTheme(current);
+    }
   }, []);
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.contains('dark');
     if (isDark) {
       document.documentElement.classList.remove('dark');
-      window.localStorage.setItem('theme', 'light');
+      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'light');
       setTheme('light');
     } else {
       document.documentElement.classList.add('dark');
-      window.localStorage.setItem('theme', 'dark');
+      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'dark');
       setTheme('dark');
     }
   };
