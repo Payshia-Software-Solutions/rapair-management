@@ -10,6 +10,7 @@ class OnlineOrderController extends Controller {
     }
 
     public function index() {
+        $this->requirePermission('invoices.read');
         // Fetch all online orders with some basic filtering (placeholder for now)
         $this->db->query("
             SELECT o.*, l.name as location_name, i.invoice_no 
@@ -39,6 +40,7 @@ class OnlineOrderController extends Controller {
     }
 
     public function show($id) {
+        $this->requirePermission('invoices.read');
         $order = $this->orderModel->getById($id);
         if (!$order) {
             http_response_code(404);
@@ -51,6 +53,7 @@ class OnlineOrderController extends Controller {
     }
 
     public function updateStatus() {
+        $this->requirePermission('invoices.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (!isset($data['id']) || !isset($data['status'])) {
             http_response_code(400);
@@ -71,6 +74,7 @@ class OnlineOrderController extends Controller {
     }
 
     public function dispatch() {
+        $this->requirePermission('invoices.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['id'])) {
             http_response_code(400);

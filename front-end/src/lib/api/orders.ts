@@ -263,8 +263,8 @@ export const markKOTPrinted = async (orderId: number) => {
   return res.json();
 };
 
-export const fetchKOTDetails = async (id: string | number) => {
-  const res = await api(`/api/pos/kot-details/${id}`);
+export const fetchKOTDetails = async (id: string | number, full: boolean = false) => {
+  const res = await api(`/api/pos/kot-details/${id}${full ? '?full=1' : ''}`);
   if (!res.ok) throw new Error('Failed to load KOT details');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;

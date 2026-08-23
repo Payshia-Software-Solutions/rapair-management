@@ -11,6 +11,7 @@ class MarketingController extends Controller {
      * Send single SMS to a customer
      */
     public function send_sms() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $recipient = $data['phone'] ?? null;
         $message = $data['message'] ?? null;
@@ -41,6 +42,7 @@ class MarketingController extends Controller {
      * Create and send a bulk SMS campaign
      */
     public function bulk_sms($data = null) {
+        $this->requirePermission('promotions.write');
         if (!$data) {
             $data = json_decode(file_get_contents('php://input'), true) ?? [];
         }
@@ -100,14 +102,17 @@ class MarketingController extends Controller {
             $db->bind(':err', $res['message'] ?? null);
             $db->execute();
 
-            if ($res['status'] === 'success') $successCount++;
-            else $failCount++;
+            if ($res['status'] === 'success') {
+                $successCount++;
+            } else {
+                $failCount++;
+            }
         }
 
         $this->json([
             'status' => 'success', 
-            'message' => "Campaign sent to $successCount customers. $failCount failed.",
-            'stats' => ['success' => $successCount, 'failed' => $failCount]
+            'message' => "Campaign finished. Sent: $successCount, Failed: $failCount",
+            'campaign_id' => $campaignId
         ]);
     }
 
@@ -115,6 +120,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/rerun-campaign
      */
     public function rerun_campaign() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
 
@@ -146,6 +152,7 @@ class MarketingController extends Controller {
      * GET /api/marketing/sms-logs
      */
     public function logs() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT l.*, c.name as customer_name FROM sms_logs l LEFT JOIN customers c ON l.customer_id = c.id ORDER BY l.id DESC LIMIT 100");
         $data = $db->resultSet();
@@ -156,6 +163,7 @@ class MarketingController extends Controller {
      * GET /api/marketing/segments
      */
     public function segments() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT s.*, (SELECT COUNT(*) FROM segment_contacts WHERE segment_id = s.id) as contact_count FROM customer_segments s ORDER BY s.id DESC");
         $data = $db->resultSet();
@@ -166,6 +174,7 @@ class MarketingController extends Controller {
      * GET /api/marketing/segment-details/:id
      */
     public function segment_details($id) {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         
         // 1. Get Segment Info
@@ -196,6 +205,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/create-segment
      */
     public function create_segment() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $name = $data['name'] ?? null;
         $desc = $data['description'] ?? '';
@@ -218,6 +228,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/update-segment
      */
     public function update_segment() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
         $name = $data['name'] ?? null;
@@ -242,6 +253,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/delete-segment
      */
     public function delete_segment() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
 
@@ -262,6 +274,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/import-contacts
      */
     public function import_contacts() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $segmentId = $data['segment_id'] ?? null;
         $contacts = $data['contacts'] ?? []; // Array of {name, phone, email}
@@ -291,6 +304,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/update-contact
      */
     public function update_contact() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
         $name = $data['name'] ?? null;
@@ -317,6 +331,7 @@ class MarketingController extends Controller {
      * POST /api/marketing/delete-contact
      */
     public function delete_contact() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
 
@@ -337,6 +352,7 @@ class MarketingController extends Controller {
      * GET /api/marketing/campaigns
      */
     public function campaigns() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT * FROM sms_campaigns ORDER BY id DESC LIMIT 50");
         $data = $db->resultSet();

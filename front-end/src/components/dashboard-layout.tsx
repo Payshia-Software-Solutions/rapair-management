@@ -45,7 +45,8 @@ import {
   Gift,
   Building2,
   ShoppingCart,
-  Ticket
+  Ticket,
+  Sparkles
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -73,9 +74,18 @@ import {
   SidebarGroupLabel,
   SidebarGroupContent
 } from '@/components/ui/sidebar';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DockMenu } from './dock-menu';
 import { PromotionsDialog } from './promotions-dialog';
 import { SaasInfoDialog } from './saas-info-dialog';
+import { AppLauncher } from './odoo-app-launcher';
 import { 
   mainNavItems, 
   masterDataItems, 
@@ -148,6 +158,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
   const [docTitle, setDocTitle] = useState<string>('');
   const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
+  const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
   
   const [saasModules, setSaasModules] = useState<string[] | null>(() => {
     if (typeof window !== 'undefined') {
@@ -410,17 +421,36 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return permissionKeys.includes(perm);
   };
 
+  const MODULE_ALIASES: Record<string, string[]> = {
+    fleet: ['serviceCenter', 'fleet'],
+    serviceCenter: ['fleet', 'serviceCenter'],
+    marketing: ['promotions', 'marketing'],
+    promotions: ['marketing', 'promotions'],
+    crm: ['cms', 'crm'],
+    cms: ['crm', 'cms'],
+    ecommerce: ['storefront', 'ecommerce'],
+    frontOffice: ['hotel', 'frontOffice'],
+    accounting: ['finance', 'accounting'],
+  };
+
   const isModuleAllowed = (module: string) => {
     if (!saasModules) return false; // wait until loaded to prevent flash
     if (saasModules.includes('*')) return true;
-    return saasModules.includes(module);
+    if (saasModules.includes(module)) return true;
+    
+    // Check aliases
+    const aliases = MODULE_ALIASES[module] || [];
+    for (const alias of aliases) {
+      if (saasModules.includes(alias)) return true;
+    }
+    return false;
   };
 
   const visibleMainNavItems = mainNavItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeCoreFeatures = visibleMainNavItems.length > 0;
+  const canSeeCoreFeatures = isModuleAllowed('coreFeatures') && visibleMainNavItems.length > 0;
 
   const visibleServiceCenterItems = serviceCenterItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeServiceCenter = isModuleAllowed('serviceCenter') && visibleServiceCenterItems.length > 0;
+  const canSeeServiceCenter = isModuleAllowed('fleet') && visibleServiceCenterItems.length > 0;
 
   const visibleVendorItems = vendorItems.filter((it) => hasPerm((it as any).perm));
   const canSeeVendors = isModuleAllowed('vendors') && visibleVendorItems.length > 0;
@@ -435,7 +465,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const canSeeInventory = visibleInventoryItems.length > 0;
 
   const visibleMarketingItems = marketingItems.filter((it) => hasPerm(it.perm));
-  const canSeeMarketing = isModuleAllowed('promotions') && visibleMarketingItems.length > 0;
+  const canSeeMarketing = isModuleAllowed('marketing') && visibleMarketingItems.length > 0;
 
   const visibleCrmItems = crmItems.filter((it) => hasPerm((it as any).perm));
   const canSeeCrm = isModuleAllowed('crm') && visibleCrmItems.length > 0;
@@ -465,7 +495,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const canSeeEcommerce = isModuleAllowed('ecommerce') && visibleEcommerceItems.length > 0;
 
   const visibleKioskItems = kioskItems.filter((it) => hasPerm((it as any).perm));
-  const canSeeKiosk = visibleKioskItems.length > 0;
+  const canSeeKiosk = isModuleAllowed('kiosk') && visibleKioskItems.length > 0;
 
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
@@ -532,21 +562,22 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     <SidebarProvider>
       <div className="flex min-h-screen w-full bg-background relative" suppressHydrationWarning>
         <Sidebar variant="sidebar" collapsible="icon" className="border-r-0 hidden lg:flex">
-          <SidebarHeader className="h-16 flex items-center px-4 sm:px-6">
+          <SidebarHeader className="h-16 flex items-center px-4 border-b border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-950">
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-10 h-10 shrink-0 relative">
+              <div className="w-9 h-9 shrink-0 relative flex items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900 shadow-xs">
                 <img 
                   src="/icon-bizzflow-logo-optimized.webp" 
                   alt="BizzFlow Icon" 
-                  className="w-full h-full object-contain"
+                  className="w-6 h-6 object-contain"
                 />
               </div>
               <div className="group-data-[collapsible=icon]:hidden">
-                <div className="text-lg font-black tracking-tighter text-white italic">
+                <div className="text-base font-black tracking-tight text-slate-900 dark:text-white flex items-center gap-1.5">
                   BizzFlow
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">ERP</span>
                 </div>
-                <div className="text-[9px] text-white/60 uppercase tracking-[0.2em] font-black leading-tight">
-                  {currentLocationName || "Global Management"}
+                <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold truncate max-w-[120px]">
+                  {currentLocationName || "Main Branch"}
                 </div>
               </div>
             </div>
@@ -563,8 +594,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={coreFeaturesOpen}
                         tooltip="Core Features"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          coreFeaturesOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          coreFeaturesOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <LayoutDashboard className="w-5 h-5" />
@@ -608,8 +639,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={serviceCenterOpen}
                         tooltip="Fleet Management"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          serviceCenterOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          serviceCenterOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Wrench className="w-5 h-5" />
@@ -653,8 +684,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={vendorsOpen}
                         tooltip="Vendors"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          vendorsOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          vendorsOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Truck className="w-5 h-5" />
@@ -698,8 +729,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/inventory')}
                         tooltip="Inventory"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/inventory') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/inventory') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Boxes className="w-5 h-5" />
@@ -743,8 +774,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={crmOpen}
                         tooltip="CRM"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          crmOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          crmOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Users className="w-5 h-5" />
@@ -788,8 +819,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={salesOpen}
                         tooltip="Sales"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          salesOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          salesOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <TrendingUp className="w-5 h-5" />
@@ -833,8 +864,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={marketingOpen}
                         tooltip="Marketing"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          marketingOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          marketingOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Gift className="w-5 h-5" />
@@ -878,8 +909,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={ecommerceOpen}
                         tooltip="E-commerce"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          ecommerceOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          ecommerceOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <ShoppingCart className="w-5 h-5" />
@@ -923,8 +954,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={isKioskOpen}
                         tooltip="Kiosk Module"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          isKioskOpen ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          isKioskOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Ticket className="w-5 h-5" />
@@ -968,8 +999,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/accounting')}
                         tooltip="Accounting"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/accounting') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/accounting') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Landmark className="w-5 h-5" />
@@ -1013,8 +1044,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/production')}
                         tooltip="Production"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/production') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/production') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Factory className="w-5 h-5" />
@@ -1058,8 +1089,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/hrm')}
                         tooltip="Human Resources"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/hrm') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/hrm') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Users className="w-5 h-5" />
@@ -1103,8 +1134,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/front-office')}
                         tooltip="Front Office"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/front-office') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/front-office') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Building2 className="w-5 h-5" />
@@ -1148,8 +1179,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/banquet')}
                         tooltip="Banquet"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/banquet') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/banquet') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <LayoutGrid className="w-5 h-5" />
@@ -1193,8 +1224,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                         isActive={pathname.startsWith('/master-data')}
                         tooltip="Master Data"
                         className={cn(
-                          "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                          pathname.startsWith('/master-data') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/master-data') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                         )}
                       >
                         <Grid className="w-5 h-5" />
@@ -1240,8 +1271,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                       isActive={pathname.startsWith('/admin')}
                       tooltip="Administration"
                       className={cn(
-                        "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                        pathname.startsWith('/admin') ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                        "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                        pathname.startsWith('/admin') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                       )}
                     >
                       <Shield className="w-5 h-5" />
@@ -1277,7 +1308,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     tooltip="Profile"
                     className={cn(
                       "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
-                      pathname === '/profile' ? "bg-sidebar-accent text-white" : "hover:bg-sidebar-accent/50"
+                      pathname === '/profile' ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                     )}
                   >
                     <Link href="/profile">
@@ -1289,21 +1320,16 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               </SidebarMenu>
             </SidebarGroup>
           </SidebarContent>
-          <SidebarFooter className="p-4 border-t border-sidebar-border">
+          <SidebarFooter className="p-3 border-t border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-950">
             <SidebarMenu>
-              <SidebarMenuItem>
-                <div className="px-4 py-2 flex items-center justify-between group-data-[collapsible=icon]:hidden">
-                   {/* Removed SaaS info from sidebar as per user request */}
-                </div>
-              </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton
                   tooltip={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-                  className="text-white/70 hover:text-white py-6 sm:py-2"
+                  className="py-2 px-3 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                   onClick={toggleTheme}
                 >
-                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                  <span className="text-base sm:text-sm font-medium">
+                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                  <span className="text-xs font-semibold">
                     {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                   </span>
                 </SidebarMenuButton>
@@ -1311,11 +1337,11 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               <SidebarMenuItem>
                 <SidebarMenuButton 
                   tooltip="Logout" 
-                  className="text-white/70 hover:text-white py-6 sm:py-2"
+                  className="py-2 px-3 rounded-xl text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
                   onClick={handleLogout}
                 >
-                  <LogOut className="w-5 h-5" />
-                  <span className="text-base sm:text-sm font-medium">Logout</span>
+                  <LogOut className="w-4 h-4" />
+                  <span className="text-xs font-semibold">Logout</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
@@ -1323,92 +1349,142 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
         </Sidebar>
 
         <SidebarInset className="flex-1 flex flex-col min-w-0">
-          <header className="h-16 border-b bg-card px-4 sm:px-8 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                className="hidden sm:flex gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10 text-primary font-semibold"
-                onClick={() => setIsPromotionsOpen(true)}
+          <header className="h-16 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+            {/* Left: 9-Dot App Matrix Switcher & Breadcrumbs / Title */}
+            <div className="flex items-center gap-3">
+              {/* 9-Dot App Launcher Button */}
+              <button
+                type="button"
+                onClick={() => setIsAppLauncherOpen(true)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-800 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-400 text-slate-700 dark:text-slate-300 transition-all shadow-xs group"
+                title="Open App Launcher (Alt + A)"
               >
-                <Percent className="w-4 h-4" />
-                Promotions
-              </Button>
+                <LayoutGrid className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              </button>
 
+              <SidebarTrigger className="h-9 w-9 hidden lg:flex rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800" />
+
+              {/* Breadcrumbs / Page Title */}
+              <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
+                <Link href="/dashboard" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                  BizzFlow
+                </Link>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-slate-900 dark:text-white font-bold">
+                  {docTitle || (pathname.split('/')[1] ? pathname.split('/')[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : 'Dashboard')}
+                </span>
+              </div>
+            </div>
+
+            {/* Center: Global Search Bar */}
+            <div className="relative w-48 md:w-80 lg:w-96 hidden sm:block">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+              <Input 
+                placeholder="Search orders, invoices, items... (Ctrl + K)" 
+                className="pl-9.5 pr-12 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+              />
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-xs">
+                ⌘K
+              </kbd>
+            </div>
+
+            {/* Right: Actions, Branch, Plan, Notifications & Profile */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Active Branch Selector Pill */}
+              {availableLocations.length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={openLocationSwitcher}
+                  className="hidden md:flex items-center gap-1.5 h-9 rounded-xl border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 hover:bg-slate-100 text-xs font-semibold text-slate-700 dark:text-slate-300"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-indigo-500" />
+                  <span className="truncate max-w-[120px]">{currentLocationName || "Select Branch"}</span>
+                  <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                </Button>
+              )}
+
+              {/* SaaS Active Plan Pill */}
               {saasPackageName && (
                 <button 
                   onClick={() => setIsSaasDialogOpen(true)}
-                  className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-primary/5 hover:bg-primary/10 border border-primary/20 transition-all group"
+                  className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100/80 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/60 border border-indigo-200/60 dark:border-indigo-800/40 transition-all"
+                  title="View License & Subscription"
                 >
-                  <Shield className="w-3.5 h-3.5 text-primary group-hover:scale-110 transition-transform" />
-                  <div className="flex flex-col text-left">
-                    <span className="text-[10px] font-black uppercase tracking-tight text-primary leading-none">{saasPackageName}</span>
-                    <span className="text-[8px] font-bold text-muted-foreground/60 leading-none mt-1 uppercase tracking-widest">Active Plan</span>
-                  </div>
+                  <Shield className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">{saasPackageName}</span>
                 </button>
               )}
-              <div className="lg:hidden p-1.5 bg-accent rounded-lg mr-2">
-                <Wrench className="w-4 h-4 text-primary" />
-              </div>
-              <SidebarTrigger className="h-10 w-10 hidden lg:flex" />
-              <div className="relative w-48 md:w-96 hidden sm:block">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="Search orders..." 
-                  className="pl-9 bg-muted/30 border-none ring-offset-background"
-                />
-              </div>
-              {availableLocations.length > 0 ? (
-                <div className="hidden md:flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-muted-foreground" />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 w-[240px] justify-between bg-muted/20 border-none"
-                    onClick={openLocationSwitcher}
-                  >
-                    <span className="truncate">{currentLocationName || "Select location"}</span>
-                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                </div>
-              ) : null}
-              <div className="lg:hidden flex items-center gap-2">
-                <img 
-                  src="/icon-bizzflow-logo-optimized.webp" 
-                  alt="BizzFlow Icon" 
-                  className="w-8 h-8 object-contain"
-                />
-                <h1 className="font-bold text-lg tracking-tight">BizzFlow</h1>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              {docTitle ? (
-                <div className="hidden md:block max-w-[260px] truncate text-sm font-semibold text-foreground/90">
-                  {docTitle}
-                </div>
-              ) : null}
+
+              {/* Promotions Button */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="hidden sm:flex items-center gap-1.5 h-9 rounded-xl border-pink-200 bg-pink-50 hover:bg-pink-100 text-pink-700 dark:border-pink-800/40 dark:bg-pink-950/30 dark:text-pink-300 text-xs font-bold transition-all shadow-xs"
+                onClick={() => setIsPromotionsOpen(true)}
+              >
+                <Sparkles className="w-3.5 h-3.5 text-pink-600 dark:text-pink-400" />
+                <span>Promos</span>
+              </Button>
+
+              {/* Theme Switcher Toggle */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="relative h-10 w-10"
+                className="h-9 w-9 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 onClick={toggleTheme}
                 title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               >
-                {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
               </Button>
-              <Button variant="ghost" size="icon" className="relative h-10 w-10">
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-background" />
+
+              {/* Notification Bell */}
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <Bell className="w-4 h-4" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full ring-2 ring-white dark:ring-slate-950" />
               </Button>
-              <Link href="/profile">
-                <Avatar className="h-8 w-8 sm:h-9 sm:w-9 border-2 border-primary/10 cursor-pointer hover:border-accent transition-colors">
-                  <AvatarImage src="https://picsum.photos/seed/user/32/32" />
-                  <AvatarFallback>FO</AvatarFallback>
-                </Avatar>
-              </Link>
+
+              {/* User Profile Avatar Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <div className="flex items-center gap-2 pl-1 cursor-pointer select-none">
+                    <Avatar className="h-8 w-8 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                      <AvatarImage src="https://picsum.photos/seed/user/32/32" />
+                      <AvatarFallback className="bg-indigo-600 text-white text-xs font-bold rounded-xl">
+                        {(userRole || 'U').substring(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 rounded-2xl shadow-xl border-slate-200 dark:border-slate-800 p-1.5">
+                  <DropdownMenuLabel className="px-3 py-2">
+                    <p className="text-xs font-bold text-slate-900 dark:text-white">Logged in as</p>
+                    <p className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 capitalize">{userRole || 'Staff User'}</p>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuItem asChild className="rounded-xl">
+                    <Link href="/profile" className="cursor-pointer flex items-center px-3 py-2 text-xs font-semibold">
+                      <User className="mr-2 h-4 w-4 text-slate-400" />
+                      <span>My Profile</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {availableLocations.length > 0 && (
+                    <DropdownMenuItem onClick={openLocationSwitcher} className="cursor-pointer rounded-xl px-3 py-2 text-xs font-semibold">
+                      <MapPin className="mr-2 h-4 w-4 text-slate-400" />
+                      <span>Switch Branch</span>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator className="my-1" />
+                  <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950/40 rounded-xl px-3 py-2 text-xs font-bold">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    <span>Log out</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
-          <main className="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 lg:pb-8" suppressHydrationWarning>
+          <main className="flex-1 p-4 sm:p-6 overflow-y-auto pb-24 lg:pb-8 bg-slate-50/50 dark:bg-transparent" suppressHydrationWarning>
             <div
               className={cn(
                 fullWidth ? "w-full" : "max-w-7xl mx-auto",
@@ -1451,6 +1527,11 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
           renewalDate={saasRenewalDate}
           invoices={saasInvoices}
           onSync={handleSaasSync}
+        />
+        <AppLauncher
+          isOpen={isAppLauncherOpen}
+          onClose={() => setIsAppLauncherOpen(false)}
+          isModuleAllowed={isModuleAllowed}
         />
       </div>
     </SidebarProvider>

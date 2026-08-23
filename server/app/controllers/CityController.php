@@ -15,8 +15,7 @@ class CityController extends Controller {
      * Optional district_id filter
      */
     public function index() {
-        // $this->success(['debug' => 'reached'], 'Reached');
-        // return;
+        $this->requirePermission('locations.read');
         $districtId = isset($_GET['district_id']) ? (int)$_GET['district_id'] : null;
 
         if ($districtId > 0) {
@@ -33,6 +32,7 @@ class CityController extends Controller {
      * POST /api/city/store
      */
     public function store() {
+        $this->requirePermission('locations.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
         }
@@ -58,6 +58,7 @@ class CityController extends Controller {
      * POST /api/city/update/{id}
      */
     public function update($id) {
+        $this->requirePermission('locations.write');
         $data = json_decode(file_get_contents('php://input'), true);
         
         $this->db->query("UPDATE cities SET name = :name, district_id = :did WHERE id = :id");
@@ -76,6 +77,7 @@ class CityController extends Controller {
      * POST /api/city/delete/{id}
      */
     public function delete($id) {
+        $this->requirePermission('locations.write');
         $this->db->query("DELETE FROM cities WHERE id = :id");
         $this->db->bind(':id', $id);
         

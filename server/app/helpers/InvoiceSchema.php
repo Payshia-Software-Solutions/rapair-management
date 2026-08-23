@@ -67,6 +67,18 @@ class InvoiceSchema {
                 if (!self::hasColumn($pdo, 'invoices', 'device_id')) {
                     $pdo->exec("ALTER TABLE invoices ADD COLUMN device_id VARCHAR(100) NULL AFTER offline_id");
                 }
+                if (!self::hasColumn($pdo, 'invoices', 'tax_invoice_no')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN tax_invoice_no VARCHAR(50) NULL AFTER invoice_no");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'date_of_supply')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN date_of_supply DATE NULL AFTER issue_date");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'place_of_supply')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN place_of_supply VARCHAR(255) NULL AFTER shipping_address");
+                }
+                if (!self::hasColumn($pdo, 'invoices', 'purchaser_tin')) {
+                    $pdo->exec("ALTER TABLE invoices ADD COLUMN purchaser_tin VARCHAR(50) NULL AFTER customer_id");
+                }
             }
         } catch (Exception $e) {}
 

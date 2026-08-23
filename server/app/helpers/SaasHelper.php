@@ -107,8 +107,29 @@ class SaasHelper {
         if (isset($config['status']) && $config['status'] === 'Trial') {
             if (isset($config['trial_expiry']) && strtotime($config['trial_expiry']) < time()) return false;
         }
-        if (isset($config['modules']) && in_array('*', $config['modules'])) return true;
-        return isset($config['modules']) && in_array($module, $config['modules']);
+        if (!isset($config['modules']) || !is_array($config['modules'])) return false;
+        if (in_array('*', $config['modules'])) return true;
+        if (in_array($module, $config['modules'])) return true;
+
+        $aliases = [
+            'fleet' => ['fleet', 'serviceCenter'],
+            'serviceCenter' => ['fleet', 'serviceCenter'],
+            'marketing' => ['marketing', 'promotions'],
+            'promotions' => ['marketing', 'promotions'],
+            'crm' => ['crm', 'cms'],
+            'cms' => ['crm', 'cms'],
+            'ecommerce' => ['ecommerce', 'storefront'],
+            'frontOffice' => ['frontOffice', 'hotel'],
+            'accounting' => ['accounting', 'finance'],
+        ];
+
+        if (isset($aliases[$module])) {
+            foreach ($aliases[$module] as $alias) {
+                if (in_array($alias, $config['modules'])) return true;
+            }
+        }
+
+        return false;
     }
 
     public static function requireModule($module) {

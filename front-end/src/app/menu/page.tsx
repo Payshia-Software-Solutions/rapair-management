@@ -8,8 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronRight, LogOut, MapPin, User, Settings, LayoutDashboard, Wrench, Truck, Boxes, Users, TrendingUp, Gift, Landmark, Factory, Building2, LayoutGrid, Grid, Shield } from "lucide-react";
+import { ChevronRight, LogOut, MapPin, User, Settings, LayoutDashboard, Wrench, Truck, Boxes, Users, TrendingUp, Gift, Landmark, Factory, Building2, LayoutGrid, Grid, Shield, ShoppingCart, Ticket } from "lucide-react";
 import { api } from "@/lib/api";
 import { 
   adminNavItems, 
@@ -20,10 +19,14 @@ import {
   vendorItems,
   crmItems,
   salesItems,
+  marketingItems,
+  ecommerceItems,
+  kioskItems,
   accountingItems,
   productionItems,
   hrmItems,
   frontOfficeItems,
+  banquetItems,
   type NavItem 
 } from "@/lib/nav-items";
 
@@ -114,26 +117,47 @@ export default function MenuPage() {
     return permissionKeys.includes(perm);
   };
 
+  const MODULE_ALIASES: Record<string, string[]> = {
+    fleet: ['serviceCenter', 'fleet'],
+    serviceCenter: ['fleet', 'serviceCenter'],
+    marketing: ['promotions', 'marketing'],
+    promotions: ['marketing', 'promotions'],
+    crm: ['cms', 'crm'],
+    cms: ['crm', 'cms'],
+    ecommerce: ['storefront', 'ecommerce'],
+    frontOffice: ['hotel', 'frontOffice'],
+    accounting: ['finance', 'accounting'],
+  };
+
   const isModuleAllowed = (module: string) => {
     if (!saasModules) return true; // Wait for load
     if (saasModules.includes("*")) return true;
-    return saasModules.includes(module);
+    if (saasModules.includes(module)) return true;
+
+    const aliases = MODULE_ALIASES[module] || [];
+    for (const alias of aliases) {
+      if (saasModules.includes(alias)) return true;
+    }
+    return false;
   };
 
   const sections = useMemo(() => {
     if (!permissionKeys) return [];
 
-    const core = mainNavItems.filter((it) => hasPerm(it.perm));
-    const service = isModuleAllowed('serviceCenter') ? serviceCenterItems.filter(it => hasPerm(it.perm)) : [];
+    const core = isModuleAllowed('coreFeatures') ? mainNavItems.filter((it) => hasPerm(it.perm)) : [];
+    const service = isModuleAllowed('fleet') ? serviceCenterItems.filter(it => hasPerm(it.perm)) : [];
     const vendors = isModuleAllowed('vendors') ? vendorItems.filter(it => hasPerm(it.perm)) : [];
     const inv = isModuleAllowed('inventory') ? inventoryItems.filter((it) => hasPerm(it.perm) && it.label !== 'Promotions') : [];
     const crm = isModuleAllowed('crm') ? crmItems.filter(it => hasPerm(it.perm)) : [];
     const sales = isModuleAllowed('sales') ? salesItems.filter(it => hasPerm(it.perm)) : [];
-    const marketing = isModuleAllowed('promotions') ? inventoryItems.filter(it => it.label === 'Promotions' && hasPerm(it.perm)) : [];
+    const marketing = isModuleAllowed('marketing') ? marketingItems.filter(it => hasPerm(it.perm)) : [];
+    const ecommerce = isModuleAllowed('ecommerce') ? ecommerceItems.filter(it => hasPerm(it.perm)) : [];
+    const kiosk = isModuleAllowed('kiosk') ? kioskItems.filter(it => hasPerm(it.perm)) : [];
     const acc = isModuleAllowed('accounting') ? accountingItems.filter(it => hasPerm(it.perm)) : [];
     const prod = isModuleAllowed('production') ? productionItems.filter(it => hasPerm(it.perm)) : [];
     const hrm = isModuleAllowed('hrm') ? hrmItems.filter(it => hasPerm(it.perm)) : [];
     const front = isModuleAllowed('frontOffice') ? frontOfficeItems.filter(it => hasPerm(it.perm)) : [];
+    const banquet = isModuleAllowed('banquet') ? banquetItems.filter(it => hasPerm(it.perm)) : [];
     const master = isModuleAllowed('masterData') ? masterDataItems.filter((it) => hasPerm(it.perm)) : [];
     const admin = userRole.toLowerCase() === "admin" ? adminNavItems : [];
 
@@ -145,10 +169,13 @@ export default function MenuPage() {
       { title: "CRM", tone: "bg-pink-600", items: crm, icon: Users },
       { title: "Sales", tone: "bg-cyan-600", items: sales, icon: TrendingUp },
       { title: "Marketing", tone: "bg-purple-600", items: marketing, icon: Gift },
+      { title: "E-commerce", tone: "bg-emerald-700", items: ecommerce, icon: ShoppingCart },
+      { title: "Kiosk", tone: "bg-violet-700", items: kiosk, icon: Ticket },
       { title: "Accounting", tone: "bg-amber-600", items: acc, icon: Landmark },
       { title: "Production", tone: "bg-indigo-600", items: prod, icon: Factory },
       { title: "HRM", tone: "bg-rose-600", items: hrm, icon: Users },
       { title: "Front Office", tone: "bg-violet-600", items: front, icon: Building2 },
+      { title: "Banquet", tone: "bg-fuchsia-600", items: banquet, icon: LayoutGrid },
       { title: "Master Data", tone: "bg-zinc-600", items: master, icon: Grid },
       { title: "Administration", tone: "bg-slate-700", items: admin, icon: Shield },
     ].filter((s) => s.items.length > 0);

@@ -73,12 +73,20 @@ function ReceiptContent() {
           margin: 4mm 3mm;
         }
         @media print {
-          html, body { margin: 0; padding: 0; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .no-print { display: none !important; }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background: white; font-family: 'Courier New', Courier, monospace; }
-        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; }
+        html, body { margin: 0; padding: 0; background: white !important; background-color: white !important; font-family: 'Courier New', Courier, monospace; color: #000000 !important; }
+        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; background: white; }
         .center { text-align: center; }
         .right { text-align: right; }
         .bold { font-weight: bold; }
@@ -140,7 +148,9 @@ function ReceiptContent() {
 }
 
 function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
-  const totalTaxPercent = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.rate_percent || 0), 0);
+  const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+  const invoiceSubtotal = Number(invoice.subtotal || 0);
+  const taxRatio = invoiceSubtotal > 0 ? (taxSum / invoiceSubtotal) : 0;
 
   const getShortTaxName = (name: string) => {
     const upper = (name || "").toUpperCase();
@@ -177,7 +187,9 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       <hr className="hr" />
 
       {/* Items */}
-      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Items</div>
+      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Items {taxInclusive ? '(Tax Inclusive)' : ''}
+      </div>
       {(invoice.items || []).map((item: any, idx: number) => {
         const lineTotal = Number(item.line_total);
         const isFree = Number(item.discount) >= Number(item.unit_price) && Number(item.unit_price) > 0;
@@ -185,9 +197,9 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
         let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
         let displayLineTotal = lineTotal;
         
-        if (taxInclusive && totalTaxPercent > 0) {
-          displayUnitPrice = displayUnitPrice * (1 + totalTaxPercent / 100);
-          displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
+        if (taxInclusive && taxRatio > 0) {
+          displayUnitPrice = displayUnitPrice * (1 + taxRatio);
+          displayLineTotal = displayLineTotal * (1 + taxRatio);
         }
 
         const unitDisplay = `@ LKR ${displayUnitPrice.toFixed(2)}`;
@@ -226,11 +238,6 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
             }
             return null;
           })()}
-          <div className="row"><span>Total (Tax Inclusive)</span><span>LKR {fmt(invoice.grand_total)}</span></div>
-          <div className="row tag" style={{ fontSize: '9px', fontStyle: 'italic' }}>
-            <span>Includes Total Taxes:</span>
-            <span>LKR {fmt((invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0))}</span>
-          </div>
         </>
       ) : (
         <>
@@ -268,14 +275,14 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       <hr className="hr-solid" />
 
       <div className="grand-total">
-        <span>TOTAL</span>
+        <span>TOTAL {taxInclusive ? '(Tax Inclusive)' : ''}</span>
         <span>LKR {fmt(invoice.grand_total)}</span>
       </div>
 
-      {Number(invoice.paid_amount) > 0 && (
-        <div style={{ marginTop: '4px' }}>
-          <div className="bold" style={{ fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px', borderBottom: '1px solid #eee' }}>Payment Details</div>
-          {(invoice.payments || []).map((p: any, idx: number) => (
+      <div style={{ marginTop: '4px' }}>
+        <div className="bold" style={{ fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px', borderBottom: '1px solid #eee' }}>Payment Details</div>
+        {(invoice.payments && invoice.payments.length > 0) ? (
+          (invoice.payments || []).map((p: any, idx: number) => (
             <div key={idx} style={{ marginBottom: '4px' }}>
               <div className="row">
                 <span>{p.payment_method}</span>
@@ -299,15 +306,29 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
                 </div>
               )}
             </div>
-          ))}
-          <div className="row" style={{ borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
-            <span>Total Paid</span>
-            <span className="bold">LKR {fmt(invoice.paid_amount)}</span>
+          ))
+        ) : (
+          <div className="row tag" style={{ fontStyle: 'italic', marginBottom: '4px' }}>
+            <span>Payment Method</span>
+            <span>Credit / Unpaid</span>
           </div>
-          {balance > 0.005 && <div className="row bold"><span>Balance Due</span><span>LKR {fmt(balance)}</span></div>}
-          {balance <= 0.005 && <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">✓ PAID</span></div>}
+        )}
+        <div className="row" style={{ borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+          <span>Total Paid</span>
+          <span className="bold">LKR {fmt(invoice.paid_amount || 0)}</span>
         </div>
-      )}
+        {balance > 0.005 && <div className="row bold"><span>Balance Due</span><span>LKR {fmt(balance)}</span></div>}
+        
+        {invoice.status === 'Cancelled' ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">CANCELLED</span></div>
+        ) : balance <= 0.005 && Number(invoice.paid_amount || 0) > 0 ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">✓ PAID</span></div>
+        ) : Number(invoice.paid_amount || 0) > 0 ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">PARTIALLY PAID</span></div>
+        ) : (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">UNPAID</span></div>
+        )}
+      </div>
 
       <hr className="hr" />
 

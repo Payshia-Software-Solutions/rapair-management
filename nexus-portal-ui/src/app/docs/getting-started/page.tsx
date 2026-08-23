@@ -36,22 +36,22 @@ export default function GettingStartedPage() {
 
       {/* Prerequisites */}
       <section id="prerequisites" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Prerequisites</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Prerequisites</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Make sure your system contains the following dependencies before proceeding:
         </p>
-        <ul className="list-disc pl-6 text-muted text-sm space-y-2 font-medium">
+        <ul className="list-disc pl-6 text-slate-600 dark:text-slate-400 text-sm space-y-2">
           <li><strong>PHP Environment:</strong> PHP 8.1+ (via XAMPP, Laragon, or Docker) with `pdo_mysql`, `curl`, and `json` extensions active.</li>
           <li><strong>Database Server:</strong> MySQL 8.0 or MariaDB 10.4+.</li>
           <li><strong>Runtime Engines:</strong> Node.js v18.0+ and npm/yarn package manager.</li>
-          <li><strong>Composer:</strong> Dependency manager for PHP (optional, depending on backend dependencies).</li>
+          <li><strong>Composer:</strong> Dependency manager for PHP backend packages.</li>
         </ul>
       </section>
 
       {/* Database Setup */}
       <section id="database" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Database Installation</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Database Installation</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           The database schema is located in `/server/database.sql`. Create a database and restore the SQL script.
         </p>
         <CodeBlock
@@ -70,8 +70,8 @@ mysql -u root -p bizzflow_erp_db < server/database.sql`}
 
       {/* Backend API Setup */}
       <section id="backend" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Backend API Setup</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Backend API Setup</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Configure the environment variables for your PHP server. Locate `/server/.env.example` and rename it to `/server/.env`.
         </p>
         <CodeBlock
@@ -86,7 +86,7 @@ DB_PASS=secret_password
 JWT_SECRET=super_secret_signing_key_here
 API_URL=http://localhost:8080`}
         />
-        <p className="text-muted leading-relaxed text-sm font-medium">
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           You can serve the backend using XAMPP Virtual Hosts, or spin up the PHP built-in server inside the `/server` folder:
         </p>
         <CodeBlock
@@ -99,8 +99,8 @@ php -S localhost:8080 -t public/`}
 
       {/* Frontend Client Setup */}
       <section id="frontend" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Frontend Client Setup</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Frontend Client Setup</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Now spin up the Next.js application inside the `/nexus-portal-ui` directory.
         </p>
         <CodeBlock

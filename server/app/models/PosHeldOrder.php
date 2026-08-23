@@ -14,11 +14,12 @@ class PosHeldOrder extends Model {
 
     public function list($locationId) {
         $this->db->query("
-            SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name
+            SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name, sl.name as location_name
             FROM {$this->table} i
             LEFT JOIN customers c ON i.customer_id = c.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
             LEFT JOIN users u ON i.steward_id = u.id
+            LEFT JOIN service_locations sl ON i.location_id = sl.id
             WHERE i.location_id = :locId AND i.status = 'pending'
             ORDER BY i.created_at DESC
         ");
@@ -28,11 +29,12 @@ class PosHeldOrder extends Model {
 
     public function getById($id) {
         $this->db->query("
-            SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name
+            SELECT i.*, c.name as customer_name, rt.name as table_name, u.name as steward_name, sl.name as location_name
             FROM {$this->table} i
             LEFT JOIN customers c ON i.customer_id = c.id
             LEFT JOIN restaurant_tables rt ON i.table_id = rt.id
             LEFT JOIN users u ON i.steward_id = u.id
+            LEFT JOIN service_locations sl ON i.location_id = sl.id
             WHERE i.id = :id
         ");
         $this->db->bind(':id', $id);

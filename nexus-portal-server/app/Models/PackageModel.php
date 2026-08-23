@@ -25,10 +25,16 @@ class PackageModel {
         $modules = json_encode($data['modules'] ?? ['*']);
         $services = json_encode($data['services'] ?? []);
         $is_public = $data['is_public'] ?? 1;
-        $this->db->query("INSERT INTO saas_packages (name, package_key, monthly_price, modules, services, server_info, is_public) VALUES (:name, :key, :price, :modules, :services, :server, :is_public)");
+        $monthly_price = floatval($data['monthly_price'] ?? 0);
+        $yearly_price = isset($data['yearly_price']) && $data['yearly_price'] !== ''
+            ? floatval($data['yearly_price'])
+            : round($monthly_price * 12 * 0.80, 2);
+
+        $this->db->query("INSERT INTO saas_packages (name, package_key, monthly_price, yearly_price, modules, services, server_info, is_public) VALUES (:name, :key, :price, :yearly_price, :modules, :services, :server, :is_public)");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':key', $data['package_key']);
-        $this->db->bind(':price', $data['monthly_price']);
+        $this->db->bind(':price', $monthly_price);
+        $this->db->bind(':yearly_price', $yearly_price);
         $this->db->bind(':modules', $modules);
         $this->db->bind(':services', $services);
         $this->db->bind(':server', $data['server_info'] ?? '');
@@ -40,9 +46,15 @@ class PackageModel {
         $modules = json_encode($data['modules'] ?? ['*']);
         $services = json_encode($data['services'] ?? []);
         $is_public = $data['is_public'] ?? 1;
-        $this->db->query("UPDATE saas_packages SET name = :name, monthly_price = :price, modules = :modules, services = :services, server_info = :server, is_public = :is_public WHERE id = :id");
+        $monthly_price = floatval($data['monthly_price'] ?? 0);
+        $yearly_price = isset($data['yearly_price']) && $data['yearly_price'] !== ''
+            ? floatval($data['yearly_price'])
+            : round($monthly_price * 12 * 0.80, 2);
+
+        $this->db->query("UPDATE saas_packages SET name = :name, monthly_price = :price, yearly_price = :yearly_price, modules = :modules, services = :services, server_info = :server, is_public = :is_public WHERE id = :id");
         $this->db->bind(':name', $data['name']);
-        $this->db->bind(':price', $data['monthly_price']);
+        $this->db->bind(':price', $monthly_price);
+        $this->db->bind(':yearly_price', $yearly_price);
         $this->db->bind(':modules', $modules);
         $this->db->bind(':services', $services);
         $this->db->bind(':server', $data['server_info'] ?? '');

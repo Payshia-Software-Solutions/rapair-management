@@ -264,17 +264,17 @@ export const OrderTypeSelector: React.FC = () => {
                                 </div>
                             ) : (
                                 heldOrders.map((order) => (
-                                    <button 
+                                    <div 
                                       key={order.id}
                                       onClick={() => {
                                           loadPOSBill(order.id);
                                           setOrderTypeDialogOpen(false);
                                           setStep('choice');
                                       }}
-                                      className="group p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg transition-all flex items-center justify-between"
+                                      className="group p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg transition-all flex items-center justify-between cursor-pointer"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-bold text-xs">
+                                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-black text-xs shrink-0">
                                                 #{order.id}
                                             </div>
                                             <div>
@@ -284,26 +284,47 @@ export const OrderTypeSelector: React.FC = () => {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-4 text-right">
+                                        <div className="flex items-center gap-3 text-right">
                                             <div className="flex flex-col items-end">
-                                                <div className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">LKR {Number(order.grand_total).toLocaleString()}</div>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <button 
+                                                <div className="text-sm font-black text-slate-900 dark:text-white tabular-nums">LKR {Number(order.grand_total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                                <div className="flex items-center gap-1.5 mt-1.5">
+                                                    <Button
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
+                                                        onClick={(e) => { 
+                                                            e.stopPropagation(); 
+                                                            const w = 400; const h = 600;
+                                                            const left = (window.screen.width / 2) - (w / 2);
+                                                            const top = (window.screen.height / 2) - (h / 2);
+                                                            window.open(`/cms/pos/kot/${order.id}?full=1&autoprint=1`, 'KOTPrint', `width=${w},height=${h},top=${top},left=${left}`);
+                                                        }}
+                                                        className="h-7 px-2 text-[10px] font-black uppercase tracking-tight gap-1 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-700/40 dark:text-amber-400 z-10"
+                                                        title="Reprint Full KOT"
+                                                    >
+                                                        <Utensils className="w-3 h-3" />
+                                                        <span>KOT</span>
+                                                    </Button>
+                                                    <Button 
+                                                        type="button"
+                                                        size="sm"
+                                                        variant="outline"
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
                                                             setGuestPrintOrderId(order.id);
                                                             setGuestPrintSelectionOpen(true);
                                                         }}
-                                                        className="p-1 rounded hover:bg-orange-100 dark:hover:bg-orange-500/20 text-orange-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
+                                                        className="h-7 px-2 text-[10px] font-black uppercase tracking-tight gap-1 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-700/40 dark:text-blue-400 z-10"
                                                         title="Print Guest Bill"
                                                     >
-                                                        <Printer className="w-4 h-4" />
-                                                    </button>
-                                                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                                                        <Printer className="w-3 h-3" />
+                                                        <span>Bill</span>
+                                                    </Button>
+                                                    <ArrowRight className="w-4 h-4 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all ml-1" />
                                                 </div>
                                             </div>
                                         </div>
-                                    </button>
+                                    </div>
                                 ))
                             )}
                         </div>
