@@ -14,6 +14,7 @@ class ShippingZoneController extends Controller {
      * GET /api/shippingzone/index
      */
     public function index() {
+        $this->requirePermission('locations.read');
         $this->db->query("SELECT * FROM shipping_zones ORDER BY name ASC");
         $zones = $this->db->resultSet();
         $this->success($zones);
@@ -23,6 +24,7 @@ class ShippingZoneController extends Controller {
      * POST /api/shippingzone/store
      */
     public function store() {
+        $this->requirePermission('locations.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
         }
@@ -53,6 +55,7 @@ class ShippingZoneController extends Controller {
      * POST /api/shippingzone/update/{id}
      */
     public function update($id) {
+        $this->requirePermission('locations.write');
         $data = json_decode(file_get_contents('php://input'), true);
         
         $this->db->query("
@@ -80,6 +83,7 @@ class ShippingZoneController extends Controller {
      * POST /api/shippingzone/delete/{id}
      */
     public function delete($id) {
+        $this->requirePermission('locations.write');
         $this->db->query("DELETE FROM shipping_zones WHERE id = :id");
         $this->db->bind(':id', $id);
         

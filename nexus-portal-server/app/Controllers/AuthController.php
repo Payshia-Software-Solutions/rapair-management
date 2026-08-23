@@ -47,7 +47,9 @@ class AuthController extends Controller {
             'business_type' => $data['business_type'] ?? '',
             'admin_email' => $data['email'],
             'slug' => $slug,
-            'package_id' => $data['package_id'] ?? 1
+            'package_id' => $data['package_id'] ?? 1,
+            'billing_cycle' => $data['billing_cycle'] ?? 'monthly',
+            'currency' => $data['currency'] ?? 'USD'
         ];
 
         // 3. Create Tenant

@@ -26,6 +26,7 @@ export default function TenantCreatePage() {
     business_type: '',
     address: '',
     currency: 'USD',
+    billing_cycle: 'monthly',
     billing_cc_email: ''
   });
 
@@ -63,48 +64,52 @@ export default function TenantCreatePage() {
   };
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
-      <button 
-        onClick={() => router.push('/admin/tenants')}
-        className="flex items-center gap-1 text-[13px] font-medium text-[#71717a] hover:text-[#09090b] dark:text-[#a1a1aa] dark:hover:text-white transition-colors"
-      >
-        <ChevronLeft size={16} /> Back to Directory
-      </button>
-
-      <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 sm:p-8 dark:border-[#27272a] dark:bg-[#18181b]">
-        
-        <div className="mb-8">
-          <h1 className="text-lg font-semibold text-[#09090b] dark:text-white">Register New Enterprise Instance</h1>
-          <p className="mt-0.5 text-[13px] text-[#71717a] dark:text-[#a1a1aa]">Initialize a new SaaS environment for an enterprise client.</p>
+    <div className="w-full p-6 sm:p-8 space-y-6 pb-24">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
+        <div>
+          <button 
+            onClick={() => router.push('/admin/tenants')}
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors mb-2"
+          >
+            <ChevronLeft size={16} /> Back to Tenants Directory
+          </button>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            Register New Enterprise Instance
+          </h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Initialize and provision a new dedicated SaaS tenant environment.
+          </p>
         </div>
+      </div>
 
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs">
         <form onSubmit={handleSave} className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Enterprise Name</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Enterprise Name</label>
               <input 
                 required
-                placeholder="e.g. Acme Corp"
+                placeholder="e.g. Acme Corporation"
                 value={formData.name}
                 onChange={(e) => setFormData({...formData, name: e.target.value})}
                 className={inputCls}
               />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">System Slug</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">System Slug</label>
               <div className="relative">
                 <input 
                   required
                   placeholder="acme-corp"
                   value={formData.slug}
                   onChange={(e) => setFormData({...formData, slug: e.target.value.toLowerCase().replace(/\s+/g, '-')})}
-                  className={`${inputCls} pr-16 font-mono`}
+                  className={`${inputCls} pr-20 font-mono`}
                 />
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono text-[#a1a1aa] pointer-events-none">.nexus.io</span>
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-mono text-slate-400 pointer-events-none">.bizzflow</span>
               </div>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Administrative Email</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Administrative Email</label>
               <input 
                 required
                 type="email"
@@ -115,30 +120,41 @@ export default function TenantCreatePage() {
               />
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Subscription Tier</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Subscription Tier</label>
               <select 
                 value={formData.package_id}
                 onChange={(e) => setFormData({...formData, package_id: e.target.value})}
-                className={`${inputCls} appearance-none cursor-pointer`}
+                className={`${inputCls} appearance-none cursor-pointer font-bold`}
               >
                 {packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Billing Currency</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Billing Cycle</label>
               <select 
-                value={formData.currency}
-                onChange={(e) => setFormData({...formData, currency: e.target.value})}
-                className={`${inputCls} appearance-none cursor-pointer`}
+                value={formData.billing_cycle}
+                onChange={(e) => setFormData({...formData, billing_cycle: e.target.value})}
+                className={`${inputCls} appearance-none cursor-pointer font-bold`}
               >
-                <option value="USD">USD - US Dollar</option>
-                <option value="LKR">LKR - Sri Lankan Rupee</option>
-                <option value="EUR">EUR - Euro</option>
-                <option value="GBP">GBP - British Pound</option>
+                <option value="monthly">Monthly Billing</option>
+                <option value="yearly">Annual Billing (Save 20%)</option>
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="block text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Billing CC Email (Optional)</label>
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Billing Currency</label>
+              <select 
+                value={formData.currency}
+                onChange={(e) => setFormData({...formData, currency: e.target.value})}
+                className={`${inputCls} appearance-none cursor-pointer font-bold`}
+              >
+                <option value="USD">USD - US Dollar ($)</option>
+                <option value="LKR">LKR - Sri Lankan Rupee (Rs)</option>
+                <option value="EUR">EUR - Euro (€)</option>
+                <option value="GBP">GBP - British Pound (£)</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Billing CC Email (Optional)</label>
               <input 
                 type="email"
                 placeholder="accounts@enterprise.com"
@@ -149,21 +165,21 @@ export default function TenantCreatePage() {
             </div>
           </div>
 
-          <div className="pt-6 border-t border-[#f4f4f5] dark:border-[#27272a] flex justify-end gap-3">
+          <div className="pt-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
             <button 
               type="button"
               onClick={() => router.push('/admin/tenants')}
-              className="rounded-lg border border-[#e4e4e7] bg-white px-4 py-2 text-[13px] font-medium text-[#71717a] hover:bg-[#f4f4f5] dark:border-[#27272a] dark:bg-[#18181b] dark:hover:bg-[#27272a] dark:text-[#a1a1aa]"
+              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-5 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             >
               Cancel
             </button>
             <button 
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-[#6366f1] px-5 py-2 text-[13px] font-semibold text-white hover:bg-[#4f46e5] disabled:opacity-60 transition-colors shadow-sm"
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 text-xs font-bold text-white transition-all shadow-sm shadow-indigo-600/25 disabled:opacity-60"
             >
-              {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Provision Instance
+              {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
+              <span>Provision Instance</span>
             </button>
           </div>
 

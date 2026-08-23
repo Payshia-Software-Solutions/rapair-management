@@ -10,6 +10,7 @@ class EmailMarketingController extends Controller {
      * GET /api/email-marketing/campaigns
      */
     public function campaigns() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT * FROM email_campaigns ORDER BY id DESC LIMIT 50");
         $data = $db->resultSet();
@@ -20,6 +21,7 @@ class EmailMarketingController extends Controller {
      * GET /api/email-marketing/templates
      */
     public function templates() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT * FROM email_templates ORDER BY id DESC");
         $data = $db->resultSet();
@@ -30,6 +32,7 @@ class EmailMarketingController extends Controller {
      * POST /api/email-marketing/save-template
      */
     public function save_template() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $id = $data['id'] ?? null;
         $name = $data['name'] ?? null;
@@ -61,6 +64,7 @@ class EmailMarketingController extends Controller {
      * POST /api/email-marketing/send-campaign
      */
     public function send_campaign() {
+        $this->requirePermission('promotions.write');
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
         $name = $data['name'] ?? 'Newsletter ' . date('Y-m-d H:i');
         $subject = $data['subject'] ?? null;
@@ -115,6 +119,7 @@ class EmailMarketingController extends Controller {
      * Processes a batch of emails from the queue.
      */
     public function process_queue() {
+        $this->requirePermission('promotions.write');
         $db = new Database();
         $batchSize = 25; // Send 25 at a time to prevent spam detection
 
@@ -203,6 +208,7 @@ class EmailMarketingController extends Controller {
      * GET /api/email-marketing/logs
      */
     public function logs() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         $db->query("SELECT l.*, c.name as customer_name FROM email_logs l LEFT JOIN customers c ON l.customer_id = c.id ORDER BY l.id DESC LIMIT 100");
         $data = $db->resultSet();
@@ -213,6 +219,7 @@ class EmailMarketingController extends Controller {
      * GET /api/EmailMarketing/media
      */
     public function media() {
+        $this->requirePermission('promotions.read');
         $db = new Database();
         try {
             $db->query("SELECT * FROM marketing_media ORDER BY id DESC");
@@ -227,6 +234,7 @@ class EmailMarketingController extends Controller {
      * GET /api/EmailMarketing/segment-contacts?segment=all
      */
     public function segment_contacts() {
+        $this->requirePermission('promotions.read');
         $segment = $_GET['segment'] ?? 'all';
         $db = new Database();
         

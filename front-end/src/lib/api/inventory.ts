@@ -232,11 +232,19 @@ export const updatePartGallery = async (partId: number | string, images: any[]) 
   return res.json();
 };
 
-export const fetchParts = async (q: string = '', locationIdOverride?: number | string | null) => {
-  const qs = q ? `?q=${encodeURIComponent(q)}` : '';
+export const fetchParts = async (q: string = '', locationIdOverride?: number | string | null | boolean) => {
+  const params = new URLSearchParams();
+  if (q) params.set('q', q);
+  
   const headers: Record<string, string> = {};
-  if (locationIdOverride) headers["X-Location-Id"] = String(locationIdOverride);
+  if (locationIdOverride === 'all' || locationIdOverride === true || locationIdOverride === 0 || locationIdOverride === '0') {
+    params.set('all_locations', '1');
+    headers['X-Location-Id'] = '0';
+  } else if (locationIdOverride) {
+    headers["X-Location-Id"] = String(locationIdOverride);
+  }
 
+  const qs = params.toString() ? `?${params.toString()}` : '';
   const res = await api(`/api/part/list${qs}`, {
     ...(Object.keys(headers).length ? { headers } : {}),
   });

@@ -71,8 +71,32 @@ export default function SubscriptionPage() {
 
   if (!subscription) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <p className="text-[13px] text-red-500">Subscription profile not found.</p>
+      <div className="p-6 max-w-4xl space-y-6">
+        <div className="rounded-2xl border border-[#e4e4e7] bg-white p-8 dark:border-[#27272a] dark:bg-[#18181b] text-center space-y-4">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#6366f1]/10 text-[#6366f1] dark:bg-[#818cf8]/20 dark:text-[#818cf8]">
+            <Zap size={24} />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-[#09090b] dark:text-white">Master Administrator Workspace</h2>
+            <p className="text-xs text-[#71717a] dark:text-[#a1a1aa] max-w-md mx-auto mt-1">
+              You are logged in as a <strong>Platform Super Admin</strong>. Super Admins manage global packages and tenant accounts rather than having an individual client subscription.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <a
+              href="/admin/packages"
+              className="rounded-xl bg-[#6366f1] px-4 py-2 text-xs font-semibold text-white hover:bg-[#4f46e5] transition-colors"
+            >
+              Manage Packages
+            </a>
+            <a
+              href="/admin/tenants"
+              className="rounded-xl border border-[#e4e4e7] bg-white px-4 py-2 text-xs font-semibold text-[#09090b] hover:bg-[#f4f4f5] dark:border-[#27272a] dark:bg-[#27272a] dark:text-white transition-colors"
+            >
+              View SaaS Tenants
+            </a>
+          </div>
+        </div>
       </div>
     );
   }

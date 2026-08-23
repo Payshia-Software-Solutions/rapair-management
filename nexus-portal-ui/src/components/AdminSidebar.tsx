@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   Inbox, Layers, CreditCard, Zap, UserCheck,
   FileText, Mail, Send, Globe, Building2,
-  LogOut, Sun, Moon, ChevronRight, X, BarChart
+  LogOut, Sun, Moon, ChevronRight, X, BarChart, Percent
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { API_BASE } from '@/config';
@@ -28,7 +28,7 @@ const menuSections = [
       { id: 'requests',     label: 'ERP Requests',     icon: Inbox,      roles: ['super_admin'] },
       { id: 'tenants',      label: 'SaaS Tenants',     icon: Layers,     roles: ['super_admin'] },
       { id: 'packages',     label: 'Packages',         icon: CreditCard, roles: ['super_admin'] },
-      { id: 'subscription', label: 'Subscription',     icon: Zap,        roles: ['super_admin', 'client'] },
+      { id: 'subscription', label: 'Subscription',     icon: Zap,        roles: ['client'] },
       { id: 'users',        label: 'Client Accounts',  icon: UserCheck,  roles: ['super_admin'] },
     ]
   },
@@ -50,6 +50,7 @@ const menuSections = [
     title: "System",
     items: [
       { id: 'settings/rates',   label: 'Rates',       icon: Globe,      roles: ['super_admin'] },
+      { id: 'settings/billing', label: 'Discounts',   icon: Percent,    roles: ['super_admin'] },
       { id: 'settings/company', label: 'Branding',    icon: Building2,  roles: ['super_admin'] },
       { id: 'settings/mail',    label: 'Mail Server', icon: Mail,       roles: ['super_admin'] },
     ]

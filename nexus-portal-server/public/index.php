@@ -176,6 +176,11 @@ $router->add('api/admin/settings/mail', ['controller' => 'SettingsController', '
 $router->add('api/admin/settings/mail/update', ['controller' => 'SettingsController', 'action' => 'updateMailSettings'], 'POST');
 $router->add('api/admin/settings/mail/test', ['controller' => 'SettingsController', 'action' => 'testMailConnection'], 'POST');
 
+// Billing & Discount Settings
+$router->add('api/admin/settings/billing', ['controller' => 'SettingsController', 'action' => 'getBillingSettings']);
+$router->add('api/admin/settings/billing/update', ['controller' => 'SettingsController', 'action' => 'updateBillingSettings'], 'POST');
+$router->add('api/saas/settings/public', ['controller' => 'SettingsController', 'action' => 'getPublicSettings']);
+
 // Match and Dispatch
 $url = $_GET['url'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];

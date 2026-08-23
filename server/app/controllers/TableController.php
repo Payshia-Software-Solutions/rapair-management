@@ -10,7 +10,7 @@ class TableController extends Controller {
     }
 
     public function list() {
-        $u = $this->requireAuth();
+        $u = $this->requirePermission('bays.read');
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         
         $locationId = $this->currentLocationId($u);
@@ -19,7 +19,7 @@ class TableController extends Controller {
     }
 
     public function create() {
-        $u = $this->requireAuth();
+        $u = $this->requirePermission('bays.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -36,7 +36,7 @@ class TableController extends Controller {
     }
 
     public function update($id = null) {
-        $u = $this->requireAuth();
+        $u = $this->requirePermission('bays.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Table ID required', 400);
 
@@ -55,7 +55,7 @@ class TableController extends Controller {
     }
 
     public function delete($id = null) {
-        $u = $this->requireAuth();
+        $u = $this->requirePermission('bays.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'DELETE') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Table ID required', 400);
 

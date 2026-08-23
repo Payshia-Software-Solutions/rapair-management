@@ -33,11 +33,13 @@ class TenantModel {
                 t.name as tenant_name, 
                 t.status, 
                 t.license_key,
+                t.billing_cycle,
                 t.trial_expiry as renewal_date, 
                 p.name as package_name, 
                 p.package_key, 
                 p.modules, 
                 p.monthly_price,
+                p.yearly_price,
                 p.max_users,
                 p.max_locations
             FROM saas_tenants t
@@ -63,11 +65,13 @@ class TenantModel {
                 t.name as tenant_name, 
                 t.status, 
                 t.license_key,
+                t.billing_cycle,
                 t.trial_expiry as renewal_date, 
                 p.name as package_name, 
                 p.package_key, 
                 p.modules, 
                 p.monthly_price,
+                p.yearly_price,
                 p.max_users,
                 p.max_locations
             FROM saas_tenants t
@@ -96,9 +100,12 @@ class TenantModel {
                    substr($random, 15, 5);
         $apiKey = "NX-" . bin2hex(random_bytes(24)); // Also make API key longer
         $expiry = date('Y-m-d', strtotime('+14 days'));
+        $billingCycle = in_array(strtolower($data['billing_cycle'] ?? ''), ['monthly', 'yearly']) 
+            ? strtolower($data['billing_cycle']) 
+            : 'monthly';
 
-        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, contact_number, billing_cc_email, slug, package_id, currency, db_name, api_url, status, trial_expiry, license_key, api_key) 
-                         VALUES (:name, :address, :type, :email, :phone, :cc, :slug, :pid, :curr, :db, :url, 'Trial', :expiry, :license, :apikey)");
+        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, contact_number, billing_cc_email, slug, package_id, currency, billing_cycle, db_name, api_url, status, trial_expiry, license_key, api_key) 
+                         VALUES (:name, :address, :type, :email, :phone, :cc, :slug, :pid, :curr, :cycle, :db, :url, 'Trial', :expiry, :license, :apikey)");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':address', $data['address'] ?? '');
         $this->db->bind(':type', $data['business_type'] ?? '');
@@ -108,6 +115,7 @@ class TenantModel {
         $this->db->bind(':slug', $data['slug']);
         $this->db->bind(':pid', $data['package_id'] ?? 1);
         $this->db->bind(':curr', $data['currency'] ?? 'USD');
+        $this->db->bind(':cycle', $billingCycle);
         $this->db->bind(':db', $data['db_name'] ?? 'repair_management_db');
         $this->db->bind(':url', $data['api_url'] ?? null);
         $this->db->bind(':expiry', $expiry);
@@ -125,13 +133,18 @@ class TenantModel {
     }
 
     public function update($data) {
-        $this->db->query("UPDATE saas_tenants SET name = :name, admin_email = :email, contact_number = :phone, slug = :slug, package_id = :pid, currency = :curr, status = :status, license_key = :license, api_key = :apikey, trial_expiry = :expiry, billing_cc_email = :cc WHERE id = :id");
+        $billingCycle = in_array(strtolower($data['billing_cycle'] ?? ''), ['monthly', 'yearly']) 
+            ? strtolower($data['billing_cycle']) 
+            : 'monthly';
+
+        $this->db->query("UPDATE saas_tenants SET name = :name, admin_email = :email, contact_number = :phone, slug = :slug, package_id = :pid, currency = :curr, billing_cycle = :cycle, status = :status, license_key = :license, api_key = :apikey, trial_expiry = :expiry, billing_cc_email = :cc WHERE id = :id");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':email', $data['admin_email']);
         $this->db->bind(':phone', $data['contact_number'] ?? null);
         $this->db->bind(':slug', $data['slug']);
         $this->db->bind(':pid', $data['package_id']);
         $this->db->bind(':curr', $data['currency']);
+        $this->db->bind(':cycle', $billingCycle);
         $this->db->bind(':status', $data['status']);
         $this->db->bind(':license', $data['license_key']);
         $this->db->bind(':apikey', $data['api_key']);
@@ -175,7 +188,7 @@ class TenantModel {
 
     public function getByIdWithPackage($id) {
         $this->db->query("
-            SELECT t.*, p.name as package_name, p.monthly_price, p.modules as package_modules
+            SELECT t.*, p.name as package_name, p.monthly_price, p.yearly_price, p.modules as package_modules
             FROM saas_tenants t
             LEFT JOIN saas_packages p ON t.package_id = p.id
             WHERE t.id = :id
@@ -186,7 +199,7 @@ class TenantModel {
 
     public function getAllActive() {
         $this->db->query("
-            SELECT t.*, p.monthly_price 
+            SELECT t.*, p.name as package_name, p.monthly_price, p.yearly_price 
             FROM saas_tenants t
             JOIN saas_packages p ON t.package_id = p.id
             WHERE t.status = 'Active'

@@ -65,11 +65,11 @@ export default function TableOfContents({ items }: TableOfContentsProps) {
   if (!items || items.length === 0) return null;
 
   return (
-    <div className="space-y-4">
-      <h5 className="text-xs font-bold uppercase tracking-widest text-strong/80">
+    <div className="space-y-3">
+      <h5 className="text-[11px] font-black uppercase tracking-wider text-slate-900 dark:text-white">
         On This Page
       </h5>
-      <nav className="space-y-2">
+      <nav className="space-y-1.5">
         {items.map((item) => {
           const isActive = activeId === item.id;
           return (
@@ -77,11 +77,11 @@ export default function TableOfContents({ items }: TableOfContentsProps) {
               key={item.id}
               href={`#${item.id}`}
               onClick={(e) => handleClick(e, item.id)}
-              className={`block text-xs font-semibold leading-relaxed transition-all hover:text-indigo-500 ${
+              className={`block text-xs transition-all ${
                 isActive
                   ? "text-indigo-600 dark:text-indigo-400 font-bold translate-x-1"
-                  : "text-muted"
-              } ${item.level === 3 ? "pl-4" : item.level === 4 ? "pl-8" : ""}`}
+                  : "text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium"
+              } ${item.level === 3 ? "pl-3" : item.level === 4 ? "pl-6" : ""}`}
             >
               {item.title}
             </a>

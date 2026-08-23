@@ -65,7 +65,7 @@ const basePagePermissionMatrix: PermMatrixRow[] = [
   { module: "Fleet Management", page: "Vehicle Models", read: "models.read", write: "models.write" },
   { module: "Fleet Management", page: "Departments", read: "departments.read", write: "departments.write" },
   { module: "Fleet Management", page: "Fuel Orders", read: "vehicles.read", write: "vehicles.write" },
-  { module: "Fleet Management", page: "Fuel Settings", read: "vehicles.write", write: "vehicles.write" },
+  { module: "Fleet Management", page: "Fuel Settings", read: "vehicles.read", write: "vehicles.write" },
 
   // Vendors
   { module: "Vendors", page: "Suppliers", read: "suppliers.read", write: "suppliers.write" },
@@ -175,7 +175,7 @@ const basePagePermissionMatrix: PermMatrixRow[] = [
   { module: "Master Data", page: "Units", read: "units.read", write: "units.write" },
   { module: "Master Data", page: "Taxes", read: "taxes.read", write: "taxes.write" },
   { module: "Master Data", page: "Banks & Branches", read: "banks.read", write: "banks.write" },
-  { module: "Master Data", page: "Shipping Carriers", read: "parts.read", write: "parts.write" },
+  { module: "Master Data", page: "Shipping Carriers", read: "locations.read", write: "locations.write" },
   { module: "Master Data", page: "Restaurant Tables", read: "bays.read", write: "bays.write" },
   { module: "Master Data", page: "Brands", read: "brands.read", write: "brands.write" },
 

@@ -21,6 +21,7 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [parts, setParts] = useState<PartRow[]>([])
+  const [existingBoms, setExistingBoms] = useState<Array<{ id: number; output_part_id: number }>>([])
   
   // Form State
   const [name, setName] = useState('')
@@ -32,7 +33,7 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
 
   useEffect(() => {
     if (open) {
-      void loadParts()
+      void loadPartsAndBOMs()
       if (bom) {
         setName(bom.name || '')
         setVersion(bom.version || '1.0')
@@ -41,7 +42,7 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
         setIsActive(bom.is_active === 1)
         if (Array.isArray(bom.items)) {
           setItems(bom.items.map((i: any) => ({ 
-            part_id: i.part_id, 
+            part_id: Number(i.part_id), 
             qty: Number(i.qty),
             part_name: i.part_name 
           })))
@@ -57,10 +58,19 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
     }
   }, [open, bom])
 
-  const loadParts = async () => {
+  const loadPartsAndBOMs = async () => {
     try {
-      const data = await fetchParts('')
-      setParts(data)
+      const [partsData, bomsRes] = await Promise.all([
+        fetchParts('', 'all'),
+        api('/api/productionbom/list').then(r => r.json()).catch(() => ({ data: [] }))
+      ])
+      setParts(partsData || [])
+      if (bomsRes?.status === 'success' && Array.isArray(bomsRes?.data)) {
+        setExistingBoms(bomsRes.data.map((b: any) => ({
+          id: Number(b.id),
+          output_part_id: Number(b.output_part_id)
+        })))
+      }
     } catch (e) {}
   }
 
@@ -131,6 +141,26 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
 
   const finishedUnitCost = Number(outputQty) > 0 ? totalBOMCost / Number(outputQty) : 0
 
+  // Calculate finished product options (allow current BOM's product or currently selected product, filter out products assigned to other BOMs)
+  const currentBomId = bom?.id ? Number(bom.id) : null
+  const currentSelectedPartId = outputPartId ? Number(outputPartId) : (bom?.output_part_id ? Number(bom.output_part_id) : null)
+  const partIdsInOtherBoms = new Set(
+    existingBoms
+      .filter(b => currentBomId === null || b.id !== currentBomId)
+      .map(b => b.output_part_id)
+  )
+
+  const finishedProductOptions = parts
+    .filter(p => {
+      const pid = Number(p.id)
+      if (currentSelectedPartId !== null && pid === currentSelectedPartId) return true
+      return !partIdsInOtherBoms.has(pid)
+    })
+    .map(p => ({
+      value: String(p.id),
+      label: `${p.part_name} (${p.sku || 'No SKU'})`
+    }))
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -162,7 +192,7 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
               <Label>Finished Product (Output)</Label>
               <SearchableSelect
                 placeholder="Select product..."
-                options={parts.map(p => ({ value: String(p.id), label: `${p.part_name} (${p.sku || 'No SKU'})` }))}
+                options={finishedProductOptions}
                 value={outputPartId}
                 onValueChange={setOutputPartId}
                 disablePortal={true}

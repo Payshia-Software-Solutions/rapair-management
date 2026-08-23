@@ -37,36 +37,27 @@ export default function SubscriptionPage() {
   const [updating, setUpdating] = useState(false);
   const { toast } = useToast();
 
+  const MASTER_MODULES = [
+    { id: 'coreFeatures', label: 'Core Features', aliases: ['coreFeatures', 'core'], desc: 'Executive & Workshop Dashboards, AI BI Insights, and Global Reporting.' },
+    { id: 'fleet', label: 'Fleet Management', aliases: ['fleet', 'serviceCenter'], desc: 'Repair Orders, Bay Scheduling, Technician Allocation, and Vehicle Management.' },
+    { id: 'vendors', label: 'Vendor Management', aliases: ['vendors', 'suppliers'], desc: 'Suppliers, Purchase Invoices, Vendor Payments, and Material Returns.' },
+    { id: 'inventory', label: 'Inventory & Warehouse', aliases: ['inventory', 'stock'], desc: 'Stock Ledger, Barcode Generation, Inter-branch Transfers, and GRN.' },
+    { id: 'crm', label: 'CRM & Customer Hub', aliases: ['crm', 'cms'], desc: 'Lead Inquiries, Customer Profiles, Vehicle Registry, and Route Delivery.' },
+    { id: 'sales', label: 'Sales & Invoicing', aliases: ['sales', 'invoicing'], desc: 'Quotations, Tax Invoices, Receipts, Cheque Management, and Targets.' },
+    { id: 'marketing', label: 'Marketing & Promotions', aliases: ['marketing', 'promotions'], desc: 'Discount Rules, SMS & Email Broadcast Campaigns, Audience Segments.' },
+    { id: 'ecommerce', label: 'E-commerce & Web Store', aliases: ['ecommerce', 'storefront'], desc: 'Online Order Fulfillment, Storefront Products, and Payment Gateways.' },
+    { id: 'kiosk', label: 'Self-Service Kiosk', aliases: ['kiosk', 'kioskApp'], desc: 'Customer Self-checkin, Digital Experience Booking, and Kiosk Displays.' },
+    { id: 'accounting', label: 'Accounting & Costing', aliases: ['accounting', 'finance'], desc: 'General Ledger, Balance Sheet, Expense Vouchers, and Product Costing.' },
+    { id: 'production', label: 'Production & Manufacturing', aliases: ['production', 'manufacturing'], desc: 'Bill of Materials (BOM), Production Orders, and Work Stations.' },
+    { id: 'hrm', label: 'Human Resources (HRM)', aliases: ['hrm', 'hr'], desc: 'Employee Records, Time Attendance, Leave Approval, and Automated Payroll.' },
+    { id: 'frontOffice', label: 'Front Office & Hospitality', aliases: ['frontOffice', 'hotel'], desc: 'Room Rack, Guest Reservations, Room Rates, and Stay Calendars.' },
+    { id: 'banquet', label: 'Banquet & Events', aliases: ['banquet', 'events'], desc: 'Banquet Hall Reservations, Event Menus, Resource Scheduling, and Vendors.' },
+    { id: 'masterData', label: 'Master Catalog Data', aliases: ['masterData', 'master_data'], desc: 'Product Collections, Tax Configurations, Unit Conversions, and Specs.' },
+  ];
+
   const allPossibleModules = React.useMemo(() => {
-    const modulesMap = new Map<string, string>();
-    
-    const extract = (m: any) => {
-        try {
-            if (Array.isArray(m)) return m;
-            if (typeof m === 'string') {
-                if (m.startsWith('[')) return JSON.parse(m);
-                return m.split(',').map((s: string) => s.trim());
-            }
-        } catch(e) {}
-        return [];
-    };
-
-    extract(saasData?.modules).forEach(m => {
-        if (m && m !== '*') modulesMap.set(m.toLowerCase(), m.toUpperCase());
-    });
-
-    availablePlans.forEach(p => {
-        extract(p.modules).forEach(m => {
-            if (m && m !== '*') modulesMap.set(m.toLowerCase(), m.toUpperCase());
-        });
-    });
-
-    return Array.from(modulesMap.entries()).map(([id, label]) => ({
-        id,
-        label,
-        desc: 'Module defined by Nexus Master API.'
-    })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [saasData, availablePlans]);
+    return MASTER_MODULES;
+  }, []);
 
   const loadSaas = async (force: boolean = false) => {
     try {
@@ -175,9 +166,17 @@ export default function SubscriptionPage() {
   const isModuleIncluded = (modId: string) => {
     if (!saasData?.modules) return false;
     if (saasData.modules.includes('*')) return true;
-    const currentModules = Array.isArray(saasData.modules) ? saasData.modules : (typeof saasData.modules === 'string' ? (saasData.modules.startsWith('[') ? JSON.parse(saasData.modules) : saasData.modules.split(',').map((s:string)=>s.trim())) : []);
-    return currentModules.some((m: string) => m.toLowerCase() === modId.toLowerCase());
-  }
+    const currentModules: string[] = Array.isArray(saasData.modules) 
+      ? saasData.modules 
+      : (typeof saasData.modules === 'string' 
+          ? (saasData.modules.startsWith('[') ? JSON.parse(saasData.modules) : saasData.modules.split(',').map((s: string) => s.trim())) 
+          : []);
+    
+    const targetObj = MASTER_MODULES.find(m => m.id.toLowerCase() === modId.toLowerCase());
+    const matchKeys = targetObj ? targetObj.aliases.map(a => a.toLowerCase()) : [modId.toLowerCase()];
+
+    return currentModules.some((m: string) => matchKeys.includes(m.toLowerCase()));
+  };
 
   const handleRefreshCache = async () => {
     setLoading(true);

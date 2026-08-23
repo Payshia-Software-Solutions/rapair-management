@@ -75,11 +75,36 @@ export default function PackagesPage() {
                     <span className="text-[11px] text-[#a1a1aa] ml-0.5">/mo</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex flex-wrap gap-1 max-w-[180px]">
-                      {JSON.parse(pkg.modules || '[]').map((m: string) => (
-                        <span key={m} className="rounded border border-[#e4e4e7] bg-[#f4f4f5] px-1.5 py-0.5 text-[10px] font-medium text-[#71717a] dark:border-[#27272a] dark:bg-[#27272a] dark:text-[#a1a1aa]">{m}</span>
-                      ))}
-                    </div>
+                    {(() => {
+                      let mods: string[] = [];
+                      try {
+                        mods = typeof pkg.modules === 'string' ? JSON.parse(pkg.modules || '[]') : (pkg.modules || []);
+                      } catch { mods = []; }
+
+                      if (mods.includes('*')) {
+                        return (
+                          <span className="inline-flex items-center gap-1 rounded-md border border-[#6366f1]/20 bg-[#6366f1]/10 px-2 py-0.5 text-[11px] font-bold text-[#6366f1] dark:text-[#818cf8]">
+                            Full Suite (All 15)
+                          </span>
+                        );
+                      }
+
+                      return (
+                        <div className="flex flex-wrap gap-1 max-w-[220px]">
+                          <span className="rounded-md border border-[#e4e4e7] bg-[#f4f4f5] px-2 py-0.5 text-[11px] font-bold text-[#09090b] dark:border-[#27272a] dark:bg-[#27272a] dark:text-white">
+                            {mods.length} Modules
+                          </span>
+                          {mods.slice(0, 3).map((m: string) => (
+                            <span key={m} className="rounded border border-[#e4e4e7] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[#71717a] dark:border-[#27272a] dark:bg-[#18181b] dark:text-[#a1a1aa]">
+                              {m}
+                            </span>
+                          ))}
+                          {mods.length > 3 && (
+                            <span className="text-[10px] text-[#a1a1aa] self-center">+{mods.length - 3} more</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="flex flex-wrap gap-1 max-w-[180px]">

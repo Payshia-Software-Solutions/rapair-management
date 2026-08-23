@@ -19,8 +19,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0b1220',
+  themeColor: '#ffffff',
 };
+
+import { ProgressBar } from "@/components/progress-bar";
 
 export default function RootLayout({
   children,
@@ -223,6 +225,7 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body antialiased bg-background min-h-screen" suppressHydrationWarning>
+        <ProgressBar />
         {children}
         <Toaster />
         <BizFlowAiAssistant />

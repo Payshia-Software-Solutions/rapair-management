@@ -11,6 +11,7 @@ class FuelController extends Controller {
     // --- FUEL STATIONS ---
 
     public function get_stations() {
+        $this->requirePermission('vehicles.read');
         $db = new \Database();
         $db->query("SELECT * FROM fleet_fuel_stations ORDER BY name ASC");
         $stations = $db->resultSet();
@@ -18,6 +19,7 @@ class FuelController extends Controller {
     }
 
     public function create_station() {
+        $this->requirePermission('vehicles.write');
         $data = $this->getJsonInput();
         if (empty($data['name']) || empty($data['type'])) {
             $this->error("Name and Type are required.");
@@ -37,6 +39,7 @@ class FuelController extends Controller {
     // --- FUEL TYPES ---
 
     public function get_types() {
+        $this->requirePermission('vehicles.read');
         $db = new \Database();
         $db->query("SELECT * FROM fleet_fuel_types ORDER BY name ASC");
         $types = $db->resultSet();
@@ -44,6 +47,7 @@ class FuelController extends Controller {
     }
 
     public function create_type() {
+        $this->requirePermission('vehicles.write');
         $data = $this->getJsonInput();
         if (empty($data['name'])) {
             $this->error("Fuel type name is required.");
@@ -76,6 +80,7 @@ class FuelController extends Controller {
     // --- FUEL ORDERS ---
 
     public function get_orders() {
+        $this->requirePermission('vehicles.read');
         $db = new \Database();
         $db->query("
             SELECT o.*, 
@@ -97,6 +102,7 @@ class FuelController extends Controller {
     }
 
     public function get_order($id) {
+        $this->requirePermission('vehicles.read');
         $db = new \Database();
         $db->query("
             SELECT o.*, 
@@ -123,6 +129,7 @@ class FuelController extends Controller {
     }
 
     public function create_order() {
+        $u = $this->requirePermission('vehicles.write');
         $data = $this->getJsonInput();
         
         $required = ['vehicle_id', 'fuel_station_id', 'fuel_type_id', 'liters', 'price_per_liter', 'mileage'];
@@ -153,7 +160,7 @@ class FuelController extends Controller {
         $db->bind(':price', $price);
         $db->bind(':total_cost', $total_cost);
         $db->bind(':mileage', $data['mileage']);
-        $db->bind(':created_by', $this->getCurrentUserId() ?? null); // Assuming this method exists, else null
+        $db->bind(':created_by', (int)($u['sub'] ?? 1));
 
         if ($db->execute()) {
             $this->success(['message' => 'Fuel order created successfully', 'id' => $db->lastInsertId(), 'total_cost' => $total_cost]);
@@ -168,8 +175,7 @@ class FuelController extends Controller {
     }
     
     private function getCurrentUserId() {
-        // Implement logic to get current user ID if available in session/headers
-        // For now, return a dummy user ID or null
-        return 1; 
+        $u = $this->currentUser();
+        return $u['sub'] ?? 1; 
     }
 }

@@ -100,11 +100,11 @@ export default function DocsHeader({
               {category}
             </span>
           )}
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-50 text-strong">
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-900 dark:text-white">
             {title}
           </h1>
           {description && (
-            <p className="text-muted text-base leading-relaxed font-medium">
+            <p className="text-sm sm:text-base leading-relaxed font-medium text-slate-600 dark:text-slate-400">
               {description}
             </p>
           )}

@@ -8,6 +8,7 @@ class BankController extends Controller {
 
     // GET /api/bank/details/{id}
     public function details($id) {
+        $this->requirePermission('banks.read');
         $bank = $this->model->getById($id);
         if ($bank) {
             $this->json(['status' => 'success', 'data' => $bank]);
@@ -18,6 +19,7 @@ class BankController extends Controller {
 
     // POST /api/bank/migrate
     public function migrate() {
+        $this->requirePermission('banks.write');
         try {
             $this->model->ensureSchema();
             $this->json(['status' => 'success', 'message' => 'Bank tables ready.']);
@@ -28,12 +30,14 @@ class BankController extends Controller {
 
     // GET /api/bank/list
     public function list() {
+        $this->requirePermission('banks.read');
         $banks = $this->model->getAll(); // Load all for management
         $this->json(['status' => 'success', 'data' => $banks]);
     }
 
     // POST /api/bank/store
     public function store() {
+        $this->requirePermission('banks.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['name'])) {
             $this->json(['status' => 'error', 'message' => 'Name is required'], 400);
@@ -48,6 +52,7 @@ class BankController extends Controller {
 
     // POST /api/bank/update/{id}
     public function update($id) {
+        $this->requirePermission('banks.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['name'])) {
             $this->json(['status' => 'error', 'message' => 'Name is required'], 400);
@@ -62,6 +67,7 @@ class BankController extends Controller {
 
     // DELETE /api/bank/delete/{id}
     public function delete($id) {
+        $this->requirePermission('banks.write');
         if ($this->model->delete($id)) {
             $this->json(['status' => 'success', 'message' => 'Bank deleted']);
         } else {
@@ -71,6 +77,7 @@ class BankController extends Controller {
 
     // POST /api/bank/sync
     public function sync() {
+        $this->requirePermission('banks.write');
         try {
             $newBranchesCount = $this->model->syncFromInternet();
             $this->json([

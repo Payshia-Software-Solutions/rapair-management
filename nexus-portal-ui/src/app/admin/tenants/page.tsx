@@ -2,7 +2,7 @@
 import { API_BASE } from '@/config';
 
 import React, { useState, useEffect } from 'react';
-import { RefreshCcw, Search, Plus, Edit, Trash2, MoreVertical } from 'lucide-react';
+import { RefreshCcw, Search, Plus, Edit, Trash2, MoreVertical, Copy, Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Pagination from '@/components/Pagination';
 
@@ -25,8 +25,15 @@ export default function TenantsPage() {
   const [loading,     setLoading]     = useState(true);
   const [searchTerm,  setSearchTerm]  = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [copiedKey,   setCopiedKey]   = useState<string | null>(null);
   const itemsPerPage = 10;
   const router = useRouter();
+
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(id);
+    setTimeout(() => setCopiedKey(null), 1800);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -144,19 +151,46 @@ export default function TenantsPage() {
                     </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className="rounded-md border border-[#e0e7ff] bg-[#eef2ff] px-2 py-0.5 text-[11px] font-medium text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8]">
-                      {tenant.package_name}
-                    </span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="rounded-md border border-[#e0e7ff] bg-[#eef2ff] px-2 py-0.5 text-[11px] font-medium text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8]">
+                        {tenant.package_name}
+                      </span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                        tenant.billing_cycle === 'yearly'
+                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400'
+                      }`}>
+                        {tenant.billing_cycle === 'yearly' ? 'Annual' : 'Monthly'}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <code className="rounded border border-[#e4e4e7] bg-[#f4f4f5] px-1.5 py-0.5 font-mono text-[11px] text-[#71717a] dark:border-[#27272a] dark:bg-[#27272a] dark:text-[#a1a1aa]">
-                      {tenant.license_key}
-                    </code>
+                    <div className="flex items-center gap-1.5">
+                      <code className="rounded border border-[#e4e4e7] bg-[#f4f4f5] px-1.5 py-0.5 font-mono text-[11px] text-[#71717a] dark:border-[#27272a] dark:bg-[#27272a] dark:text-[#a1a1aa] select-all max-w-[140px] truncate">
+                        {tenant.license_key}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(tenant.license_key, `lic-${tenant.id}`)}
+                        className="rounded p-1 text-[#a1a1aa] hover:bg-[#f4f4f5] hover:text-[#6366f1] dark:hover:bg-[#27272a] transition-colors"
+                        title="Copy License Key"
+                      >
+                        {copiedKey === `lic-${tenant.id}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-5 py-3.5">
-                    <code className="rounded border border-[#e0e7ff] bg-[#eef2ff] px-1.5 py-0.5 font-mono text-[11px] text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8]">
-                      {tenant.api_key}
-                    </code>
+                    <div className="flex items-center gap-1.5">
+                      <code className="rounded border border-[#e0e7ff] bg-[#eef2ff] px-1.5 py-0.5 font-mono text-[11px] text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8] select-all max-w-[140px] truncate">
+                        {tenant.api_key}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(tenant.api_key, `api-${tenant.id}`)}
+                        className="rounded p-1 text-[#a1a1aa] hover:bg-[#f4f4f5] hover:text-[#6366f1] dark:hover:bg-[#27272a] transition-colors"
+                        title="Copy API Key"
+                      >
+                        {copiedKey === `api-${tenant.id}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
+                      </button>
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <StatusBadge status={tenant.status} />

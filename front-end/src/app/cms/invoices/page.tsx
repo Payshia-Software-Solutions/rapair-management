@@ -286,6 +286,10 @@ export default function InvoicesPage() {
                                   <Eye className="w-4 h-4 mr-2 text-muted-foreground" />
                                   View Details
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => window.open(`/cms/invoices/${invoice.id}/tax-invoice?autoprint=1`, '_blank')}>
+                                  <FileText className="w-4 h-4 mr-2 text-amber-600" />
+                                  Print Tax Invoice (Gazette)
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={() => window.open(`/cms/invoices/${invoice.id}/print?autoprint=1`, '_blank')}>
                                   <Printer className="w-4 h-4 mr-2 text-muted-foreground" />
                                   Print Invoice

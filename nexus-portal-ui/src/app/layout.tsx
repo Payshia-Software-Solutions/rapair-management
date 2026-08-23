@@ -5,6 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BackgroundGradients from "@/components/BackgroundGradients";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ProgressBar } from "@/components/ProgressBar";
+import WhatsAppWidget from "@/components/WhatsAppWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -27,12 +29,14 @@ export default function RootLayout({
           enableSystem={false}
           disableTransitionOnChange={false}
         >
+          <ProgressBar />
           <BackgroundGradients />
           <Navbar />
           <main className="flex-1">
             {children}
           </main>
           <Footer />
+          <WhatsAppWidget />
         </ThemeProvider>
       </body>
     </html>

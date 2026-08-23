@@ -933,12 +933,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // This will be called by the CheckoutDialog with the detailed payment info
     setSubmitting(true);
     try {
+      const currentCust = customers.find(c => String(c.id) === String(selectedCustomer));
       const payload = {
         held_order_id: heldOrderId,
         location_id: Number(selectedLocation),
         customer_id: Number(selectedCustomer),
-        billing_address: company?.address || "",
-        shipping_address: company?.address || "",
+        billing_address: currentCust?.address || "",
+        shipping_address: currentCust?.address || "",
         issue_date: new Date().toISOString().split('T')[0],
         due_date: new Date().toISOString().split('T')[0],
         subtotal: totals.subtotal,

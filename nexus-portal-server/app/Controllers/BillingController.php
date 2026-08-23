@@ -43,9 +43,28 @@ class BillingController extends Controller {
         $count = 0;
         $dueDate = date('Y-m-d', strtotime('+10 days'));
 
+        $currentYear = date('Y');
+        $nextYear = date('Y', strtotime('+1 year'));
+        $annualDefaultPeriod = "Annual {$currentYear} - {$nextYear}";
+        $monthlyDefaultPeriod = date('F Y');
+
         foreach ($tenants as $tenant) {
             $tid = is_object($tenant) ? $tenant->id : $tenant['id'];
-            $basePrice = is_object($tenant) ? ($tenant->monthly_price ?? 0) : ($tenant['monthly_price'] ?? 0);
+            $billingCycle = is_object($tenant) ? ($tenant->billing_cycle ?? 'monthly') : ($tenant['billing_cycle'] ?? 'monthly');
+            $isYearly = ($billingCycle === 'yearly');
+            
+            $monthlyBase = floatval(is_object($tenant) ? ($tenant->monthly_price ?? 0) : ($tenant['monthly_price'] ?? 0));
+            $yearlyBase = floatval(is_object($tenant) ? ($tenant->yearly_price ?? 0) : ($tenant['yearly_price'] ?? 0));
+            
+            // Determine base price according to cycle
+            $basePrice = $isYearly 
+                ? ($yearlyBase > 0 ? $yearlyBase : round($monthlyBase * 12 * 0.80, 2))
+                : $monthlyBase;
+
+            $currentMonth = $isYearly 
+                ? $annualDefaultPeriod 
+                : ($_GET['period'] ?? $monthlyDefaultPeriod);
+
             $currency = is_object($tenant) ? ($tenant->currency ?? 'USD') : ($tenant['currency'] ?? 'USD');
             $ccEmail = is_object($tenant) ? ($tenant->billing_cc_email ?? null) : ($tenant['billing_cc_email'] ?? null);
             $tenantName = is_object($tenant) ? $tenant->name : $tenant['name'];
@@ -53,7 +72,7 @@ class BillingController extends Controller {
             $address = is_object($tenant) ? ($tenant->address ?? '') : ($tenant['address'] ?? '');
 
             // Currency Conversion Logic (Base: USD)
-            $monthlyPrice = $basePrice;
+            $convertedPrice = $basePrice;
             $rates = \App\Services\ExchangeRateService::getRates();
             $exchangeRate = $rates[$currency] ?? 1;
             
@@ -63,10 +82,10 @@ class BillingController extends Controller {
             $source = $db->single()->setting_value ?? 'Market';
 
             if ($currency !== 'USD' && isset($rates[$currency])) {
-                $monthlyPrice = $basePrice * $exchangeRate;
+                $convertedPrice = round($basePrice * $exchangeRate, 2);
             }
 
-            // Check if invoice already exists for this month
+            // Check if invoice already exists for this period
             if (!$invoiceModel->exists($tid, $currentMonth)) {
                 $invoiceNumber = $invoiceModel->generateNextInvoiceNumber();
                 
@@ -76,7 +95,7 @@ class BillingController extends Controller {
                     'tenant_name' => $tenantName,
                     'address' => $address,
                     'admin_email' => $adminEmail,
-                    'amount' => $monthlyPrice,
+                    'amount' => $convertedPrice,
                     'currency' => $currency,
                     'exchange_rate' => $exchangeRate,
                     'source' => strtoupper($source),
@@ -91,7 +110,7 @@ class BillingController extends Controller {
                 $invoiceId = $invoiceModel->create([
                     'tenant_id' => $tid,
                     'invoice_number' => $invoiceNumber,
-                    'amount' => $monthlyPrice,
+                    'amount' => $convertedPrice,
                     'currency' => $currency,
                     'exchange_rate' => $exchangeRate,
                     'source' => $source,
@@ -105,8 +124,9 @@ class BillingController extends Controller {
                     // Generate PDF & Send Email
                     try {
                         $pdf = \App\Services\InvoicePDF::generate($pdfData);
-                        $description = ($pdfData->package_name ?? 'Subscription') . ' - ' . $tenantName;
-                        $sent = \App\Core\Mailer::sendInvoiceEmail($adminEmail, $tenantName, $invoiceNumber, $pdf, $currentMonth, $monthlyPrice, $currency, $ccEmail, $description);
+                        $cycleLabel = $isYearly ? 'Annual Subscription' : 'Monthly Subscription';
+                        $description = ($pdfData->package_name ?? 'Subscription') . " ({$cycleLabel}) - " . $tenantName;
+                        $sent = \App\Core\Mailer::sendInvoiceEmail($adminEmail, $tenantName, $invoiceNumber, $pdf, $currentMonth, $convertedPrice, $currency, $ccEmail, $description);
                         
                         // Update Email Status & Log
                         $invoiceModel->update($invoiceId, [

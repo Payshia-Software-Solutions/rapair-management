@@ -211,7 +211,13 @@ class Invoice extends Model {
     }
 
     public function getItems($invoiceId) {
-        $this->db->query("SELECT * FROM invoice_items WHERE invoice_id = :invoice_id ORDER BY id ASC");
+        $this->db->query("
+            SELECT ii.*, p.sku, p.part_number, p.barcode_number
+            FROM invoice_items ii
+            LEFT JOIN parts p ON ii.item_id = p.id AND (ii.item_type = 'Part' OR ii.item_type IS NULL)
+            WHERE ii.invoice_id = :invoice_id
+            ORDER BY ii.id ASC
+        ");
         $this->db->bind(':invoice_id', $invoiceId);
         return $this->db->resultSet();
     }

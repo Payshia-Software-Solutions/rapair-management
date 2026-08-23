@@ -13,7 +13,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   
   // Dashboard Currency Selection (Default LKR)
-  const [selectedCurrency, setSelectedCurrency] = useState<'LKR' | 'USD'>('LKR');
+  const [selectedCurrency, setSelectedCurrency] = useState<'LKR' | 'USD' | 'EUR'>('LKR');
 
   // Raw states to cache fetched DB data
   const [rawTenants, setRawTenants] = useState<any[]>([]);

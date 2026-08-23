@@ -264,4 +264,64 @@ class SettingsController extends Controller {
         
         return $this->json(['status' => 'success', 'data' => $logos]);
     }
+
+    public function getBillingSettings() {
+        if ($this->checkAuth() !== true) return;
+        $db = new \App\Core\Database();
+        $db->query("SELECT setting_value FROM saas_settings WHERE setting_key = 'annual_discount_percentage'");
+        $row = $db->single();
+        $discount = $row ? floatval($row->setting_value) : 20.0;
+        
+        return $this->json([
+            'status' => 'success',
+            'data' => [
+                'annual_discount_percentage' => $discount
+            ]
+        ]);
+    }
+
+    public function updateBillingSettings() {
+        if ($this->checkAuth() !== true) return;
+        $data = json_decode(file_get_contents('php://input'), true);
+        $discount = max(0, min(100, floatval($data['annual_discount_percentage'] ?? 20)));
+        $recalculate = !empty($data['recalculate_packages']);
+        
+        $db = new \App\Core\Database();
+        $db->query("SELECT setting_key FROM saas_settings WHERE setting_key = 'annual_discount_percentage'");
+        if ($db->single()) {
+            $db->query("UPDATE saas_settings SET setting_value = :val WHERE setting_key = 'annual_discount_percentage'");
+        } else {
+            $db->query("INSERT INTO saas_settings (setting_key, setting_value) VALUES ('annual_discount_percentage', :val)");
+        }
+        $db->bind(':val', $discount);
+        $db->execute();
+        
+        $updatedCount = 0;
+        if ($recalculate) {
+            $multiplier = (100.0 - $discount) / 100.0;
+            $db->query("UPDATE saas_packages SET yearly_price = ROUND(monthly_price * 12 * :mult, 2)");
+            $db->bind(':mult', $multiplier);
+            $db->execute();
+            $updatedCount = $db->rowCount();
+        }
+        
+        return $this->json([
+            'status' => 'success',
+            'message' => "Annual discount set to {$discount}%." . ($recalculate ? " Updated {$updatedCount} packages." : "")
+        ]);
+    }
+
+    public function getPublicSettings() {
+        $db = new \App\Core\Database();
+        $db->query("SELECT setting_value FROM saas_settings WHERE setting_key = 'annual_discount_percentage'");
+        $row = $db->single();
+        $discount = $row ? floatval($row->setting_value) : 20.0;
+        
+        return $this->json([
+            'status' => 'success',
+            'data' => [
+                'annual_discount_percentage' => $discount
+            ]
+        ]);
+    }
 }

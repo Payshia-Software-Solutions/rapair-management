@@ -23,7 +23,7 @@ export default function AdminLoginPage() {
       .then(res => {
         if (res.ok) {
           return res.json().then(data => {
-            const dest = data.role === 'super_admin' ? '/admin/requests' : '/admin/subscription';
+            const dest = data.role === 'super_admin' ? '/admin/dashboard' : '/admin/subscription';
             router.push(dest);
           });
         }
@@ -40,14 +40,14 @@ export default function AdminLoginPage() {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: username.trim(), password }),
       });
       const data = await res.json();
       if (res.ok && data.status === 'success') {
         if (data.token) {
           localStorage.setItem('nexus_token', data.token);
         }
-        const dest = data.role === 'super_admin' ? '/admin/requests' : '/admin/subscription';
+        const dest = data.role === 'super_admin' ? '/admin/dashboard' : '/admin/subscription';
         window.location.href = dest;
       } else {
         setError(data.message || 'Invalid credentials. Please try again.');
