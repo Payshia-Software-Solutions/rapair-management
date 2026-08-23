@@ -272,10 +272,10 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
         <span>LKR {fmt(invoice.grand_total)}</span>
       </div>
 
-      {Number(invoice.paid_amount) > 0 && (
-        <div style={{ marginTop: '4px' }}>
-          <div className="bold" style={{ fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px', borderBottom: '1px solid #eee' }}>Payment Details</div>
-          {(invoice.payments || []).map((p: any, idx: number) => (
+      <div style={{ marginTop: '4px' }}>
+        <div className="bold" style={{ fontSize: '9px', textTransform: 'uppercase', marginBottom: '2px', borderBottom: '1px solid #eee' }}>Payment Details</div>
+        {(invoice.payments && invoice.payments.length > 0) ? (
+          (invoice.payments || []).map((p: any, idx: number) => (
             <div key={idx} style={{ marginBottom: '4px' }}>
               <div className="row">
                 <span>{p.payment_method}</span>
@@ -299,15 +299,29 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
                 </div>
               )}
             </div>
-          ))}
-          <div className="row" style={{ borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
-            <span>Total Paid</span>
-            <span className="bold">LKR {fmt(invoice.paid_amount)}</span>
+          ))
+        ) : (
+          <div className="row tag" style={{ fontStyle: 'italic', marginBottom: '4px' }}>
+            <span>Payment Method</span>
+            <span>Credit / Unpaid</span>
           </div>
-          {balance > 0.005 && <div className="row bold"><span>Balance Due</span><span>LKR {fmt(balance)}</span></div>}
-          {balance <= 0.005 && <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">✓ PAID</span></div>}
+        )}
+        <div className="row" style={{ borderTop: '1px dashed #000', paddingTop: '2px', marginTop: '2px' }}>
+          <span>Total Paid</span>
+          <span className="bold">LKR {fmt(invoice.paid_amount || 0)}</span>
         </div>
-      )}
+        {balance > 0.005 && <div className="row bold"><span>Balance Due</span><span>LKR {fmt(balance)}</span></div>}
+        
+        {invoice.status === 'Cancelled' ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">CANCELLED</span></div>
+        ) : balance <= 0.005 && Number(invoice.paid_amount || 0) > 0 ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">✓ PAID</span></div>
+        ) : Number(invoice.paid_amount || 0) > 0 ? (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">PARTIALLY PAID</span></div>
+        ) : (
+          <div className="center" style={{ marginTop: '6px' }}><span className="paid-badge">UNPAID</span></div>
+        )}
+      </div>
 
       <hr className="hr" />
 
