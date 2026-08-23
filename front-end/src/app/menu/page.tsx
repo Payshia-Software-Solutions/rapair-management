@@ -7,6 +7,7 @@ import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { ChevronRight, LogOut, MapPin, User, Settings, LayoutDashboard, Wrench, Truck, Boxes, Users, TrendingUp, Gift, Landmark, Factory, Building2, LayoutGrid, Grid, Shield, ShoppingCart, Ticket } from "lucide-react";
 import { api } from "@/lib/api";

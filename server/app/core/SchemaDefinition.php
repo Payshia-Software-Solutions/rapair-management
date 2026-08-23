@@ -8894,6 +8894,15 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'tax_invoice_no' => 
+      array (
+        'Field' => 'tax_invoice_no',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'order_id' => 
       array (
         'Field' => 'order_id',
@@ -8957,6 +8966,15 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'purchaser_tin' => 
+      array (
+        'Field' => 'purchaser_tin',
+        'Type' => 'varchar(50)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'billing_address' => 
       array (
         'Field' => 'billing_address',
@@ -8975,12 +8993,30 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
+      'place_of_supply' => 
+      array (
+        'Field' => 'place_of_supply',
+        'Type' => 'varchar(255)',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
       'issue_date' => 
       array (
         'Field' => 'issue_date',
         'Type' => 'date',
         'Null' => 'NO',
         'Key' => 'MUL',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'date_of_supply' => 
+      array (
+        'Field' => 'date_of_supply',
+        'Type' => 'date',
+        'Null' => 'YES',
+        'Key' => '',
         'Default' => NULL,
         'Extra' => '',
       ),

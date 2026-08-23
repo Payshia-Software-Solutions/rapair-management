@@ -35,12 +35,27 @@ class AuthController extends Controller {
             return $this->json(['status' => 'error', 'message' => 'Missing required registration fields'], 400);
         }
 
-        // 1. Initialize Models
+        // 1. Initialize Models & DB
         $tenantModel = new \App\Models\TenantModel();
         $adminModel = new \App\Models\AdminModel();
+        $db = new \App\Core\Database();
 
-        // 2. Prepare Tenant Data
+        // 2. Pre-Validation Check
         $slug = strtolower(trim(preg_replace('/[^A-Za-z0-9-]+/', '-', $data['company_name'])));
+        
+        // Check if email exists
+        if ($adminModel->findByUsername($data['email'])) {
+            return $this->json(['status' => 'error', 'message' => 'Email address is already registered.'], 409);
+        }
+
+        // Check if slug exists
+        $db->query("SELECT id FROM saas_tenants WHERE slug = :slug");
+        $db->bind(':slug', $slug);
+        if ($db->single()) {
+            return $this->json(['status' => 'error', 'message' => 'Company name is already taken. Please try another.'], 409);
+        }
+
+        // 3. Prepare Tenant Data
         $tenantData = [
             'name' => $data['company_name'],
             'address' => $data['address'] ?? '',
@@ -52,34 +67,45 @@ class AuthController extends Controller {
             'currency' => $data['currency'] ?? 'USD'
         ];
 
-        // 3. Create Tenant
-        $tenantResult = $tenantModel->create($tenantData);
-        if (!$tenantResult) {
-            return $this->json(['status' => 'error', 'message' => 'Failed to create business profile'], 500);
-        }
+        // 4. Create Tenant & Admin using a Transaction
+        try {
+            $db->beginTransaction();
 
-        // 4. Create Portal Admin linked to Tenant
-        $token = bin2hex(random_bytes(32));
-        $adminData = [
-            'tenant_id' => $tenantResult['id'],
-            'username' => $data['email'], // Use email as default username
-            'password' => $data['password'],
-            'full_name' => $data['contact_person'] ?? $data['company_name'],
-            'verification_token' => $token,
-            'role' => 'client'
-        ];
+            $tenantResult = $tenantModel->create($tenantData);
+            if (!$tenantResult) {
+                $db->rollBack();
+                return $this->json(['status' => 'error', 'message' => 'Failed to create business profile'], 500);
+            }
 
-        if ($adminModel->create($adminData)) {
-            // 5. Send Verification Email
-            \App\Core\Mailer::sendVerificationEmail($data['email'], $adminData['full_name'], $token);
+            // Create Portal Admin linked to Tenant
+            $token = bin2hex(random_bytes(32));
+            $adminData = [
+                'tenant_id' => $tenantResult['id'],
+                'username' => $data['email'],
+                'password' => $data['password'],
+                'full_name' => $data['contact_person'] ?? $data['company_name'],
+                'verification_token' => $token,
+                'role' => 'client'
+            ];
 
-            return $this->json([
-                'status' => 'success', 
-                'message' => 'Registration successful! Please check your email to verify your account before logging in.',
-                'license_key' => $tenantResult['license']
-            ]);
-        } else {
-            return $this->json(['status' => 'error', 'message' => 'Business profile created, but user account failed'], 500);
+            if ($adminModel->create($adminData)) {
+                $db->commit();
+                
+                // Send Verification Email
+                \App\Core\Mailer::sendVerificationEmail($data['email'], $adminData['full_name'], $token);
+
+                return $this->json([
+                    'status' => 'success', 
+                    'message' => 'Registration successful! Please check your email to verify your account before logging in.',
+                    'license_key' => $tenantResult['license']
+                ]);
+            } else {
+                $db->rollBack();
+                return $this->json(['status' => 'error', 'message' => 'Business profile created, but user account failed'], 500);
+            }
+        } catch (\PDOException $e) {
+            $db->rollBack();
+            return $this->json(['status' => 'error', 'message' => 'A database error occurred during registration.'], 500);
         }
     }
 
