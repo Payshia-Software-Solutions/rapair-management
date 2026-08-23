@@ -108,7 +108,9 @@ export const SidebarCart: React.FC = () => {
                   <SelectValue placeholder="Location..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {locations.map(loc => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
+                  {locations
+                    .filter(loc => Boolean(loc.is_pos_active))
+                    .map(loc => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

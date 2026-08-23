@@ -532,14 +532,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const filtersStr = sysSettingsRes?.pos_active_filters || "collections,recipe_types";
         setPosActiveFilters(filtersStr.split(',').filter(Boolean));
 
-        // Hydrate Location
+        // Hydrate Location (Only consider locations with is_pos_active enabled)
         const lsLocId = window?.localStorage?.getItem('location_id');
         let activeLocId = "";
         
-        if (lsLocId && (locsRes || []).some((l: any) => String(l.id) === lsLocId)) {
+        const posActiveLocations = (locsRes || []).filter((l: any) => Boolean(l.is_pos_active));
+
+        if (lsLocId && posActiveLocations.some((l: any) => String(l.id) === lsLocId)) {
           activeLocId = lsLocId;
-        } else if (locsRes?.length === 1) {
-          activeLocId = String(locsRes[0].id);
+        } else if (posActiveLocations.length === 1) {
+          activeLocId = String(posActiveLocations[0].id);
         }
 
         if (activeLocId) {
@@ -551,14 +553,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .then(res => setHeldOrders(Array.isArray(res) ? res : []))
               .catch(() => {})
           ]);
-        }
 
-        // Auto-select location's default customer, or first customer as fallback
-        const currentLoc = (locsRes || []).find((l: any) => String(l.id) === activeLocId);
-        if (currentLoc?.default_customer_id) {
-          setSelectedCustomer(String(currentLoc.default_customer_id));
-        } else if (custsRes?.length > 0) {
-          setSelectedCustomer(String(custsRes[0].id));
+          // Auto-select location's default customer, or first customer as fallback
+          const currentLoc = (locsRes || []).find((l: any) => String(l.id) === activeLocId);
+          if (currentLoc?.default_customer_id) {
+            setSelectedCustomer(String(currentLoc.default_customer_id));
+          } else if (custsRes?.length > 0) {
+            setSelectedCustomer(String(custsRes[0].id));
+          }
+
+          // Open Order Type Dialog on load only if a valid POS location is active
+          setOrderTypeDialogOpen(true);
+        } else {
+          _setSelectedLocation("");
+          setOrderTypeDialogOpen(false);
         }
 
         // Keyboard preference
@@ -568,9 +576,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Auto Add preference
         const lsAutoAdd = window?.localStorage?.getItem('auto_add_on_scan');
         if (lsAutoAdd === '1') setAutoAddOnScanState(true);
-
-        // Open Order Type Dialog on load
-        setOrderTypeDialogOpen(true);
 
       } catch (err) {
         console.error("POS Initialization Failed:", err);
@@ -642,6 +647,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (
         !loading && 
+        selectedLocation && 
         !orderType && 
         !orderTypeDialogOpen &&
         !returnDialogOpen && 
@@ -655,6 +661,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [
     loading, 
+    selectedLocation,
     orderType, 
     orderTypeDialogOpen, 
     returnDialogOpen, 
