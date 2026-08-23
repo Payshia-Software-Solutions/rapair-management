@@ -197,21 +197,34 @@ class AuthController extends Controller {
     // GET /api/auth/permissions
     public function permissions() {
         $u = $this->requireAuth();
-        $role = strtolower((string)($u['role'] ?? ''));
-        if ($role === 'admin') {
+        if ($this->isAdmin($u)) {
             $this->success(['*']);
         }
 
+        $role = trim((string)($u['role'] ?? ''));
+        $roleId = isset($u['role_id']) ? (int)$u['role_id'] : 0;
+
         $db = new Database();
-        $db->query("
-            SELECT p.perm_key
-            FROM roles r
-            INNER JOIN role_permissions rp ON rp.role_id = r.id
-            INNER JOIN permissions p ON p.id = rp.permission_id
-            WHERE r.name = :role
-            ORDER BY p.perm_key ASC
-        ");
-        $db->bind(':role', $role);
+        if ($roleId > 0) {
+            $db->query("
+                SELECT p.perm_key
+                FROM role_permissions rp
+                INNER JOIN permissions p ON p.id = rp.permission_id
+                WHERE rp.role_id = :role_id
+                ORDER BY p.perm_key ASC
+            ");
+            $db->bind(':role_id', $roleId);
+        } else {
+            $db->query("
+                SELECT p.perm_key
+                FROM roles r
+                INNER JOIN role_permissions rp ON rp.role_id = r.id
+                INNER JOIN permissions p ON p.id = rp.permission_id
+                WHERE LOWER(r.name) = LOWER(:role)
+                ORDER BY p.perm_key ASC
+            ");
+            $db->bind(':role', $role);
+        }
         $rows = $db->resultSet();
         $keys = array_map(function($r) { return $r->perm_key; }, $rows ?: []);
         $this->success($keys);

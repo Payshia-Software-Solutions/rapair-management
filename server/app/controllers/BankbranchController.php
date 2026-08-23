@@ -8,6 +8,7 @@ class BankbranchController extends Controller {
 
     // POST /api/bankbranch/migrate
     public function migrate() {
+        $this->requirePermission('banks.write');
         try {
             $this->model->ensureSchema();
             $this->json(['status' => 'success', 'message' => 'Bank branch table ready.']);
@@ -18,6 +19,7 @@ class BankbranchController extends Controller {
 
     // GET /api/bankbranch/bank/:bankId
     public function bank($bankId = null) {
+        $this->requirePermission('banks.read');
         if (!$bankId) {
             $this->json(['status' => 'error', 'message' => 'Missing bank ID'], 422);
             return;
@@ -29,6 +31,7 @@ class BankbranchController extends Controller {
 
     // POST /api/bankbranch/store
     public function store() {
+        $this->requirePermission('banks.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['bank_id']) || empty($data['branch_name'])) {
             $this->json(['status' => 'error', 'message' => 'Bank ID and Branch Name are required'], 400);
@@ -43,6 +46,7 @@ class BankbranchController extends Controller {
 
     // POST /api/bankbranch/update/{id}
     public function update($id) {
+        $this->requirePermission('banks.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['bank_id']) || empty($data['branch_name'])) {
             $this->json(['status' => 'error', 'message' => 'Bank ID and Branch Name are required'], 400);
@@ -57,6 +61,7 @@ class BankbranchController extends Controller {
 
     // DELETE /api/bankbranch/delete/{id}
     public function delete($id) {
+        $this->requirePermission('banks.write');
         if ($this->model->delete($id)) {
             $this->json(['status' => 'success', 'message' => 'Branch deleted']);
         } else {

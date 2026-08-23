@@ -19,8 +19,10 @@ class PartController extends Controller {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $q = $_GET['q'] ?? '';
         $sid = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
+        $allLocations = (isset($_GET['all_locations']) && ($_GET['all_locations'] == '1' || $_GET['all_locations'] === 'true'))
+                     || (isset($_GET['all']) && $_GET['all'] == '1');
         
-        $locId = $this->currentLocationId($u);
+        $locId = $allLocations ? 0 : $this->currentLocationId($u);
         if ($locId > 0) {
             $rows = $this->partModel->listLocationBalances($locId, $q);
         } else {

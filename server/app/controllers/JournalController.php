@@ -31,6 +31,7 @@ class JournalController extends Controller {
     }
 
     public function list() {
+        $this->requirePermission('accounting.read');
         $filters = [];
         if (isset($_GET['id'])) $filters['id'] = $_GET['id'];
         if (isset($_GET['ref_type'])) $filters['ref_type'] = $_GET['ref_type'];
@@ -53,6 +54,7 @@ class JournalController extends Controller {
     }
 
     public function items() {
+        $this->requirePermission('accounting.read');
         $id = $_GET['id'] ?? null;
         if (!$id) {
             $this->json(['status' => 'error', 'message' => 'Missing entry ID'], 400);
@@ -64,6 +66,7 @@ class JournalController extends Controller {
     }
 
     public function post() {
+        $this->requirePermission('accounting.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->json(['status' => 'error', 'message' => 'Method not allowed'], 405);
             return;

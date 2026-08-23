@@ -21,7 +21,7 @@ class AdminController extends Controller {
 
     private function requireAdmin() {
         $u = $this->requireAuth();
-        if (($u['role'] ?? '') !== 'Admin') {
+        if (!$this->isAdmin($u)) {
             $this->error('Forbidden', 403);
         }
         return $u;

@@ -21,7 +21,7 @@ class AuthController extends Controller {
             $_SESSION['admin_user'] = $user->username;
             $_SESSION['admin_role'] = $user->role;
             $_SESSION['tenant_id'] = $user->tenant_id;
-            return $this->json(['status' => 'success', 'user' => $user->username, 'role' => $user->role]);
+            return $this->json(['status' => 'success', 'user' => $user->username, 'role' => $user->role, 'token' => session_id()]);
         } else {
             return $this->json(['status' => 'error', 'message' => 'Invalid credentials'], 401);
         }
@@ -47,7 +47,9 @@ class AuthController extends Controller {
             'business_type' => $data['business_type'] ?? '',
             'admin_email' => $data['email'],
             'slug' => $slug,
-            'package_id' => $data['package_id'] ?? 1
+            'package_id' => $data['package_id'] ?? 1,
+            'billing_cycle' => $data['billing_cycle'] ?? 'monthly',
+            'currency' => $data['currency'] ?? 'USD'
         ];
 
         // 3. Create Tenant

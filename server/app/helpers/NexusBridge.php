@@ -68,7 +68,28 @@ class NexusBridge {
         }
 
         $modules = $data['modules'] ?? [];
-        return in_array($moduleId, $modules);
+        if (in_array('*', $modules)) return true;
+        if (in_array($moduleId, $modules)) return true;
+
+        $aliases = [
+            'fleet' => ['fleet', 'serviceCenter'],
+            'serviceCenter' => ['fleet', 'serviceCenter'],
+            'marketing' => ['marketing', 'promotions'],
+            'promotions' => ['marketing', 'promotions'],
+            'crm' => ['crm', 'cms'],
+            'cms' => ['crm', 'cms'],
+            'ecommerce' => ['ecommerce', 'storefront'],
+            'frontOffice' => ['frontOffice', 'hotel'],
+            'accounting' => ['accounting', 'finance'],
+        ];
+
+        if (isset($aliases[$moduleId])) {
+            foreach ($aliases[$moduleId] as $alias) {
+                if (in_array($alias, $modules)) return true;
+            }
+        }
+
+        return false;
     }
 
     /**

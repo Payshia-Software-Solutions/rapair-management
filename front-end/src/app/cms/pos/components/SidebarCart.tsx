@@ -108,7 +108,9 @@ export const SidebarCart: React.FC = () => {
                   <SelectValue placeholder="Location..." />
                 </SelectTrigger>
                 <SelectContent>
-                  {locations.map(loc => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
+                  {locations
+                    .filter(loc => Boolean(loc.is_pos_active))
+                    .map(loc => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -148,25 +150,46 @@ export const SidebarCart: React.FC = () => {
                                         setHeldOrdersOpen(false);
                                     }}
                                   >
-                                      <div>
-                                          <div className="font-black text-lg">#{order.id} - {order.customer_name}</div>
-                                          <div className="text-xs text-muted-foreground mt-1 font-bold">LKR {order.grand_total} • {order.items_count} Items</div>
-                                          <div className="text-[10px] text-orange-500 mt-1 uppercase font-black">{order.order_type} | {new Date(order.created_at).toLocaleTimeString()}</div>
-                                      </div>
-                                      <div className="flex items-center gap-3">
-                                          <button 
-                                              onClick={(e) => { 
-                                                  e.stopPropagation(); 
-                                                  setGuestPrintOrderId(order.id);
-                                                  setGuestPrintSelectionOpen(true);
-                                              }}
-                                              className="p-2 rounded-xl hover:bg-orange-100 dark:hover:bg-orange-500/20 text-orange-500 transition-colors opacity-0 group-hover:opacity-100 z-10"
-                                              title="Print Guest Bill"
-                                          >
-                                              <Printer className="w-5 h-5" />
-                                          </button>
-                                          <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-4 group-hover:translate-x-0" />
-                                      </div>
+                                       <div>
+                                           <div className="font-black text-lg">#{order.id} - {order.customer_name}</div>
+                                           <div className="text-xs text-muted-foreground mt-1 font-bold">LKR {Number(order.grand_total).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} • {order.items_count} Items</div>
+                                           <div className="text-[10px] text-orange-500 mt-1 uppercase font-black">{order.order_type} | {new Date(order.created_at).toLocaleTimeString()}</div>
+                                       </div>
+                                       <div className="flex items-center gap-2">
+                                           <Button
+                                               type="button"
+                                               size="sm"
+                                               variant="outline"
+                                               onClick={(e) => { 
+                                                   e.stopPropagation(); 
+                                                   const w = 400; const h = 600;
+                                                   const left = (window.screen.width / 2) - (w / 2);
+                                                   const top = (window.screen.height / 2) - (h / 2);
+                                                   window.open(`/cms/pos/kot/${order.id}?full=1&autoprint=1`, 'KOTPrint', `width=${w},height=${h},top=${top},left=${left}`);
+                                               }}
+                                               className="h-8 px-2.5 text-[10px] font-black uppercase tracking-tight gap-1 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-700/40 dark:text-amber-400 z-10"
+                                               title="Reprint Full KOT"
+                                           >
+                                               <Utensils className="w-3.5 h-3.5" />
+                                               <span>KOT</span>
+                                           </Button>
+                                           <Button 
+                                               type="button"
+                                               size="sm"
+                                               variant="outline"
+                                               onClick={(e) => { 
+                                                   e.stopPropagation(); 
+                                                   setGuestPrintOrderId(order.id);
+                                                   setGuestPrintSelectionOpen(true);
+                                               }}
+                                               className="h-8 px-2.5 text-[10px] font-black uppercase tracking-tight gap-1 bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950/30 dark:border-blue-700/40 dark:text-blue-400 z-10"
+                                               title="Print Guest Bill"
+                                           >
+                                               <Printer className="w-3.5 h-3.5" />
+                                               <span>Bill</span>
+                                           </Button>
+                                           <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all ml-1" />
+                                       </div>
                                   </div>
                               ))}
                           </div>
@@ -195,7 +218,7 @@ export const SidebarCart: React.FC = () => {
               placeholder="Search Customer..."
               options={customers.map(c => ({
                 value: String(c.id),
-                label: c.name,
+                label: c.phone ? `${c.name} (${c.phone})` : c.name,
                 keywords: `${c.name} ${c.phone}`
               }))}
             />

@@ -31,6 +31,7 @@ import { fetchPosDayLedger } from "@/lib/api";
 export const InventoryGrid: React.FC = () => {
   const {
     inventory,
+    systemTaxes,
     searchQuery,
     setSearchQuery,
     setGuideModalOpen,
@@ -76,6 +77,21 @@ export const InventoryGrid: React.FC = () => {
   
   const [visibleCount, setVisibleCount] = useState(50);
   const observerTarget = useRef(null);
+
+  // Helper to calculate tax-inclusive display price for an item based on active location taxes
+  const getTaxInclusivePrice = (basePrice: number) => {
+    if (!systemTaxes || systemTaxes.length === 0 || basePrice <= 0) return basePrice;
+    let currentBase = basePrice;
+    let totalTax = 0;
+    const sortedTaxes = [...systemTaxes].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    sortedTaxes.forEach(tax => {
+      const applyTo = tax.apply_on === 'base_plus_previous' ? currentBase : basePrice;
+      const taxAmt = applyTo * (Number(tax.rate_percent || 0) / 100);
+      totalTax += taxAmt;
+      currentBase += taxAmt;
+    });
+    return basePrice + totalTax;
+  };
 
   // Reset visible count when filters change
   useEffect(() => {
@@ -636,8 +652,23 @@ export const InventoryGrid: React.FC = () => {
                       <h4 className="font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-primary transition-colors line-clamp-2 text-xs lg:text-sm">{product.part_name}</h4>
                     </div>
                     <div className="mt-2 lg:mt-4 pt-2 lg:pt-4 border-t border-border flex justify-between items-center">
-                      <span className="font-black text-sm lg:text-base text-slate-900 dark:text-white tabular-nums">LKR {(product.price || product.cost_price || 0).toLocaleString()}</span>
-                      <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm">
+                      {(() => {
+                        const basePrice = Number(product.price || product.cost_price || 0);
+                        const taxIncPrice = getTaxInclusivePrice(basePrice);
+                        return (
+                          <div className="flex flex-col">
+                            <span className="font-black text-sm lg:text-base text-slate-900 dark:text-white tabular-nums">
+                              LKR {basePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            {taxIncPrice > basePrice && (
+                              <span className="text-[10px] lg:text-[11px] font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                Incl. Tax: LKR {taxIncPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-lg lg:rounded-xl bg-slate-50 dark:bg-slate-800 flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all shadow-sm shrink-0">
                         <Plus className="w-3 h-3 lg:w-4 lg:h-4" />
                       </div>
                     </div>

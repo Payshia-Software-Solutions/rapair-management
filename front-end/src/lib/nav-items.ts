@@ -59,16 +59,16 @@ export type NavItem = {
 };
 
 export const mainNavItems: NavItem[] = [
-  { icon: LayoutDashboard, label: "Executive Dashboard", href: "/dashboard/overall" },
-  { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard" },
+  { icon: LayoutDashboard, label: "Executive Dashboard", href: "/dashboard/overall", perm: "reports.read" },
+  { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard", perm: "reports.read" },
   { icon: MessageSquare, label: "AI Business Intelligence", href: "/ai/insights", perm: "reports.read" },
   { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },
-  { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "invoices.write" },
+  { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "pos.read" },
   { icon: BarChart3, label: "Reports", href: "/reports", perm: "reports.read" },
 ];
 
 export const serviceCenterItems: NavItem[] = [
-  { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.write" },
+  { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.read" },
   { icon: ClipboardList, label: "Order Queue", href: "/orders", perm: "orders.read" },
   { icon: CalendarIcon, label: "Service Calendar", href: "/orders/calendar", perm: "orders.read" },
   { icon: AlertCircle, label: "Upcoming Services", href: "/reports/vehicles/upcoming", perm: "vehicles.read" },
@@ -85,14 +85,14 @@ export const serviceCenterItems: NavItem[] = [
   { icon: Layers, label: "Vehicle Models", href: "/master-data/models", perm: "models.read" },
   { icon: Grid, label: "Departments", href: "/master-data/departments", perm: "departments.read" },
   { icon: Receipt, label: "Fuel Orders", href: "/fleet/fuel", perm: "vehicles.read" },
-  { icon: Settings, label: "Fuel Settings", href: "/fleet/fuel/settings", perm: "vehicles.write" },
+  { icon: Settings, label: "Fuel Settings", href: "/fleet/fuel/settings", perm: "vehicles.read" },
 ];
 
 export const kioskItems: NavItem[] = [
   { icon: Ticket, label: "Experience Bookings", href: "/kiosk/bookings", perm: "orders.read" },
   { icon: Ticket, label: "Order Requests", href: "/kiosk/orders", perm: "orders.read" },
-  { icon: FileText, label: "Kiosk Content", href: "/kiosk/content", perm: "ecommerce.write" },
-  { icon: Settings, label: "Settings", href: "/kiosk/settings", perm: "ecommerce.write" },
+  { icon: FileText, label: "Kiosk Content", href: "/kiosk/content", perm: "ecommerce.read" },
+  { icon: Settings, label: "Settings", href: "/kiosk/settings", perm: "ecommerce.read" },
 ];
 
 export const vendorItems: NavItem[] = [
@@ -123,9 +123,9 @@ export const crmItems: NavItem[] = [
 
 export const marketingItems: NavItem[] = [
   { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
-  { icon: MessageSquare, label: "SMS Marketing", href: "/cms/marketing/sms", perm: "promotions.write" },
-  { icon: Mail, label: "Email Marketing", href: "/cms/marketing/email", perm: "promotions.write" },
-  { icon: Users, label: "Audience Segments", href: "/cms/marketing/segments", perm: "promotions.write" },
+  { icon: MessageSquare, label: "SMS Marketing", href: "/cms/marketing/sms", perm: "promotions.read" },
+  { icon: Mail, label: "Email Marketing", href: "/cms/marketing/email", perm: "promotions.read" },
+  { icon: Users, label: "Audience Segments", href: "/cms/marketing/segments", perm: "promotions.read" },
 ];
 
 export const salesItems: NavItem[] = [
@@ -133,7 +133,7 @@ export const salesItems: NavItem[] = [
   { icon: FileText, label: "Quotations", href: "/sales/quotations", perm: "sales.read" },
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
   { icon: History, label: "Recurring Invoices", href: "/cms/invoices/recurring", perm: "invoices.read" },
-  { icon: FileText, label: "Customer Notes", href: "/sales/notes", perm: "invoices.create" },
+  { icon: FileText, label: "Customer Notes", href: "/sales/notes", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },
 ];
@@ -147,24 +147,24 @@ export const masterDataItems: NavItem[] = [
   { icon: Tags, label: "Units", href: "/master-data/units", perm: "units.read" },
   { icon: Percent, label: "Taxes", href: "/master-data/taxes", perm: "taxes.read" },
   { icon: Landmark, label: "Banks & Branches", href: "/master-data/banks", perm: "banks.read" },
-  { icon: Truck, label: "Shipping Carriers", href: "/master-data/shipping-carriers", perm: "parts.read" },
-  { icon: Grid, label: "Restaurant Tables", href: "/master-data/tables", perm: "tables.read" },
+  { icon: Truck, label: "Shipping Carriers", href: "/master-data/shipping-carriers", perm: "locations.read" },
+  { icon: Grid, label: "Restaurant Tables", href: "/master-data/tables", perm: "bays.read" },
   { icon: Tag, label: "Brands", href: "/master-data/brands", perm: "brands.read" },
 ];
 
 export const accountingItems: NavItem[] = [
-  { icon: LayoutDashboard, label: "Financial Overview", href: "/accounting" },
-  { icon: History, label: "Journal Entries", href: "/accounting/journal" },
-  { icon: Users, label: "Expense Payees", href: "/accounting/payees" },
-  { icon: LayoutGrid, label: "Chart of Accounts", href: "/accounting/accounts" },
-  { icon: Receipt, label: "Expenses & Vouchers", href: "/accounting/expenses" },
+  { icon: LayoutDashboard, label: "Financial Overview", href: "/accounting", perm: "accounting.read" },
+  { icon: History, label: "Journal Entries", href: "/accounting/journal", perm: "accounting.read" },
+  { icon: Users, label: "Expense Payees", href: "/accounting/payees", perm: "accounting.read" },
+  { icon: LayoutGrid, label: "Chart of Accounts", href: "/accounting/accounts", perm: "accounting.read" },
+  { icon: Receipt, label: "Expenses & Vouchers", href: "/accounting/expenses", perm: "accounting.read" },
   { icon: CheckCircle2, label: "Bank Reconciliation", href: "/accounting/reconciliation", perm: "accounting.reconcile" },
-  { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance" },
-  { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years" },
-  { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet" },
+  { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance", perm: "accounting.read" },
+  { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years", perm: "fiscal.read" },
+  { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet", perm: "accounting.read" },
   { icon: Calculator, label: "Product Costing Templates", href: "/admin/shipping/templates", perm: "costing.manage" },
   { icon: FileText, label: "Product & Export Costing", href: "/accounts/costing-sheet", perm: "costing.manage" },
-  { icon: Settings, label: "Accounting Settings", href: "/accounting/settings" },
+  { icon: Settings, label: "Accounting Settings", href: "/accounting/settings", perm: "accounting.read" },
 ];
 
 export const productionItems: NavItem[] = [
@@ -178,9 +178,9 @@ export const hrmItems: NavItem[] = [
   { icon: ClipboardList, label: "Attendance", href: "/hrm/attendance", perm: "hrm.read" },
   { icon: FileText, label: "Leave Management", href: "/hrm/leave", perm: "hrm.read" },
   { icon: Landmark, label: "Payroll", href: "/hrm/payroll", perm: "hrm.read" },
-  { icon: Building2, label: "Staff Departments", href: "/hrm/settings/departments", perm: "hrm.write" },
-  { icon: Layers, label: "Staff Categories", href: "/hrm/settings/categories", perm: "hrm.write" },
-  { icon: Banknote, label: "Salary Schemes", href: "/hrm/settings/salary-schemes", perm: "hrm.write" },
+  { icon: Building2, label: "Staff Departments", href: "/hrm/settings/departments", perm: "hrm.read" },
+  { icon: Layers, label: "Staff Categories", href: "/hrm/settings/categories", perm: "hrm.read" },
+  { icon: Banknote, label: "Salary Schemes", href: "/hrm/settings/salary-schemes", perm: "hrm.read" },
 ];
 
 export const frontOfficeItems: NavItem[] = [
@@ -204,26 +204,26 @@ export const ecommerceItems: NavItem[] = [
   { icon: ShoppingCart, label: "Online Orders", href: "/ecommerce/orders", perm: "invoices.read" },
   { icon: Users, label: "Storefront Customers", href: "/ecommerce/customers", perm: "customers.read" },
   { icon: History, label: "Payment Webhook Logs", href: "/ecommerce/payment-logs", perm: "invoices.read" },
-  { icon: LayoutGrid, label: "Content Management", href: "/ecommerce/content", perm: "promotions.write" },
-  { icon: FolderTree, label: "Navigation Menu", href: "/ecommerce/navigation", perm: "promotions.write" },
+  { icon: LayoutGrid, label: "Content Management", href: "/ecommerce/content", perm: "promotions.read" },
+  { icon: FolderTree, label: "Navigation Menu", href: "/ecommerce/navigation", perm: "promotions.read" },
   { icon: Boxes, label: "Storefront Products", href: "/ecommerce/products", perm: "parts.read" },
-  { icon: MessageSquare, label: "Product Reviews", href: "/ecommerce/reviews", perm: "promotions.write" },
-  { icon: Ticket, label: "Coupons & Discounts", href: "/ecommerce/coupons", perm: "promotions.write" },
-  { icon: Settings, label: "E-commerce Settings", href: "/ecommerce/settings", perm: "promotions.write" },
-  { icon: Calculator, label: "Developer Options", href: "/ecommerce/developer", perm: "promotions.write" },
+  { icon: MessageSquare, label: "Product Reviews", href: "/ecommerce/reviews", perm: "promotions.read" },
+  { icon: Ticket, label: "Coupons & Discounts", href: "/ecommerce/coupons", perm: "promotions.read" },
+  { icon: Settings, label: "E-commerce Settings", href: "/ecommerce/settings", perm: "promotions.read" },
+  { icon: Calculator, label: "Developer Options", href: "/ecommerce/developer", perm: "promotions.read" },
 ];
 
 export const adminNavItems: NavItem[] = [
-  { icon: Users, label: "Users", href: "/admin/users" },
-  { icon: Shield, label: "RBAC Roles", href: "/admin/rbac" },
-  { icon: Database, label: "Locations", href: "/admin/locations" },
-  { icon: Settings, label: "Company", href: "/admin/company" },
-  { icon: Settings, label: "System Settings", href: "/admin/settings/system" },
-  { icon: Printer, label: "Printer Setup", href: "/admin/settings/printers" },
-  { icon: Truck, label: "Shipping Management", href: "/admin/shipping" },
-  { icon: Layers, label: "Database Schema", href: "/admin/schema" },
-  { icon: ShieldCheck, label: "Table Verification", href: "/reports/database" },
-  { icon: CreditCard, label: "Subscription", href: "/admin/subscription" },
+  { icon: Users, label: "Users", href: "/admin/users", perm: "users.read" },
+  { icon: Shield, label: "RBAC Roles", href: "/admin/rbac", perm: "rbac.read" },
+  { icon: Database, label: "Locations", href: "/admin/locations", perm: "locations.read" },
+  { icon: Settings, label: "Company", href: "/admin/company", perm: "company.write" },
+  { icon: Settings, label: "System Settings", href: "/admin/settings/system", perm: "settings.read" },
+  { icon: Printer, label: "Printer Setup", href: "/admin/settings/printers", perm: "settings.read" },
+  { icon: Truck, label: "Shipping Management", href: "/admin/shipping", perm: "locations.read" },
+  { icon: Layers, label: "Database Schema", href: "/admin/schema", perm: "settings.read" },
+  { icon: ShieldCheck, label: "Table Verification", href: "/reports/database", perm: "settings.read" },
+  { icon: CreditCard, label: "Subscription", href: "/admin/subscription", perm: "settings.read" },
   { icon: FileX, label: "Document Cancellations", href: "/accounting/cancellations", perm: "accounting.write" },
 ];
 

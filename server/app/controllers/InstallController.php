@@ -57,7 +57,7 @@ class InstallController extends Controller {
             CREATE TABLE IF NOT EXISTS service_locations (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
-                location_type ENUM('service','warehouse') NOT NULL DEFAULT 'service',
+                location_type VARCHAR(50) NOT NULL DEFAULT 'service',
                 address VARCHAR(255) NULL,
                 phone VARCHAR(50) NULL,
                 created_by INT NULL,
@@ -74,7 +74,7 @@ class InstallController extends Controller {
             $stmt = $pdo->query("SHOW COLUMNS FROM service_locations LIKE 'location_type'");
             $exists = (bool)$stmt->fetch(PDO::FETCH_ASSOC);
             if (!$exists) {
-                $pdo->exec("ALTER TABLE service_locations ADD COLUMN location_type ENUM('service','warehouse') NOT NULL DEFAULT 'service' AFTER name");
+                $pdo->exec("ALTER TABLE service_locations ADD COLUMN location_type VARCHAR(50) NOT NULL DEFAULT 'service' AFTER name");
             }
         } catch (Exception $e) {}
 
@@ -269,50 +269,9 @@ class InstallController extends Controller {
             // ignore
         }
 
-        // Seed permissions (Admin is treated as superuser in code, but we still keep a list here)
-        $pdo->exec("
-            INSERT IGNORE INTO permissions (perm_key, description) VALUES
-            ('orders.read', 'View repair orders'),
-            ('orders.write', 'Create/update repair orders'),
-            ('vehicles.read', 'View vehicles'),
-            ('vehicles.write', 'Create/update/delete vehicles'),
-            ('bays.read', 'View service bays'),
-            ('bays.write', 'Create/update/delete bays and update status'),
-            ('technicians.read', 'View technicians'),
-            ('technicians.write', 'Create/update/delete technicians'),
-            ('makes.read', 'View vehicle makes'),
-            ('makes.write', 'Create/update/delete vehicle makes'),
-            ('models.read', 'View vehicle models'),
-            ('models.write', 'Create/update/delete vehicle models'),
-            ('categories.read', 'View repair categories'),
-            ('categories.write', 'Create/update/delete repair categories'),
-            ('checklists.read', 'View checklist items'),
-            ('checklists.write', 'Create/update/delete checklist items'),
-            ('parts.read', 'View item master (parts)'),
-            ('parts.write', 'Create/update/delete item master (parts)'),
-            ('suppliers.read', 'View suppliers'),
-            ('suppliers.write', 'Create/update/delete suppliers'),
-            ('purchase.read', 'View purchase orders'),
-            ('purchase.write', 'Create/update/delete purchase orders'),
-            ('grn.read', 'View goods receive notes'),
-            ('grn.write', 'Create/update goods receive notes'),
-            ('stock.read', 'View stock movements and balances'),
-            ('stock.adjust', 'Adjust stock quantity'),
-            ('transfer.read', 'View stock transfer requests'),
-            ('transfer.write', 'Create/update stock transfer requests'),
-            ('locations.read', 'View service center locations'),
-            ('locations.write', 'Create/update/delete service center locations'),
-            ('departments.read', 'View departments'),
-            ('departments.write', 'Create/update/delete departments'),
-            ('company.write', 'Update company details'),
-            ('reports.read', 'View reports'),
-            ('units.read', 'View units'),
-            ('units.write', 'Create/update/delete units'),
-            ('payments.read', 'View payments and cheques'),
-            ('payments.write', 'Record payments and update cheque status'),
-            ('accounting.read', 'View financial accounts and expenses'),
-            ('accounting.write', 'Manage chart of accounts and record expenses')
-        ");
+        // Seed permissions & roles (Admin is treated as superuser in code, but we still keep a catalog here)
+        require_once APPROOT . '/app/helpers/RbacSchema.php';
+        RbacSchema::ensure();
 
         // Seed role permissions (Admin is superuser; mappings below are for non-admin roles)
         $roleId = function($name) use ($pdo) {

@@ -5,6 +5,8 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import BackgroundGradients from "@/components/BackgroundGradients";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { ProgressBar } from "@/components/ProgressBar";
+import WhatsAppWidget from "@/components/WhatsAppWidget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -20,19 +22,21 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full scroll-smooth" suppressHydrationWarning>
-      <body className={`${inter.className} min-h-full flex flex-col antialiased bg-background text-foreground transition-colors duration-300`}>
+      <body className={`${inter.className} min-h-full flex flex-col antialiased bg-background text-foreground`}>
         <ThemeProvider
           attribute="class"
-          defaultTheme="dark"
-          enableSystem
-          disableTransitionOnChange
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange={false}
         >
+          <ProgressBar />
           <BackgroundGradients />
           <Navbar />
           <main className="flex-1">
             {children}
           </main>
           <Footer />
+          <WhatsAppWidget />
         </ThemeProvider>
       </body>
     </html>

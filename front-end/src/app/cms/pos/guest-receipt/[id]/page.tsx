@@ -109,12 +109,20 @@ function GuestReceiptContent() {
           margin: 4mm 3mm;
         }
         @media print {
-          html, body { margin: 0; padding: 0; }
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
           .no-print { display: none !important; }
         }
         * { box-sizing: border-box; }
-        body { margin: 0; padding: 0; background: white; font-family: 'Courier New', Courier, monospace; }
-        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; }
+        html, body { margin: 0; padding: 0; background: white !important; background-color: white !important; font-family: 'Courier New', Courier, monospace; color: #000000 !important; }
+        .receipt { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; font-size: 11px; color: #000; background: white; }
         .center { text-align: center; }
         .right { text-align: right; }
         .bold { font-weight: bold; }
@@ -183,7 +191,9 @@ function GuestReceiptContent() {
 }
 
 function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
-  const totalTaxPercent = (order.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.rate_percent || 0), 0);
+  const taxSum = (order.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
+  const orderSubtotal = Number(order.subtotal || 0);
+  const taxRatio = orderSubtotal > 0 ? (taxSum / orderSubtotal) : 0;
 
   const getShortTaxName = (name: string) => {
     const upper = (name || "").toUpperCase();
@@ -228,7 +238,9 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
       <hr className="hr" />
 
       {/* Items */}
-      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Items</div>
+      <div className="bold" style={{ marginBottom: '4px', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        Items {taxInclusive ? '(Tax Inclusive)' : ''}
+      </div>
       {(order.items || []).map((item: any, idx: number) => {
         const lineTotal = (Number(item.unit_price) * Number(item.quantity)) - (Number(item.discount) * Number(item.quantity));
         const isFree = lineTotal === 0 && Number(item.quantity) > 0;
@@ -236,9 +248,9 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
         let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
         let displayLineTotal = lineTotal;
         
-        if (taxInclusive && totalTaxPercent > 0) {
-          displayUnitPrice = displayUnitPrice * (1 + totalTaxPercent / 100);
-          displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
+        if (taxInclusive && taxRatio > 0) {
+          displayUnitPrice = displayUnitPrice * (1 + taxRatio);
+          displayLineTotal = displayLineTotal * (1 + taxRatio);
         }
 
         const unitDisplay = `@ LKR ${displayUnitPrice.toFixed(2)}`;
@@ -268,7 +280,6 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
               <span className="bold">-LKR {fmt(order.discount_total)}</span>
             </div>
           )}
-          <div className="row"><span>Total (Tax Inclusive)</span><span>LKR {fmt(order.grand_total)}</span></div>
         </>
       ) : (
         <>
@@ -298,7 +309,7 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
       <hr className="hr-solid" />
 
       <div className="grand-total">
-        <span>TOTAL</span>
+        <span>TOTAL {taxInclusive ? '(Tax Inclusive)' : ''}</span>
         <span>LKR {fmt(order.grand_total || 0)}</span>
       </div>
 

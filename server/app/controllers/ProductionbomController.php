@@ -32,6 +32,11 @@ class ProductionbomController extends Controller {
             $this->error('Output part and BOM name are required', 400);
         }
 
+        $existing = $this->bomModel->getActiveBOMForPart((int)$data['output_part_id']);
+        if ($existing) {
+            $this->error('A Bill of Materials already exists for this finished product.', 400);
+        }
+
         $id = $this->bomModel->create($data, (int)$u['sub']);
         if ($id) {
             $this->success(['id' => $id], 'BOM created');
@@ -43,6 +48,13 @@ class ProductionbomController extends Controller {
         $u = $this->requirePermission('production.write');
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         
+        if (!empty($data['output_part_id'])) {
+            $existing = $this->bomModel->getActiveBOMForPart((int)$data['output_part_id']);
+            if ($existing && (int)$existing->id !== (int)$id) {
+                $this->error('Another Bill of Materials already exists for this finished product.', 400);
+            }
+        }
+
         if ($this->bomModel->update($id, $data, (int)$u['sub'])) {
             $this->success(null, 'BOM updated');
         }
@@ -54,5 +66,18 @@ class ProductionbomController extends Controller {
         $row = $this->bomModel->getActiveBOMForPart($partId);
         // Do not error if not found, just return null data so frontend knows no BOM exists
         $this->success($row);
+    }
+
+    public function delete($id) {
+        $this->requirePermission('production.write');
+        try {
+            if ($this->bomModel->delete($id)) {
+                $this->success(null, 'BOM deleted');
+                return;
+            }
+            $this->error('Failed to delete BOM', 500);
+        } catch (Exception $e) {
+            $this->error($e->getMessage(), 400);
+        }
     }
 }

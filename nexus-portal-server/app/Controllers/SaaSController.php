@@ -115,6 +115,7 @@ class SaaSController extends Controller {
                 'status' => 'Account Status',
                 'package_id' => 'Subscription Plan',
                 'currency' => 'Billing Currency',
+                'billing_cycle' => 'Billing Cycle',
                 'trial_expiry' => 'Trial Expiry Date'
             ];
 
@@ -181,7 +182,16 @@ class SaaSController extends Controller {
 
     public function listPackages() {
         $model = new PackageModel();
-        return $this->json(['status' => 'success', 'data' => $model->getAll()]);
+        $db = new \App\Core\Database();
+        $db->query("SELECT setting_value FROM saas_settings WHERE setting_key = 'annual_discount_percentage'");
+        $row = $db->single();
+        $discount = $row ? floatval($row->setting_value) : 20.0;
+
+        return $this->json([
+            'status' => 'success', 
+            'data' => $model->getAll(),
+            'annual_discount_percentage' => $discount
+        ]);
     }
 
     public function getPackage() {

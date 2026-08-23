@@ -12,9 +12,10 @@ class SaaSInvoiceModel {
 
     public function listAll() {
         $this->db->query("
-            SELECT i.*, t.name as tenant_name, t.admin_email, t.billing_cc_email
+            SELECT i.*, t.name as tenant_name, t.admin_email, t.billing_cc_email, p.name as package_name
             FROM saas_invoices i
             LEFT JOIN saas_tenants t ON i.tenant_id = t.id
+            LEFT JOIN saas_packages p ON t.package_id = p.id
             ORDER BY i.created_at DESC
         ");
         return $this->db->resultSet();
@@ -22,9 +23,10 @@ class SaaSInvoiceModel {
 
     public function getAllWithTenants() {
         $this->db->query("
-            SELECT i.*, t.name as tenant_name, t.admin_email, t.billing_cc_email
+            SELECT i.*, t.name as tenant_name, t.admin_email, t.billing_cc_email, p.name as package_name
             FROM saas_invoices i
             LEFT JOIN saas_tenants t ON i.tenant_id = t.id
+            LEFT JOIN saas_packages p ON t.package_id = p.id
             ORDER BY i.created_at DESC
         ");
         return $this->db->resultSet();
@@ -71,9 +73,9 @@ class SaaSInvoiceModel {
     }
 
     public function generateMonthlyBatch() {
-        // 1. Get all active tenants with their package price
+        // 1. Get all active tenants with their package price and billing cycle
         $this->db->query("
-            SELECT t.id as tenant_id, t.name, t.slug, p.monthly_price 
+            SELECT t.id as tenant_id, t.name, t.slug, t.currency, t.billing_cycle, p.monthly_price, p.yearly_price 
             FROM saas_tenants t
             JOIN saas_packages p ON t.package_id = p.id
             WHERE t.status != 'Deleted'
@@ -81,24 +83,34 @@ class SaaSInvoiceModel {
         $tenants = $this->db->resultSet();
         
         $count = 0;
-        $billingMonth = date('F Y'); // e.g., April 2026
+        $currentYear = date('Y');
+        $nextYear = date('Y', strtotime('+1 year'));
+        $monthlyLabel = date('F Y'); // e.g., April 2026
+        $annualLabel  = "Annual {$currentYear} - {$nextYear}";
         $dueDate = date('Y-m-10'); // 10th of current month
         
         foreach ($tenants as $tenant) {
-            // Check if invoice already exists for this tenant and month
+            $isYearly = ($tenant->billing_cycle === 'yearly');
+            $billingPeriod = $isYearly ? $annualLabel : $monthlyLabel;
+            $invoiceAmount = $isYearly 
+                ? (floatval($tenant->yearly_price) > 0 ? floatval($tenant->yearly_price) : round(floatval($tenant->monthly_price) * 12 * 0.80, 2))
+                : floatval($tenant->monthly_price);
+
+            // Check if invoice already exists for this tenant and period
             $this->db->query("SELECT id FROM saas_invoices WHERE tenant_id = :tid AND billing_month = :month");
             $this->db->bind(':tid', $tenant->tenant_id);
-            $this->db->bind(':month', $billingMonth);
+            $this->db->bind(':month', $billingPeriod);
             
             if (!$this->db->single()) {
-                $invoiceNum = "NEX-" . strtoupper($tenant->slug) . "-" . date('Ym') . "-" . str_pad(rand(1, 999), 3, '0', STR_PAD_LEFT);
+                $invoiceNum = $this->generateNextInvoiceNumber();
                 
-                $this->db->query("INSERT INTO saas_invoices (tenant_id, invoice_number, billing_month, amount, due_date, status) 
-                                 VALUES (:tid, :num, :month, :amt, :due, 'Pending')");
+                $this->db->query("INSERT INTO saas_invoices (tenant_id, invoice_number, billing_month, amount, currency, due_date, status) 
+                                 VALUES (:tid, :num, :month, :amt, :curr, :due, 'Pending')");
                 $this->db->bind(':tid', $tenant->tenant_id);
                 $this->db->bind(':num', $invoiceNum);
-                $this->db->bind(':month', $billingMonth);
-                $this->db->bind(':amt', $tenant->monthly_price);
+                $this->db->bind(':month', $billingPeriod);
+                $this->db->bind(':amt', $invoiceAmount);
+                $this->db->bind(':curr', $tenant->currency ?? 'USD');
                 $this->db->bind(':due', $dueDate);
                 
                 if ($this->db->execute()) {
@@ -107,6 +119,13 @@ class SaaSInvoiceModel {
             }
         }
         return $count;
+    }
+
+    public function generateNextInvoiceNumber() {
+        $this->db->query("SELECT MAX(id) as max_id FROM saas_invoices");
+        $result = $this->db->single();
+        $nextId = ($result->max_id ?? 0) + 1;
+        return 'INV-' . date('Ym') . '-' . str_pad($nextId, 4, '0', STR_PAD_LEFT);
     }
 
     public function getAllInvoices() {

@@ -1381,4 +1381,92 @@ class ReportController extends Controller {
 
         $this->success($this->db->resultSet());
     }
+
+    // GET /api/report/bom_consumption
+    public function bom_consumption() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+
+        $sql = "
+            SELECT 
+                bi.part_id AS ingredient_id,
+                ip.part_name AS ingredient_name,
+                ip.sku AS ingredient_sku,
+                ip.unit AS ingredient_unit,
+                ip.cost_price AS ingredient_cost,
+                p.id AS finished_id,
+                p.part_name AS finished_name,
+                p.sku AS finished_sku,
+                SUM(ii.quantity) AS finished_qty_sold,
+                SUM(ii.quantity * (bi.qty / COALESCE(pb.output_qty, 1.0))) AS theoretical_qty
+            FROM invoice_items ii
+            JOIN invoices i ON ii.invoice_id = i.id
+            JOIN parts p ON ii.item_id = p.id AND ii.item_type = 'Part'
+            JOIN production_boms pb ON p.id = pb.output_part_id AND pb.is_active = 1
+            JOIN production_bom_items bi ON pb.id = bi.bom_id
+            JOIN parts ip ON bi.part_id = ip.id
+            WHERE i.status NOT IN ('Cancelled', 'CANCELLED')
+              AND i.location_id IN ($inLoc)
+              AND i.issue_date BETWEEN :from AND :to
+            GROUP BY bi.part_id, ip.part_name, ip.sku, ip.unit, ip.cost_price, p.id, p.part_name, p.sku
+            ORDER BY ip.part_name ASC, theoretical_qty DESC
+        ";
+
+        $this->db->query($sql);
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+
+        $this->success($this->db->resultSet());
+    }
+
+    // GET /api/report/material_issues_summary
+    public function material_issues_summary() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $costCenterId = $_GET['cost_center_id'] ?? 'all';
+
+        $sql = "
+            SELECT 
+                ini.part_id,
+                p.part_name,
+                p.sku,
+                p.unit,
+                SUM(ini.qty_issued) AS total_qty_issued,
+                AVG(ini.unit_cost) AS avg_unit_cost,
+                SUM(ini.line_total) AS total_cost_value
+            FROM issue_notes isn
+            JOIN issue_note_items ini ON isn.id = ini.issue_note_id
+            JOIN parts p ON ini.part_id = p.id
+            WHERE isn.status = 'Issued'
+              AND isn.location_id IN ($inLoc)
+        ";
+
+        if ($costCenterId !== 'all') {
+            $sql .= " AND isn.cost_center_id = :cost_center_id";
+        }
+
+        $sql .= " AND DATE(isn.issued_at) BETWEEN :from AND :to
+            GROUP BY ini.part_id, p.part_name, p.sku, p.unit
+            ORDER BY total_cost_value DESC
+        ";
+
+        $this->db->query($sql);
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        if ($costCenterId !== 'all') {
+            $this->db->bind(':cost_center_id', $costCenterId);
+        }
+
+        $this->success($this->db->resultSet());
+    }
 }

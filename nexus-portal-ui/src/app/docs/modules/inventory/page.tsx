@@ -37,19 +37,19 @@ export default function InventoryPage() {
 
       {/* Overview */}
       <section id="overview" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Overview</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Overview</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           The Inventory Module controls parts tracking, purchasing, supplier catalogs, and real-time quantities. It supports multiple warehouse locations and automates stock re-order triggers.
         </p>
       </section>
 
       {/* Batch Management */}
       <section id="batches" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Batch Management</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Batch Management</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Items in the database (particularly high-value items, oils, or batteries) are tracked by individual batches. Each batch records:
         </p>
-        <ul className="list-disc pl-6 text-muted text-sm space-y-2 font-medium">
+        <ul className="list-disc pl-6 text-slate-600 dark:text-slate-400 text-sm space-y-2">
           <li><strong>Batch ID & Code:</strong> Unique identifiers like `BCH-5942-01`.</li>
           <li><strong>Unit Cost:</strong> Supplier purchase price associated with that specific batch.</li>
           <li><strong>Dates:</strong> Manufacture and expiration dates to warn when items are getting close to retirement.</li>
@@ -58,22 +58,22 @@ export default function InventoryPage() {
 
       {/* FIFO Stock Control */}
       <section id="fifo" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">FIFO Stock Control</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">FIFO Stock Control</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           When an item is invoiced, the system employs **First-In-First-Out (FIFO)** logic. It automatically scans available batches for that product code, sorted by the oldest receipt date, and decrements stock.
         </p>
         
-        <div className="my-6 border border-slate-200 dark:border-slate-800 p-6 rounded-xl bg-slate-50/50 dark:bg-slate-950/20">
-          <h4 className="text-sm font-bold text-strong mb-4">FIFO Deduction Priority</h4>
+        <div className="my-6 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40">
+          <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-4">FIFO Deduction Priority</h4>
           <div className="space-y-3 font-mono text-xs">
-            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-lg flex justify-between items-center">
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl flex justify-between items-center">
               <span>Batch A (Created: Jan 01)</span>
-              <span>10 units available (DEDUCTED FIRST)</span>
+              <span className="font-bold">10 units available (DEDUCTED FIRST)</span>
             </div>
             <div className="flex justify-center text-slate-400">
               <MoveDown size={16} />
             </div>
-            <div className="p-3 bg-indigo-500/5 border border-slate-200 dark:border-slate-800 text-slate-500 rounded-lg flex justify-between items-center">
+            <div className="p-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-xl flex justify-between items-center">
               <span>Batch B (Created: Feb 15)</span>
               <span>25 units available (DEDUCTED NEXT)</span>
             </div>
@@ -87,8 +87,8 @@ export default function InventoryPage() {
 
       {/* Goods Receive Notes (GRN) */}
       <section id="grn" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Goods Receive Notes (GRN)</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Goods Receive Notes (GRN)</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Goods Receive Notes register arrival of parts from vendors. Generating a GRN updates the associated Purchase Order status and automatically instantiates a new batch in the database:
         </p>
         <CodeBlock

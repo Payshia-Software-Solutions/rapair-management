@@ -14,6 +14,7 @@ class DistrictController extends Controller {
      * GET /api/district/index
      */
     public function index() {
+        $this->requirePermission('locations.read');
         $this->db->query("
             SELECT d.*, z.name as zone_name 
             FROM districts d 
@@ -28,6 +29,7 @@ class DistrictController extends Controller {
      * POST /api/district/store
      */
     public function store() {
+        $this->requirePermission('locations.write');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
         }
@@ -53,6 +55,7 @@ class DistrictController extends Controller {
      * POST /api/district/update/{id}
      */
     public function update($id) {
+        $this->requirePermission('locations.write');
         $data = json_decode(file_get_contents('php://input'), true);
         
         $this->db->query("UPDATE districts SET name = :name, shipping_zone_id = :zone_id WHERE id = :id");
@@ -71,6 +74,7 @@ class DistrictController extends Controller {
      * POST /api/district/delete/{id}
      */
     public function delete($id) {
+        $this->requirePermission('locations.write');
         $this->db->query("DELETE FROM districts WHERE id = :id");
         $this->db->bind(':id', $id);
         

@@ -127,22 +127,36 @@ class Controller {
 
     protected function requirePermission($permKey) {
         $u = $this->requireAuth();
-        $role = strtolower((string)($u['role'] ?? ''));
-        if ($role === 'admin') {
+        if ($this->isAdmin($u)) {
             return $u;
         }
 
+        $role = trim((string)($u['role'] ?? ''));
+        $roleId = isset($u['role_id']) ? (int)$u['role_id'] : 0;
+
         $db = new Database();
-        $db->query("
-            SELECT 1
-            FROM roles r
-            INNER JOIN role_permissions rp ON rp.role_id = r.id
-            INNER JOIN permissions p ON p.id = rp.permission_id
-            WHERE r.name = :role AND p.perm_key = :perm
-            LIMIT 1
-        ");
-        $db->bind(':role', $role);
-        $db->bind(':perm', $permKey);
+        if ($roleId > 0) {
+            $db->query("
+                SELECT 1
+                FROM role_permissions rp
+                INNER JOIN permissions p ON p.id = rp.permission_id
+                WHERE rp.role_id = :role_id AND p.perm_key = :perm
+                LIMIT 1
+            ");
+            $db->bind(':role_id', $roleId);
+            $db->bind(':perm', $permKey);
+        } else {
+            $db->query("
+                SELECT 1
+                FROM roles r
+                INNER JOIN role_permissions rp ON rp.role_id = r.id
+                INNER JOIN permissions p ON p.id = rp.permission_id
+                WHERE LOWER(r.name) = LOWER(:role) AND p.perm_key = :perm
+                LIMIT 1
+            ");
+            $db->bind(':role', $role);
+            $db->bind(':perm', $permKey);
+        }
         $row = $db->single();
         if (!$row) {
             $this->error('Forbidden', 403);

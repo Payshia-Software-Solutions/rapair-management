@@ -5,12 +5,14 @@ class PrinterController extends Controller {
     }
 
     public function get_settings() {
+        $this->requirePermission('settings.read');
         $location_id = $_GET['location_id'] ?? null;
         $settings = $this->printerModel->getSettings($location_id);
         echo json_encode(['success' => true, 'data' => $settings]);
     }
 
     public function save_settings() {
+        $this->requirePermission('settings.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (!$data) {
             echo json_encode(['success' => false, 'message' => 'Invalid data']);

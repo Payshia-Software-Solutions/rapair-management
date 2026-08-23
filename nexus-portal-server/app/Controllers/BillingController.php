@@ -43,9 +43,28 @@ class BillingController extends Controller {
         $count = 0;
         $dueDate = date('Y-m-d', strtotime('+10 days'));
 
+        $currentYear = date('Y');
+        $nextYear = date('Y', strtotime('+1 year'));
+        $annualDefaultPeriod = "Annual {$currentYear} - {$nextYear}";
+        $monthlyDefaultPeriod = date('F Y');
+
         foreach ($tenants as $tenant) {
             $tid = is_object($tenant) ? $tenant->id : $tenant['id'];
-            $basePrice = is_object($tenant) ? ($tenant->monthly_price ?? 0) : ($tenant['monthly_price'] ?? 0);
+            $billingCycle = is_object($tenant) ? ($tenant->billing_cycle ?? 'monthly') : ($tenant['billing_cycle'] ?? 'monthly');
+            $isYearly = ($billingCycle === 'yearly');
+            
+            $monthlyBase = floatval(is_object($tenant) ? ($tenant->monthly_price ?? 0) : ($tenant['monthly_price'] ?? 0));
+            $yearlyBase = floatval(is_object($tenant) ? ($tenant->yearly_price ?? 0) : ($tenant['yearly_price'] ?? 0));
+            
+            // Determine base price according to cycle
+            $basePrice = $isYearly 
+                ? ($yearlyBase > 0 ? $yearlyBase : round($monthlyBase * 12 * 0.80, 2))
+                : $monthlyBase;
+
+            $currentMonth = $isYearly 
+                ? $annualDefaultPeriod 
+                : ($_GET['period'] ?? $monthlyDefaultPeriod);
+
             $currency = is_object($tenant) ? ($tenant->currency ?? 'USD') : ($tenant['currency'] ?? 'USD');
             $ccEmail = is_object($tenant) ? ($tenant->billing_cc_email ?? null) : ($tenant['billing_cc_email'] ?? null);
             $tenantName = is_object($tenant) ? $tenant->name : $tenant['name'];
@@ -53,7 +72,7 @@ class BillingController extends Controller {
             $address = is_object($tenant) ? ($tenant->address ?? '') : ($tenant['address'] ?? '');
 
             // Currency Conversion Logic (Base: USD)
-            $monthlyPrice = $basePrice;
+            $convertedPrice = $basePrice;
             $rates = \App\Services\ExchangeRateService::getRates();
             $exchangeRate = $rates[$currency] ?? 1;
             
@@ -63,12 +82,12 @@ class BillingController extends Controller {
             $source = $db->single()->setting_value ?? 'Market';
 
             if ($currency !== 'USD' && isset($rates[$currency])) {
-                $monthlyPrice = $basePrice * $exchangeRate;
+                $convertedPrice = round($basePrice * $exchangeRate, 2);
             }
 
-            // Check if invoice already exists for this month
+            // Check if invoice already exists for this period
             if (!$invoiceModel->exists($tid, $currentMonth)) {
-                $invoiceNumber = 'INV-' . strtoupper(substr(md5(uniqid()), 0, 8));
+                $invoiceNumber = $invoiceModel->generateNextInvoiceNumber();
                 
                 // Add billing info for PDF
                 $pdfData = (object)[
@@ -76,7 +95,7 @@ class BillingController extends Controller {
                     'tenant_name' => $tenantName,
                     'address' => $address,
                     'admin_email' => $adminEmail,
-                    'amount' => $monthlyPrice,
+                    'amount' => $convertedPrice,
                     'currency' => $currency,
                     'exchange_rate' => $exchangeRate,
                     'source' => strtoupper($source),
@@ -91,7 +110,7 @@ class BillingController extends Controller {
                 $invoiceId = $invoiceModel->create([
                     'tenant_id' => $tid,
                     'invoice_number' => $invoiceNumber,
-                    'amount' => $monthlyPrice,
+                    'amount' => $convertedPrice,
                     'currency' => $currency,
                     'exchange_rate' => $exchangeRate,
                     'source' => $source,
@@ -105,7 +124,9 @@ class BillingController extends Controller {
                     // Generate PDF & Send Email
                     try {
                         $pdf = \App\Services\InvoicePDF::generate($pdfData);
-                        $sent = \App\Core\Mailer::sendInvoiceEmail($adminEmail, $tenantName, $invoiceNumber, $pdf, $currentMonth, $monthlyPrice, $currency, $ccEmail);
+                        $cycleLabel = $isYearly ? 'Annual Subscription' : 'Monthly Subscription';
+                        $description = ($pdfData->package_name ?? 'Subscription') . " ({$cycleLabel}) - " . $tenantName;
+                        $sent = \App\Core\Mailer::sendInvoiceEmail($adminEmail, $tenantName, $invoiceNumber, $pdf, $currentMonth, $convertedPrice, $currency, $ccEmail, $description);
                         
                         // Update Email Status & Log
                         $invoiceModel->update($invoiceId, [
@@ -204,9 +225,25 @@ class BillingController extends Controller {
             $receiptPdf = \App\Services\InvoicePDF::generate($invoice, true);
             $invoicePdf = \App\Services\InvoicePDF::generate($invoice, false);
             $sent = \App\Core\Mailer::sendPaymentReceipt($invoice->admin_email, $invoice->tenant_name, $invoice->invoice_number, $receiptPdf, $invoicePdf, $invoice->amount, $invoice->currency, $invoice->receipt_number, $invoice->billing_cc_email);
+            
+            $subject = "Payment Receipt for Invoice #{$invoice->invoice_number} - {$invoice->tenant_name} | Nebulync";
         } else {
+            // Count existing resent log entries to determine escalation stage
+            $db = new \App\Core\Database();
+            $db->query("SELECT COUNT(*) as count FROM saas_email_logs WHERE invoice_id = :id AND status = 'Resent' AND email_type = 'Invoice'");
+            $db->bind(':id', $id);
+            $resentCount = $db->single()->count;
+
+            if ($resentCount == 0) {
+                $subject = "[1st Payment Reminder] Invoice #{$invoice->invoice_number} - {$invoice->tenant_name} | Nebulync";
+            } elseif ($resentCount == 1) {
+                $subject = "[2nd Payment Reminder] ACTION REQUIRED: Invoice #{$invoice->invoice_number} - {$invoice->tenant_name} | Nebulync";
+            } else {
+                $subject = "[FINAL NOTICE] SUSPENSION WARNING: Invoice #{$invoice->invoice_number} - {$invoice->tenant_name} | Nebulync";
+            }
+
             $pdf = \App\Services\InvoicePDF::generate($invoice, false);
-            $sent = \App\Core\Mailer::sendInvoiceEmail($invoice->admin_email, $invoice->tenant_name, $invoice->invoice_number, $pdf, $invoice->billing_month, $invoice->amount, $invoice->currency, $invoice->billing_cc_email);
+            $sent = \App\Core\Mailer::sendInvoiceEmail($invoice->admin_email, $invoice->tenant_name, $invoice->invoice_number, $pdf, $invoice->billing_month, $invoice->amount, $invoice->currency, $invoice->billing_cc_email, $subject);
         }
 
         $model->update($id, [
@@ -214,7 +251,7 @@ class BillingController extends Controller {
             'last_sent_at' => date('Y-m-d H:i:s')
         ]);
 
-        $model->logEmail($id, $isReceipt ? 'Receipt' : 'Invoice', $invoice->admin_email, $invoice->billing_cc_email, $sent ? 'Resent' : 'Failed');
+        $model->logEmail($id, $isReceipt ? 'Receipt' : 'Invoice', $invoice->admin_email, $invoice->billing_cc_email, $sent ? 'Resent' : 'Failed', null, $subject, \App\Core\Mailer::$lastBody);
 
         return $this->json([
             'status' => $sent ? 'success' : 'error', 

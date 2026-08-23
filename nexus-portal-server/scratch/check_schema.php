@@ -1,24 +1,24 @@
 <?php
-spl_autoload_register(function ($class) {
-    $prefix = 'App\\';
-    $base_dir = __DIR__ . '/../app/';
-    $len = strlen($prefix);
-    if (strncmp($prefix, $class, $len) !== 0) return;
-    $relative_class = substr($class, $len);
-    $file = $base_dir . str_replace('\\', '/', $relative_class) . '.php';
-    if (file_exists($file)) require $file;
-});
+require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../app/Core/Config.php';
+require_once __DIR__ . '/../app/Core/Database.php';
 
 $db = new \App\Core\Database();
 
-echo "--- saas_invoices schema ---\n";
-$db->query("DESCRIBE saas_invoices");
+echo "=== SAAS_PACKAGES ===\n";
+$db->query("DESCRIBE saas_packages");
 foreach ($db->resultSet() as $col) {
     echo "{$col->Field} - {$col->Type}\n";
 }
 
-echo "\n--- saas_email_logs schema ---\n";
-$db->query("DESCRIBE saas_email_logs");
+echo "\n=== SAAS_TENANTS ===\n";
+$db->query("DESCRIBE saas_tenants");
+foreach ($db->resultSet() as $col) {
+    echo "{$col->Field} - {$col->Type}\n";
+}
+
+echo "\n=== SAAS_INVOICES ===\n";
+$db->query("DESCRIBE saas_invoices");
 foreach ($db->resultSet() as $col) {
     echo "{$col->Field} - {$col->Type}\n";
 }

@@ -23,7 +23,8 @@ import {
   Globe,
   Truck,
   History,
-  RotateCw
+  RotateCw,
+  FileText
 } from "lucide-react";
 import { convertInvoiceToRecurring } from "@/lib/api";
 import {
@@ -389,6 +390,15 @@ function InvoiceContent() {
           <Button variant="outline" onClick={handleResendEmail} disabled={emailSubmitting} className="text-slate-600 border-slate-200 hover:bg-slate-50 transition-all">
             {emailSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
             Resend Email
+          </Button>
+
+          <Button 
+            variant="outline"
+            onClick={() => window.open(`/cms/invoices/${id}/tax-invoice?autoprint=1`, '_blank')} 
+            className="text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:text-amber-800 shadow-sm font-semibold"
+          >
+            <FileText className="w-4 h-4 mr-2 text-amber-600" />
+            Print Tax Invoice (Gazette)
           </Button>
 
           <Button onClick={() => window.open(`/cms/invoices/${id}/print?autoprint=1${taxInclusive ? '&tax_inclusive=1' : ''}`, '_blank')} className="bg-primary hover:bg-primary/90 shadow-sm">

@@ -11,7 +11,7 @@ class RouteController extends Controller {
     }
 
     public function index() {
-        $this->requireAuth();
+        $this->requirePermission('customers.read');
         $locationId = $_GET['location_id'] ?? null;
         
         if ($locationId) {
@@ -23,7 +23,7 @@ class RouteController extends Controller {
     }
 
     public function get($id) {
-        $this->requireAuth();
+        $this->requirePermission('customers.read');
         $route = $this->routeModel->getById($id);
         if ($route) {
             $this->success($route);
@@ -33,7 +33,7 @@ class RouteController extends Controller {
     }
 
     public function create() {
-        $this->requireAuth();
+        $this->requirePermission('customers.write');
         
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
@@ -51,7 +51,7 @@ class RouteController extends Controller {
     }
 
     public function update($id) {
-        $this->requireAuth();
+        $this->requirePermission('customers.write');
         
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
@@ -69,7 +69,7 @@ class RouteController extends Controller {
     }
 
     public function delete($id) {
-        $this->requireAuth();
+        $this->requirePermission('customers.write');
         
         if ($this->routeModel->delete($id)) {
             $this->success(null, 'Route deleted successfully');

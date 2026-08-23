@@ -37,52 +37,52 @@ export default function RepairOSPage() {
 
       {/* Overview */}
       <section id="overview" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Overview</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Overview</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           RepairOS acts as the nervous system for vehicle mechanics and workshop centers. It controls customer service agreements, monitors physical repair spaces (Bays), and logs technician workload and metrics.
         </p>
       </section>
 
       {/* Repair Lifecycle States */}
       <section id="states" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Repair Lifecycle States</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Repair Lifecycle States</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Every repair job transitions through a set of predefined operational states to guarantee data integrity across the POS and inventory modules.
         </p>
         
         <div className="flex flex-col md:flex-row items-stretch gap-4 my-6">
-          <div className="flex-1 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex flex-col justify-between">
+          <div className="flex-1 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col justify-between">
             <div>
-              <span className="px-2 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold rounded">
+              <span className="px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold rounded-lg border border-amber-500/20">
                 PENDING
               </span>
-              <p className="text-xs text-muted mt-3 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                 The customer intake sheet is created. The vehicle is parked in holding, awaiting bay/technician assignment.
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center text-muted">
+          <div className="flex items-center justify-center text-slate-400">
             <ArrowRight className="rotate-90 md:rotate-0" size={16} />
           </div>
-          <div className="flex-1 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex flex-col justify-between">
+          <div className="flex-1 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col justify-between">
             <div>
-              <span className="px-2 py-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded">
+              <span className="px-2.5 py-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold rounded-lg border border-indigo-500/20">
                 IN PROGRESS
               </span>
-              <p className="text-xs text-muted mt-3 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                 The vehicle is moved to a physical bay. Active timers monitor mechanic work logs and track parts consumed.
               </p>
             </div>
           </div>
-          <div className="flex items-center justify-center text-muted">
+          <div className="flex items-center justify-center text-slate-400">
             <ArrowRight className="rotate-90 md:rotate-0" size={16} />
           </div>
-          <div className="flex-1 p-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex flex-col justify-between">
+          <div className="flex-1 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col justify-between">
             <div>
-              <span className="px-2 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded">
+              <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold rounded-lg border border-emerald-500/20">
                 COMPLETED
               </span>
-              <p className="text-xs text-muted mt-3 font-medium">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
                 Technician files checklist, stops timers. Parts and labor pricing items push directly to POS for cashier checkout.
               </p>
             </div>
@@ -92,8 +92,8 @@ export default function RepairOSPage() {
 
       {/* ServiceBay Allocation */}
       <section id="allocation" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">ServiceBay Allocation</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">ServiceBay Allocation</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Physical shop floor spaces are defined as ServiceBays. You can query bay availability using the bays endpoint:
         </p>
         <CodeBlock
@@ -123,8 +123,8 @@ export default function RepairOSPage() {
 
       {/* Technician Metrics & Timers */}
       <section id="metrics" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Technician Metrics & Timers</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Technician Metrics & Timers</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           Technician productivity index is calculated from estimated vs actual hours logged. Timers must be dispatched via server endpoints:
         </p>
         <CodeBlock

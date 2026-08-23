@@ -36,11 +36,11 @@ export default function POSPage() {
 
       {/* Checkout Screen */}
       <section id="checkout" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">POS Checkout</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">POS Checkout</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           The POS Checkout module handles walk-in retail purchases and repair invoice redemptions. It supports:
         </p>
-        <ul className="list-disc pl-6 text-muted text-sm space-y-2 font-medium">
+        <ul className="list-disc pl-6 text-slate-600 dark:text-slate-400 text-sm space-y-2">
           <li><strong>Split Payments:</strong> Split total across multiple payment gateways (e.g. 50% Cash, 50% Card).</li>
           <li><strong>Sequence Numbers:</strong> Strictly sequential invoice and receipt numbering using database sequence generators.</li>
           <li><strong>Offline Cache:</strong> Temporary local storage queue in case of brief network disconnects.</li>
@@ -49,8 +49,8 @@ export default function POSPage() {
 
       {/* Day Ledger & Auditing */}
       <section id="ledgers" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Day Ledgers & Auditing</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Day Ledgers & Auditing</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           A Day Ledger monitors cash inflows and outflows at a physical terminal during a single day.
         </p>
         <Callout type="info" title="Day End Reconciliation">
@@ -60,16 +60,16 @@ export default function POSPage() {
 
       {/* Cancelled Receipt Reversal Rules */}
       <section id="reversal-rules" className="space-y-4">
-        <h2 className="text-2xl font-bold text-strong">Cancelled Receipt Reversal Rules</h2>
-        <p className="text-muted leading-relaxed font-medium">
+        <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">Cancelled Receipt Reversal Rules</h2>
+        <p className="text-slate-600 dark:text-slate-400 leading-relaxed text-sm">
           To maintain strict financial compliance, paid receipts cannot be simply deleted. If an operator cancels a receipt, the system enforces the following reversal flow:
         </p>
 
-        <div className="border border-slate-200 dark:border-slate-800 p-6 rounded-xl bg-slate-50/50 dark:bg-slate-950/20 space-y-4">
-          <h4 className="font-bold text-strong text-sm flex items-center gap-2">
-            <CheckCircle2 size={16} className="text-indigo-500" /> System Reversal Flow
+        <div className="border border-slate-200 dark:border-slate-800 p-6 rounded-2xl bg-slate-50/70 dark:bg-slate-800/40 space-y-4">
+          <h4 className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
+            <CheckCircle2 size={16} className="text-indigo-600 dark:text-indigo-400" /> System Reversal Flow
           </h4>
-          <ul className="text-xs text-muted list-decimal pl-5 space-y-2.5 font-medium leading-relaxed">
+          <ul className="text-xs text-slate-600 dark:text-slate-400 list-decimal pl-5 space-y-2.5 font-medium leading-relaxed">
             <li><strong>Ledger Exclusion:</strong> The cancelled receipt status updates to `Cancelled`. It is immediately excluded from POS Day Ledger sums and Day End closing sheets.</li>
             <li><strong>Journal Reversals:</strong> Reverse double-entry rows are pushed. The system credits the `Cash/Bank` account and debits `Accounts Receivable`.</li>
             <li><strong>Invoice Balance Restore:</strong> The payment record is purged from the `invoice_payments` tracking table, restoring the invoice's outstanding balance to its pre-payment state.</li>

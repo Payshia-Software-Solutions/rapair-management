@@ -248,6 +248,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Refresh inventory and tables when location changes
     refreshInventory(val);
     refreshTablesAndStewards(val);
+    
+    // Auto-select default customer for new location
+    const currentLoc = locations.find((l: any) => String(l.id) === String(val));
+    if (currentLoc?.default_customer_id) {
+      setSelectedCustomer(String(currentLoc.default_customer_id));
+    }
   };
   const [selectedCustomer, setSelectedCustomer] = useState<string>("");
   const [billDiscountValue, setBillDiscountValue] = useState<number>(0);
@@ -526,14 +532,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const filtersStr = sysSettingsRes?.pos_active_filters || "collections,recipe_types";
         setPosActiveFilters(filtersStr.split(',').filter(Boolean));
 
-        // Hydrate Location
+        // Hydrate Location (Only consider locations with is_pos_active enabled)
         const lsLocId = window?.localStorage?.getItem('location_id');
         let activeLocId = "";
         
-        if (lsLocId && (locsRes || []).some((l: any) => String(l.id) === lsLocId)) {
+        const posActiveLocations = (locsRes || []).filter((l: any) => Boolean(l.is_pos_active));
+
+        if (lsLocId && posActiveLocations.some((l: any) => String(l.id) === lsLocId)) {
           activeLocId = lsLocId;
-        } else if (locsRes?.length === 1) {
-          activeLocId = String(locsRes[0].id);
+        } else if (posActiveLocations.length === 1) {
+          activeLocId = String(posActiveLocations[0].id);
         }
 
         if (activeLocId) {
@@ -545,11 +553,20 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               .then(res => setHeldOrders(Array.isArray(res) ? res : []))
               .catch(() => {})
           ]);
-        }
 
-        // Auto-select first customer as default (Walk-In)
-        if (custsRes?.length > 0) {
-          setSelectedCustomer(String(custsRes[0].id));
+          // Auto-select location's default customer, or first customer as fallback
+          const currentLoc = (locsRes || []).find((l: any) => String(l.id) === activeLocId);
+          if (currentLoc?.default_customer_id) {
+            setSelectedCustomer(String(currentLoc.default_customer_id));
+          } else if (custsRes?.length > 0) {
+            setSelectedCustomer(String(custsRes[0].id));
+          }
+
+          // Open Order Type Dialog on load only if a valid POS location is active
+          setOrderTypeDialogOpen(true);
+        } else {
+          _setSelectedLocation("");
+          setOrderTypeDialogOpen(false);
         }
 
         // Keyboard preference
@@ -559,9 +576,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Auto Add preference
         const lsAutoAdd = window?.localStorage?.getItem('auto_add_on_scan');
         if (lsAutoAdd === '1') setAutoAddOnScanState(true);
-
-        // Open Order Type Dialog on load
-        setOrderTypeDialogOpen(true);
 
       } catch (err) {
         console.error("POS Initialization Failed:", err);
@@ -611,19 +625,28 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [selectedLocation, locations, allTaxes, company]);
 
   useEffect(() => {
-    const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-    setTheme(current);
+    const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null;
+    if (savedTheme === 'dark' || (!savedTheme && document.documentElement.classList.contains('dark'))) {
+      document.documentElement.classList.add('dark');
+      setTheme('dark');
+    } else if (savedTheme === 'light') {
+      document.documentElement.classList.remove('dark');
+      setTheme('light');
+    } else {
+      const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+      setTheme(current);
+    }
   }, []);
 
   const toggleTheme = () => {
     const isDark = document.documentElement.classList.contains('dark');
     if (isDark) {
       document.documentElement.classList.remove('dark');
-      window.localStorage.setItem('theme', 'light');
+      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'light');
       setTheme('light');
     } else {
       document.documentElement.classList.add('dark');
-      window.localStorage.setItem('theme', 'dark');
+      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'dark');
       setTheme('dark');
     }
   };
@@ -633,6 +656,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (
         !loading && 
+        selectedLocation && 
         !orderType && 
         !orderTypeDialogOpen &&
         !returnDialogOpen && 
@@ -646,6 +670,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [
     loading, 
+    selectedLocation,
     orderType, 
     orderTypeDialogOpen, 
     returnDialogOpen, 
@@ -908,12 +933,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // This will be called by the CheckoutDialog with the detailed payment info
     setSubmitting(true);
     try {
+      const currentCust = customers.find(c => String(c.id) === String(selectedCustomer));
       const payload = {
         held_order_id: heldOrderId,
         location_id: Number(selectedLocation),
         customer_id: Number(selectedCustomer),
-        billing_address: company?.address || "",
-        shipping_address: company?.address || "",
+        billing_address: currentCust?.address || "",
+        shipping_address: currentCust?.address || "",
         issue_date: new Date().toISOString().split('T')[0],
         due_date: new Date().toISOString().split('T')[0],
         subtotal: totals.subtotal,

@@ -22,7 +22,8 @@ export const ProductSelectionDialog: React.FC = () => {
     selectedProduct,
     setSelectedProduct,
     addToCartWithQty,
-    selectedLocation
+    selectedLocation,
+    systemTaxes
   } = usePOS();
 
   const [modalQty, setModalQty] = useState<string>("1");
@@ -53,6 +54,20 @@ export const ProductSelectionDialog: React.FC = () => {
       }
     }
   }, [productModalOpen, selectedProduct, selectedLocation]);
+
+  const getTaxInclusivePrice = (basePrice: number) => {
+    if (!systemTaxes || systemTaxes.length === 0 || basePrice <= 0) return basePrice;
+    let currentBase = basePrice;
+    let totalTax = 0;
+    const sortedTaxes = [...systemTaxes].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    sortedTaxes.forEach(tax => {
+      const applyTo = tax.apply_on === 'base_plus_previous' ? currentBase : basePrice;
+      const taxAmt = applyTo * (Number(tax.rate_percent || 0) / 100);
+      totalTax += taxAmt;
+      currentBase += taxAmt;
+    });
+    return basePrice + totalTax;
+  };
 
   const handleNumpadClick = (val: string) => {
     // When using numpad, we reset manual selections to let FIFO take over again
@@ -183,7 +198,20 @@ export const ProductSelectionDialog: React.FC = () => {
                   <div className="grid grid-cols-2 gap-3">
                      <div className="flex flex-col p-3 bg-white dark:bg-slate-900 rounded-xl border border-border shadow-sm">
                        <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Price</span>
-                       <span className="text-sm font-black text-foreground">LKR {Number(selectedProduct.price || selectedProduct.cost_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                       {(() => {
+                         const basePrice = Number(selectedProduct.price || selectedProduct.cost_price || 0);
+                         const taxIncPrice = getTaxInclusivePrice(basePrice);
+                         return (
+                           <>
+                             <span className="text-sm font-black text-foreground">LKR {basePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                             {taxIncPrice > basePrice && (
+                               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                 Incl. Tax: LKR {taxIncPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                               </span>
+                             )}
+                           </>
+                         );
+                       })()}
                      </div>
                      {(selectedProduct.brand_name || selectedProduct.brand) && (
                      <div className="flex flex-col p-3 bg-white dark:bg-slate-900 rounded-xl border border-border shadow-sm">

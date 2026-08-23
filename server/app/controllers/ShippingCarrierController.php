@@ -8,6 +8,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function index() {
+        $this->requirePermission('locations.read');
         $carriers = $this->carrierModel->getAll();
         header('Content-Type: application/json');
         echo json_encode([
@@ -17,6 +18,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function show($id) {
+        $this->requirePermission('locations.read');
         $carrier = $this->carrierModel->getById($id);
         header('Content-Type: application/json');
         echo json_encode([
@@ -26,6 +28,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function store() {
+        $this->requirePermission('locations.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['name'])) {
             http_response_code(400);
@@ -42,6 +45,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function update($id) {
+        $this->requirePermission('locations.write');
         $data = json_decode(file_get_contents('php://input'), true);
         if (empty($data['name'])) {
             http_response_code(400);
@@ -58,6 +62,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function delete($id) {
+        $this->requirePermission('locations.write');
         if ($this->carrierModel->delete($id)) {
             echo json_encode(['success' => true]);
         } else {
