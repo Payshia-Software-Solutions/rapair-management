@@ -13,7 +13,7 @@ class AttributeController extends Controller {
     // --- Groups ---
 
     public function list_groups() {
-        $this->requirePermission('parts.read');
+        $this->requirePermission(['parts.read', 'pos.read', 'orders.read', 'sales.read']);
         $rows = $this->model->listGroups();
         $this->success($rows);
     }
@@ -48,7 +48,7 @@ class AttributeController extends Controller {
     // --- Attributes ---
 
     public function list($groupId = null) {
-        $this->requirePermission('parts.read');
+        $this->requirePermission(['parts.read', 'pos.read', 'orders.read', 'sales.read']);
         $rows = $this->model->listAttributes($groupId);
         $this->success($rows);
     }

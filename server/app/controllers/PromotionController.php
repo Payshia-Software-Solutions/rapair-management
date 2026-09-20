@@ -13,7 +13,7 @@ class PromotionController extends Controller {
      * GET /api/promotion/active
      */
     public function active() {
-        $this->requirePermission('promotions.read');
+        $this->requirePermission(['promotions.read', 'pos.read', 'pos.write', 'orders.read', 'sales.read']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         
         $locationId = $_GET['location_id'] ?? null;
@@ -26,7 +26,7 @@ class PromotionController extends Controller {
      * Accepts: { items: [], subtotal: 0.00 }
      */
     public function validate() {
-        $this->requirePermission('pos.write');
+        $this->requirePermission(['pos.read', 'pos.write', 'promotions.read', 'orders.read', 'orders.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         
         $data = json_decode(file_get_contents('php://input'), true) ?: [];

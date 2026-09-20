@@ -19,7 +19,7 @@ class LocationController extends Controller {
     }
 
     public function list() {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -29,7 +29,7 @@ class LocationController extends Controller {
     }
 
     public function get($id = null) {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

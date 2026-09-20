@@ -10,7 +10,7 @@ class TableController extends Controller {
     }
 
     public function list() {
-        $u = $this->requirePermission('bays.read');
+        $u = $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         
         $locationId = $this->currentLocationId($u);

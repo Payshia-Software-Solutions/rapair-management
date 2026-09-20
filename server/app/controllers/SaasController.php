@@ -16,6 +16,18 @@ class SaasController extends Controller {
 
     public function packages() {
         $packages = SaasHelper::getPackages();
+        if (is_array($packages)) {
+            $packages = array_values(array_filter($packages, function($p) {
+                $isPublic = isset($p['is_public']) ? intval($p['is_public']) === 1 : true;
+                $key = strtolower($p['package_key'] ?? '');
+                $name = strtolower($p['name'] ?? '');
+                
+                if (!$isPublic) return false;
+                if ($key === 'custom' || $key === 'free_trial' || strpos($key, 'custom') === 0) return false;
+                if (strpos($name, 'custom') === 0 || strpos($name, 'handling fee') !== false) return false;
+                return true;
+            }));
+        }
         $this->success($packages);
     }
 

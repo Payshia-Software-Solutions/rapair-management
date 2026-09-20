@@ -8,7 +8,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function index() {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         $carriers = $this->carrierModel->getAll();
         header('Content-Type: application/json');
         echo json_encode([
@@ -18,7 +18,7 @@ class ShippingCarrierController extends Controller {
     }
 
     public function show($id) {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         $carrier = $this->carrierModel->getById($id);
         header('Content-Type: application/json');
         echo json_encode([

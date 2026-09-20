@@ -8,7 +8,7 @@ class BankController extends Controller {
 
     // GET /api/bank/details/{id}
     public function details($id) {
-        $this->requirePermission('banks.read');
+        $this->requireAuth();
         $bank = $this->model->getById($id);
         if ($bank) {
             $this->json(['status' => 'success', 'data' => $bank]);
@@ -30,7 +30,7 @@ class BankController extends Controller {
 
     // GET /api/bank/list
     public function list() {
-        $this->requirePermission('banks.read');
+        $this->requireAuth();
         $banks = $this->model->getAll(); // Load all for management
         $this->json(['status' => 'success', 'data' => $banks]);
     }

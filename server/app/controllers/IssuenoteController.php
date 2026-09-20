@@ -39,7 +39,7 @@ class IssuenoteController extends Controller {
     }
 
     public function list() {
-        $u = $this->requirePermission('parts.read'); // Let's use parts/inventory level read permission
+        $u = $this->requirePermission(['parts.read', 'stock.read', 'orders.read', 'technicians.read']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -52,7 +52,7 @@ class IssuenoteController extends Controller {
     }
 
     public function get($id = null) {
-        $u = $this->requirePermission('parts.read');
+        $u = $this->requirePermission(['parts.read', 'stock.read', 'orders.read', 'technicians.read']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -64,7 +64,7 @@ class IssuenoteController extends Controller {
     }
 
     public function create() {
-        $u = $this->requirePermission('parts.write');
+        $u = $this->requirePermission(['parts.write', 'stock.adjust', 'orders.write', 'technicians.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -102,7 +102,7 @@ class IssuenoteController extends Controller {
     }
 
     public function commit($id = null) {
-        $u = $this->requirePermission('parts.write');
+        $u = $this->requirePermission(['parts.write', 'stock.adjust', 'orders.write', 'technicians.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -124,7 +124,7 @@ class IssuenoteController extends Controller {
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'details' => json_encode(['issue_note_id' => (int)$id]),
             ]);
-            $this->success(['id' => (int)$id], 'Issue Note completed');
+            $this->success(['id' => (int)$id], 'Issue Note committed and stock deducted');
             return;
         }
         if (is_array($res) && isset($res['error'])) {
@@ -135,7 +135,7 @@ class IssuenoteController extends Controller {
     }
 
     public function cancel($id = null) {
-        $u = $this->requirePermission('parts.write');
+        $u = $this->requirePermission(['parts.write', 'stock.adjust', 'orders.write', 'technicians.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;

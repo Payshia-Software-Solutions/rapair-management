@@ -19,7 +19,7 @@ class BankbranchController extends Controller {
 
     // GET /api/bankbranch/bank/:bankId
     public function bank($bankId = null) {
-        $this->requirePermission('banks.read');
+        $this->requireAuth();
         if (!$bankId) {
             $this->json(['status' => 'error', 'message' => 'Missing bank ID'], 422);
             return;

@@ -13,7 +13,7 @@ class ChecklistrepoController extends Controller {
 
     // GET /api/checklistrepo/list
     public function list() {
-        $this->requirePermission('checklists.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

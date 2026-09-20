@@ -18,7 +18,7 @@ class TaxController extends Controller {
 
     // GET /api/tax/list?q=&all=1
     public function list() {
-        $this->requirePermission('taxes.read');
+        $this->requireAuth();
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') $this->error('Method Not Allowed', 405);
         $q = $_GET['q'] ?? '';
         $activeOnly = !isset($_GET['all']) || (string)$_GET['all'] !== '1';

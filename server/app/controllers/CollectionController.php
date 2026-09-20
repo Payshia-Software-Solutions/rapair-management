@@ -24,7 +24,7 @@ class CollectionController extends Controller {
 
     // GET /api/collection/get/1
     public function get($id = null) {
-        $this->requirePermission('parts.read');
+        $this->requireAuth();
         if (!$id) $this->error('ID required', 400);
         $row = $this->model->getById($id);
         if (!$row) $this->error('Collection not found', 404);

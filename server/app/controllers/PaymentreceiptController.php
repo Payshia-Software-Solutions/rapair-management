@@ -19,7 +19,7 @@ class PaymentreceiptController extends Controller {
 
     // POST /api/paymentreceipt/create
     public function create() {
-        $u = $this->requirePermission('payments.write');
+        $u = $this->requirePermission(['payments.write', 'invoices.write', 'pos.write']);
         $data = json_decode(file_get_contents('php://input'), true) ?? [];
 
         if (empty($data['invoice_id']) || empty($data['amount']) || empty($data['payment_date'])) {
@@ -41,7 +41,7 @@ class PaymentreceiptController extends Controller {
 
     // GET /api/paymentreceipt/invoice/:invoiceId
     public function invoice($invoiceId = null) {
-        $this->requirePermission('payments.read');
+        $this->requirePermission(['payments.read', 'invoices.read', 'pos.read']);
         if (!$invoiceId) { $this->json(['status' => 'error', 'message' => 'Missing invoice ID'], 422); return; }
         $receipts = $this->model->getByInvoice($invoiceId);
         $this->json(['status' => 'success', 'data' => $receipts]);
@@ -49,7 +49,7 @@ class PaymentreceiptController extends Controller {
 
     // GET /api/paymentreceipt/details/:id
     public function details($id = null) {
-        $this->requirePermission('payments.read');
+        $this->requirePermission(['payments.read', 'invoices.read', 'pos.read']);
         if (!$id) { $this->json(['status' => 'error', 'message' => 'Missing ID'], 422); return; }
         $receipt = $this->model->getById($id);
         if (!$receipt) { $this->json(['status' => 'error', 'message' => 'Not found'], 404); return; }
@@ -58,7 +58,7 @@ class PaymentreceiptController extends Controller {
 
     // GET /api/paymentreceipt/list
     public function list() {
-        $u = $this->requirePermission('payments.read');
+        $u = $this->requirePermission(['payments.read', 'invoices.read', 'pos.read']);
         $filters = [
             'method'      => $_GET['method'] ?? null,
             'from_date'   => $_GET['from_date'] ?? null,
@@ -75,7 +75,7 @@ class PaymentreceiptController extends Controller {
 
     // GET /api/paymentreceipt/cheques
     public function cheques() {
-        $this->requirePermission('payments.read');
+        $this->requirePermission(['payments.read', 'invoices.read', 'pos.read']);
         $status = $_GET['status'] ?? null;
         $data = $this->model->listCheques($status);
         $this->json(['status' => 'success', 'data' => $data]);
@@ -83,7 +83,7 @@ class PaymentreceiptController extends Controller {
 
     // GET /api/paymentreceipt/customercheques/:customerId
     public function customercheques($customerId = null) {
-        $this->requirePermission('payments.read');
+        $this->requirePermission(['payments.read', 'invoices.read', 'pos.read', 'customers.read']);
         if (!$customerId) { $this->json(['status' => 'error', 'message' => 'Missing customer ID'], 422); return; }
         $data = $this->model->listChequesByCustomer($customerId);
         $this->json(['status' => 'success', 'data' => $data]);

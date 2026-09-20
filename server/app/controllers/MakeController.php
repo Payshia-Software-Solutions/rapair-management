@@ -13,7 +13,7 @@ class MakeController extends Controller {
 
     // GET /api/make/list
     public function list() {
-        $this->requirePermission('makes.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

@@ -15,7 +15,7 @@ class CityController extends Controller {
      * Optional district_id filter
      */
     public function index() {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         $districtId = isset($_GET['district_id']) ? (int)$_GET['district_id'] : null;
 
         if ($districtId > 0) {

@@ -76,7 +76,7 @@ class PurchaseOrder extends Model {
         if (!$po) return null;
 
         $this->db->query("
-            SELECT i.*, p.part_name, p.sku, b.name AS brand_name
+            SELECT i.*, p.part_name, p.sku, b.name AS brand_name, p.unit
             FROM purchase_order_items i
             INNER JOIN parts p ON p.id = i.part_id
             LEFT JOIN brands b ON b.id = p.brand_id

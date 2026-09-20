@@ -14,7 +14,7 @@ class DistrictController extends Controller {
      * GET /api/district/index
      */
     public function index() {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         $this->db->query("
             SELECT d.*, z.name as zone_name 
             FROM districts d 

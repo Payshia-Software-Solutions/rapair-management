@@ -125,10 +125,12 @@ class Controller {
         return $locFromToken;
     }
 
-    protected function requirePermission($permKey) {
-        $u = $this->requireAuth();
+    protected function hasPermission($permKey, $u = null) {
+        if ($u === null) {
+            $u = $this->requireAuth();
+        }
         if ($this->isAdmin($u)) {
-            return $u;
+            return true;
         }
 
         $role = trim((string)($u['role'] ?? ''));
@@ -157,8 +159,25 @@ class Controller {
             $db->bind(':role', $role);
             $db->bind(':perm', $permKey);
         }
-        $row = $db->single();
-        if (!$row) {
+        return (bool)$db->single();
+    }
+
+    protected function requirePermission($permKey) {
+        $u = $this->requireAuth();
+        if ($this->isAdmin($u)) {
+            return $u;
+        }
+
+        if (is_array($permKey)) {
+            foreach ($permKey as $p) {
+                if ($this->hasPermission($p, $u)) {
+                    return $u;
+                }
+            }
+            $this->error('Forbidden', 403);
+        }
+
+        if (!$this->hasPermission($permKey, $u)) {
             $this->error('Forbidden', 403);
         }
         return $u;

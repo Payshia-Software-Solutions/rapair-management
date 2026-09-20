@@ -13,7 +13,7 @@ class VehicleController extends Controller {
 
     // GET /api/vehicle/list
     public function list() {
-        $this->requirePermission('vehicles.read');
+        $this->requirePermission(['vehicles.read', 'orders.read', 'orders.write', 'customers.read']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -29,7 +29,7 @@ class VehicleController extends Controller {
     }
 
     public function all() {
-        $this->requirePermission('vehicles.read');
+        $this->requirePermission(['vehicles.read', 'orders.read', 'orders.write', 'customers.read']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -39,7 +39,7 @@ class VehicleController extends Controller {
 
     // POST /api/vehicle/create
     public function create() {
-        $u = $this->requirePermission('vehicles.write');
+        $u = $this->requirePermission(['vehicles.write', 'orders.write', 'customers.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -71,7 +71,7 @@ class VehicleController extends Controller {
 
     // GET /api/vehicle/get/{id}
     public function get($id = null) {
-        $this->requirePermission('vehicles.read');
+        $this->requirePermission(['vehicles.read', 'orders.read', 'orders.write', 'customers.read', 'invoices.read', 'pos.read']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -90,7 +90,7 @@ class VehicleController extends Controller {
 
     // POST /api/vehicle/update/{id}
     public function update($id = null) {
-        $u = $this->requirePermission('vehicles.write');
+        $u = $this->requirePermission(['vehicles.write', 'orders.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;

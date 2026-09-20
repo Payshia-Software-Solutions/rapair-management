@@ -18,7 +18,7 @@ class DepartmentController extends Controller {
     }
 
     public function list() {
-        $this->requirePermission('departments.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

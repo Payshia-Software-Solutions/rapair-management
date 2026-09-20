@@ -12,7 +12,7 @@ class ChecklistController extends Controller {
 
     // GET /api/checklist/list/{orderId}
     public function list($orderId = null) {
-        $this->requirePermission('checklists.read');
+        $this->requirePermission(['checklists.read', 'orders.read', 'orders.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -27,7 +27,7 @@ class ChecklistController extends Controller {
 
     // POST /api/checklist/add/{orderId}
     public function add($orderId = null) {
-        $this->requirePermission('checklists.write');
+        $this->requirePermission(['checklists.write', 'orders.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;

@@ -12,7 +12,7 @@ class UnitController extends Controller {
 
     // GET /api/unit/list?q=
     public function list() {
-        $this->requirePermission('units.read');
+        $this->requireAuth();
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') $this->error('Method Not Allowed', 405);
         $rows = $this->unitModel->list($_GET['q'] ?? '');
         $this->success($rows);

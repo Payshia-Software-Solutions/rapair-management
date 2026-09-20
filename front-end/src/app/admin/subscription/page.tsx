@@ -102,7 +102,15 @@ export default function SubscriptionPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || ''}/api/saas/packages`);
       const data = await res.json();
       if (data.status === 'success') {
-        setAvailablePlans(data.data);
+        const publicPlans = (data.data || []).filter((p: any) => 
+          Number(p.is_public) === 1 &&
+          p.package_key !== 'custom' &&
+          p.package_key !== 'free_trial' &&
+          !p.package_key?.toLowerCase().startsWith('custom') &&
+          !p.name?.toLowerCase().startsWith('custom') &&
+          !p.name?.toLowerCase().includes('handling fee')
+        );
+        setAvailablePlans(publicPlans);
       }
     } catch (err) {
       console.error("Packages Fetch Failed", err);
@@ -480,7 +488,7 @@ export default function SubscriptionPage() {
                 <h3 className="text-lg font-black tracking-tighter">Available Upgrade Plans</h3>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {availablePlans.filter(p => p.name !== saasData?.name).map((plan, idx) => (
+                {availablePlans.filter(p => p.name?.toLowerCase() !== saasData?.name?.toLowerCase() && p.name?.toLowerCase() !== saasData?.package_name?.toLowerCase()).map((plan, idx) => (
                     <motion.div 
                         key={idx}
                         whileHover={{ y: -4 }}

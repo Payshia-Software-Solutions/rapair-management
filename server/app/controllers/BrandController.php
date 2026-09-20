@@ -12,7 +12,7 @@ class BrandController extends Controller {
 
     // GET /api/brand/list?q=
     public function list() {
-        $this->requirePermission('brands.read');
+        $this->requireAuth();
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') $this->error('Method Not Allowed', 405);
         $rows = $this->brandModel->list($_GET['q'] ?? '');
         $this->success($rows);

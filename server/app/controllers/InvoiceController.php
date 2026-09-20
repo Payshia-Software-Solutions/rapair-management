@@ -33,7 +33,7 @@ class InvoiceController extends Controller {
     }
 
     public function details($id = null) {
-        $this->requirePermission('invoices.read');
+        $this->requirePermission(['invoices.read', 'pos.read', 'orders.read', 'sales.read']);
         if (!$id) {
             $this->error('Invoice ID required', 400);
             return;
@@ -65,7 +65,7 @@ class InvoiceController extends Controller {
     }
 
     public function create() {
-        $u = $this->requirePermission('invoices.write');
+        $u = $this->requirePermission(['invoices.write', 'pos.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;

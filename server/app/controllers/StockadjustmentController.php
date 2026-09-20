@@ -18,7 +18,7 @@ class StockadjustmentController extends Controller {
     }
 
     public function list() {
-        $u = $this->requirePermission('stock.read');
+        $u = $this->requirePermission(['stock.read', 'stock.adjust', 'parts.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') $this->error('Method Not Allowed', 405);
         $locId = $this->currentLocationId($u);
         $rows = $this->model->list($_GET['q'] ?? '', $locId);
@@ -26,7 +26,7 @@ class StockadjustmentController extends Controller {
     }
 
     public function get($id = null) {
-        $u = $this->requirePermission('stock.read');
+        $u = $this->requirePermission(['stock.read', 'stock.adjust', 'parts.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Adjustment ID required', 400);
         $locId = $this->currentLocationId($u);
@@ -36,7 +36,7 @@ class StockadjustmentController extends Controller {
     }
 
     public function create() {
-        $u = $this->requirePermission('stock.read');
+        $u = $this->requirePermission(['stock.adjust', 'stock.read', 'parts.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $this->error('Method Not Allowed', 405);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $locId = $this->currentLocationId($u);

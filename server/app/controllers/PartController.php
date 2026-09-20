@@ -15,7 +15,7 @@ class PartController extends Controller {
 
     // GET /api/part/list?q=
     public function list() {
-        $u = $this->requirePermission('parts.read');
+        $u = $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $q = $_GET['q'] ?? '';
         $sid = isset($_GET['supplier_id']) ? (int)$_GET['supplier_id'] : 0;
@@ -34,7 +34,7 @@ class PartController extends Controller {
 
     // GET /api/part/get/1
     public function get($id = null) {
-        $this->requirePermission('parts.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Part ID required', 400);
         $row = $this->partModel->getById($id);
@@ -476,7 +476,7 @@ class PartController extends Controller {
 
     // GET /api/part/location_balances?location_id=1&q=
     public function location_balances() {
-        $this->requirePermission('stock.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $locId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
         if ($locId <= 0) $this->error('location_id is required', 400);
@@ -488,8 +488,7 @@ class PartController extends Controller {
     // GET /api/part/location_stock/1?location_id=2
     // Used by Stock Transfers UI to show stock available at the selected source location.
     public function location_stock($id = null) {
-        // Stock visibility is part of reporting; transfers also use this endpoint.
-        $this->requirePermission('stock.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Part ID required', 400);
         $locId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
@@ -502,7 +501,7 @@ class PartController extends Controller {
     // GET /api/part/adjustments?part_id=1&limit=200
     // Lists stock adjustment records from stock_movements.
     public function adjustments() {
-        $this->requirePermission('stock.read');
+        $this->requirePermission(['stock.read', 'stock.adjust']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
 
         // InventorySchema::ensure();
@@ -543,7 +542,7 @@ class PartController extends Controller {
 
     // GET /api/part/batches/1
     public function batches($id = null) {
-        $this->requirePermission('parts.read');
+        $this->requireAuth();
         if (!$id) $this->error('Part ID required', 400);
         
         require_once '../app/models/InventoryBatch.php';

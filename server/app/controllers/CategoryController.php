@@ -13,7 +13,7 @@ class CategoryController extends Controller {
 
     // GET /api/category/list
     public function list() {
-        $this->requirePermission('categories.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

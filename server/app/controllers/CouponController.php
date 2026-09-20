@@ -10,13 +10,13 @@ class CouponController extends Controller {
     }
 
     public function index() {
-        $this->requirePermission('promotions.read');
+        $this->requireAuth();
         $coupons = $this->couponModel->getAll();
         $this->success($coupons);
     }
 
     public function get($id) {
-        $this->requirePermission('promotions.read');
+        $this->requireAuth();
         $coupon = $this->couponModel->getById($id);
         if ($coupon) {
             $this->success($coupon);

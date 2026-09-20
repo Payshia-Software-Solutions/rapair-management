@@ -14,7 +14,7 @@ class TechnicianController extends Controller {
 
     // GET /api/technician/list
     public function list() {
-        $this->requirePermission('technicians.read');
+        $this->requirePermission(['technicians.read', 'orders.read', 'orders.write', 'bays.read', 'bays.write']);
         if ($_SERVER['REQUEST_METHOD'] == 'GET') {
             $technicians = $this->technicianModel->getAll();
             $this->success($technicians);

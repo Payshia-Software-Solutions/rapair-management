@@ -18,7 +18,7 @@ class PosController extends Controller {
     }
 
     public function day_ledger() {
-        $u = $this->requirePermission('pos.read');
+        $u = $this->requirePermission(['pos.read', 'orders.read']);
         $db = new Database();
 
         $locationId = (int)($_GET['location_id'] ?? 0);
@@ -132,7 +132,7 @@ class PosController extends Controller {
     }
 
     public function held_orders() {
-        $u = $this->requirePermission('pos.read');
+        $u = $this->requirePermission(['pos.read', 'orders.read']);
         $locationId = (int)($_GET['location_id'] ?? 1);
         require_once '../app/models/PosHeldOrder.php';
         $model = new PosHeldOrder();
@@ -140,7 +140,7 @@ class PosController extends Controller {
     }
 
     public function hold_order() {
-        $u = $this->requirePermission('pos.write');
+        $u = $this->requirePermission(['pos.write', 'orders.write']);
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
         require_once '../app/models/PosHeldOrder.php';
@@ -154,7 +154,7 @@ class PosController extends Controller {
     }
 
     public function load_held_order($id) {
-        $u = $this->requirePermission('pos.read');
+        $u = $this->requirePermission(['pos.read', 'orders.read']);
         require_once '../app/models/PosHeldOrder.php';
         $model = new PosHeldOrder();
         $order = $model->getById($id);
@@ -166,7 +166,7 @@ class PosController extends Controller {
     }
 
     public function kot_details($id) {
-        $u = $this->requirePermission('pos.read');
+        $u = $this->requirePermission(['pos.read', 'orders.read']);
         $full = ($_GET['full'] ?? '0') === '1';
         
         require_once '../app/models/PosHeldOrder.php';
@@ -186,7 +186,7 @@ class PosController extends Controller {
     }
 
     public function mark_kot_printed($id) {
-        $u = $this->requirePermission('pos.write');
+        $u = $this->requirePermission(['pos.write', 'orders.write']);
         require_once '../app/models/PosHeldOrder.php';
         $model = new PosHeldOrder();
         if ($model->markAsPrinted($id)) {

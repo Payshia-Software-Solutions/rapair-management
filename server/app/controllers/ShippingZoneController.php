@@ -14,7 +14,7 @@ class ShippingZoneController extends Controller {
      * GET /api/shippingzone/index
      */
     public function index() {
-        $this->requirePermission('locations.read');
+        $this->requireAuth();
         $this->db->query("SELECT * FROM shipping_zones ORDER BY name ASC");
         $zones = $this->db->resultSet();
         $this->success($zones);

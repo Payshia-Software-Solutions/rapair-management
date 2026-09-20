@@ -16,7 +16,7 @@ class RefundController extends Controller {
     }
 
     public function create() {
-        $u = $this->requirePermission('pos.write');
+        $u = $this->requirePermission(['pos.write', 'invoices.write', 'payments.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -57,7 +57,7 @@ class RefundController extends Controller {
     }
 
     public function unrefunded() {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'payments.read']);
         $locationId = $_GET['location_id'] ?? null;
         
         $db = new Database();
@@ -84,7 +84,7 @@ class RefundController extends Controller {
     }
 
     public function index() {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'payments.read']);
         $filters = [
             'location_id' => $_GET['location_id'] ?? null,
             'invoice_no' => $_GET['invoice_no'] ?? null
@@ -94,7 +94,7 @@ class RefundController extends Controller {
     }
 
     public function invoice($invoiceId = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'payments.read']);
         if (!$invoiceId) {
             $this->error('Invoice ID required', 400);
             return;
@@ -103,7 +103,7 @@ class RefundController extends Controller {
         $this->success($refunds);
     }
     public function return_lookup($returnNo = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'payments.read']);
         $returnNo = $returnNo ?? ($_GET['return_no'] ?? null);
         if (!$returnNo) {
             $this->error('Return Number required', 400);
@@ -141,7 +141,7 @@ class RefundController extends Controller {
     }
 
     public function print_data($id = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'payments.read']);
         $db = new Database();
         
         $refundId = $id ?? ($_GET['id'] ?? null);

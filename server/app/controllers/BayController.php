@@ -51,7 +51,7 @@ class BayController extends Controller {
 
     // GET /api/bay/list
     public function list() {
-        $u = $this->requirePermission('bays.read');
+        $u = $this->requirePermission(['bays.read', 'orders.read', 'orders.write', 'pos.read']);
         if ($_SERVER['REQUEST_METHOD'] == 'GET') {
             $locId = $this->currentLocationId($u);
             // Warehouses should not expose bays.
@@ -73,7 +73,7 @@ class BayController extends Controller {
     // Returns bays for all locations the user is allowed to access (service locations only).
     // Shape is tailored for master-data screens (no order details).
     public function list_all() {
-        $u = $this->requirePermission('bays.read');
+        $u = $this->requirePermission(['bays.read', 'orders.read', 'orders.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

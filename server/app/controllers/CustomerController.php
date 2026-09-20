@@ -15,7 +15,7 @@ class CustomerController extends Controller {
     }
 
     public function list() {
-        $this->requirePermission('customers.read');
+        $this->requirePermission(['customers.read', 'pos.read', 'orders.read', 'sales.read']);
         $customers = $this->customerModel->getAll();
         $this->success($customers);
     }
@@ -27,7 +27,7 @@ class CustomerController extends Controller {
     }
 
     public function get($id) {
-        $this->requirePermission('customers.read');
+        $this->requirePermission(['customers.read', 'pos.read', 'orders.read', 'sales.read']);
         $customer = $this->customerModel->getById($id);
         if ($customer) {
             $this->success($customer);
@@ -60,7 +60,7 @@ class CustomerController extends Controller {
     }
 
     public function create() {
-        $this->requirePermission('customers.write');
+        $this->requirePermission(['customers.write', 'pos.write', 'orders.write', 'sales.create', 'sales.update']);
         
         $data = $this->processCustomerInput();
 

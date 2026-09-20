@@ -13,7 +13,7 @@ class SupplierController extends Controller {
 
     // GET /api/supplier/list?q=
     public function list() {
-        $this->requirePermission('suppliers.read');
+        $this->requirePermission(['suppliers.read', 'purchase.read', 'purchase.write', 'grn.read', 'grn.write', 'parts.read', 'parts.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $rows = $this->supplierModel->list($_GET['q'] ?? '', $_GET['type'] ?? null);
         $this->success($rows);
@@ -21,7 +21,7 @@ class SupplierController extends Controller {
 
     // GET /api/supplier/get/1
     public function get($id = null) {
-        $this->requirePermission('suppliers.read');
+        $this->requirePermission(['suppliers.read', 'purchase.read', 'purchase.write', 'grn.read', 'grn.write', 'parts.read', 'parts.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Supplier ID required', 400);
         $row = $this->supplierModel->getById($id);

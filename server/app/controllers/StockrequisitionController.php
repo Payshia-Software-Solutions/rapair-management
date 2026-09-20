@@ -53,7 +53,7 @@ class StockrequisitionController extends Controller {
     }
 
     public function list() {
-        $u = $this->requirePermission('transfer.read');
+        $u = $this->requirePermission(['transfer.read', 'transfer.write', 'stock.read', 'purchase.read', 'purchase.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -71,7 +71,7 @@ class StockrequisitionController extends Controller {
     }
 
     public function get($id = null) {
-        $u = $this->requirePermission('transfer.read');
+        $u = $this->requirePermission(['transfer.read', 'transfer.write', 'stock.read', 'purchase.read', 'purchase.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

@@ -13,7 +13,7 @@ class PurchaseController extends Controller {
 
     // GET /api/purchase/list?q=
     public function list() {
-        $u = $this->requirePermission('purchase.read');
+        $u = $this->requirePermission(['purchase.read', 'purchase.write', 'grn.read', 'grn.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         $locId = $this->currentLocationId($u);
         $rows = $this->poModel->list($_GET['q'] ?? '', $locId);
@@ -22,7 +22,7 @@ class PurchaseController extends Controller {
 
     // GET /api/purchase/get/1
     public function get($id = null) {
-        $u = $this->requirePermission('purchase.read');
+        $u = $this->requirePermission(['purchase.read', 'purchase.write', 'grn.read', 'grn.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('PO ID required', 400);
         $locId = $this->currentLocationId($u);

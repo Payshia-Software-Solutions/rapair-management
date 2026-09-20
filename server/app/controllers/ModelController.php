@@ -11,7 +11,7 @@ class ModelController extends Controller {
 
     // GET /api/model/list[?make_id=1]
     public function list() {
-        $this->requirePermission('models.read');
+        $this->requireAuth();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
             return;

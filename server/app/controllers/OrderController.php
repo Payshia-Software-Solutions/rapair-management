@@ -126,7 +126,7 @@ class OrderController extends Controller {
 
     // GET /api/order/get/1
     public function get($id = null) {
-        $u = $this->requirePermission('orders.read');
+        $u = $this->requirePermission(['orders.read', 'orders.write', 'invoices.create', 'invoices.write', 'invoices.read', 'pos.read', 'pos.write']);
         if (!$id) {
             $this->error('Order ID required', 400);
         }
@@ -609,7 +609,7 @@ class OrderController extends Controller {
 
     // GET /api/order/parts/1
     public function parts($id = null) {
-        $u = $this->requirePermission('orders.read');
+        $u = $this->requirePermission(['orders.read', 'orders.write', 'invoices.create', 'invoices.write', 'invoices.read', 'pos.read', 'pos.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
         }

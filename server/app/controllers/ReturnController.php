@@ -24,7 +24,7 @@ class ReturnController extends Controller {
     }
 
     public function list() {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $filters = [
             'status' => $_GET['status'] ?? null,
             'location_id' => $_GET['location_id'] ?? null
@@ -38,7 +38,7 @@ class ReturnController extends Controller {
     }
 
     public function invoice_lookup($id = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $invoiceNo = $id ?? ($_GET['invoice_no'] ?? null);
         if (!$invoiceNo) {
             $this->error('Invoice Number required', 400);
@@ -110,7 +110,7 @@ class ReturnController extends Controller {
     }
 
     public function create() {
-        $u = $this->requirePermission('pos.write');
+        $u = $this->requirePermission(['pos.write', 'invoices.write']);
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);
             return;
@@ -128,12 +128,12 @@ class ReturnController extends Controller {
         $result = $this->returnModel->create($data);
         if ($result) {
             if (isset($result['error'])) {
-                $this->error('Model Error: ' . $result['error']);
+                $this->error($result['error']);
                 return;
             }
-            $returnId = $result['id'];
-            $returnNo = $result['return_no'];
-            
+            $returnId = is_array($result) ? $result['id'] : $result;
+            $returnNo = is_array($result) ? $result['return_no'] : null;
+
             // Process Refund if requested
             if (!empty($data['refund'])) {
                 $refData = $data['refund'];
@@ -144,7 +144,6 @@ class ReturnController extends Controller {
                 $this->refundModel->create($refData);
             }
 
-            // Audit
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'action' => 'create',
@@ -152,9 +151,8 @@ class ReturnController extends Controller {
                 'entity_id' => (int)$returnId,
                 'method' => 'POST',
                 'path' => $_SERVER['REQUEST_URI'] ?? '',
-                'details' => json_encode(['invoice_id' => $data['invoice_id'] ?? null, 'total' => $data['total_amount'], 'return_no' => $returnNo]),
+                'details' => json_encode(['invoice_id' => $data['invoice_id'] ?? null, 'total' => $data['total_amount'] ?? 0, 'return_no' => $returnNo]),
             ]);
-
             $this->success(['id' => $returnId, 'return_no' => $returnNo], 'Return processed successfully');
         } else {
             $this->error('Failed to process return');
@@ -162,7 +160,7 @@ class ReturnController extends Controller {
     }
 
     public function details($id = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $returnNo = $id ?? ($_GET['return_no'] ?? null);
         if (!$returnNo) {
             $this->error('Return Number required', 400);
@@ -204,7 +202,7 @@ class ReturnController extends Controller {
     }
 
     public function print_data($id = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $db = new Database();
         
         // Handle ID from query string if not in URL segment
@@ -246,7 +244,7 @@ class ReturnController extends Controller {
         ]);
     }
     public function refunds() {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $filters = [
             'location_id' => $_GET['location_id'] ?? null,
             'invoice_no' => $_GET['invoice_no'] ?? null
@@ -256,7 +254,7 @@ class ReturnController extends Controller {
     }
 
     public function refund_print($id = null) {
-        $this->requirePermission('pos.read');
+        $this->requirePermission(['pos.read', 'invoices.read', 'sales.read']);
         $db = new Database();
         
         $refundId = $id ?? ($_GET['id'] ?? null);
