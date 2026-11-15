@@ -29,8 +29,9 @@ class Coupon extends Model {
     }
 
     public function create($data) {
-        $this->db->query("INSERT INTO {$this->table} (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, start_date, end_date, max_uses, user_limit, is_active) 
-                         VALUES (:code, :description, :discount_type, :discount_value, :min_amount, :max_discount, :start, :end, :max_uses, :user_limit, :is_active)");
+        $this->db->query("INSERT INTO {$this->table} (code, description, discount_type, discount_value, min_order_amount, max_discount_amount, start_date, end_date, max_uses, user_limit, is_active, market_id) 
+                         VALUES (:code, :description, :discount_type, :discount_value, :min_amount, :max_discount, :start, :end, :max_uses, :user_limit, :is_active, :market_id)");
+        $this->db->bind(':market_id', !empty($data['market_id']) ? (int)$data['market_id'] : null);
         $this->db->bind(':code', strtoupper(trim($data['code'])));
         $this->db->bind(':description', $data['description'] ?? '');
         $this->db->bind(':discount_type', $data['discount_type']);
@@ -50,8 +51,9 @@ class Coupon extends Model {
     }
 
     public function update($id, $data) {
-        $this->db->query("UPDATE {$this->table} SET description = :description, discount_type = :discount_type, discount_value = :discount_value, min_order_amount = :min_amount, max_discount_amount = :max_discount, start_date = :start, end_date = :end, max_uses = :max_uses, user_limit = :user_limit, is_active = :is_active 
+        $this->db->query("UPDATE {$this->table} SET description = :description, discount_type = :discount_type, discount_value = :discount_value, min_order_amount = :min_amount, max_discount_amount = :max_discount, start_date = :start, end_date = :end, max_uses = :max_uses, user_limit = :user_limit, is_active = :is_active, market_id = :market_id 
                          WHERE id = :id");
+        $this->db->bind(':market_id', !empty($data['market_id']) ? (int)$data['market_id'] : null);
         $this->db->bind(':id', $id);
         $this->db->bind(':description', $data['description'] ?? '');
         $this->db->bind(':discount_type', $data['discount_type']);
@@ -72,9 +74,13 @@ class Coupon extends Model {
         return $this->db->execute();
     }
 
-    public function validate($code, $subtotal, $customerId = null) {
+    public function validate($code, $subtotal, $customerId = null, $marketId = null) {
         $coupon = $this->getByCode($code);
         if (!$coupon) return ['valid' => false, 'message' => 'Invalid coupon code.'];
+        // A coupon limited to one market is invalid anywhere else (market_id NULL = all markets).
+        if (!empty($coupon->market_id) && (int)$coupon->market_id !== (int)$marketId) {
+            return ['valid' => false, 'message' => 'This coupon is not valid in your country.'];
+        }
 
         $now = date('Y-m-d H:i:s');
         if ($coupon->start_date && $coupon->start_date > $now) return ['valid' => false, 'message' => 'Coupon is not yet active.'];

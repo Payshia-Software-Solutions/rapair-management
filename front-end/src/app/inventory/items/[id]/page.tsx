@@ -1169,14 +1169,14 @@ export default function ItemDetailPage() {
                                       </SelectTrigger>
                                       <SelectContent>
                                         {[
-                                          "Front View", "Back View", "Side View", "Top View", 
+                                          "Main Image", "Front Image", "Front View", "Back View", "Side View", "Top View", 
                                           "Bottom View", "Inner View", "Technical Diagram", 
                                           "Packaging", "Other"
                                         ].map(opt => (
                                           <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                                         ))}
                                         {img.label && ![
-                                          "Front View", "Back View", "Side View", "Top View", 
+                                          "Main Image", "Front Image", "Front View", "Back View", "Side View", "Top View", 
                                           "Bottom View", "Inner View", "Technical Diagram", 
                                           "Packaging", "Other"
                                         ].includes(img.label) && (

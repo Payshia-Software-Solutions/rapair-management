@@ -75,7 +75,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       try {
         if (initialData.allowed_taxes_json) {
           const ids = JSON.parse(initialData.allowed_taxes_json);
-          if (Array.isArray(ids)) setTaxIds(ids);
+          // Stored as strings (["2","1"]); compare as numbers so saved taxes show as selected and can be removed.
+          if (Array.isArray(ids)) setTaxIds([...new Set(ids.map(Number).filter((n) => Number.isFinite(n) && n > 0))]);
         } else {
           setTaxIds([]);
         }
@@ -247,7 +248,8 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                 <Label>Allowed Taxes</Label>
                 <div className="flex flex-wrap gap-2">
                   {availableTaxes.map((tax) => {
-                    const isSelected = taxIds.includes(tax.id);
+                    const taxId = Number(tax.id);
+                    const isSelected = taxIds.includes(taxId);
                     return (
                       <Badge
                         key={tax.id}
@@ -258,9 +260,9 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                         )}
                         onClick={() => {
                           if (isSelected) {
-                            setTaxIds(prev => prev.filter(id => id !== tax.id));
+                            setTaxIds(prev => prev.filter(id => id !== taxId));
                           } else {
-                            setTaxIds(prev => [...prev, tax.id]);
+                            setTaxIds(prev => [...prev, taxId]);
                           }
                         }}
                       >

@@ -545,7 +545,7 @@ export default function EcommerceProductsPage() {
                                                     </SelectTrigger>
                                                     <SelectContent>
                                                         {[
-                                                            "Front View", "Back View", "Side View", "Top View", 
+                                                            "Main Image", "Front Image", "Front View", "Back View", "Side View", "Top View", 
                                                             "Bottom View", "Inner View", "Technical Diagram", 
                                                             "Packaging", "Other"
                                                         ].map(opt => (

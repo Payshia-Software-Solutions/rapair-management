@@ -58,6 +58,8 @@ import {
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { fetchOnlineOrders, fetchOnlineOrder } from "@/lib/api";
+import { confirmOnlineOrderQuote } from "@/lib/api/orders";
+import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 
 export default function OnlineOrdersPage() {
@@ -75,6 +77,13 @@ export default function OnlineOrdersPage() {
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
 
+  const { toast } = useToast();
+  const [awaitingOnly, setAwaitingOnly] = useState(false);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteOrder, setQuoteOrder] = useState<any>(null);
+  const [quoteShipping, setQuoteShipping] = useState("");
+  const [quoteNote, setQuoteNote] = useState("");
+  const [quoting, setQuoting] = useState(false);
   const [dispatchOpen, setDispatchOpen] = useState(false);
   const [dispatchOrder, setDispatchOrder] = useState<any>(null);
   const [carrier, setCarrier] = useState("");
@@ -240,9 +249,54 @@ export default function OnlineOrdersPage() {
     );
   };
 
-  const filteredOrders = orders.filter(order => 
-    order.order_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
+  // Amounts in the currency the order was placed in (Sri Lankan rupees for older orders).
+  const fmtFor = (o: any, n: number) => {
+    const code = o?.currency_code || "LKR";
+    try {
+      return new Intl.NumberFormat("en", { style: "currency", currency: code, currencyDisplay: "narrowSymbol" }).format(n || 0);
+    } catch {
+      return `${code} ${(n || 0).toFixed(2)}`;
+    }
+  };
+  const awaitingCount = orders.filter(o => o.quote_status === "awaiting_quote").length;
+
+  const openQuote = (order: any) => {
+    setQuoteOrder(order);
+    setQuoteShipping(order.quote_status === "quoted" ? String(Number(order.shipping_fee)) : "");
+    setQuoteNote(order.quote_note || "");
+    setQuoteOpen(true);
+  };
+
+  const handleQuote = async () => {
+    if (!quoteOrder) return;
+    const fee = Number(quoteShipping);
+    if (quoteShipping === "" || !Number.isFinite(fee) || fee < 0) {
+      return toast({ title: "Enter the shipping fee (0 or more)", variant: "destructive" });
+    }
+    setQuoting(true);
+    try {
+      const r = await confirmOnlineOrderQuote(quoteOrder.id, fee, quoteNote);
+      toast({ title: "Quote confirmed", description: r.emailed ? "The customer was emailed the new total." : "Saved. No email was sent: contact the customer yourself." });
+      setQuoteOpen(false);
+      fetchOrders();
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  let customerDetails: { email?: string; phone?: string; gift_message?: string } | undefined;
+  try {
+    if (selectedOrder?.customer_details_json) customerDetails = JSON.parse(selectedOrder.customer_details_json);
+  } catch {
+    // Older orders may have incomplete customer details.
+  }
+
+  const filteredOrders = orders.filter(order =>
+    (!awaitingOnly || order.quote_status === "awaiting_quote") &&
+    (order.order_no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    order.customer_name.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
@@ -282,9 +336,14 @@ export default function OnlineOrdersPage() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="h-10 font-bold gap-2">
+                <Button
+                  variant={awaitingOnly ? "default" : "outline"}
+                  size="sm"
+                  className="h-10 font-bold gap-2"
+                  onClick={() => { setAwaitingOnly(v => !v); setCurrentPage(1); }}
+                >
                   <Filter className="w-4 h-4" />
-                  Filter
+                  Awaiting quote{awaitingCount ? ` (${awaitingCount})` : ""}
                 </Button>
               </div>
             </div>
@@ -353,6 +412,12 @@ export default function OnlineOrdersPage() {
                       <TableCell className="py-3 text-center">
                         <div className="flex flex-col items-center gap-1.5">
                           {getStatusBadge(order.order_status)}
+                          {order.quote_status === "awaiting_quote" && (
+                            <Badge className="text-[10px] uppercase font-bold px-2 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 hover:bg-rose-100">Awaiting quote</Badge>
+                          )}
+                          {order.quote_status === "quoted" && (
+                            <Badge className="text-[10px] uppercase font-bold px-2 py-0.5 bg-sky-100 text-sky-700 border border-sky-200 hover:bg-sky-100">Quoted</Badge>
+                          )}
                           {order.tracking_no && (
                             <div className="flex flex-col items-center">
                               {getTrackingLink(order) ? (
@@ -374,7 +439,7 @@ export default function OnlineOrdersPage() {
                         </div>
                       </TableCell>
                       <TableCell className="py-3 text-right font-bold text-sm">
-                        Rs. {Number(order.total_amount).toFixed(2)}
+                        {fmtFor(order, Number(order.total_amount))}
                       </TableCell>
                       <TableCell className="py-3">
                         <div className="flex justify-end gap-1">
@@ -400,6 +465,14 @@ export default function OnlineOrdersPage() {
                               >
                                 <FileText className="w-4 h-4 mr-2" /> Generate Invoice
                               </DropdownMenuItem>
+                              {order.quote_status && (
+                                <DropdownMenuItem
+                                  onSelect={(e) => { e.preventDefault(); setTimeout(() => openQuote(order), 100); }}
+                                  className="font-bold text-sm cursor-pointer"
+                                >
+                                  <Banknote className="w-4 h-4 mr-2 text-rose-500" /> {order.quote_status === "quoted" ? "Edit quote" : "Confirm quote"}
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem 
                                 onSelect={(e) => {
                                   e.preventDefault();
@@ -542,14 +615,25 @@ export default function OnlineOrdersPage() {
                         <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5">{selectedOrder?.location_name}</p>
                       </div>
                     </div>
-                    {selectedOrder?.customer_details_json && (
+                    {customerDetails && (
                        <div className="text-right">
-                          <p className="text-xs font-bold text-gray-600 truncate">{JSON.parse(selectedOrder.customer_details_json).email}</p>
-                          <p className="text-[10px] font-black text-primary mt-1">{JSON.parse(selectedOrder.customer_details_json).phone}</p>
+                          <p className="text-xs font-bold text-gray-600 truncate">{customerDetails.email}</p>
+                          <p className="text-[10px] font-black text-primary mt-1">{customerDetails.phone}</p>
                        </div>
                     )}
                   </div>
                 </Card>
+
+                {customerDetails?.gift_message && (
+                  <Card className="bg-white border-gray-200 shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm">Gift card message</CardTitle>
+                    </CardHeader>
+                    <CardContent className="whitespace-pre-wrap break-words text-sm text-gray-700">
+                      {customerDetails.gift_message}
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Section 2: Addresses */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -604,9 +688,9 @@ export default function OnlineOrdersPage() {
                               <span className="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">SKU: {item.item_id}</span>
                             </TableCell>
                             <TableCell className="text-center font-black text-gray-700">{Number(item.quantity).toFixed(4)}</TableCell>
-                            <TableCell className="text-right font-semibold text-gray-600">Rs. {Number(item.unit_price).toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-bold text-emerald-600">- Rs. {Number(item.discount || 0).toFixed(2)}</TableCell>
-                            <TableCell className="text-right font-bold text-gray-900">Rs. {Number(item.line_total).toFixed(2)}</TableCell>
+                            <TableCell className="text-right font-semibold text-gray-600">{fmtFor(selectedOrder, Number(item.unit_price))}</TableCell>
+                            <TableCell className="text-right font-bold text-emerald-600">- {fmtFor(selectedOrder, Number(item.discount || 0))}</TableCell>
+                            <TableCell className="text-right font-bold text-gray-900">{fmtFor(selectedOrder, Number(item.line_total))}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -619,7 +703,7 @@ export default function OnlineOrdersPage() {
                   <div className="w-full max-w-[300px] space-y-3">
                     <div className="flex justify-between text-sm text-gray-500 font-semibold">
                       <span>Subtotal</span>
-                      <span className="text-gray-900">Rs. {Number(selectedOrder?.subtotal_amount || 0).toFixed(2)}</span>
+                      <span className="text-gray-900">{fmtFor(selectedOrder, Number(selectedOrder?.subtotal_amount || 0))}</span>
                     </div>
 
                     {(() => {
@@ -628,7 +712,7 @@ export default function OnlineOrdersPage() {
                         return (
                           <div className="flex justify-between text-sm text-emerald-600 font-bold">
                             <span>Line Discounts</span>
-                            <span>- Rs. {lineDiscountsTotal.toFixed(2)}</span>
+                            <span>- {fmtFor(selectedOrder, lineDiscountsTotal)}</span>
                           </div>
                         );
                       }
@@ -641,7 +725,7 @@ export default function OnlineOrdersPage() {
                         return Number(selectedOrder?.tax_total || 0) > 0 ? (
                           <div className="flex justify-between text-sm text-gray-500 font-semibold">
                             <span>Taxes</span>
-                            <span className="text-gray-900">Rs. {Number(selectedOrder?.tax_total).toFixed(2)}</span>
+                            <span className="text-gray-900">{fmtFor(selectedOrder, Number(selectedOrder?.tax_total))}</span>
                           </div>
                         ) : null;
                       }
@@ -678,24 +762,24 @@ export default function OnlineOrdersPage() {
                       return breakdown.map((b, i) => (
                         <div key={i} className="flex justify-between text-[11px] text-gray-400 font-bold uppercase tracking-wider pl-4">
                           <span>{b.name}</span>
-                          <span>Rs. {b.amount.toFixed(2)}</span>
+                          <span>{fmtFor(selectedOrder, b.amount)}</span>
                         </div>
                       ));
                     })()}
 
                     <div className="flex justify-between text-sm text-gray-500 font-semibold">
                       <span>Shipping</span>
-                      <span className="text-gray-900">Rs. {Number(selectedOrder?.shipping_fee || 0).toFixed(2)}</span>
+                      <span className="text-gray-900">{fmtFor(selectedOrder, Number(selectedOrder?.shipping_fee || 0))}</span>
                     </div>
                     {Number(selectedOrder?.coupon_discount || 0) > 0 && (
                       <div className="flex justify-between text-sm text-emerald-600 font-bold">
                         <span>Coupon ({selectedOrder?.coupon_code})</span>
-                        <span>- Rs. {Number(selectedOrder?.coupon_discount).toFixed(2)}</span>
+                        <span>- {fmtFor(selectedOrder, Number(selectedOrder?.coupon_discount))}</span>
                       </div>
                     )}
                     <div className="flex justify-between items-center pt-3 border-t border-gray-200 text-lg">
                       <span className="font-black uppercase tracking-tighter text-gray-900">Total</span>
-                      <span className="font-black text-primary">Rs. {Number(selectedOrder?.total_amount).toFixed(2)}</span>
+                      <span className="font-black text-primary">{fmtFor(selectedOrder, Number(selectedOrder?.total_amount))}</span>
                     </div>
                   </div>
                 </div>
@@ -734,6 +818,43 @@ export default function OnlineOrdersPage() {
                 Proceed to Invoice
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={quoteOpen} onOpenChange={setQuoteOpen}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black tracking-tighter flex items-center gap-2">
+              <Banknote className="w-6 h-6 text-primary" />
+              CONFIRM QUOTE
+            </DialogTitle>
+            <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-1">
+              Order #{quoteOrder?.order_no} · {quoteOrder?.customer_name}
+            </div>
+          </DialogHeader>
+          {quoteOrder && (
+            <div className="grid gap-4 py-2">
+              <div className="rounded-lg bg-muted/40 p-3 text-sm space-y-1">
+                <div className="flex justify-between"><span>Items (incl. tax)</span><span>{fmtFor(quoteOrder, Number(quoteOrder.subtotal_amount) + Number(quoteOrder.tax_total) - Number(quoteOrder.coupon_discount || 0))}</span></div>
+                <div className="flex justify-between font-bold"><span>Total with shipping</span><span>{fmtFor(quoteOrder, Number(quoteOrder.subtotal_amount) + Number(quoteOrder.tax_total) - Number(quoteOrder.coupon_discount || 0) + (Number(quoteShipping) || 0))}</span></div>
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="quote-shipping" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Shipping fee ({quoteOrder.currency_code || "LKR"})</label>
+                <Input id="quote-shipping" inputMode="decimal" className="h-11 font-black" value={quoteShipping} onChange={(e) => setQuoteShipping(e.target.value)} placeholder="0.00" />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="quote-note" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Note to customer (optional)</label>
+                <Input id="quote-note" className="h-11" value={quoteNote} onChange={(e) => setQuoteNote(e.target.value)} placeholder="e.g. Shipped via Australia Post, 5-7 days" />
+              </div>
+              <p className="text-xs text-muted-foreground">The customer is emailed the total and the bank transfer details. Mark the order paid once the money arrives.</p>
+            </div>
+          )}
+          <div className="flex justify-end gap-3">
+            <Button variant="outline" className="font-bold" onClick={() => setQuoteOpen(false)}>Cancel</Button>
+            <Button className="font-black px-8" onClick={handleQuote} disabled={quoting}>
+              {quoting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Banknote className="w-4 h-4 mr-2" />}
+              SEND QUOTE
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

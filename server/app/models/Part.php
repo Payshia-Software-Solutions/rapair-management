@@ -77,7 +77,7 @@ class Part extends Model {
                    c.name AS category_name,
                    (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS stock_quantity,
                    (SELECT GROUP_CONCAT(collection_id) FROM parts_collections WHERE part_id = p.id) as collection_ids_raw,
-                   (SELECT GROUP_CONCAT(CONCAT(id, ':', filename) ORDER BY sort_order ASC, id ASC) FROM part_images WHERE part_id = p.id) as gallery_raw
+                   (SELECT GROUP_CONCAT(CONCAT(id, CHAR(31), COALESCE(label, ''), CHAR(31), filename) ORDER BY sort_order ASC, id ASC SEPARATOR 0x1E) FROM part_images WHERE part_id = p.id) as gallery_raw
             FROM {$from}
             LEFT JOIN brands b ON b.id = p.brand_id
             LEFT JOIN item_sections s ON s.id = p.item_section_id
@@ -99,11 +99,12 @@ class Part extends Model {
             $row->collection_ids = !empty($row->collection_ids_raw) ? array_map('intval', explode(',', $row->collection_ids_raw)) : [];
             $gallery = [];
             if (!empty($row->gallery_raw)) {
-                $parts = explode(',', $row->gallery_raw);
+                // id, label and filename, split by control characters (labels and URLs may contain ':' or ',').
+                $parts = explode("\x1E", $row->gallery_raw);
                 foreach ($parts as $p_str) {
-                    $bits = explode(':', $p_str, 2);
-                    if (count($bits) === 2) {
-                        $gallery[] = (object)['id' => (int)$bits[0], 'filename' => $bits[1]];
+                    $bits = explode("\x1F", $p_str, 3);
+                    if (count($bits) === 3) {
+                        $gallery[] = (object)['id' => (int)$bits[0], 'label' => $bits[1], 'filename' => $bits[2]];
                     }
                 }
             }
@@ -150,7 +151,7 @@ class Part extends Model {
                    p.discount_value,
                    (SELECT COALESCE(SUM(qty_change), 0) FROM stock_movements WHERE part_id = p.id) AS system_stock_quantity,
                    (SELECT GROUP_CONCAT(collection_id) FROM parts_collections WHERE part_id = p.id) as collection_ids_raw,
-                   (SELECT GROUP_CONCAT(CONCAT(id, ':', filename) ORDER BY sort_order ASC, id ASC) FROM part_images WHERE part_id = p.id) as gallery_raw,
+                   (SELECT GROUP_CONCAT(CONCAT(id, CHAR(31), COALESCE(label, ''), CHAR(31), filename) ORDER BY sort_order ASC, id ASC SEPARATOR 0x1E) FROM part_images WHERE part_id = p.id) as gallery_raw,
                    COALESCE(SUM(sm.qty_change), 0) AS location_stock_quantity,
                    COALESCE(SUM(sm.qty_change), 0) AS stock_quantity
             FROM {$this->table} p
@@ -185,11 +186,12 @@ class Part extends Model {
             $row->collection_ids = !empty($row->collection_ids_raw) ? array_map('intval', explode(',', $row->collection_ids_raw)) : [];
             $gallery = [];
             if (!empty($row->gallery_raw)) {
-                $parts = explode(',', $row->gallery_raw);
+                // id, label and filename, split by control characters (labels and URLs may contain ':' or ',').
+                $parts = explode("\x1E", $row->gallery_raw);
                 foreach ($parts as $p_str) {
-                    $bits = explode(':', $p_str, 2);
-                    if (count($bits) === 2) {
-                        $gallery[] = (object)['id' => (int)$bits[0], 'filename' => $bits[1]];
+                    $bits = explode("\x1F", $p_str, 3);
+                    if (count($bits) === 3) {
+                        $gallery[] = (object)['id' => (int)$bits[0], 'label' => $bits[1], 'filename' => $bits[2]];
                     }
                 }
             }

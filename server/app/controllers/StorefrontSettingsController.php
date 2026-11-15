@@ -5,6 +5,8 @@
  */
 class StorefrontSettingsController extends Controller {
     private $settingModel;
+    const AI_SECRET_KEYS = ['ai_gemini_key', 'ai_claude_key', 'ai_openai_key'];
+    const MASK = '••••';
 
     public function __construct() {
         $this->settingModel = $this->model('StorefrontSetting');
@@ -21,6 +23,11 @@ class StorefrontSettingsController extends Controller {
         
         $locationId = $_GET['location_id'] ?? 1;
         $settings = $this->settingModel->getAll($locationId);
+        $settings['effective_homepage_best_seller_ids'] = implode(',', $this->settingModel->seedHomepageBestSellerIds($settings, (int)$locationId));
+        // AI provider keys are never sent back in full: only a masked hint of the last 4 characters.
+        foreach (self::AI_SECRET_KEYS as $k) {
+            if (!empty($settings[$k])) $settings[$k] = self::MASK . substr((string)$settings[$k], -4);
+        }
         $this->success($settings);
     }
 
@@ -36,10 +43,36 @@ class StorefrontSettingsController extends Controller {
         
         foreach ($data as $key => $value) {
             if ($key === 'location_id') continue;
+            // A masked value means "unchanged": keep the stored key.
+            if (in_array($key, self::AI_SECRET_KEYS, true) && is_string($value) && strpos($value, self::MASK) === 0) continue;
             $this->settingModel->updateSetting($key, $value, $locationId);
         }
         
+        $tags = ['settings'];
+        if (array_key_exists('packaging_category_id', $data) || array_key_exists('packaging_complimentary_item_ids', $data)) {
+            $tags[] = 'items';
+        }
+        $this->notifyWebsite($tags);
         $this->success(null, 'Settings updated');
+    }
+
+    /**
+     * Tell the Tea Jar website to drop its cached storefront settings, so payment options and bank
+     * details change right away instead of after the 1-hour cache. Best effort: a failure never blocks the save.
+     */
+    private function notifyWebsite(array $tags) {
+        if (!defined('WEBSITE_REVALIDATE_URL') || WEBSITE_REVALIDATE_URL === '' || WEBSITE_REVALIDATE_SECRET === '') return;
+        $ch = curl_init(WEBSITE_REVALIDATE_URL);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => json_encode(['tags' => $tags]),
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . WEBSITE_REVALIDATE_SECRET],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 5,
+        ]);
+        $res = curl_exec($ch);
+        if ($res === false) error_log('Website revalidate failed: ' . curl_error($ch));
+        curl_close($ch);
     }
 
     // POST /api/storefront-settings/testSmtp

@@ -70,7 +70,17 @@ class PublicOrderController extends Controller {
             }
         }
 
-        $filename = 'slip_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . pathinfo($_FILES['slip']['name'], PATHINFO_EXTENSION);
+        // Accept only images and PDFs, judged by the file's real content (not its name), up to 5 MB.
+        // The saved extension comes from that check, so a script can never be stored under public/uploads.
+        $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
+        if ($_FILES['slip']['size'] > 5 * 1024 * 1024) {
+            $this->error('The slip must be 5 MB or smaller.', 400);
+        }
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($_FILES['slip']['tmp_name']) ?: '';
+        if (!isset($allowed[$mime])) {
+            $this->error('Upload a photo (JPG, PNG, WEBP) or a PDF of the bank slip.', 400);
+        }
+        $filename = 'slip_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $allowed[$mime];
         $targetFile = $uploadDir . $filename;
 
         if (move_uploaded_file($_FILES['slip']['tmp_name'], $targetFile)) {
@@ -104,12 +114,20 @@ class PublicOrderController extends Controller {
         $orderModel = new OnlineOrder();
 
         // 1. Handle Customer
-        $customerId = $data['customer_id'] ?? null;
-        if (!$customerId && !empty($data['customer_details']['email'])) {
+        // Only a signed-in customer's own token links the order to an account. A customer_id sent in the body is ignored,
+        // so nobody can attach an order to someone else's account.
+        require_once '../app/helpers/CustomerAuth.php';
+        $customerId = CustomerAuth::customerIdFromRequest();
+        $dryRun = !empty($data['dry_run']); // price-only quote: nothing (not even a customer) is saved
+        if (!$dryRun && !$customerId && !empty($data['customer_details']['email'])) {
             // Find or create guest customer
             $customerModel = $this->model('Customer');
-            $this->db->query("SELECT id FROM customers WHERE email = :email LIMIT 1");
+            // Match by email, or by name + phone: the customers table is unique on (name, phone), so a returning
+            // shopper using a different email must reuse their record instead of failing on the duplicate.
+            $this->db->query("SELECT id FROM customers WHERE email = :email OR (name = :name AND phone = :phone) LIMIT 1");
             $this->db->bind(':email', $data['customer_details']['email']);
+            $this->db->bind(':name', $data['customer_details']['name'] ?? 'Guest');
+            $this->db->bind(':phone', $data['customer_details']['phone'] ?? null);
             $existing = $this->db->single();
             if ($existing) {
                 $customerId = $existing->id;
@@ -129,6 +147,11 @@ class PublicOrderController extends Controller {
         }
         $data['customer_id'] = $customerId;
         $data['total_amount'] = (float)$data['total_amount'];
+        // Gift message (Gift Wrapped Box): plain text, capped, stored with the customer details.
+        if (isset($data['customer_details']['gift_message'])) {
+            $gift = trim(strip_tags((string)$data['customer_details']['gift_message']));
+            $data['customer_details']['gift_message'] = $gift === '' ? null : mb_substr($gift, 0, 200);
+        }
 
         // 1.5 Calculate Taxes and Subtotal
         require_once '../app/models/Tax.php';
@@ -138,7 +161,21 @@ class PublicOrderController extends Controller {
         $settingsModel = new StorefrontSetting();
         $locModel = new ServiceLocation();
 
-        $locationId = $data['location_id'] ?? 1;
+        // The order belongs to the market the key is allowed to sell in (never trust a location_id from the request).
+        $resolved = MarketResolver::forRequest($this->apiClientModel, null, $data['market'] ?? ($_GET['market'] ?? ''));
+        $market = $resolved['market'];
+        $locationId = (int)$resolved['location_id'];
+        if ($locationId <= 0) {
+            $this->error('Unknown or unavailable market', 400);
+        }
+        $data['location_id'] = $locationId;
+        $marketModel = new Market();
+        $usesPriceList = $market && (int)$market->uses_price_list === 1;
+        // Money rounds to the currency's own decimals (JPY has none).
+        $dec = $market ? max(0, (int)($market->currency_decimals ?? 2)) : 2;
+        $data['currency_code'] = $market ? (string)$market->currency_code : null;
+        $data['market_id'] = $market ? (int)$market->id : null;
+        $data['exchange_rate'] = $market ? (float)($market->currency_rate_to_base ?? 0) : null;
         $location = $locModel->getById($locationId);
         $settings = $settingsModel->getAll($locationId);
         $taxInclusive = ($settings['ecom_tax_inclusive'] ?? '0') === '1';
@@ -157,6 +194,75 @@ class PublicOrderController extends Controller {
             }
         }
         $totalMultiplier = ((1 + $additiveRate) * $compoundMultiplier) - 1;
+
+        // 1.4 Price every line from the ERP's own item record. The browser only chooses items and quantities;
+        // unit_price and discount sent by the client are ignored, so prices can't be altered in the request.
+        $webOnly = ($_GET['channel'] ?? '') === 'web';
+        $packagingCategory = (int)($settings['packaging_category_id'] ?? 0);
+        $complimentaryIds = $webOnly ? StorefrontSetting::complimentaryPackagingIds($settings) : [];
+        $giftCardId = $webOnly ? StorefrontSetting::giftCardItemId($settings) : 0;
+        $hasGiftCard = false;
+        $hasNonPackagingItem = false;
+        $hasPackaging = false;
+        $pricedItems = [];
+        foreach ($data['items'] as $line) {
+            $itemId = (int)($line['item_id'] ?? 0);
+            $qty = (float)($line['quantity'] ?? 0);
+            if ($itemId <= 0 || $qty <= 0 || $qty > 1000 || floor($qty) != $qty) {
+                $this->error('Invalid item or quantity in order', 400);
+            }
+            $this->db->query("SELECT id, part_name, price, discount_type, discount_value, is_active, is_online, kiosk_module, item_category_id FROM parts WHERE id = :id LIMIT 1");
+            $this->db->bind(':id', $itemId);
+            $part = $this->db->single();
+            $sellable = $part && (int)$part->is_active === 1 && ((int)$part->is_online === 1 || (!$webOnly && ($part->kiosk_module ?? 'None') !== 'None'));
+            if (!$sellable) {
+                $this->error('An item in your cart is no longer available', 409);
+            }
+            $unitDiscount = 0.0;
+            if ($usesPriceList) {
+                // Fixed price list: the list price is final (same inclusive/exclusive convention as the storefront setting);
+                // an item without a price in this market cannot be bought here.
+                $listed = $marketModel->getPrice($market->id, $itemId);
+                if ($listed === null) {
+                    $this->error('An item in your cart is no longer available', 409);
+                }
+                $unitPrice = $listed[0];
+            } else {
+                // Same price the storefront shows (publicitem/inventory): tax-inclusive when the location is set that way.
+                $unitPrice = (float)$part->price * ($taxInclusive ? (1 + $totalMultiplier) : 1);
+                $discountValue = (float)($part->discount_value ?? 0);
+                if (($part->discount_type ?? 'None') === 'Percentage' && $discountValue > 0) {
+                    $unitDiscount = $unitPrice * min($discountValue, 100) / 100;
+                } elseif (($part->discount_type ?? 'None') === 'Fixed' && $discountValue > 0) {
+                    $unitDiscount = min($discountValue * ($taxInclusive ? (1 + $totalMultiplier) : 1), $unitPrice);
+                }
+            }
+            $isPackaging = $packagingCategory > 0 && (int)$part->item_category_id === $packagingCategory;
+            $hasPackaging = $hasPackaging || $isPackaging;
+            $hasNonPackagingItem = $hasNonPackagingItem || !$isPackaging;
+            $hasGiftCard = $hasGiftCard || ($isPackaging && $itemId === $giftCardId);
+            if ($isPackaging && in_array($itemId, $complimentaryIds, true)) {
+                $unitPrice = 0.0;
+                $unitDiscount = 0.0;
+            }
+            $pricedItems[] = [
+                'item_id' => (int)$part->id,
+                'description' => (string)$part->part_name,
+                'quantity' => $qty,
+                'unit_price' => round($unitPrice, $dec),
+                'discount' => round($unitDiscount, $dec),
+            ];
+        }
+        if ($webOnly && $hasPackaging && !$hasNonPackagingItem) {
+            $this->error('Add a product to your order before adding gift packaging', 400);
+        }
+        if ($webOnly && !$hasGiftCard) {
+            unset($data['customer_details']['gift_message']);
+        }
+        if ($hasGiftCard && !$dryRun && ($data['customer_details']['gift_message'] ?? '') === '') {
+            $this->error('Add a message for the handwritten gift card before placing your order', 400);
+        }
+        $data['items'] = $pricedItems;
 
         $calculatedSubtotal = 0;
         $calculatedTaxTotal = 0;
@@ -210,7 +316,7 @@ class PublicOrderController extends Controller {
         foreach ($taxes as $tx) {
             if (($tx->apply_on ?? 'base') === 'base') {
                 $rate = (float)$tx->rate_percent / 100;
-                $amount = round($netSubtotal * $rate, 2);
+                $amount = round($netSubtotal * $rate, $dec);
                 $additiveTaxesSum += $amount;
                 
                 $taxBreakdown[] = [
@@ -229,7 +335,7 @@ class PublicOrderController extends Controller {
         foreach ($taxes as $tx) {
             if (($tx->apply_on ?? 'base') === 'base_plus_previous') {
                 $rate = (float)$tx->rate_percent / 100;
-                $amount = round($currentCompoundBase * $rate, 2);
+                $amount = round($currentCompoundBase * $rate, $dec);
                 $currentCompoundBase += $amount;
                 
                 $taxBreakdown[] = [
@@ -243,11 +349,22 @@ class PublicOrderController extends Controller {
             }
         }
 
-        $data['subtotal_amount'] = round($netSubtotal, 2);
-        $data['tax_total'] = round($calculatedTaxSum, 2);
+        $data['subtotal_amount'] = round($netSubtotal, $dec);
+        $data['tax_total'] = round($calculatedTaxSum, $dec);
         $data['tax_details_json'] = json_encode($taxBreakdown);
 
-        $shippingFee = (float)($data['shipping_fee'] ?? 0);
+        // Shipping can never reduce the total. (A server-side shipping quote per district is still to be added.)
+        $shippingFee = max(0, (float)($data['shipping_fee'] ?? 0));
+        // Quote markets have no shipping rates yet: the order is a request, staff add shipping and arrange payment.
+        // Also a request when the website asks for one: delivery outside the store's own country has no rates yet.
+        $quoteMode = ($market && (($market->checkout_mode ?? 'online') === 'quote')) || !empty($data['quote_request']);
+        if ($quoteMode) {
+            $shippingFee = 0;
+            $data['payment_method'] = 'QUOTE';
+            $data['payment_slip'] = null;
+            $data['quote_status'] = 'awaiting_quote';
+        }
+        $data['shipping_fee'] = $shippingFee;
         $couponDiscount = 0; // Initialize as 0, will be set if coupon validated
 
         // 1.6 Handle Coupon Validation
@@ -257,7 +374,7 @@ class PublicOrderController extends Controller {
             $couponModel = new Coupon();
             
             // Validate coupon against the net subtotal (post line-discounts)
-            $validation = $couponModel->validate($data['coupon_code'], $netSubtotal, $customerId);
+            $validation = $couponModel->validate($data['coupon_code'], $netSubtotal, $customerId, $market ? (int)$market->id : null);
             if (!$validation['valid']) {
                 $this->error($validation['message'], 400);
             }
@@ -269,11 +386,27 @@ class PublicOrderController extends Controller {
 
         // Re-calculate final total to ensure it matches
         // Total = Net Subtotal (Gross - Line Discs) + Taxes + Shipping - Coupon Discount
-        $expectedTotal = round($netSubtotal + $calculatedTaxSum + $shippingFee - $couponDiscount, 2);
+        $expectedTotal = round($netSubtotal + $calculatedTaxSum + $shippingFee - $couponDiscount, $dec);
         
         // Small epsilon check for float comparison
         if (abs($data['total_amount'] - $expectedTotal) > 0.01) {
             $data['total_amount'] = $expectedTotal; 
+        }
+
+        // 1.9 Quote only: return the same totals the order would get, without saving anything.
+        if ($dryRun) {
+            $this->success([
+                'items' => $data['items'],
+                'subtotal_amount' => round($netSubtotal, $dec),
+                'tax_total' => round($calculatedTaxSum, $dec),
+                'tax_details' => $taxBreakdown,
+                'shipping_fee' => $shippingFee,
+                'quote_mode' => $quoteMode,
+                'shipping_pending' => $quoteMode,
+                'coupon_code' => $data['coupon_code'] ?? null,
+                'coupon_discount' => round($couponDiscount, $dec),
+                'total_amount' => $expectedTotal,
+            ]);
         }
 
         // 2. Create Order
@@ -296,7 +429,8 @@ class PublicOrderController extends Controller {
                 $company = $companyModel->get();
 
                 $to = $data['customer_details']['email'];
-                $subject = "Order Confirmed - " . $result['order_no'];
+                $subject = ($quoteMode ? "Order request received - " : "Order Confirmed - ") . $result['order_no'];
+                $currencyLabel = htmlspecialchars($data['currency_code'] ?? 'LKR') . ' ';
                 
                 // Asset URLs
                 $contentUrl = defined('CONTENT_BASE_URL') ? CONTENT_BASE_URL : 'https://content-provider.payshia.com/service-center-system/';
@@ -332,14 +466,15 @@ class PublicOrderController extends Controller {
                             </table>
                         </td>
                         <td style="padding: 16px 0; border-bottom: 1px solid #f1f5f9; text-align: right; vertical-align: middle;">
-                            <span style="font-size: 14px; font-weight: 700; color: #0f172a;">LKR ' . number_format($item['unit_price'], 2) . '</span>
+                            <span style="font-size: 14px; font-weight: 700; color: #0f172a;">' . $currencyLabel . number_format($item['unit_price'], $dec) . '</span>
                         </td>
                     </tr>';
                 }
 
                 // 4. Fetch Related Products for Promotion (Respecting Admin Settings)
                 $relatedProductsHtml = '';
-                $showRelated = ($ecomSettings['show_related_products'] ?? '1') === '1';
+                $showRelated = (!$market || (int)$market->is_default === 1)
+                    && ($ecomSettings['show_related_products'] ?? '1') === '1';
                 $featuredIds = !empty($ecomSettings['featured_product_ids']) ? explode(',', $ecomSettings['featured_product_ids']) : [];
                 $featuredIds = array_map('trim', array_filter($featuredIds, 'is_numeric'));
 
@@ -396,7 +531,7 @@ class PublicOrderController extends Controller {
                                     <div style="background: #ffffff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 12px;">
                                         <img src="' . $relImgUrl . '" alt="" width="100%" style="width: 100%; border-radius: 8px; margin-bottom: 12px; display: block; object-fit: cover;">
                                         <div style="font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 4px; height: 32px; overflow: hidden; line-height: 1.2;">' . htmlspecialchars($rel->part_name) . '</div>
-                                        <div style="font-size: 13px; font-weight: 800; color: #b91c1c;">LKR ' . number_format($rel->price, 2) . '</div>
+                                        <div style="font-size: 13px; font-weight: 800; color: #b91c1c;">' . $currencyLabel . number_format($rel->price, 2) . '</div>
                                     </div>
                                 </a>
                             </td>';
@@ -420,7 +555,7 @@ class PublicOrderController extends Controller {
                     <div style="text-align: center; margin-bottom: 32px;">
                         ' . ($logoUrl ? '<img src="' . $logoUrl . '" alt="Logo" style="max-height: 50px; margin-bottom: 16px;">' : '') . '
                         <div style="text-transform: uppercase; letter-spacing: 0.1em; font-size: 11px; font-weight: 800; color: #64748b; margin-bottom: 4px;">Order Confirmation</div>
-                        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">Thank you for your order!</h1>
+                        <h1 style="margin: 0; font-size: 28px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em;">' . ($quoteMode ? 'We received your order request' : 'Thank you for your order!') . '</h1>
                     </div>
 
                     <div style="background: #f8fafc; border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0; margin-bottom: 32px;">
@@ -438,7 +573,7 @@ class PublicOrderController extends Controller {
                                 <td width="50%" style="padding-left: 12px; vertical-align: top;">
                                     <div style="padding: 16px; background: white; border-radius: 12px; border: 1px solid #e2e8f0;">
                                         <div style="font-size: 10px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px;">Payment Method</div>
-                                        <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">' . ($data['payment_method'] ?? 'COD') . '</div>
+                                        <div style="font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 4px;">' . ($quoteMode ? 'To be confirmed (we will contact you)' : ($data['payment_method'] ?? 'COD')) . '</div>
                                         <div style="font-size: 12px; color: #64748b; font-weight: 500;">Status: Pending</div>
                                     </div>
                                 </td>
@@ -466,20 +601,20 @@ class PublicOrderController extends Controller {
                             ' . $itemsHtml . '
                             <tr>
                                 <td style="padding: 24px 0 8px 0; text-align: right; color: #64748b; font-size: 14px; font-weight: 500;">Subtotal</td>
-                                <td style="padding: 24px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">LKR ' . number_format($calculatedSubtotal, 2) . '</td>
+                                <td style="padding: 24px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">' . $currencyLabel . number_format($calculatedSubtotal, $dec) . '</td>
                             </tr>
                             <tr>
                                 <td style="padding: 4px 0 8px 0; text-align: right; color: #64748b; font-size: 14px; font-weight: 500;">Taxes</td>
-                                <td style="padding: 4px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">LKR ' . number_format($calculatedTaxTotal, 2) . '</td>
+                                <td style="padding: 4px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">' . $currencyLabel . number_format($calculatedTaxTotal, $dec) . '</td>
                             </tr>
                             <tr>
                                 <td style="padding: 4px 0 8px 0; text-align: right; color: #64748b; font-size: 14px; font-weight: 500;">Shipping</td>
-                                <td style="padding: 4px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">' . ($shippingFee > 0 ? 'LKR ' . number_format($shippingFee, 2) : 'Free') . '</td>
+                                <td style="padding: 4px 0 8px 0; text-align: right; color: #0f172a; font-size: 14px; font-weight: 700;">' . ($quoteMode ? 'To be confirmed' : ($shippingFee > 0 ? $currencyLabel . number_format($shippingFee, $dec) : 'Free')) . '</td>
                             </tr>
                             ' . (!empty($data['coupon_code']) ? '
                             <tr>
                                 <td style="padding: 4px 0 24px 0; text-align: right; color: #64748b; font-size: 14px; font-weight: 500; border-bottom: 2px solid #f1f5f9;">Coupon (' . htmlspecialchars($data['coupon_code']) . ')</td>
-                                <td style="padding: 4px 0 24px 0; text-align: right; color: #e11d48; font-size: 14px; font-weight: 700; border-bottom: 2px solid #f1f5f9;">- LKR ' . number_format($data['coupon_discount'], 2) . '</td>
+                                <td style="padding: 4px 0 24px 0; text-align: right; color: #e11d48; font-size: 14px; font-weight: 700; border-bottom: 2px solid #f1f5f9;">- ' . $currencyLabel . number_format($data['coupon_discount'], $dec) . '</td>
                             </tr>' : '
                             <tr>
                                 <td style="padding: 4px 0 24px 0; text-align: right; color: #64748b; font-size: 14px; font-weight: 500; border-bottom: 2px solid #f1f5f9;"></td>
@@ -487,7 +622,7 @@ class PublicOrderController extends Controller {
                             </tr>') . '
                             <tr>
                                 <td style="padding: 24px 0; text-align: right; color: #0f172a; font-size: 18px; font-weight: 800;">Total</td>
-                                <td style="padding: 24px 0; text-align: right; color: #0f172a; font-size: 24px; font-weight: 800;">LKR ' . number_format($data['total_amount'], 2) . '</td>
+                                <td style="padding: 24px 0; text-align: right; color: #0f172a; font-size: 24px; font-weight: 800;">' . $currencyLabel . number_format($data['total_amount'], $dec) . '</td>
                             </tr>
                         </table>
                     </div>
@@ -514,6 +649,18 @@ class PublicOrderController extends Controller {
                 ];
 
                 EmailHelper::sendWithConfig($to, $subject, $message, $emailConfig);
+
+                // Quote orders: tell the market's team there is a request waiting for shipping and payment details.
+                if ($quoteMode && $market && !empty($market->quote_notify_email)) {
+                    $staffBody = '<p>A new order request is waiting for a shipping quote.</p>'
+                        . '<p><strong>' . htmlspecialchars($result['order_no']) . '</strong> &middot; ' . htmlspecialchars($market->name)
+                        . ' &middot; ' . htmlspecialchars($data['currency_code'] ?? '') . ' ' . number_format($expectedTotal, $dec) . ' (excl. shipping)</p>'
+                        . '<p>Customer: ' . htmlspecialchars($data['customer_details']['name'] ?? '') . '<br>'
+                        . 'Email: ' . htmlspecialchars($data['customer_details']['email'] ?? '') . '<br>'
+                        . 'Phone: ' . htmlspecialchars($data['customer_details']['phone'] ?? '') . '</p>'
+                        . '<p>Open ERP &rarr; E-commerce &rarr; Online Orders &rarr; Awaiting quote.</p>';
+                    EmailHelper::sendWithConfig($market->quote_notify_email, 'Order request to quote - ' . $result['order_no'], $staffBody, $emailConfig);
+                }
             } catch (Exception $e) {
                 error_log("Order email failed: " . $e->getMessage());
             }
@@ -605,6 +752,9 @@ class PublicOrderController extends Controller {
             'shipping_address' => (string)$order->shipping_address,
             'billing_address' => (string)$order->billing_address,
             'location_id' => (string)$order->location_id,
+            'currency_code' => (string)($order->currency_code ?? ''),
+            'market_id' => isset($order->market_id) ? (string)$order->market_id : null,
+            'quote_status' => isset($order->quote_status) ? $order->quote_status : null,
             'customer_name' => $details['name'] ?? '',
             'customer_email' => $details['email'] ?? '',
             'items' => array_map(function($item) {

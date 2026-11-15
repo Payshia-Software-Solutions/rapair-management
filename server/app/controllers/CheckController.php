@@ -137,9 +137,13 @@ class CheckController extends Controller {
 
             InventorySchema::ensure(true);
             ShippingSchema::ensure();
+            MarketSchema::ensure(true);
             AccountingSchema::ensure();
             PromotionSchema::ensure();
             SystemSchema::ensure();
+            // Storefront settings (incl. Packaging add-ons and gift message rows).
+            require_once '../app/helpers/StorefrontSchema.php';
+            StorefrontSchema::ensure(true);
 
             // Log the migration action
             $db = new Database();

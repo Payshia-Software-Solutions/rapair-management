@@ -50,7 +50,32 @@ class OnlineOrder extends Model {
         if ($this->db->execute()) {
             $orderId = $this->db->lastInsertId();
             $this->addItems($orderId, $data['items']);
+
+            // Remember the currency/market the order was placed in (columns exist once MarketSchema has run).
+            if (!empty($data['currency_code'])) {
+                try {
+                    $this->db->query("UPDATE {$this->table} SET currency_code = :c, exchange_rate = :r, market_id = :m WHERE id = :id");
+                    $this->db->bind(':c', $data['currency_code']);
+                    $this->db->bind(':r', $data['exchange_rate'] ?? null);
+                    $this->db->bind(':m', $data['market_id'] ?? null);
+                    $this->db->bind(':id', $orderId);
+                    $this->db->execute();
+                } catch (Throwable $e) {
+                    error_log('OnlineOrder: could not store currency/market: ' . $e->getMessage());
+                }
+            }
             
+            if (!empty($data['quote_status'])) {
+                try {
+                    $this->db->query("UPDATE {$this->table} SET quote_status = :q WHERE id = :id");
+                    $this->db->bind(':q', $data['quote_status']);
+                    $this->db->bind(':id', $orderId);
+                    $this->db->execute();
+                } catch (Throwable $e) {
+                    error_log('OnlineOrder: could not store quote status: ' . $e->getMessage());
+                }
+            }
+
             $result = ['id' => $orderId, 'order_no' => $orderNo];
 
             // If PayHere, generate payment data
@@ -69,7 +94,7 @@ class OnlineOrder extends Model {
                     $merchantSecret = $allSettings['payhere_merchant_secret_live'] ?? $allSettings['payhere_merchant_secret'] ?? $allSettings['payhere_secret_live'] ?? '';
                 }
 
-                $currency = $allSettings['currency_code'] ?? 'LKR';
+                $currency = !empty($data['currency_code']) ? $data['currency_code'] : ($allSettings['currency_code'] ?? 'LKR');
 
                 $amount = number_format($data['total_amount'], 2, '.', '');
                 

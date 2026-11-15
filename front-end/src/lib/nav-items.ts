@@ -16,6 +16,7 @@ import {
   Tags,
   CheckSquare,
   Gift,
+  Globe,
   Boxes,
   Truck,
   FileText,
@@ -45,6 +46,7 @@ import {
   Calculator,
   FolderTree,
   Ticket,
+  HelpCircle,
   Printer,
   AlertCircle,
   Target
@@ -209,6 +211,8 @@ export const ecommerceItems: NavItem[] = [
   { icon: Boxes, label: "Storefront Products", href: "/ecommerce/products", perm: "parts.read" },
   { icon: MessageSquare, label: "Product Reviews", href: "/ecommerce/reviews", perm: "promotions.read" },
   { icon: Ticket, label: "Coupons & Discounts", href: "/ecommerce/coupons", perm: "promotions.read" },
+  { icon: Globe, label: "Markets & Price Lists", href: "/ecommerce/markets", perm: "promotions.read" },
+  { icon: HelpCircle, label: "FAQ", href: "/ecommerce/faq", perm: "promotions.read" },
   { icon: Settings, label: "E-commerce Settings", href: "/ecommerce/settings", perm: "promotions.read" },
   { icon: Calculator, label: "Developer Options", href: "/ecommerce/developer", perm: "promotions.read" },
 ];

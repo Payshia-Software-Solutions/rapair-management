@@ -49,7 +49,9 @@ class PubliccouponController extends Controller {
 
         if (empty($code)) $this->error('Coupon code is required', 400);
 
-        $result = $this->couponModel->validate($code, $subtotal, $customerId);
+        $resolved = MarketResolver::forRequest($this->apiClientModel);
+        $marketId = $resolved['market'] ? (int)$resolved['market']->id : null;
+        $result = $this->couponModel->validate($code, $subtotal, $customerId, $marketId);
         
         if ($result['valid']) {
             $this->success([

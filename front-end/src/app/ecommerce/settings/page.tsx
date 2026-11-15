@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import NextLink from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { 
   Settings, 
@@ -11,6 +12,9 @@ import {
   ShieldCheck, 
   Bell, 
   ChevronRight,
+  ArrowUp,
+  ArrowDown,
+  Star,
   Database,
   Store,
   Layout,
@@ -23,7 +27,10 @@ import {
   Zap,
   Plus,
   Trash2,
-  Package
+  Package,
+  Bot,
+  Copy,
+  RefreshCw
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -40,7 +47,7 @@ import {
 } from "@/components/ui/select";
 
 import { fetchLocations, type ServiceLocation, fetchStorefrontSettings, updateStorefrontSettings, testSmtpSettings, uploadStorefrontIcon } from "@/lib/api/admin";
-import { fetchParts, type PartRow } from "@/lib/api/inventory";
+import { fetchItemCategories, fetchParts, type ItemCategory, type PartRow } from "@/lib/api/inventory";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Dialog,
@@ -52,10 +59,31 @@ import {
 } from "@/components/ui/dialog";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
 
+const BEST_SELLERS_LIMIT = 10;
+
+function parseProductIds(value: string | undefined): string[] {
+  const ids = (value ?? "").split(",").map((id) => id.trim()).filter((id) => /^[1-9]\d*$/.test(id));
+  return [...new Set(ids)].slice(0, BEST_SELLERS_LIMIT);
+}
+
+const formatPackagingPrice = new Intl.NumberFormat("en-LK", { style: "currency", currency: "LKR" });
+
+function parseComplimentaryIds(value: unknown): number[] {
+  if (typeof value !== "string") return [];
+  try {
+    const ids = JSON.parse(value);
+    return Array.isArray(ids) ? ids.filter((id) => Number.isInteger(id) && id > 0) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function EcommerceSettingsPage() {
   const [loading, setLoading] = React.useState(false);
   const [locations, setLocations] = React.useState<ServiceLocation[]>([]);
   const [selectedLocationId, setSelectedLocationId] = React.useState<string>("");
+  const [loadedLocationId, setLoadedLocationId] = React.useState("");
+  const [settingsLoadFailed, setSettingsLoadFailed] = React.useState(false);
   const [activeTab, setActiveTab] = React.useState<string>("identity");
   const [testingSmtp, setTestingSmtp] = React.useState(false);
 
@@ -96,7 +124,18 @@ export default function EcommerceSettingsPage() {
   const [storefrontUrl, setStorefrontUrl] = React.useState("");
   const [showRelatedProducts, setShowRelatedProducts] = React.useState(true);
   const [featuredProductIds, setFeaturedProductIds] = React.useState("");
+  const [homepageBestSellerOverride, setHomepageBestSellerOverride] = React.useState<string[] | null>(null);
+  const homepageBestSellerIds = homepageBestSellerOverride ?? parseProductIds(featuredProductIds);
+  const [homepageBestSellersEdited, setHomepageBestSellersEdited] = React.useState(false);
   const [productLinkPrefix, setProductLinkPrefix] = React.useState("/product/");
+  const [deliveryNote, setDeliveryNote] = React.useState("");
+  const [announcementText, setAnnouncementText] = React.useState("");
+  // AI assistant (TeaAI on the website)
+  const [aiEnabled, setAiEnabled] = React.useState(true);
+  const [aiProvider, setAiProvider] = React.useState<"gemini" | "claude" | "openai">("gemini");
+  const [aiKeys, setAiKeys] = React.useState({ gemini: "", claude: "", openai: "" });
+  const [aiModels, setAiModels] = React.useState({ gemini: "", claude: "", openai: "" });
+  const [aiServerSecret, setAiServerSecret] = React.useState("");
 
   const [fetchingParts, setFetchingParts] = React.useState(false);
   const [allParts, setAllParts] = React.useState<PartRow[]>([]);
@@ -106,6 +145,10 @@ export default function EcommerceSettingsPage() {
   const [codEnabled, setCodEnabled] = React.useState(false);
   const [mintpayEnabled, setMintpayEnabled] = React.useState(false);
   const [bankTransferEnabled, setBankTransferEnabled] = React.useState(false);
+  const [stripeEnabled, setStripeEnabled] = React.useState(false);
+  const [kokoEnabled, setKokoEnabled] = React.useState(false);
+  const [stripeIcon, setStripeIcon] = React.useState("");
+  const [kokoIcon, setKokoIcon] = React.useState("");
 
   const [payhereIcon, setPayhereIcon] = React.useState("");
   const [codIcon, setCodIcon] = React.useState("");
@@ -125,6 +168,21 @@ export default function EcommerceSettingsPage() {
   // Legal State
   const [termsOfService, setTermsOfService] = React.useState("Enter your terms and conditions here...");
   const [privacyPolicy, setPrivacyPolicy] = React.useState("Enter your privacy policy here...");
+
+  const [packagingCategoryId, setPackagingCategoryId] = React.useState("");
+  const [complimentaryPackagingIds, setComplimentaryPackagingIds] = React.useState<number[]>([]);
+  const [giftCardItemId, setGiftCardItemId] = React.useState("");
+  const [storefrontParts, setStorefrontParts] = React.useState<{ locationId: string; items: PartRow[] } | null>(null);
+  const [storefrontPartsError, setStorefrontPartsError] = React.useState(false);
+  const packagingItems = storefrontParts?.locationId === selectedLocationId && packagingCategoryId
+    ? storefrontParts.items.filter((part) =>
+        Number(part.item_category_id) === Number(packagingCategoryId) &&
+        Number(part.is_active) === 1 && Number(part.is_online) === 1
+      )
+    : [];
+  const [itemCategories, setItemCategories] = React.useState<ItemCategory[] | null>(null);
+  const [itemCategoriesLoadFailed, setItemCategoriesLoadFailed] = React.useState(false);
+  const settingsReady = !!selectedLocationId && selectedLocationId === loadedLocationId;
 
   // Shipping State
   const [shippingEnabled, setShippingEnabled] = React.useState(false);
@@ -165,60 +223,115 @@ export default function EcommerceSettingsPage() {
   }, []);
 
   React.useEffect(() => {
+    if (activeTab !== "packaging") return;
+    let ignore = false;
+    setItemCategoriesLoadFailed(false);
+    fetchItemCategories()
+      .then((categories) => {
+        if (!ignore) setItemCategories(categories);
+      })
+      .catch(() => {
+        if (!ignore) setItemCategoriesLoadFailed(true);
+      });
+    return () => { ignore = true; };
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    if ((activeTab !== "packaging" && activeTab !== "best-sellers") || !selectedLocationId) return;
+    let ignore = false;
+    setStorefrontPartsError(false);
+    fetchParts("", selectedLocationId)
+      .then((items) => {
+        if (!Array.isArray(items)) throw new Error("Packaging items are unavailable");
+        if (!ignore) setStorefrontParts({ locationId: selectedLocationId, items });
+      })
+      .catch(() => {
+        if (!ignore) setStorefrontPartsError(true);
+      });
+    return () => { ignore = true; };
+  }, [activeTab, selectedLocationId]);
+
+  React.useEffect(() => {
     if (!selectedLocationId) return;
+    let ignore = false;
+    setLoadedLocationId("");
+    setSettingsLoadFailed(false);
     async function loadSettings() {
       try {
         const settings = await fetchStorefrontSettings(selectedLocationId);
-        if (settings) {
-          setEmailServer(settings.email_server_type === 'custom' ? 'custom' : 'default');
-          setStoreName(settings.store_name || "");
-          setSupportEmail(settings.support_email || "");
-          setDescription(settings.store_description || "");
-          setSmtpHost(settings.mail_host || "");
-          setSmtpPort(settings.mail_port || "587");
-          setEncryption(settings.mail_encryption || "tls");
-          setSmtpUser(settings.mail_user || "");
-          setSmtpPass(settings.mail_pass || "");
-          setFromEmail(settings.mail_from_addr || "");
-          setFromName(settings.mail_from_name || "");
-          setCcEmail(settings.cc_email || "");
-          setBccEmail(settings.bcc_email || "");
-          setDomain(settings.domain || "shop.payshia.com");
-          setStorefrontUrl(settings.storefront_url || "");
-          setShowRelatedProducts(settings.show_related_products !== "0");
-          setFeaturedProductIds(settings.featured_product_ids || "");
-          setProductLinkPrefix(settings.storefront_product_prefix || "/product/");
-          setMetaTitlePrefix(settings.meta_title_prefix || "");
-          setFbPixelId(settings.facebook_pixel_id || "");
-          setGaId(settings.google_analytics_id || "");
-          setTermsOfService(settings.terms_of_service || "");
-          setPrivacyPolicy(settings.privacy_policy || "");
-          
-          setShippingEnabled(settings.shipping_enabled === "1");
-          setShippingFlatRate(settings.shipping_flat_rate || "0");
+        if (ignore) return;
+        if (!settings) throw new Error("Storefront settings are missing");
+        setEmailServer(settings.email_server_type === 'custom' ? 'custom' : 'default');
+        setStoreName(settings.store_name || "");
+        setSupportEmail(settings.support_email || "");
+        setDescription(settings.store_description || "");
+        setSmtpHost(settings.mail_host || "");
+        setSmtpPort(settings.mail_port || "587");
+        setEncryption(settings.mail_encryption || "tls");
+        setSmtpUser(settings.mail_user || "");
+        setSmtpPass(settings.mail_pass || "");
+        setFromEmail(settings.mail_from_addr || "");
+        setFromName(settings.mail_from_name || "");
+        setCcEmail(settings.cc_email || "");
+        setBccEmail(settings.bcc_email || "");
+        setDomain(settings.domain || "shop.payshia.com");
+        setStorefrontUrl(settings.storefront_url || "");
+        setShowRelatedProducts(settings.show_related_products !== "0");
+        setFeaturedProductIds(settings.featured_product_ids || "");
+        setHomepageBestSellerOverride(parseProductIds(settings.effective_homepage_best_seller_ids ?? settings.homepage_best_seller_ids ?? settings.featured_product_ids));
+        setHomepageBestSellersEdited(false);
+        setProductLinkPrefix(settings.storefront_product_prefix || "/product/");
+        setMetaTitlePrefix(settings.meta_title_prefix || "");
+        setFbPixelId(settings.facebook_pixel_id || "");
+        setGaId(settings.google_analytics_id || "");
+        setTermsOfService(settings.terms_of_service || "");
+        setPrivacyPolicy(settings.privacy_policy || "");
 
-          setPayhereEnabled(settings.payment_payhere_enabled === "1");
-          setCodEnabled(settings.payment_cod_enabled === "1");
-          setMintpayEnabled(settings.payment_mintpay_enabled === "1");
-          setBankTransferEnabled(settings.payment_bank_transfer_enabled === "1");
+        setPackagingCategoryId(Number(settings.packaging_category_id) > 0 ? String(settings.packaging_category_id) : "");
+        setComplimentaryPackagingIds(parseComplimentaryIds(settings.packaging_complimentary_item_ids));
+        setGiftCardItemId(Number(settings.gift_message_item_id) > 0 && settings.gift_message_enabled !== "0"
+          ? String(settings.gift_message_item_id)
+          : "");
 
-          setPayhereIcon(settings.payment_payhere_icon || "");
-          setCodIcon(settings.payment_cod_icon || "");
-          setMintpayIcon(settings.payment_mintpay_icon || "");
-          setBankTransferIcon(settings.payment_bank_transfer_icon || "");
+        setShippingEnabled(settings.shipping_enabled === "1");
+        setShippingFlatRate(settings.shipping_flat_rate || "0");
 
-          setBankName(settings.bank_name || "");
-          setBankAccountName(settings.bank_account_name || "");
-          setBankAccountNumber(settings.bank_account_number || "");
-          setBankBranch(settings.bank_branch || "");
+        setPayhereEnabled(settings.payment_payhere_enabled === "1");
+        setCodEnabled(settings.payment_cod_enabled === "1");
+        setMintpayEnabled(settings.payment_mintpay_enabled === "1");
+        setBankTransferEnabled(settings.payment_bank_transfer_enabled === "1");
 
-          setTaxInclusive(settings.ecom_tax_inclusive === "1");
-        }
+        setPayhereIcon(settings.payment_payhere_icon || "");
+        setCodIcon(settings.payment_cod_icon || "");
+        setMintpayIcon(settings.payment_mintpay_icon || "");
+        setBankTransferIcon(settings.payment_bank_transfer_icon || "");
+        setStripeEnabled(settings.payment_stripe_enabled === "1");
+        setKokoEnabled(settings.payment_koko_enabled === "1");
+        setStripeIcon(settings.payment_stripe_icon || "");
+        setKokoIcon(settings.payment_koko_icon || "");
+
+        setBankName(settings.bank_name || "");
+        setBankAccountName(settings.bank_account_name || "");
+        setBankAccountNumber(settings.bank_account_number || "");
+        setBankBranch(settings.bank_branch || "");
+
+        setTaxInclusive(settings.ecom_tax_inclusive === "1");
+        setDeliveryNote(settings.delivery_note || "");
+        setAnnouncementText(settings.announcement_text || "");
+        setAiEnabled(settings.ai_enabled !== "0");
+        setAiProvider((["gemini", "claude", "openai"].includes(settings.ai_provider) ? settings.ai_provider : "gemini") as "gemini" | "claude" | "openai");
+        setAiKeys({ gemini: settings.ai_gemini_key || "", claude: settings.ai_claude_key || "", openai: settings.ai_openai_key || "" });
+        setAiModels({ gemini: settings.ai_gemini_model || "", claude: settings.ai_claude_model || "", openai: settings.ai_openai_model || "" });
+        setAiServerSecret(settings.ai_server_secret || "");
+        setLoadedLocationId(selectedLocationId);
       } catch (error) {
+        if (ignore) return;
+        setSettingsLoadFailed(true);
         console.error("Failed to load storefront settings", error);
       }
     }
     loadSettings();
+    return () => { ignore = true; };
   }, [selectedLocationId]);
 
   React.useEffect(() => {
@@ -227,8 +340,20 @@ export default function EcommerceSettingsPage() {
     }
   }, [fromEmail]);
 
+  const updateHomepageBestSellers = (ids: string[]) => {
+    setHomepageBestSellerOverride(parseProductIds(ids.join(",")));
+    setHomepageBestSellersEdited(true);
+  };
+
+  const moveHomepageBestSeller = (index: number, direction: -1 | 1) => {
+    const reordered = [...homepageBestSellerIds];
+    const [productId] = reordered.splice(index, 1);
+    reordered.splice(index + direction, 0, productId);
+    updateHomepageBestSellers(reordered);
+  };
+
   const handleSave = async () => {
-    if (!selectedLocationId) return;
+    if (!settingsReady) return;
     setLoading(true);
     try {
       const payload = {
@@ -264,13 +389,32 @@ export default function EcommerceSettingsPage() {
         payment_cod_icon: codIcon,
         payment_mintpay_icon: mintpayIcon,
         payment_bank_transfer_icon: bankTransferIcon,
+        payment_stripe_enabled: stripeEnabled ? "1" : "0",
+        payment_koko_enabled: kokoEnabled ? "1" : "0",
+        payment_stripe_icon: stripeIcon,
+        payment_koko_icon: kokoIcon,
         bank_name: bankName,
         bank_account_name: bankAccountName,
         bank_account_number: bankAccountNumber,
         bank_branch: bankBranch,
         shipping_enabled: shippingEnabled ? "1" : "0",
         shipping_flat_rate: shippingFlatRate,
-        ecom_tax_inclusive: taxInclusive ? "1" : "0"
+        packaging_category_id: packagingCategoryId,
+        packaging_complimentary_item_ids: JSON.stringify(complimentaryPackagingIds),
+        gift_message_item_id: giftCardItemId,
+        ...(giftCardItemId ? { gift_message_enabled: "1" } : {}),
+        ecom_tax_inclusive: taxInclusive ? "1" : "0",
+        delivery_note: deliveryNote,
+        announcement_text: announcementText,
+        ai_enabled: aiEnabled ? "1" : "0",
+        ai_provider: aiProvider,
+        ai_gemini_key: aiKeys.gemini,
+        ai_claude_key: aiKeys.claude,
+        ai_openai_key: aiKeys.openai,
+        ai_gemini_model: aiModels.gemini,
+        ai_claude_model: aiModels.claude,
+        ai_openai_model: aiModels.openai,
+        ai_server_secret: aiServerSecret
       };
       await updateStorefrontSettings(payload);
       triggerDialog("Settings Saved", "Your storefront settings have been updated successfully.", "success");
@@ -329,6 +473,8 @@ export default function EcommerceSettingsPage() {
             if (key === 'payment_cod_icon') setCodIcon(path);
             if (key === 'payment_mintpay_icon') setMintpayIcon(path);
             if (key === 'payment_bank_transfer_icon') setBankTransferIcon(path);
+            if (key === 'payment_stripe_icon') setStripeIcon(path);
+            if (key === 'payment_koko_icon') setKokoIcon(path);
             triggerDialog("Icon Uploaded", "The payment method icon has been updated successfully.", "success");
         }
     } catch (error: any) {
@@ -368,7 +514,7 @@ export default function EcommerceSettingsPage() {
              </div>
              <Button 
                 onClick={handleSave}
-                disabled={loading}
+                disabled={loading || !settingsReady}
                 className="h-10 px-6 rounded-lg font-bold uppercase text-[11px] tracking-widest gap-2 mt-5 shadow-sm"
               >
                {loading ? <Database className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -376,6 +522,12 @@ export default function EcommerceSettingsPage() {
              </Button>
           </div>
         </div>
+
+        {settingsLoadFailed && (
+          <p role="alert" className="text-sm text-destructive">
+            Storefront settings could not be loaded. Refresh the page or select another storefront.
+          </p>
+        )}
 
         {!selectedLocationId ? (
             <div className="flex flex-col items-center justify-center py-20 bg-muted/5 rounded-xl border border-dashed">
@@ -394,7 +546,9 @@ export default function EcommerceSettingsPage() {
                   { id: "pricing", icon: Database, label: "Pricing & Taxes" },
                   { id: "seo", icon: Globe, label: "SEO & Social" },
                   { id: "shipping", icon: Truck, label: "Shipping" },
+                  { id: "packaging", icon: Package, label: "Packaging" },
                   { id: "legals", icon: ShieldCheck, label: "Legals" },
+                  { id: "ai", icon: Bot, label: "AI Assistant" },
                ].map((item) => (
                   <Button 
                     key={item.id} 
@@ -874,6 +1028,24 @@ export default function EcommerceSettingsPage() {
                               onToggle: setMintpayEnabled,
                               icon: mintpayIcon
                            },
+                           {
+                              id: "stripe",
+                              key: "payment_stripe_icon",
+                              name: "Stripe (International Cards)",
+                              desc: "Card payments for overseas customers. Shown as Coming Soon on the website until enabled.",
+                              active: stripeEnabled,
+                              onToggle: setStripeEnabled,
+                              icon: stripeIcon
+                           },
+                           {
+                              id: "koko",
+                              key: "payment_koko_icon",
+                              name: "Pay with Koko (BNPL)",
+                              desc: "Buy now, pay later in 3 installments. Shown as Coming Soon on the website until enabled.",
+                              active: kokoEnabled,
+                              onToggle: setKokoEnabled,
+                              icon: kokoIcon
+                           },
                          ].map((method) => (
                            <div key={method.id} className={`flex flex-col gap-4 p-4 rounded-xl border transition-all ${method.active ? 'border-primary/20 bg-primary/5' : 'border-muted bg-background hover:bg-muted/5'}`}>
                                <div className="flex items-center justify-between">
@@ -950,6 +1122,8 @@ export default function EcommerceSettingsPage() {
                                               if (method.key === 'payment_cod_icon') setCodIcon("");
                                               if (method.key === 'payment_mintpay_icon') setMintpayIcon("");
                                               if (method.key === 'payment_bank_transfer_icon') setBankTransferIcon("");
+                                              if (method.key === 'payment_stripe_icon') setStripeIcon("");
+                                              if (method.key === 'payment_koko_icon') setKokoIcon("");
                                            }}
                                         >
                                            <Trash2 className="w-3.5 h-3.5" />
@@ -964,6 +1138,125 @@ export default function EcommerceSettingsPage() {
                   </Card>
                )}
 
+               {/* Homepage best sellers moved to E-commerce > Markets > Best sellers (per market). */}
+
+               {activeTab === 'packaging' && (
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="flex items-center gap-2">
+                       <Package className="h-4 w-4 text-primary" />
+                       Packaging
+                     </CardTitle>
+                     <CardDescription>Choose which items appear under Add Gift Box for this storefront.</CardDescription>
+                   </CardHeader>
+                   <CardContent className="space-y-2">
+                     <Label htmlFor="packaging-category">Packaging item category</Label>
+                     <Select
+                       value={packagingCategoryId || "none"}
+                       onValueChange={(value) => {
+                         setPackagingCategoryId(value === "none" ? "" : value);
+                         setComplimentaryPackagingIds([]);
+                         setGiftCardItemId("");
+                       }}
+                       disabled={!settingsReady || !itemCategories || itemCategoriesLoadFailed || loading}
+                     >
+                       <SelectTrigger id="packaging-category" aria-describedby="packaging-category-help">
+                         <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="none">No packaging category</SelectItem>
+                         {packagingCategoryId && !itemCategories?.some((category) => String(category.id) === packagingCategoryId) && (
+                           <SelectItem value={packagingCategoryId}>Category #{packagingCategoryId}</SelectItem>
+                         )}
+                         {itemCategories?.map((category) => (
+                           <SelectItem key={category.id} value={String(category.id)}>{category.name}</SelectItem>
+                         ))}
+                       </SelectContent>
+                     </Select>
+                     <p id="packaging-category-help" className="text-sm text-muted-foreground">
+                       Create the category in Master Data → Item Categories and assign it to your web-enabled gift boxes and bags.
+                     </p>
+                     {itemCategoriesLoadFailed ? (
+                       <p role="alert" className="text-sm text-destructive">Could not load item categories. Reopen the Packaging tab to retry.</p>
+                     ) : !itemCategories && (
+                       <p role="status" className="text-sm text-muted-foreground">Loading item categories…</p>
+                     )}
+
+                     {settingsReady && packagingCategoryId && (
+                       <div className="space-y-4 pt-4">
+                         <Separator />
+                         <div>
+                           <h3 className="text-sm font-semibold">Available packaging items</h3>
+                           <p className="text-sm text-muted-foreground">Paid items use the selling price for the shopper’s market.</p>
+                         </div>
+                         {storefrontPartsError ? (
+                           <p role="alert" className="text-sm text-destructive">Could not load items. Reopen the Packaging tab to retry.</p>
+                         ) : storefrontParts?.locationId !== selectedLocationId ? (
+                           <p role="status" className="text-sm text-muted-foreground">Loading packaging items…</p>
+                         ) : packagingItems.length === 0 ? (
+                           <p className="text-sm text-muted-foreground">This category has no active, web-enabled items for this storefront.</p>
+                         ) : (
+                           <ul className="divide-y rounded-lg border px-4">
+                             {packagingItems.map((item) => {
+                               const isComplimentary = complimentaryPackagingIds.includes(Number(item.id));
+                               return (
+                                 <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                                   <div>
+                                     <NextLink href={`/inventory/items/${item.id}`} className="text-sm font-medium hover:underline">
+                                       {item.part_name}
+                                     </NextLink>
+                                     <p className="text-sm text-muted-foreground">
+                                       Base selling price {formatPackagingPrice.format(Number(item.price))}
+                                     </p>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                     <Label htmlFor={`complimentary-${item.id}`}>Complimentary</Label>
+                                     <Switch
+                                       id={`complimentary-${item.id}`}
+                                       aria-label={`Complimentary pricing for ${item.part_name}`}
+                                       checked={isComplimentary}
+                                       disabled={loading}
+                                       onCheckedChange={(checked) => setComplimentaryPackagingIds((ids) => checked
+                                         ? [...ids, Number(item.id)]
+                                         : ids.filter((id) => id !== Number(item.id)))}
+                                     />
+                                   </div>
+                                 </li>
+                               );
+                             })}
+                           </ul>
+                         )}
+
+                         <div className="space-y-2">
+                           <Label htmlFor="gift-card-item">Handwritten message card</Label>
+                           <Select
+                             value={giftCardItemId || "none"}
+                             onValueChange={(value) => setGiftCardItemId(value === "none" ? "" : value)}
+                             disabled={loading || storefrontPartsError || storefrontParts?.locationId !== selectedLocationId}
+                           >
+                             <SelectTrigger id="gift-card-item" aria-describedby="gift-card-item-help">
+                               <SelectValue />
+                             </SelectTrigger>
+                             <SelectContent>
+                               <SelectItem value="none">No message card</SelectItem>
+                               {giftCardItemId && !packagingItems.some((item) => String(item.id) === giftCardItemId) && (
+                                 <SelectItem value={giftCardItemId}>Unavailable item #{giftCardItemId}</SelectItem>
+                               )}
+                               {packagingItems.map((item) => (
+                                 <SelectItem key={item.id} value={String(item.id)}>{item.part_name}</SelectItem>
+                               ))}
+                             </SelectContent>
+                           </Select>
+                           <p id="gift-card-item-help" className="text-sm text-muted-foreground">
+                             Select the packaging item that shoppers add to enter a handwritten message.
+                           </p>
+                         </div>
+                       </div>
+                     )}
+                   </CardContent>
+                 </Card>
+               )}
+
                {activeTab === 'shipping' && (
                   <Card className="shadow-sm border-muted animate-in fade-in slide-in-from-bottom-2 duration-300">
                     <CardHeader className="bg-muted/5 border-b py-5 px-6">
@@ -973,6 +1266,18 @@ export default function EcommerceSettingsPage() {
                         <CardDescription className="text-xs font-medium">Configure how you charge for delivery across your storefront.</CardDescription>
                     </CardHeader>
                     <CardContent className="p-6 space-y-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Delivery message</Label>
+                                <Input value={deliveryNote} onChange={(e) => setDeliveryNote(e.target.value)} placeholder="Free island-wide delivery" className="h-11 rounded-lg" />
+                                <p className="text-[11px] text-muted-foreground">Shown in the cart, on product pages and on the order confirmation. Leave empty to hide it.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Announcement bar</Label>
+                                <Input value={announcementText} onChange={(e) => setAnnouncementText(e.target.value)} placeholder="Enjoy up to 30% off & free island-wide delivery" className="h-11 rounded-lg" />
+                                <p className="text-[11px] text-muted-foreground">The line at the very top of every page. Leave empty to use the default.</p>
+                            </div>
+                        </div>
                         <div className="flex items-center justify-between p-5 rounded-2xl border-2 border-primary/10 bg-primary/5">
                             <div className="flex items-center gap-4">
                                 <div className="p-3 bg-primary/10 rounded-xl">
@@ -1046,6 +1351,89 @@ export default function EcommerceSettingsPage() {
                         <div className="space-y-2">
                           <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Google Analytics (G-ID)</Label>
                           <Input value={gaId} onChange={(e) => setGaId(e.target.value)} placeholder="G-XXXXXXXXXX" className="h-11 rounded-lg" />
+                        </div>
+                    </CardContent>
+                  </Card>
+               )}
+
+               {activeTab === 'ai' && (
+                  <Card className="shadow-sm border-muted animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    <CardHeader className="bg-muted/5 border-b py-5 px-6">
+                        <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
+                          <Bot className="w-5 h-5 text-primary" /> AI Assistant (TeaAI)
+                        </CardTitle>
+                        <CardDescription className="text-xs font-medium">Choose the AI model that answers customers on the website and add its API key.</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-8">
+                        <div className="flex items-center justify-between p-5 rounded-2xl border-2 border-primary/10 bg-primary/5">
+                            <div className="space-y-0.5">
+                                <h3 className="font-bold text-sm">Enable TeaAI</h3>
+                                <p className="text-[11px] text-muted-foreground font-medium">When off, the website shows a friendly "unavailable" message.</p>
+                            </div>
+                            <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
+                        </div>
+
+                        <div className="space-y-3">
+                            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Active provider</Label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {([
+                                  { id: "gemini", name: "Google Gemini", hint: "aistudio.google.com/apikey" },
+                                  { id: "claude", name: "Anthropic Claude", hint: "console.anthropic.com" },
+                                  { id: "openai", name: "OpenAI ChatGPT", hint: "platform.openai.com/api-keys" },
+                                ] as const).map((p) => (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    onClick={() => setAiProvider(p.id)}
+                                    className={`text-left rounded-xl border-2 p-4 transition-colors ${aiProvider === p.id ? "border-primary bg-primary/5" : "border-muted hover:border-primary/40"}`}
+                                  >
+                                    <span className="block font-bold text-sm">{p.name}</span>
+                                    <span className="block text-[11px] text-muted-foreground mt-1">Key from {p.hint}</span>
+                                    <span className={`mt-2 inline-block text-[10px] font-bold uppercase tracking-wider ${aiKeys[p.id] ? "text-emerald-600" : "text-muted-foreground"}`}>{aiKeys[p.id] ? "Key saved" : "No key"}</span>
+                                  </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {([
+                          { id: "gemini", name: "Gemini", placeholder: "gemini-3.5-flash-lite" },
+                          { id: "claude", name: "Claude", placeholder: "claude-haiku-5-5" },
+                          { id: "openai", name: "ChatGPT", placeholder: "gpt-5-mini" },
+                        ] as const).map((p) => (
+                          <div key={p.id} className={`grid grid-cols-1 md:grid-cols-2 gap-6 rounded-xl border p-5 ${aiProvider === p.id ? "border-primary/40" : "opacity-80"}`}>
+                              <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">{p.name} API key</Label>
+                                  <Input
+                                    type="password"
+                                    autoComplete="off"
+                                    value={aiKeys[p.id]}
+                                    onFocus={(e) => { if (e.target.value.startsWith("\u2022\u2022\u2022\u2022")) setAiKeys((k) => ({ ...k, [p.id]: "" })); }}
+                                    onChange={(e) => setAiKeys((k) => ({ ...k, [p.id]: e.target.value }))}
+                                    placeholder="Paste the API key"
+                                    className="h-11 rounded-lg font-mono"
+                                  />
+                                  <p className="text-[11px] text-muted-foreground">Stored on the ERP only. A saved key shows as dots with its last 4 characters.</p>
+                              </div>
+                              <div className="space-y-2">
+                                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">{p.name} model</Label>
+                                  <Input value={aiModels[p.id]} onChange={(e) => setAiModels((m) => ({ ...m, [p.id]: e.target.value }))} placeholder={p.placeholder} className="h-11 rounded-lg font-mono" />
+                                  <p className="text-[11px] text-muted-foreground">Leave empty to use {p.placeholder}.</p>
+                              </div>
+                          </div>
+                        ))}
+
+                        <div className="space-y-2 rounded-xl border border-dashed p-5">
+                            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Website connection secret</Label>
+                            <div className="flex gap-2">
+                                <Input readOnly value={aiServerSecret} placeholder="Generate a secret" className="h-11 rounded-lg font-mono" />
+                                <Button type="button" variant="outline" className="h-11" onClick={() => {
+                                    const bytes = new Uint8Array(24);
+                                    crypto.getRandomValues(bytes);
+                                    setAiServerSecret(Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(""));
+                                }}><RefreshCw className="w-4 h-4 mr-2" /> Generate</Button>
+                                <Button type="button" variant="outline" className="h-11" aria-label="Copy secret" disabled={!aiServerSecret} onClick={() => navigator.clipboard?.writeText(aiServerSecret)}><Copy className="w-4 h-4" /></Button>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">Only the website server can read the AI key. Put this value in the website .env.local as <code>ERP_SERVER_SECRET=...</code> and save here.</p>
                         </div>
                     </CardContent>
                   </Card>

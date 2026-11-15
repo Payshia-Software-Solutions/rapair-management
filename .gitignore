@@ -13,3 +13,5 @@ bizzflow-printer-v9.exe
 /desktop_pos/*.wixpdb
 /desktop_pos/*_log.txt
 /desktop_pos/build_out.txt
+/server/config/ftp.php
+/server/config/database.php

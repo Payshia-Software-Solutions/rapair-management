@@ -327,3 +327,14 @@ export const fetchPaymentLogs = async () => {
   if (!res.ok) throw new Error('Failed to load payment logs');
   return res.json();
 };
+
+/** Staff add the shipping cost to a quote-request order; the customer is emailed the new total. */
+export const confirmOnlineOrderQuote = async (id: string | number, shippingFee: number, note: string) => {
+  const res = await api('/api/online-order/quoteConfirm', {
+    method: 'POST',
+    body: JSON.stringify({ id, shipping_fee: shippingFee, note }),
+  });
+  const json = await res.json();
+  if (json.status !== 'success') throw new Error(json.message || 'Failed to confirm quote');
+  return json.data as { total_amount: number; emailed: boolean };
+};

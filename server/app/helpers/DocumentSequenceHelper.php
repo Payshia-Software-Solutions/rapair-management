@@ -86,7 +86,10 @@ class DocumentSequenceHelper {
         // Date based sequence should also follow standard if possible, 
         // but since it resets daily, we append the date to the doc_type key.
         $date = date('Ymd');
-        $fullType = $docType . '_' . $date;
+        // The number shows only year + month (e.g. WEB_26NOV_BR01_00004), so the counter must run per month.
+        // It used to reset daily, which repeated numbers from the 2nd of each month and broke order inserts.
+        $month = date('Ym');
+        $fullType = $docType . '_' . $month;
         $db = new Database();
         
         // 1. Get Branch Code
@@ -102,15 +105,20 @@ class DocumentSequenceHelper {
             $seq = $db->single();
             
             if (!$seq) {
-                // Initialize for today
-                $prefix = $docType . $date;
-                $db->query("INSERT INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:type, :prefix, 2, 5)");
+                // First number this month. Start past anything the old daily counters (doc_type WEB_YYYYMMDD)
+                // already issued this month, so no earlier number is reused.
+                $db->query("SELECT COALESCE(MAX(next_number), 1) AS n FROM document_sequences WHERE doc_type LIKE :like");
+                $db->bind(':like', $docType . '_' . $month . '__');
+                $row = $db->single();
+                $nextNum = max(1, (int)($row->n ?? 1));
+                $padding = 5;
+
+                $prefix = $docType . $month;
+                $db->query("INSERT INTO document_sequences (doc_type, prefix, next_number, padding) VALUES (:type, :prefix, :next, 5)");
                 $db->bind(':type', $fullType);
                 $db->bind(':prefix', $prefix);
+                $db->bind(':next', $nextNum + 1);
                 $db->execute();
-                
-                $nextNum = 1;
-                $padding = 5;
             } else {
                 $nextNum = $seq->next_number;
                 $padding = $seq->padding > 0 ? $seq->padding : 5;

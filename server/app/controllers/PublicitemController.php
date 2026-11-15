@@ -79,14 +79,22 @@ class PublicitemController extends Controller {
 
         $this->validatePublicApiKey();
 
-        $locationId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
-        if ($locationId <= 0) $this->error('Location ID is required', 400);
+        // Which market/location is this for? (?market=au for multi-market keys, otherwise the key's own location)
+        $resolved = MarketResolver::forRequest($this->apiClientModel);
+        $market = $resolved['market'];
+        $locationId = $resolved['location_id'];
+        if ($locationId <= 0) $this->error('Market or location is required', 400);
+        // Availability can be read from another location (e.g. ship from the home warehouse).
+        $stockLocationId = ($market && !empty($market->stock_location_id)) ? (int)$market->stock_location_id : $locationId;
+        // Fixed price list: only items with a price in this market are sold, at that price.
+        $priceMap = ($market && (int)$market->uses_price_list === 1) ? (new Market())->priceMap($market->id) : null;
+        $currencyCode = $market ? (string)$market->currency_code : null;
 
         $collectionId = isset($_GET['collection_id']) ? (int)$_GET['collection_id'] : null;
         $categoryId = isset($_GET['category_id']) ? (int)$_GET['category_id'] : null;
 
         // Fetch items for this location
-        $items = $this->itemModel->listLocationBalances($locationId);
+        $items = $this->itemModel->listLocationBalances($stockLocationId);
         
         // Fetch taxes and tax_inclusive setting
         require_once '../app/models/Tax.php';
@@ -137,12 +145,14 @@ class PublicitemController extends Controller {
         $itemsDir = defined('CONTENT_ITEMS_DIR') ? CONTENT_ITEMS_DIR : 'items';
         $imageBaseUrl = rtrim($contentUrl, '/') . '/' . trim($itemsDir, '/') . '/';
 
+        $webOnly = ($_GET['channel'] ?? '') === 'web';
+        $packagingCategory = (int)($allSettings['packaging_category_id'] ?? 0);
+        $complimentaryIds = $webOnly ? StorefrontSetting::complimentaryPackagingIds($allSettings) : [];
         $sanitized = [];
         foreach ($items as $item) {
-            // Only online enabled items OR kiosk enabled items
             $isOnline = (int)($item->is_online ?? 0) === 1;
             $isKiosk = ($item->kiosk_module ?? 'None') !== 'None';
-            if (!$isOnline && !$isKiosk) continue;
+            if (!$isOnline && ($webOnly || !$isKiosk)) continue;
             
             if ((int)$item->is_active !== 1) continue;
 
@@ -150,6 +160,10 @@ class PublicitemController extends Controller {
             if ($collectionId !== null) {
                 if (!in_array($collectionId, $item->collection_ids ?? [])) continue;
             }
+
+            // Packaging add-ons (retail bags, gift boxes) are only listed when the cart asks for their category.
+            $isPackaging = $packagingCategory > 0 && (int)$item->item_category_id === $packagingCategory;
+            if ($categoryId === null && $isPackaging) continue;
 
             // Optional category filtering
             if ($categoryId !== null && (int)$item->item_category_id !== $categoryId) continue;
@@ -162,9 +176,29 @@ class PublicitemController extends Controller {
                 ];
             }, $item->gallery ?: []);
 
-            $displayPrice = (float)$item->price;
-            if ($taxInclusive) {
-                $displayPrice = $displayPrice * (1 + $totalMultiplier);
+            $compareAt = null;
+            $discountType = (string)($item->discount_type ?? 'None');
+            $discountValue = (float)($item->discount_value ?? 0);
+            if ($priceMap !== null) {
+                // Not priced in this market = not sold here.
+                if (!isset($priceMap[(int)$item->id])) continue;
+                [$displayPrice, $compareAt] = $priceMap[(int)$item->id];
+                // The list price is final: it already follows the market's tax convention, and the LKR-based
+                // item discount does not apply (use compare_at_price for a struck-through price).
+                $discountType = 'None';
+                $discountValue = 0.0;
+            } else {
+                $displayPrice = (float)$item->price;
+                if ($taxInclusive) {
+                    $displayPrice = $displayPrice * (1 + $totalMultiplier);
+                }
+            }
+
+            if ($isPackaging && in_array((int)$item->id, $complimentaryIds, true)) {
+                $displayPrice = 0.0;
+                $compareAt = null;
+                $discountType = 'None';
+                $discountValue = 0.0;
             }
 
             $sanitized[] = [
@@ -173,8 +207,10 @@ class PublicitemController extends Controller {
                 'slug' => (string)($item->slug ?? ''),
                 'sku' => (string)$item->sku,
                 'price' => $displayPrice,
-                'discount_type' => (string)($item->discount_type ?? 'None'),
-                'discount_value' => (float)($item->discount_value ?? 0),
+                'compare_at_price' => $compareAt,
+                'currency_code' => $currencyCode,
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
                 'brand' => (string)($item->brand_name ?? 'Generic'),
                 'description' => (string)($item->public_description ?? ''),
                 'item_type' => (string)$item->item_type,
@@ -183,6 +219,13 @@ class PublicitemController extends Controller {
                 'image_url' => !empty($item->image_filename) ? $imageBaseUrl . $item->image_filename : null,
                 'gallery' => $sanitizedGallery,
                 'category_ids' => $item->collection_ids ?? [],
+                // Item classification (section > department > category), used by storefront filters.
+                'section_id' => isset($item->item_section_id) ? (int)$item->item_section_id : null,
+                'section_name' => (string)($item->section_name ?? ''),
+                'department_id' => isset($item->item_department_id) ? (int)$item->item_department_id : null,
+                'department_name' => (string)($item->department_name ?? ''),
+                'item_category_id' => isset($item->item_category_id) ? (int)$item->item_category_id : null,
+                'item_category_name' => (string)($item->category_name ?? ''),
                 'kiosk_module' => (string)($item->kiosk_module ?? 'None'),
                 'attributes' => $attrModel->getPartAttributesGrouped($item->id)
             ];
@@ -203,9 +246,12 @@ class PublicitemController extends Controller {
 
         $this->validatePublicApiKey();
 
-        $locationId = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
-        // Optional for single item but recommended
-        
+        $resolved = MarketResolver::forRequest($this->apiClientModel);
+        $market = $resolved['market'];
+        $locationId = $resolved['location_id'];
+        $stockLocationId = ($market && !empty($market->stock_location_id)) ? (int)$market->stock_location_id : $locationId;
+        $marketPrice = null; // [price, compare_at] when this market uses a fixed price list
+
         if (is_numeric($id)) {
             $item = $this->itemModel->getById($id);
         } else {
@@ -215,13 +261,20 @@ class PublicitemController extends Controller {
         $isOnline = (int)($item->is_online ?? 0) === 1;
         $isKiosk = ($item->kiosk_module ?? 'None') !== 'None';
         
-        if (!$item || (int)$item->is_active === 0 || (!$isOnline && !$isKiosk)) {
+        $webOnly = ($_GET['channel'] ?? '') === 'web';
+        if (!$item || (int)$item->is_active !== 1 || (!$isOnline && ($webOnly || !$isKiosk))) {
             $this->error('Product not found', 404);
         }
 
+        // Fixed price list: an item without a price in this market is not sold there.
+        if ($market && (int)$market->uses_price_list === 1) {
+            $marketPrice = (new Market())->getPrice($market->id, $item->id);
+            if ($marketPrice === null) $this->error('Product not found', 404);
+        }
+
         // If location provided, get location-specific stock
-        if ($locationId > 0) {
-            $balance = $this->itemModel->getLocationStock($item->id, $locationId);
+        if ($stockLocationId > 0) {
+            $balance = $this->itemModel->getLocationStock($item->id, $stockLocationId);
             $item->stock_quantity = $balance ? $balance->available : 0;
         }
 
@@ -262,9 +315,18 @@ class PublicitemController extends Controller {
         }
         $totalMultiplier = ((1 + $additiveRate) * $compoundMultiplier) - 1;
 
-        $displayPrice = (float)$item->price;
-        if ($taxInclusive) {
-            $displayPrice = $displayPrice * (1 + $totalMultiplier);
+        $compareAt = null;
+        $discountType = (string)($item->discount_type ?? 'None');
+        $discountValue = (float)($item->discount_value ?? 0);
+        if ($marketPrice !== null) {
+            [$displayPrice, $compareAt] = $marketPrice;
+            $discountType = 'None';
+            $discountValue = 0.0;
+        } else {
+            $displayPrice = (float)$item->price;
+            if ($taxInclusive) {
+                $displayPrice = $displayPrice * (1 + $totalMultiplier);
+            }
         }
 
         $sanitized = [
@@ -275,8 +337,10 @@ class PublicitemController extends Controller {
             'part_number' => (string)$item->part_number,
             'description' => (string)$item->public_description, 
             'price' => $displayPrice,
-            'discount_type' => (string)($item->discount_type ?? 'None'),
-            'discount_value' => (float)($item->discount_value ?? 0),
+            'compare_at_price' => $compareAt,
+            'currency_code' => $market ? (string)$market->currency_code : null,
+            'discount_type' => $discountType,
+            'discount_value' => $discountValue,
             'brand' => (string)($item->brand_name ?? 'Generic'),
             'description' => (string)($item->public_description ?? ''),
             'item_type' => (string)$item->item_type,

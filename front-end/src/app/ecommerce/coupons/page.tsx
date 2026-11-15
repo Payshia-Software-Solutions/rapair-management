@@ -37,6 +37,7 @@ import {
   ArrowRight
 } from "lucide-react";
 import { couponApi } from "@/lib/api/coupons";
+import { marketApi } from "@/lib/api/markets";
 import { format } from "date-fns";
 
 export default function CouponsPage() {
@@ -61,6 +62,7 @@ export default function CouponsPage() {
     end_date: "",
     max_uses: "0",
     user_limit: "1",
+    market_id: "all",
     is_active: 1
   });
 
@@ -75,6 +77,11 @@ export default function CouponsPage() {
       setLoading(false);
     }
   };
+
+  const [markets, setMarkets] = useState<any[]>([]);
+  useEffect(() => {
+    marketApi.markets().then((m) => setMarkets(m || [])).catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadCoupons();
@@ -93,6 +100,7 @@ export default function CouponsPage() {
       end_date: "",
       max_uses: "0",
       user_limit: "1",
+      market_id: "all",
       is_active: 1
     });
     setShowForm(true);
@@ -111,6 +119,7 @@ export default function CouponsPage() {
       end_date: c.end_date ? format(new Date(c.end_date), "yyyy-MM-dd'T'HH:mm") : "",
       max_uses: String(c.max_uses),
       user_limit: String(c.user_limit),
+      market_id: c.market_id ? String(c.market_id) : "all",
       is_active: parseInt(c.is_active)
     });
     setShowForm(true);
@@ -120,10 +129,10 @@ export default function CouponsPage() {
     if (!form.code) return toast({ title: "Code required" });
     try {
       if (editingCoupon) {
-        await couponApi.update(editingCoupon.id, form);
+        await couponApi.update(editingCoupon.id, { ...form, market_id: form.market_id === "all" ? null : Number(form.market_id) });
         toast({ title: "Updated", description: "Coupon updated successfully" });
       } else {
-        await couponApi.create(form);
+        await couponApi.create({ ...form, market_id: form.market_id === "all" ? null : Number(form.market_id) });
         toast({ title: "Created", description: "New coupon added" });
       }
       setShowForm(false);
@@ -263,7 +272,7 @@ export default function CouponsPage() {
                             <TableRow key={c.id} className="group">
                                 <TableCell>
                                     <div className="flex flex-col">
-                                        <span className="font-black text-primary tracking-tighter">{c.code}</span>
+                                        <span className="font-black text-primary tracking-tighter">{c.code}{c.market_id ? <span className="ml-2 text-[10px] font-bold text-muted-foreground">{markets.find((m) => String(m.id) === String(c.market_id))?.code?.toUpperCase()}</span> : null}</span>
                                         <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{c.description || "No description"}</span>
                                     </div>
                                 </TableCell>
@@ -423,6 +432,18 @@ export default function CouponsPage() {
                             value={form.user_limit}
                             onChange={(e) => setForm(prev => ({ ...prev, user_limit: e.target.value }))}
                         />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                        <Label className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Valid in market</Label>
+                        <Select value={form.market_id} onValueChange={(v) => setForm(prev => ({ ...prev, market_id: v }))}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All markets</SelectItem>
+                                {markets.map((m) => <SelectItem key={m.id} value={String(m.id)}>{m.name} ({m.currency_code})</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-[10px] text-muted-foreground">Amounts (minimum order, fixed discount) are in the market currency. Use a market-specific coupon for fixed amounts.</p>
                     </div>
 
                     <div className="col-span-2 flex items-center justify-between p-4 bg-muted/50 rounded-xl">

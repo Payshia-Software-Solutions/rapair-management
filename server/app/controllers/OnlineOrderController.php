@@ -73,6 +73,87 @@ class OnlineOrderController extends Controller {
         }
     }
 
+    /**
+     * POST /api/onlineorder/quoteConfirm  { id, shipping_fee, note }
+     * Staff add the shipping cost to an order request; the total is recalculated and the customer is emailed.
+     */
+    public function quoteConfirm() {
+        $this->requirePermission('invoices.write');
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $id = (int)($data['id'] ?? 0);
+        $shipping = (float)($data['shipping_fee'] ?? -1);
+        if ($id <= 0 || $shipping < 0) $this->error('Order and a shipping fee of 0 or more are required', 400);
+
+        $order = $this->orderModel->getById($id);
+        if (!$order) $this->error('Order not found', 404);
+        if (($order->quote_status ?? null) === null) $this->error('This order is not a quote request', 409);
+
+        $this->db->query("SELECT c.decimals FROM currencies c WHERE c.code = :c LIMIT 1");
+        $this->db->bind(':c', (string)($order->currency_code ?? ''));
+        $cur = $this->db->single();
+        $dec = $cur ? (int)$cur->decimals : 2;
+
+        $total = round((float)$order->subtotal_amount + (float)$order->tax_total + $shipping - (float)$order->coupon_discount, $dec);
+        $note = trim((string)($data['note'] ?? ''));
+
+        $this->db->query("UPDATE online_orders SET shipping_fee = :s, total_amount = :t, quote_status = 'quoted', quote_note = :n WHERE id = :id");
+        $this->db->bind(':s', round($shipping, $dec));
+        $this->db->bind(':t', $total);
+        $this->db->bind(':n', $note !== '' ? $note : null);
+        $this->db->bind(':id', $id);
+        $this->db->execute();
+
+        $emailed = false;
+        try {
+            $emailed = $this->sendQuoteEmail($id, $shipping, $total, $note, $dec);
+        } catch (Throwable $e) {
+            error_log('Quote email failed: ' . $e->getMessage());
+        }
+        $this->success(['total_amount' => $total, 'emailed' => $emailed], 'Quote confirmed');
+    }
+
+    private function sendQuoteEmail($orderId, $shipping, $total, $note, $dec) {
+        $order = $this->orderModel->getById($orderId);
+        $details = json_decode($order->customer_details_json ?? '{}', true);
+        $to = $details['email'] ?? '';
+        if (!$to) return false;
+
+        require_once '../app/helpers/EmailHelper.php';
+        require_once '../app/models/StorefrontSetting.php';
+        require_once '../app/models/Company.php';
+        $ecom = (new StorefrontSetting())->getAll($order->location_id);
+        $company = (new Company())->get();
+        $cur = htmlspecialchars((string)($order->currency_code ?? '')) . ' ';
+
+        $bank = '';
+        if (!empty($ecom['bank_account_number'])) {
+            $bank = '<p><strong>Bank transfer details</strong><br>'
+                . htmlspecialchars($ecom['bank_name'] ?? '') . '<br>'
+                . htmlspecialchars($ecom['bank_account_name'] ?? '') . '<br>'
+                . htmlspecialchars($ecom['bank_account_number']) . '<br>'
+                . htmlspecialchars($ecom['bank_branch'] ?? '') . '<br>'
+                . 'Reference: ' . htmlspecialchars($order->order_no) . '</p>';
+        }
+        $body = '<p>Hello ' . htmlspecialchars($details['name'] ?? '') . ',</p>'
+            . '<p>Your order <strong>' . htmlspecialchars($order->order_no) . '</strong> is ready for payment.</p>'
+            . '<p>Items: ' . $cur . number_format((float)$order->subtotal_amount + (float)$order->tax_total - (float)$order->coupon_discount, $dec) . '<br>'
+            . 'Shipping: ' . $cur . number_format($shipping, $dec) . '<br>'
+            . '<strong>Total: ' . $cur . number_format($total, $dec) . '</strong></p>'
+            . ($note !== '' ? '<p>' . nl2br(htmlspecialchars($note)) . '</p>' : '')
+            . $bank
+            . '<p>Reply to this email if you have any questions.</p>';
+
+        $cfg = [
+            'mail_host' => $ecom['mail_host'] ?? '', 'mail_user' => $ecom['mail_user'] ?? '', 'mail_pass' => $ecom['mail_pass'] ?? '',
+            'mail_port' => $ecom['mail_port'] ?? 587, 'mail_encryption' => $ecom['mail_encryption'] ?? 'tls',
+            'mail_from_addr' => $ecom['mail_from_addr'] ?? 'no-reply@payshia.com',
+            'mail_from_name' => $ecom['mail_from_name'] ?? ($company->name ?? 'Tea Jar Store'),
+            'cc_email' => $ecom['cc_email'] ?? '', 'bcc_email' => $ecom['bcc_email'] ?? '',
+        ];
+        EmailHelper::sendWithConfig($to, 'Your order is ready for payment - ' . $order->order_no, $body, $cfg);
+        return true;
+    }
+
     public function dispatch() {
         $this->requirePermission('invoices.write');
         $data = json_decode(file_get_contents('php://input'), true);
