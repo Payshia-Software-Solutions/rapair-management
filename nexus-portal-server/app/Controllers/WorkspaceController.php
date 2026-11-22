@@ -30,6 +30,32 @@ class WorkspaceController extends Controller {
         return [$db, $tenant];
     }
 
+    // POST /api/client/workspace/retry-setup
+    // Client retries a workspace setup that failed. Queues a fresh tenant.created event and delivers it now.
+    public function retrySetup() {
+        [$db, $tenant] = $this->requireClient();
+        if (($tenant->provision_status ?? '') !== 'failed') {
+            return $this->json(['status' => 'error', 'message' => 'Your workspace setup is not in a failed state.'], 409);
+        }
+        if (($tenant->status ?? '') === 'Deleted') {
+            return $this->json(['status' => 'error', 'message' => 'This account is closed.'], 409);
+        }
+        set_time_limit(400);
+        try {
+            (new ProvisioningService())->provision((int)$tenant->id, true);
+        } catch (\Throwable $e) {
+            error_log('Workspace retry failed: ' . $e->getMessage());
+            return $this->json(['status' => 'error', 'message' => 'Could not restart the setup. Please try again in a few minutes.'], 500);
+        }
+        $db->query("SELECT provision_status, provision_error FROM saas_tenants WHERE id = :id");
+        $db->bind(':id', (int)$tenant->id);
+        $row = $db->single();
+        return $this->json(['status' => 'success', 'data' => [
+            'provision_status' => $row->provision_status ?? 'pending',
+            'provision_error' => $row->provision_error ?? null,
+        ]]);
+    }
+
     // POST /api/client/workspace/address/request {label, password}
     public function requestAddressChange() {
         [$db, $tenant] = $this->requireClient();

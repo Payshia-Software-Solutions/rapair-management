@@ -130,7 +130,8 @@ $router->add('api/admin/packages/delete', ['controller' => 'SaaSController', 'ac
 $router->add('api/client/subscription', ['controller' => 'SaaSController', 'action' => 'getMySubscription']);
 $router->add('api/client/profile', ['controller' => 'SaaSController', 'action' => 'updateMyProfile'], 'POST');
 
-$router->add('api/client/workspace/address/request', ['controller' => 'WorkspaceController', 'action' => 'requestAddressChange'], 'POST');
+$router->add('api/client/workspace/retry-setup', ['controller' => 'WorkspaceController', 'action' => 'retrySetup'], 'POST');
+$router->add('api/client/workspace/address/request',['controller' => 'WorkspaceController', 'action' => 'requestAddressChange'], 'POST');
 $router->add('api/client/workspace/address/confirm', ['controller' => 'WorkspaceController', 'action' => 'confirmAddressChange'], 'POST');
 
 $router->add('api/client/domain', ['controller' => 'DomainController', 'action' => 'show']);

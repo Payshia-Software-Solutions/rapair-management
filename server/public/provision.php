@@ -26,7 +26,23 @@ require_once defined('BF_CONFIG_PATH') ? BF_CONFIG_PATH : __DIR__ . '/../config/
 
 header('Content-Type: application/json');
 
+// Own log file (server/logs/provision.log) so every request and every failure is kept, including fatal errors
+$PROVISION_LOG = __DIR__ . '/../logs/provision.log';
+if (!is_dir(dirname($PROVISION_LOG))) @mkdir(dirname($PROVISION_LOG), 0775, true);
+function provision_log($line) {
+    global $PROVISION_LOG;
+    @file_put_contents($PROVISION_LOG, '[' . date('Y-m-d H:i:s') . '] ' . $line . PHP_EOL, FILE_APPEND | LOCK_EX);
+}
+register_shutdown_function(function () {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR], true)) {
+        provision_log("FATAL {$e['message']} in {$e['file']}:{$e['line']}");
+    }
+});
+provision_log('REQUEST ' . ($_SERVER['REQUEST_METHOD'] ?? '-') . ' event=' . ($_SERVER['HTTP_X_NEXUS_EVENT_ID'] ?? '-'));
+
 function provision_reply($code, array $body) {
+    provision_log("REPLY $code " . json_encode($body));
     http_response_code($code);
     echo json_encode($body);
     exit;
@@ -107,5 +123,6 @@ try {
     $pdo->prepare("UPDATE provision_events SET status = 'failed', result = ? WHERE event_id = ?")
         ->execute([json_encode(['error' => $e->getMessage()]), $eventId]);
     error_log("provision $type $slug: " . $e->getMessage());
+    provision_log("ERROR $type $slug: " . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine() . PHP_EOL . $e->getTraceAsString());
     provision_reply($e instanceof InvalidArgumentException ? 400 : 500, ['status' => 'error', 'message' => $e->getMessage()]);
 }

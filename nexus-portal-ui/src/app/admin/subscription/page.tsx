@@ -48,6 +48,8 @@ export default function SubscriptionPage() {
   const setField = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(f => ({ ...f, [k]: e.target.value }));
   const [saving, setSaving] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [retryMsg, setRetryMsg] = useState<string | null>(null);
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const polls = useRef(0);
 
@@ -276,10 +278,36 @@ export default function SubscriptionPage() {
           </ol>
 
           {ps === 'failed' && (
-            <p role="alert" className="mt-4 flex items-start gap-2 rounded-lg bg-nx-danger-soft p-3 text-xs text-nx-danger">
-              <ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
-              <span>Setup hit a problem. Our team has been notified. You can also <a className="font-semibold underline" href={supportHref} target="_blank" rel="noreferrer">message support</a>.</span>
-            </p>
+            <div className="mt-4 rounded-lg bg-nx-danger-soft p-3 text-xs text-nx-danger">
+              <p role="alert" className="flex items-start gap-2">
+                <ShieldAlert size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+                <span>Setup hit a problem. Our team has been notified. You can also <a className="font-semibold underline" href={supportHref} target="_blank" rel="noreferrer">message support</a>.</span>
+              </p>
+              <button
+                type="button"
+                disabled={retrying}
+                onClick={async () => {
+                  setRetrying(true);
+                  setRetryMsg(null);
+                  try {
+                    const res = await adminFetch('/client/workspace/retry-setup', { method: 'POST' });
+                    const json = await res.json().catch(() => ({}));
+                    if (!res.ok) setRetryMsg(json.message || 'Could not restart the setup. Please try again.');
+                    else if (json.data?.provision_status === 'failed') setRetryMsg('Setup failed again. Our team has been notified.');
+                  } catch {
+                    setRetryMsg('Could not reach the server. Please try again.');
+                  } finally {
+                    setRetrying(false);
+                    fetchData(true);
+                  }
+                }}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-nx-danger px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {retrying ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : null}
+                {retrying ? 'Retrying…' : 'Retry setup'}
+              </button>
+              {retryMsg && <p role="status" className="mt-2">{retryMsg}</p>}
+            </div>
           )}
           {stuck && (
             <p role="status" className="mt-4 rounded-lg bg-nx-warning-soft p-3 text-xs text-nx-warning">
