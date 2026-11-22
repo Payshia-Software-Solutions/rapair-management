@@ -72,6 +72,15 @@ class ProvisioningService {
             throw new \InvalidArgumentException('The product has no provisioning URL/secret yet (Admin -> Products).');
         }
 
+        // A new attempt replaces older setup events still waiting to retry; otherwise the new one would
+        // queue behind them ("Waiting for an earlier event") until they finally give up a day later.
+        // In-flight ('sending') events are left alone. The product dedupes by event id, and Provisioner
+        // resumes an unfinished create, so replacing them is safe.
+        $this->db->query("UPDATE saas_webhook_events SET status = 'failed', last_error = CONCAT(COALESCE(last_error, ''), ' [replaced by a newer setup attempt]')
+                          WHERE tenant_id = :t AND event_type = 'tenant.created' AND status = 'pending'");
+        $this->db->bind(':t', (int)$tenantId);
+        $this->db->execute();
+
         return $this->queue($t, 'tenant.created', [
             'slug' => self::workspaceSlug($t->slug),
             'name' => $t->name,
@@ -268,7 +277,7 @@ class ProvisioningService {
             return true;
         }
 
-        $msg = $err ?: (is_array($json) && !empty($json['message']) ? $json['message'] : "HTTP $code");
+        $msg = $err ?: (is_array($json) && !empty($json['message']) ? "HTTP $code: " . $json['message'] : self::describeBadReply($code, $resp, $e->provision_url));
         // 4xx (bad signature, unknown event, invalid data) won't fix itself: stop retrying
         $permanent = $code >= 400 && $code < 500 && $code !== 408 && $code !== 429;
         $attempt = (int)$e->attempts;
@@ -279,6 +288,20 @@ class ProvisioningService {
             $this->finish($id, 'pending', $code ?: null, $msg, is_string($resp) ? mb_substr($resp, 0, 4000) : null, self::BACKOFF[$attempt - 1] ?? 3600);
         }
         return false;
+    }
+
+    /** A reply that is not the product's JSON (web server error page, PHP error, empty body): say what it was. */
+    private static function describeBadReply($code, $resp, $url) {
+        $text = is_string($resp) ? $resp : '';
+        $title = preg_match('/<title>(.*?)<\/title>/is', $text, $m) ? trim(html_entity_decode($m[1])) : '';
+        $plain = trim(preg_replace('/\s+/', ' ', strip_tags(preg_replace('/<(style|script)\b.*?<\/\1>/is', '', $text))));
+        $snippet = mb_substr($title ?: $plain, 0, 200);
+        if ($code === 404) {
+            return "HTTP 404: the provisioning URL was not found ($url). Check Admin -> Products -> Provisioning URL.";
+        }
+        if ($code === 0) return "No reply from $url";
+        if ($snippet === '') return "HTTP $code with an empty reply (check the workspace server's error log / logs/provision.log)";
+        return "HTTP $code (not a JSON reply): $snippet";
     }
 
     private function finish($id, $status, $code, $error, $response, $retryIn = null, $undoAttempt = false) {
