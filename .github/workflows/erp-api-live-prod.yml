@@ -1,8 +1,8 @@
-name: 🚀 Deploy ERP API (live-prod)
+name: 🚀 Deploy ERP API (live-prod-server)
 on:
   push:
     branches:
-      - live-prod  # Production ERP API: deploys on push to live-prod
+      - live-prod-server  # Production ERP API: deploys on push to live-prod
 
 jobs:
   web-deploy:
