@@ -252,8 +252,13 @@ class ProvisioningService {
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 10,
             CURLOPT_TIMEOUT => $e->event_type === 'tenant.created' ? 300 : 60,
+            // Shared-hosting firewalls (ModSecurity / Imunify360) answer "406 Not Acceptable" to requests
+            // without a browser-like User-Agent and Accept header, before the product's PHP ever runs
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; NexusProvisioner/1.0; +https://nebulync.com)',
+            CURLOPT_ENCODING => '', // send Accept-Encoding and decode the reply
             CURLOPT_HTTPHEADER => [
                 'Content-Type: application/json',
+                'Accept: application/json',
                 'X-Nexus-Event-Id: ' . $e->event_id,
                 'X-Nexus-Timestamp: ' . $ts,
                 'X-Nexus-Signature: ' . $sig,
@@ -300,6 +305,10 @@ class ProvisioningService {
             return "HTTP 404: the provisioning URL was not found ($url). Check Admin -> Products -> Provisioning URL.";
         }
         if ($code === 0) return "No reply from $url";
+        if ($code === 406 || $code === 403 && stripos($snippet, 'forbidden') !== false) {
+            return "HTTP $code: blocked by the workspace server's firewall (ModSecurity/Imunify360) before PHP ran. "
+                . "Turn ModSecurity off for that domain in cPanel, or whitelist /provision.php.";
+        }
         if ($snippet === '') return "HTTP $code with an empty reply (check the workspace server's error log / logs/provision.log)";
         return "HTTP $code (not a JSON reply): $snippet";
     }
