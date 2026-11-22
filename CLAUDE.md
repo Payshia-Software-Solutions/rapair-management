@@ -32,9 +32,9 @@ Monorepo of separate apps with no shared root build. Each app has its own depend
 - Ad-hoc verification scripts (`server/public/test_*.php`, `check_*.php`, `nexus-portal-server/test_email.php`) are run manually. To run one, use `php <file>` from its directory. A "single test" means running one of these scripts.
 
 ### Deployment
-- Pushing to `main` FTP-deploys `./server/` (`.github/workflows/main.yml`).
-- Pushing to `master-api` FTP-deploys `./nexus-portal-server/` (`.github/workflows/MasterAPIDeploy.yml`).
-- Both workflows upload whole folders, including `config/`. Check for config drift before pushing.
+- Pushing to `live-prod` FTP-deploys `./server/` (ERP API, `.github/workflows/erp-api-live-prod.yml`).
+- Pushing to `nexus-server-api-live` FTP-deploys `./nexus-portal-server/` (Nexus API, `.github/workflows/nexus-api-live.yml`).
+- Workflows exclude `.env*`, `config/config.php`, `scratch/`, `logs/` and uploads. Production config is placed on the server by hand.
 
 ## Code navigation
 
