@@ -24,7 +24,7 @@ function VerifyEmailContent() {
 
     const verify = async () => {
       try {
-        const response = await fetch(`${API_BASE.replace("/api", "")}/api/auth/verify?token=${token}`);
+        const response = await fetch(`${API_BASE.replace(/\/api$/, "")}/api/auth/verify?token=${token}`);
         const data = await response.json();
 
         if (response.ok) {
