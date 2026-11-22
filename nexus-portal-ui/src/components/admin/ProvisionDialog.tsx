@@ -92,6 +92,15 @@ export default function ProvisionDialog({ open, tenantId, tenantName, adminEmail
         setError(s.event?.last_error || s.provision_error || 'Setting up the workspace failed.');
         setPhase('failed');
         stopTimers();
+      } else if (
+        s.event?.status === 'pending' && (s.event.attempts ?? 0) > 0 && s.event.last_error &&
+        !/^Waiting for an earlier event/.test(s.event.last_error)
+      ) {
+        // The send already failed and is only waiting for its automatic retry (minutes to hours away).
+        // Show the error now instead of spinning; "Try again" replaces the waiting event.
+        setError(`${s.event.last_error} (it will also retry automatically)`);
+        setPhase('failed');
+        stopTimers();
       }
     } catch {
       // Transient network error: keep polling
