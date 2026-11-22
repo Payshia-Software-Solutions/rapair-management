@@ -27,7 +27,7 @@ interface AppTile {
 
 export const APP_MODULES: AppTile[] = [
   // Workshop & Operations
-  { id: 'coreFeatures', name: 'Dashboards & BI', category: 'Operations', description: 'Executive KPIs, analytics & overview', href: '/dashboard', icon: LayoutDashboard, color: 'from-blue-500 to-indigo-600 text-white' },
+  { id: 'coreFeatures', name: 'Dashboards & BI', category: 'Operations', description: 'Executive KPIs, analytics & overview', href: '/', icon: LayoutDashboard, color: 'from-blue-500 to-indigo-600 text-white' },
   { id: 'fleet', name: 'Fleet Management', category: 'Operations', description: 'Repair orders, bays, vehicles & jobs', href: '/fleet', icon: Truck, color: 'from-blue-600 to-cyan-600 text-white' },
   { id: 'inventory', name: 'Inventory & Stock', category: 'Operations', description: 'Stock ledger, GRN, transfers & items', href: '/inventory/items', icon: Zap, color: 'from-amber-500 to-orange-600 text-white' },
   { id: 'vendors', name: 'Vendor Hub', category: 'Operations', description: 'Suppliers, purchase invoices & orders', href: '/vendors/suppliers', icon: ShoppingCart, color: 'from-emerald-500 to-teal-600 text-white' },
@@ -82,7 +82,7 @@ export function AppLauncher({ isOpen, onClose, isModuleAllowed }: AppLauncherPro
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden bg-[#fafafa] dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden border">
         <DialogTitle className="sr-only">App Launcher</DialogTitle>
         {/* Header with Search */}
         <div className="p-5 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">

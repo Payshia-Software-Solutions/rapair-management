@@ -425,6 +425,13 @@ export default function NewStockAdjustmentPage() {
         locationId ?? undefined
       );
       const id = (res as any)?.data?.id ?? (res as any)?.id;
+      if ((res as any)?.data?.approval === "Pending") {
+        // Approval is on: nothing changes in stock until it's approved in My Approvals.
+        toast({ title: "Sent for approval", description: (res as any)?.message || "Stock changes when the adjustment is approved." });
+        window.dispatchEvent(new Event("approvals:changed"));
+        router.push("/approvals/inbox");
+        return;
+      }
       toast({ title: "Adjustment Created", description: "Stock adjustment was directly committed to ledger." });
       router.push(`/inventory/stock/adjustments/${encodeURIComponent(String(id))}`);
     } catch (e: any) {

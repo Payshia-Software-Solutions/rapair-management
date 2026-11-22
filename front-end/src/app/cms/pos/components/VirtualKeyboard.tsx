@@ -76,7 +76,7 @@ export const VirtualKeyboard: React.FC = () => {
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-4 px-4 pt-2">
             <div className="flex items-center gap-3">
-                <div className="p-2 bg-primary/10 rounded-xl">
+                <div className="p-2 bg-primary/10 rounded-md">
                     <KeyboardIcon className="w-4 h-4 text-primary" />
                 </div>
                 <div>

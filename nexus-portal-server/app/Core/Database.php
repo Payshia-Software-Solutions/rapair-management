@@ -5,21 +5,29 @@ use PDO;
 use PDOException;
 
 class Database {
-    private $host = Config::DB_HOST;
-    private $user = Config::DB_USER;
-    private $pass = Config::DB_PASS;
-    private $dbname = Config::DB_NAME;
+    private $host;
+    private $user;
+    private $pass;
+    private $dbname;
 
     private $dbh;
     private $stmt;
     private $error;
 
     public function __construct() {
+        // Config::* call in __construct because PHP property initializers can't call methods
+        $this->host = Config::DB_HOST();
+        $this->user = Config::DB_USER();
+        $this->pass = Config::DB_PASS();
+        $this->dbname = Config::DB_NAME();
         $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname;
+        // ATTR_PERSISTENT removed: PHP never closes persistent connections, so under load they pile
+        // up past MySQL's max_connections and new connects are refused. BizzFlow dropped it for the
+        // same reason.
         $options = array(
-            PDO::ATTR_PERSISTENT => true,
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_OBJ,
+            PDO::ATTR_TIMEOUT => 5,
         );
         try {
             $this->dbh = new PDO($dsn, $this->user, $this->pass, $options);

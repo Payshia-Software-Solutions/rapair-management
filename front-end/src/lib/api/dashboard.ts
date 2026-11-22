@@ -21,7 +21,7 @@ export interface SalesDashboardData {
     orderCount: number;
     avgOrderValue: number;
     grossProfit: number;
-    today?: { totalRevenue: number; orderCount: number; revenue?: number; count?: number };
+    today?: { totalRevenue: number; orderCount: number; revenue?: number; count?: number; collection?: number };
     month?: { totalRevenue: number; orderCount: number; revenue?: number; collection?: number };
     outstanding?: number;
   };

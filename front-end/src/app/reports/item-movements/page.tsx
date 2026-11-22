@@ -99,11 +99,11 @@ export default function ItemMovementsReportPage() {
     setLoading(true);
     try {
       const data = await fetchReportItemMovements({
-        partId: pid,
-        locationId: locationId === "all" ? "all" : Number(locationId),
+        part_id: pid,
+        location_id: String(locationId),
         from: fromDate || undefined,
         to: toDate || undefined,
-        movementType: movementType || undefined,
+        movement_type: movementType || undefined,
         limit: 500,
         offset: 0,
       });
@@ -174,27 +174,9 @@ export default function ItemMovementsReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Item Movement Report"
       subtitle="Movements for a selected item (All or location-wise). Default: last 30 days."
-      actions={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            disabled={!partId}
-            onClick={() => (partId ? window.open(printHref, "_blank", "noopener,noreferrer") : null)}
-          >
-            Print
-          </Button>
-          <Button
-            type="button"
-            disabled={!partId}
-            onClick={() => (partId ? window.open(printHref, "_blank", "noopener,noreferrer") : null)}
-          >
-            Export PDF
-          </Button>
-        </>
-      }
       printMeta={
         <div className="space-y-1">
           <div><span className="font-semibold">Item:</span> {selectedPart ? `${selectedPart.part_name}${selectedPart.sku ? ` (${selectedPart.sku})` : ""}` : "-"}</div>

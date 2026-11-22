@@ -214,7 +214,36 @@ class PaymentReceipt {
         // Update invoice paid status
         $this->updatePaidStatus($data['invoice_id']);
 
+        // Book the payment (Dr Cash/Bank, Cr Receivable) against this receipt. Every way of taking
+        // a payment (POS checkout, invoice screen, Record Payment) creates a receipt here, so this is
+        // the one place it's posted. Cheques are posted too; a bounce reverses via cancellation.
+        $this->postJournal((int)$receiptId, $data);
+
         return $receiptNo;
+    }
+
+    /** Post the payment journal for a receipt once (skips if it already has one). */
+    public function postJournal($receiptId, $data) {
+        try {
+            $this->db->query("SELECT id FROM acc_journal_entries WHERE ref_type = 'PaymentReceipt' AND ref_id = :r LIMIT 1");
+            $this->db->bind(':r', $receiptId);
+            if ($this->db->single()) return true;
+
+            require_once __DIR__ . '/Invoice.php';
+            require_once __DIR__ . '/Journal.php';
+            require_once __DIR__ . '/Account.php';
+            require_once __DIR__ . '/../helpers/AccountingHelper.php';
+            return (bool)AccountingHelper::postPayment((int)$data['invoice_id'], [
+                'amount' => $data['amount'],
+                'payment_method' => $data['payment_method'] ?? 'Cash',
+                'payment_date' => $data['payment_date'] ?? date('Y-m-d'),
+                'receipt_id' => $receiptId,
+                'userId' => $data['created_by'] ?? null,
+            ]);
+        } catch (Throwable $e) {
+            error_log('Payment journal failed for receipt ' . $receiptId . ': ' . $e->getMessage());
+            return false;
+        }
     }
 
     // ── Invoice Paid Status ──────────────────────────────────────────────────
@@ -383,8 +412,18 @@ class PaymentReceipt {
         $this->db->bind(':id', $chequeId);
         $row = $this->db->single();
         if ($row) $this->updatePaidStatus($row->invoice_id);
+        $this->postChequeJournal([(int)$chequeId], $status, $clearedDate);
 
         return true;
+    }
+
+    /** Book cheque clearing / bounce in the accounts (failures are logged, never block the status). */
+    private function postChequeJournal(array $ids, $status, $date) {
+        if (!in_array($status, ['Cleared', 'Bounced'], true)) return;
+        try {
+            require_once __DIR__ . '/../helpers/AccountingHelper.php';
+            foreach ($ids as $id) AccountingHelper::postChequeStatus((int)$id, $status, $date ?: date('Y-m-d'));
+        } catch (Throwable $e) { error_log('Cheque journal failed: ' . $e->getMessage()); }
     }
 
     public function bulkUpdateChequeStatus($ids, $status, $clearedDate = null) {
@@ -411,6 +450,7 @@ class PaymentReceipt {
         foreach ($affectedInvoices as $inv) {
             $this->updatePaidStatus($inv->invoice_id);
         }
+        $this->postChequeJournal(array_map('intval', $ids), $status, $clearedDate);
 
         return true;
     }
@@ -462,7 +502,26 @@ class PaymentReceipt {
             // 3. Reverse Accounting Entries
             require_once 'Journal.php';
             $journal = new Journal();
-            $journal->reverseEntries('Payment', $id, $userId);
+            // Payments are booked against the receipt (ref PaymentReceipt/receipt id). Older ones were
+            // booked against the INVOICE id ("Payment"/invoice id): reverse only the one entry for
+            // this amount (reversing by receipt id hit an unrelated invoice's payment).
+            $this->db->query("SELECT COUNT(*) AS n FROM acc_journal_entries WHERE ref_type = 'PaymentReceipt' AND ref_id = :id");
+            $this->db->bind(':id', $id);
+            if ((int)($this->db->single()->n ?? 0) > 0) {
+                $journal->reverseAllForRef('PaymentReceipt', $id, $userId);
+            } elseif (!empty($receipt->invoice_id)) {
+                $this->db->query("
+                    SELECT e.id FROM acc_journal_entries e
+                    WHERE e.ref_type = 'Payment' AND e.ref_id = :inv AND e.description NOT LIKE 'REVERSAL:%'
+                      AND (SELECT ROUND(SUM(i.debit), 2) FROM acc_journal_items i WHERE i.entry_id = e.id) = ROUND(:amt, 2)
+                      AND NOT EXISTS (SELECT 1 FROM acc_journal_items r WHERE r.notes = CONCAT('Reversal of entry #', e.id))
+                    ORDER BY e.id ASC LIMIT 1
+                ");
+                $this->db->bind(':inv', (int)$receipt->invoice_id);
+                $this->db->bind(':amt', (float)$receipt->amount);
+                $legacy = $this->db->single();
+                if ($legacy) $journal->reverseEntryById($legacy->id, $userId);
+            }
 
             // 4. Update Invoice Paid Amount
             $this->updatePaidStatus($receipt->invoice_id);

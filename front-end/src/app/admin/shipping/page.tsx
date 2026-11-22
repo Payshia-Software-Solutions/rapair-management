@@ -681,7 +681,7 @@ export default function ShippingManagementPage() {
 
         {/* Cities Management Dialog */}
         <Dialog open={isCitiesDialogOpen} onOpenChange={setIsCitiesDialogOpen}>
-          <DialogContent className="max-w-2xl dark:bg-slate-900">
+          <DialogContent className="max-w-2xl">
             <DialogHeader>
               <div className="flex items-center justify-between pr-6">
                 <div>
@@ -746,7 +746,7 @@ export default function ShippingManagementPage() {
 
         {/* Delete City Confirmation */}
         <Dialog open={isDeleteCityDialogOpen} onOpenChange={setIsDeleteCityDialogOpen}>
-           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                  <DialogTitle>Delete City</DialogTitle>
                  <DialogDescription>
@@ -766,7 +766,7 @@ export default function ShippingManagementPage() {
 
         {/* Add City Dialog */}
         <Dialog open={isAddCityDialogOpen} onOpenChange={setIsAddCityDialogOpen}>
-           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                  <DialogTitle>Add New City</DialogTitle>
                  <DialogDescription>Add a new location to {selectedDistrictForCities?.name}.</DialogDescription>
@@ -795,7 +795,7 @@ export default function ShippingManagementPage() {
 
         {/* Edit City Dialog */}
         <Dialog open={isEditCityDialogOpen} onOpenChange={setIsEditCityDialogOpen}>
-           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                  <DialogTitle>Edit City</DialogTitle>
                  <DialogDescription>Update location name in {selectedDistrictForCities?.name}.</DialogDescription>
@@ -823,7 +823,7 @@ export default function ShippingManagementPage() {
 
         {/* Add Provider Dialog */}
         <Dialog open={isProviderDialogOpen} onOpenChange={setIsProviderDialogOpen}>
-           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                  <DialogTitle>Add International Provider</DialogTitle>
                  <DialogDescription>Setup a new global shipping partner (e.g. DHL, UPS).</DialogDescription>
@@ -862,7 +862,7 @@ export default function ShippingManagementPage() {
 
         {/* Edit Provider Dialog */}
         <Dialog open={isEditProviderDialogOpen} onOpenChange={setIsEditProviderDialogOpen}>
-           <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+           <DialogContent className="sm:max-w-[425px]">
               <DialogHeader>
                  <DialogTitle>Edit Provider</DialogTitle>
                  <DialogDescription>Update pricing or details for {editingProvider?.name}.</DialogDescription>
@@ -900,7 +900,7 @@ export default function ShippingManagementPage() {
 
          {/* Add Template Dialog */}
          <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-            <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+            <DialogContent className="sm:max-w-[500px]">
                <DialogHeader>
                   <DialogTitle>Create Costing Template</DialogTitle>
                   <DialogDescription>Define a set of rules for shipping cost calculation.</DialogDescription>
@@ -987,7 +987,7 @@ export default function ShippingManagementPage() {
 
          {/* Edit Template Dialog */}
          <Dialog open={isEditTemplateDialogOpen} onOpenChange={setIsEditTemplateDialogOpen}>
-            <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+            <DialogContent className="sm:max-w-[500px]">
                <DialogHeader>
                   <DialogTitle>Edit Costing Template</DialogTitle>
                   <DialogDescription>Update rules for {editingTemplate?.name}.</DialogDescription>
@@ -1082,7 +1082,7 @@ export default function ShippingManagementPage() {
 
           {/* Add Factor Dialog */}
           <Dialog open={isFactorDialogOpen} onOpenChange={setIsFactorDialogOpen}>
-             <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                    <DialogTitle>Add Logistics Factor</DialogTitle>
                    <DialogDescription>Pre-define a cost factor for export logistics.</DialogDescription>
@@ -1125,7 +1125,7 @@ export default function ShippingManagementPage() {
 
           {/* Edit Factor Dialog */}
           <Dialog open={isEditFactorDialogOpen} onOpenChange={setIsEditFactorDialogOpen}>
-             <DialogContent className="sm:max-w-[425px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                    <DialogTitle>Edit Logistics Factor</DialogTitle>
                    <DialogDescription>Update details for {editingFactor?.name}.</DialogDescription>
@@ -1177,7 +1177,7 @@ export default function ShippingManagementPage() {
 
           {/* Add Packaging Dialog */}
           <Dialog open={isPackagingDialogOpen} onOpenChange={setIsPackagingDialogOpen}>
-             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                    <DialogTitle>Add Packaging Type</DialogTitle>
                    <DialogDescription>Define a new packaging standard for exports.</DialogDescription>
@@ -1232,7 +1232,7 @@ export default function ShippingManagementPage() {
 
           {/* Edit Packaging Dialog */}
           <Dialog open={isEditPackagingDialogOpen} onOpenChange={setIsEditPackagingDialogOpen}>
-             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                    <DialogTitle>Edit Packaging Type</DialogTitle>
                    <DialogDescription>Update {editingPackaging?.name}.</DialogDescription>
@@ -1287,7 +1287,7 @@ export default function ShippingManagementPage() {
 
           {/* Add Pallet Dialog */}
           <Dialog open={isPalletDialogOpen} onOpenChange={setIsPalletDialogOpen}>
-             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                    <DialogTitle>Add Pallet Type</DialogTitle>
                    <DialogDescription>Define a new pallet standard.</DialogDescription>
@@ -1330,7 +1330,7 @@ export default function ShippingManagementPage() {
 
           {/* Edit Pallet Dialog */}
           <Dialog open={isEditPalletDialogOpen} onOpenChange={setIsEditPalletDialogOpen}>
-             <DialogContent className="sm:max-w-[500px] dark:bg-slate-900">
+             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                    <DialogTitle>Edit Pallet Type</DialogTitle>
                    <DialogDescription>Update {editingPallet?.name}.</DialogDescription>

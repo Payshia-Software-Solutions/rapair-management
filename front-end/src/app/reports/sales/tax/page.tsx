@@ -120,12 +120,11 @@ export default function TaxReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Tax Summary Report"
       subtitle="Breakdown of taxes collected on sales"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

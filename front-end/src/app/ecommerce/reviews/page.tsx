@@ -1,5 +1,6 @@
 "use client";
 
+import { assetUrl } from '@/lib/asset-url';
 import React, { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -215,7 +216,7 @@ export default function ReviewsManagementPage() {
                                   {review.images.map((img) => (
                                      <div key={img.id} className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden border group/img cursor-pointer" onClick={() => setSelectedReview(review)}>
                                         <img 
-                                           src={`${BASE_URL}/${img.image_path}`} 
+                                           src={assetUrl(img.image_path, BASE_URL)} 
                                            alt="Review" 
                                            className="w-full h-full object-cover"
                                         />
@@ -271,7 +272,7 @@ export default function ReviewsManagementPage() {
                  {selectedReview?.images?.map((img) => (
                     <div key={img.id} className="rounded-xl border overflow-hidden bg-muted flex items-center justify-center aspect-square">
                        <img 
-                          src={`${BASE_URL}/${img.image_path}`} 
+                          src={assetUrl(img.image_path, BASE_URL)} 
                           alt="Review" 
                           className="w-full h-full object-contain"
                        />

@@ -271,9 +271,9 @@ export default function NewRecurringTemplatePage() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <RotateCw className="w-5 h-5 text-amber-500" />
-              <span className="text-amber-600 text-sm font-semibold tracking-widest uppercase">New Template</span>
+              <span className="text-amber-600 text-sm font-semibold">New Template</span>
             </div>
-            <h2 className="text-3xl font-bold tracking-tight">Create Recurring Invoice</h2>
+            <h2 className="text-2xl font-bold">New recurring invoice</h2>
             <p className="text-muted-foreground mt-1">Set up a recurring schedule and template items.</p>
           </div>
           <Button onClick={handleSave} disabled={submitting} className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-8">
@@ -287,7 +287,7 @@ export default function NewRecurringTemplatePage() {
             {/* Template Header */}
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="bg-muted/30 border-b">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-muted-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-muted-foreground">
                   <Tag className="w-4 h-4" /> Template Configuration
                 </CardTitle>
               </CardHeader>
@@ -316,9 +316,9 @@ export default function NewRecurringTemplatePage() {
                           {customers.find(c => String(c.id) === selectedCustomer)?.email || 'No Email Set'}
                         </span>
                         {customers.find(c => String(c.id) === selectedCustomer)?.email ? (
-                          <Badge variant="outline" className="text-[9px] h-4 bg-green-50 text-green-700 border-green-200">AUTO-SEND ENABLED</Badge>
+                          <Badge variant="outline" className="text-xs h-4 bg-green-50 text-green-700 border-green-200">AUTO-SEND ENABLED</Badge>
                         ) : (
-                          <Badge variant="outline" className="text-[9px] h-4 bg-red-50 text-red-700 border-red-200 uppercase">Email Missing</Badge>
+                          <Badge variant="outline" className="text-xs h-4 bg-red-50 text-red-700 border-red-200">Email Missing</Badge>
                         )}
                       </div>
                     )}
@@ -343,7 +343,7 @@ export default function NewRecurringTemplatePage() {
             {/* Line Items */}
             <Card className="border-none shadow-md overflow-hidden">
               <CardHeader className="bg-muted/30 border-b flex flex-row items-center justify-between">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-muted-foreground">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-muted-foreground">
                   <FileText className="w-4 h-4" /> Invoice Items
                 </CardTitle>
                 <Button variant="outline" size="sm" onClick={() => setItems([...items, { description: "", item_type: "Part", quantity: 1, unit_price: 0, discount: 0, line_total: 0 }])}>
@@ -355,10 +355,10 @@ export default function NewRecurringTemplatePage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="bg-muted/10 border-b">
-                        <th className="p-4 text-left font-bold text-muted-foreground uppercase text-[10px]">Description</th>
-                        <th className="p-4 text-right font-bold text-muted-foreground uppercase text-[10px] w-20">Qty</th>
-                        <th className="p-4 text-right font-bold text-muted-foreground uppercase text-[10px] w-32">Price</th>
-                        <th className="p-4 text-right font-bold text-muted-foreground uppercase text-[10px] w-32">Total</th>
+                        <th className="p-4 text-left font-bold text-muted-foreground text-xs">Description</th>
+                        <th className="p-4 text-right font-bold text-muted-foreground text-xs w-20">Qty</th>
+                        <th className="p-4 text-right font-bold text-muted-foreground text-xs w-32">Price</th>
+                        <th className="p-4 text-right font-bold text-muted-foreground text-xs w-32">Total</th>
                         <th className="p-4 w-10"></th>
                       </tr>
                     </thead>
@@ -413,7 +413,7 @@ export default function NewRecurringTemplatePage() {
             {/* Scheduling */}
             <Card className="border-none shadow-md overflow-hidden bg-amber-50/30 dark:bg-amber-900/10 border-l-4 border-l-amber-500">
               <CardHeader className="bg-amber-500/10 border-b border-amber-500/20">
-                <CardTitle className="text-sm font-bold flex items-center gap-2 uppercase tracking-widest text-amber-700 dark:text-amber-400">
+                <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700 dark:text-amber-400">
                   <Calendar className="w-4 h-4" /> Scheduling
                 </CardTitle>
               </CardHeader>
@@ -442,7 +442,7 @@ export default function NewRecurringTemplatePage() {
                 </div>
                 
                 <div className="pt-2 border-t border-amber-500/10">
-                  <div className="flex items-center gap-2 text-[10px] text-amber-700 dark:text-amber-400 font-medium italic">
+                  <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 font-medium italic">
                     <Clock className="w-3 h-3" />
                     First Cycle: {startDate} to {calculateCycleEnd()}
                   </div>
@@ -474,7 +474,7 @@ export default function NewRecurringTemplatePage() {
                         const amount = totals.taxable * (Number(tax.rate_percent) / 100);
                         if (amount <= 0) return null;
                         return (
-                          <div key={tax.id} className="flex justify-between text-[10px] opacity-50 pl-4 italic border-l border-white/10 ml-2">
+                          <div key={tax.id} className="flex justify-between text-xs opacity-50 pl-4 italic border-l border-white/10 ml-2">
                             <span>{tax.name} ({Number(tax.rate_percent)}%)</span>
                             <span className="tabular-nums">LKR {amount.toFixed(2)}</span>
                           </div>
@@ -484,8 +484,8 @@ export default function NewRecurringTemplatePage() {
                   </>
                 )}
                 <div className="pt-4 border-t border-white/10 flex justify-between items-baseline">
-                  <span className="font-bold uppercase text-xs tracking-widest">Grand Total</span>
-                  <span className="text-2xl font-black text-amber-400 tabular-nums">
+                  <span className="font-bold text-xs">Grand Total</span>
+                  <span className="text-2xl font-semibold text-amber-400 tabular-nums">
                     LKR {grandTotal.toFixed(2)}
                   </span>
                 </div>
@@ -493,7 +493,7 @@ export default function NewRecurringTemplatePage() {
             </Card>
             
             {/* Notes */}
-            <Card className="border-none shadow-md">
+            <Card>
               <CardContent className="p-6">
                 <Label className="mb-2 block">Internal Notes</Label>
                 <textarea 

@@ -263,18 +263,9 @@ class MarketadminController extends Controller {
         $this->success(['ids' => $ids], 'Best sellers saved');
     }
 
-    /** Ask the website to drop its cached storefront settings (best effort; never blocks the save). */
+    /** Tells every connected website its cached storefront data changed (best effort; never blocks the save). */
     private function notifyWebsite(array $tags) {
-        if (!defined('WEBSITE_REVALIDATE_URL') || WEBSITE_REVALIDATE_URL === '' || !defined('WEBSITE_REVALIDATE_SECRET') || WEBSITE_REVALIDATE_SECRET === '') return;
-        $ch = curl_init(WEBSITE_REVALIDATE_URL);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode(['tags' => $tags]),
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . WEBSITE_REVALIDATE_SECRET],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 5,
-        ]);
-        if (curl_exec($ch) === false) error_log('Website revalidate failed: ' . curl_error($ch));
-        curl_close($ch);
+        require_once __DIR__ . '/../helpers/StorefrontNotifier.php';
+        StorefrontNotifier::revalidate($tags);
     }
 }

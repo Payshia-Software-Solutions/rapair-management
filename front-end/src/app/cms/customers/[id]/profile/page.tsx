@@ -1,5 +1,6 @@
 "use client";
 
+import { assetUrl } from '@/lib/asset-url';
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -188,7 +189,7 @@ export default function CustomerProfilePage() {
                 {customer.photo_url && (
                   <div className="flex justify-center mb-6">
                     <img 
-                      src={`${CONTENT_BASE_URL}${customer.photo_url}`} 
+                      src={assetUrl(customer.photo_url, CONTENT_BASE_URL)} 
                       alt={customer.name} 
                       className="w-32 h-32 rounded-full object-cover border-4 border-muted"
                     />

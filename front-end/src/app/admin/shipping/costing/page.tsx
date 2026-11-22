@@ -1981,7 +1981,7 @@ export default function ExportCostingPage() {
       </div>
 
       <Dialog open={isFactorDialogOpen} onOpenChange={setIsFactorDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Logistics Factor</DialogTitle>
             <DialogDescription>Define a new cost factor for logistics or customs.</DialogDescription>
@@ -2054,7 +2054,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isManageFactorsOpen} onOpenChange={setIsManageFactorsOpen}>
-         <DialogContent className="w-[95vw] sm:max-w-2xl dark:bg-slate-900 max-h-[90vh] flex flex-col p-0 overflow-hidden">
+         <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader>
                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 pb-0">
                   <div>
@@ -2124,7 +2124,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isEditFactorDialogOpen} onOpenChange={setIsEditFactorDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Logistics Factor</DialogTitle>
             <DialogDescription>Update global factor definition.</DialogDescription>
@@ -2196,7 +2196,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isManageCategoriesOpen} onOpenChange={setIsManageCategoriesOpen}>
-         <DialogContent className="w-[95vw] sm:max-w-md dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+         <DialogContent className="w-[95vw] sm:max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                <div className="flex items-center justify-between pr-6">
                   <DialogTitle>Manage Categories</DialogTitle>
@@ -2230,7 +2230,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isCategoryDialogOpen} onOpenChange={setIsCategoryDialogOpen}>
-         <DialogContent className="w-[95vw] sm:max-w-[400px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+         <DialogContent className="w-[95vw] sm:max-w-[400px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                <DialogTitle>Add Category</DialogTitle>
             </DialogHeader>
@@ -2247,7 +2247,7 @@ export default function ExportCostingPage() {
          </DialogContent>
       </Dialog>
       <Dialog open={isManagePackagingOpen} onOpenChange={setIsManagePackagingOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-2xl dark:bg-slate-900 max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 pb-0">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
@@ -2311,7 +2311,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isPackagingDialogOpen} onOpenChange={setIsPackagingDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Packaging Type</DialogTitle>
             <DialogDescription>Create a new reusable packaging option.</DialogDescription>
@@ -2368,7 +2368,7 @@ export default function ExportCostingPage() {
       </Dialog>
 
       <Dialog open={isEditPackagingDialogOpen} onOpenChange={setIsEditPackagingDialogOpen}>
-        <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Packaging Type</DialogTitle>
             <DialogDescription>Update the specifications for this packaging.</DialogDescription>
@@ -2426,7 +2426,7 @@ export default function ExportCostingPage() {
         </DialogContent>
         </Dialog>
         <Dialog open={isManagePalletsOpen} onOpenChange={setIsManagePalletsOpen}>
-          <DialogContent className="w-[95vw] sm:max-w-2xl dark:bg-slate-900 max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
             <DialogHeader className="p-6 pb-0">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -2484,7 +2484,7 @@ export default function ExportCostingPage() {
         </Dialog>
 
         <Dialog open={isPalletDialogOpen} onOpenChange={setIsPalletDialogOpen}>
-          <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Add Pallet Type</DialogTitle>
               <DialogDescription>Create a new pallet specification.</DialogDescription>
@@ -2527,7 +2527,7 @@ export default function ExportCostingPage() {
         </Dialog>
 
         <Dialog open={isEditPalletDialogOpen} onOpenChange={setIsEditPalletDialogOpen}>
-          <DialogContent className="w-[95vw] sm:max-w-[450px] dark:bg-slate-900 max-h-[90vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] sm:max-w-[450px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Edit Pallet Type</DialogTitle>
               <DialogDescription>Update pallet specifications.</DialogDescription>

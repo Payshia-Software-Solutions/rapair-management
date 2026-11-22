@@ -76,12 +76,11 @@ export default function VehicleReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Vehicle Report"
       subtitle="Vehicle register with department filter and exports."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

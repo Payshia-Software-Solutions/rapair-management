@@ -37,7 +37,12 @@ class Refund extends Model {
         $this->db->bind(':created_by', $data['userId']);
 
         if ($this->db->execute()) {
-            return ['id' => $this->db->lastInsertId(), 'refund_no' => $refundNo];
+            $refundId = (int)$this->db->lastInsertId();
+            try {
+                require_once __DIR__ . '/../helpers/AccountingHelper.php';
+                AccountingHelper::postRefund($refundId);
+            } catch (Throwable $e) { error_log('Refund journal failed: ' . $e->getMessage()); }
+            return ['id' => $refundId, 'refund_no' => $refundNo];
         }
         return false;
     }

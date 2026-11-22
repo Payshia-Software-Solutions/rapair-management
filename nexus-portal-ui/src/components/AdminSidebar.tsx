@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   Inbox, Layers, CreditCard, Zap, UserCheck,
   FileText, Mail, Send, Globe, Building2,
-  LogOut, Sun, Moon, ChevronRight, X, BarChart, Percent
+  LogOut, Sun, Moon, ChevronRight, X, BarChart, Percent, Boxes, Webhook, Gauge
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { API_BASE } from '@/config';
@@ -28,7 +28,10 @@ const menuSections = [
       { id: 'requests',     label: 'ERP Requests',     icon: Inbox,      roles: ['super_admin'] },
       { id: 'tenants',      label: 'SaaS Tenants',     icon: Layers,     roles: ['super_admin'] },
       { id: 'packages',     label: 'Packages',         icon: CreditCard, roles: ['super_admin'] },
+      { id: 'products',     label: 'Products',         icon: Boxes,      roles: ['super_admin'] },
+      { id: 'webhooks',     label: 'Provisioning Log', icon: Webhook,    roles: ['super_admin'] },
       { id: 'subscription', label: 'Subscription',     icon: Zap,        roles: ['client'] },
+      { id: 'plan',         label: 'Plan & Usage',     icon: Gauge,      roles: ['client'] },
       { id: 'users',        label: 'Client Accounts',  icon: UserCheck,  roles: ['super_admin'] },
     ]
   },
@@ -64,7 +67,6 @@ export default function AdminSidebar({
   const pathname = usePathname();
 
   const handleLogout = async () => {
-    localStorage.removeItem('nexus_token');
     await fetch(`${API_BASE}/auth/logout`, { credentials: 'include' }).catch(() => {});
     window.location.href = '/admin/login';
   };
@@ -93,24 +95,24 @@ export default function AdminSidebar({
 
       <aside className={`
         fixed inset-y-0 left-0 z-[70] flex h-screen w-[220px] flex-col
-        border-r border-[#e4e4e7] bg-white
-        dark:border-[#27272a] dark:bg-[#18181b]
+        border-r border-nx-line bg-white
+        dark:border-nx-line-dark dark:bg-nx-surface-dark
         transition-transform duration-200 ease-in-out
         lg:sticky lg:top-0 lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
 
         {/* ── Logo ─────────────────────────────────── */}
-        <div className="flex h-14 items-center justify-between border-b border-[#e4e4e7] dark:border-[#27272a] px-4">
+        <div className="flex h-14 items-center justify-between border-b border-nx-line dark:border-nx-line-dark px-4">
           <div className="flex items-center gap-2.5">
             <img src="/icon-bizzflow-logo-optimized.webp" alt="BizzFlow" className="h-6 w-6 object-contain" />
-            <span className="text-[13px] font-black tracking-tight text-[#09090b] dark:text-white">
+            <span className="text-[13px] font-black tracking-tight text-nx-ink dark:text-white">
               BIZZFLOW
             </span>
           </div>
           <button
             onClick={onClose}
-            className="lg:hidden rounded-md p-1 text-[#a1a1aa] hover:bg-[#f4f4f5] dark:hover:bg-[#27272a] transition-colors"
+            className="lg:hidden rounded-md p-1 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"
           >
             <X size={16} />
           </button>
@@ -126,7 +128,7 @@ export default function AdminSidebar({
 
             return (
               <div key={section.title}>
-                <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-[#a1a1aa] dark:text-[#52525b]">
+                <p className="mb-1 px-2 text-[10px] font-semibold uppercase tracking-wider text-nx-text-subtle dark:text-nx-text-strong">
                   {section.title}
                 </p>
                 <div className="space-y-0.5">
@@ -141,14 +143,14 @@ export default function AdminSidebar({
                           group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2
                           text-[13px] font-medium transition-colors text-left
                           ${active
-                            ? 'bg-[#f4f4f5] text-[#09090b] dark:bg-[#27272a] dark:text-white font-semibold'
-                            : 'text-[#71717a] hover:bg-[#f4f4f5] hover:text-[#09090b] dark:text-[#71717a] dark:hover:bg-[#27272a] dark:hover:text-white'
+                            ? 'bg-nx-surface-muted text-nx-ink dark:bg-nx-line-dark dark:text-white font-semibold'
+                            : 'text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:text-nx-text-muted dark:hover:bg-nx-line-dark dark:hover:text-white'
                           }
                         `}
                       >
                         {/* Active left-bar indicator */}
                         {active && (
-                          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-[#6366f1]" />
+                          <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-nx-accent" />
                         )}
                         <Icon size={15} className="shrink-0" />
                         <span>{item.label}</span>
@@ -162,17 +164,17 @@ export default function AdminSidebar({
         </nav>
 
         {/* ── Footer ───────────────────────────────── */}
-        <div className="border-t border-[#e4e4e7] dark:border-[#27272a] p-3 space-y-2">
+        <div className="border-t border-nx-line dark:border-nx-line-dark p-3 space-y-2">
           {/* User row */}
           <div className="flex items-center gap-2.5 rounded-md px-2 py-2">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#6366f1] text-[12px] font-bold text-white">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-nx-accent text-[12px] font-bold text-white">
               {currentUser.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="truncate text-[12px] font-semibold text-[#09090b] dark:text-white">
+              <div className="truncate text-[12px] font-semibold text-nx-ink dark:text-white">
                 {currentUser}
               </div>
-              <div className="text-[10px] text-[#a1a1aa] dark:text-[#52525b]">
+              <div className="text-[10px] text-nx-text-subtle dark:text-nx-text-strong">
                 {role === 'super_admin' ? 'Super Admin' : 'Client'}
               </div>
             </div>
@@ -182,14 +184,14 @@ export default function AdminSidebar({
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={onToggleTheme}
-              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-[#71717a] hover:bg-[#f4f4f5] hover:text-[#09090b] dark:hover:bg-[#27272a] dark:hover:text-white transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:hover:bg-nx-line-dark dark:hover:text-white transition-colors"
             >
               {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
               {theme === 'dark' ? 'Light' : 'Dark'}
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-[#ef4444] hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-[#ef4444] hover:bg-nx-danger-soft transition-colors"
             >
               <LogOut size={13} />
               Logout

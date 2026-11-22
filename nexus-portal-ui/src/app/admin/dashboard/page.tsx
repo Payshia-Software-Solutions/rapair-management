@@ -1,520 +1,370 @@
 "use client";
-import { API_BASE } from '@/config';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { 
-  Building, Inbox, CreditCard, Users, ArrowUpRight, Plus, 
-  RefreshCcw, ArrowRight, ShieldCheck, TrendingUp, PieChart
-} from 'lucide-react';
+import { RefreshCcw, AlertTriangle, Clock, Users, Wallet, Receipt, TrendingUp, Inbox, Info, ArrowRight } from 'lucide-react';
+import { adminFetch } from '@/lib/adminApi';
 
-export default function AdminDashboardPage() {
+type Summary = {
+  base_currency: string;
+  kpis: {
+    total_tenants: number; active_tenants: number; trial_tenants: number; suspended_tenants: number; expired_tenants: number;
+    new_tenants_this_month: number; mrr: number; arr: number; collected_30d: number;
+    outstanding: number; outstanding_count: number; overdue: number; overdue_count: number;
+    collection_rate_6m: number | null; pending_requests: number;
+  };
+  trials: { ending_7d: number; ended: number };
+  collections_monthly: { month: string; amount: number }[];
+  packages: { name: string; count: number; percent: number }[];
+  recent_tenants: { id: number; name: string; slug: string; status: string; package: string | null; trial_expiry: string | null; created_at: string }[];
+  assumptions: string[];
+  missing_rates: string[];
+};
+
+const CURRENCIES = ['LKR', 'USD', 'EUR', 'GBP'];
+
+const STATUS_PILL: Record<string, string> = {
+  Active: 'border-nx-success/30 bg-nx-success-soft text-nx-success',
+  Trial: 'border-nx-info/30 bg-nx-info-soft text-nx-info',
+  Suspended: 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger',
+  Expired: 'border-nx-warning/30 bg-nx-warning-soft text-nx-warning',
+};
+
+const fmtMoney = (v: number, cur: string) =>
+  new Intl.NumberFormat('en', { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(v || 0);
+
+const fmtCompact = (v: number, cur: string) =>
+  new Intl.NumberFormat('en', { style: 'currency', currency: cur, notation: 'compact', maximumFractionDigits: 1 }).format(v || 0);
+
+const monthLabel = (ym: string) => new Date(ym + '-01T00:00:00').toLocaleString('en', { month: 'short' });
+
+function KpiCard({ label, value, sub, icon: Icon, tone = 'accent', href }: {
+  label: string; value: string; sub?: React.ReactNode; icon: React.ElementType; tone?: 'accent' | 'success' | 'warning' | 'danger' | 'info' | 'violet'; href?: string;
+}) {
+  const tones: Record<string, string> = {
+    accent: 'bg-nx-accent-soft text-nx-accent dark:bg-nx-accent/15 dark:text-nx-accent-light',
+    success: 'bg-nx-success-soft text-nx-success',
+    warning: 'bg-nx-warning-soft text-nx-warning',
+    danger: 'bg-nx-danger-soft text-nx-danger',
+    info: 'bg-nx-info-soft text-nx-info',
+    violet: 'bg-nx-violet-soft text-nx-violet',
+  };
+  const body = (
+    <div className="flex h-full flex-col gap-4 rounded-xl border border-nx-line bg-white p-5 transition-colors hover:border-nx-accent/40 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-xs font-medium text-nx-text-muted dark:text-nx-text-subtle">{label}</span>
+        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${tones[tone]}`}><Icon size={16} /></span>
+      </div>
+      <div>
+        <div className="text-2xl font-semibold tabular-nums tracking-tight text-nx-ink dark:text-white">{value}</div>
+        {sub && <div className="mt-1 text-xs text-nx-text-muted dark:text-nx-text-subtle">{sub}</div>}
+      </div>
+    </div>
+  );
+  return href ? <Link href={href} className="block">{body}</Link> : body;
+}
+
+function AlertChip({ tone, text, href }: { tone: 'danger' | 'warning' | 'info'; text: string; href: string }) {
+  const cls = tone === 'danger' ? 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger'
+    : tone === 'warning' ? 'border-nx-warning/30 bg-nx-warning-soft text-nx-warning'
+    : 'border-nx-info/30 bg-nx-info-soft text-nx-info';
+  return (
+    <Link href={href} className={`group flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-sm font-medium ${cls}`}>
+      <span className="flex items-center gap-2">{tone === 'info' ? <Info size={15} /> : <AlertTriangle size={15} />}{text}</span>
+      <ArrowRight size={15} className="opacity-60 transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  );
+}
+
+/** Responsive column chart in plain HTML: fills its card, no SVG scaling. */
+function CollectionsChart({ data, currency }: { data: { month: string; amount: number }[]; currency: string }) {
+  const max = Math.max(1, ...data.map(d => d.amount));
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const ticks = [1, 0.5, 0];
+  return (
+    <div className="flex h-72 gap-3">
+      {/* Y axis */}
+      <div className="flex w-14 shrink-0 flex-col justify-between pb-7 text-right text-[10px] tabular-nums text-nx-text-subtle">
+        {ticks.map(t => <span key={t}>{fmtCompact(max * t, currency)}</span>)}
+      </div>
+      {/* Plot */}
+      <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-7">
+          {ticks.map(t => (
+            <div key={t} className="absolute inset-x-0 border-t border-dashed border-nx-line dark:border-nx-line-dark" style={{ top: `${(1 - t) * 100}%` }} />
+          ))}
+        </div>
+        <div className="relative flex min-h-0 flex-1 items-end gap-2 pb-0">
+          {data.map(d => {
+            const pct = (d.amount / max) * 100;
+            const isNow = d.month === currentMonth;
+            return (
+              <div key={d.month} className="group flex h-full min-w-0 flex-1 flex-col justify-end" title={`${monthLabel(d.month)}: ${fmtMoney(d.amount, currency)}`}>
+                <div className="relative flex w-full flex-1 items-end justify-center">
+                  {d.amount > 0 && (
+                    <span className="absolute -top-5 whitespace-nowrap text-[10px] font-medium tabular-nums text-nx-text-muted opacity-0 transition-opacity group-hover:opacity-100 dark:text-nx-text-subtle">
+                      {fmtCompact(d.amount, currency)}
+                    </span>
+                  )}
+                  <div
+                    className={`w-full max-w-[44px] rounded-t-md transition-all duration-500 ${isNow ? 'bg-nx-accent' : d.amount > 0 ? 'bg-nx-accent-light/80 group-hover:bg-nx-accent dark:bg-nx-accent/70' : 'bg-nx-surface-muted dark:bg-nx-line-dark'}`}
+                    style={{ height: d.amount > 0 ? `${Math.max(pct, 3)}%` : '3px' }}
+                  />
+                </div>
+                <span className={`mt-2 text-center text-[11px] ${isNow ? 'font-semibold text-nx-ink dark:text-white' : 'text-nx-text-subtle'}`}>{monthLabel(d.month)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Stacked bar of tenant lifecycle states, with counts. */
+function TenantHealth({ k }: { k: Summary['kpis'] }) {
+  const parts = [
+    { label: 'Active', value: k.active_tenants, bar: 'bg-nx-success', dot: 'bg-nx-success' },
+    { label: 'Trial', value: k.trial_tenants, bar: 'bg-nx-info', dot: 'bg-nx-info' },
+    { label: 'Suspended', value: k.suspended_tenants, bar: 'bg-nx-danger', dot: 'bg-nx-danger' },
+    { label: 'Expired', value: k.expired_tenants, bar: 'bg-nx-warning', dot: 'bg-nx-warning' },
+  ];
+  const total = parts.reduce((a, b) => a + b.value, 0);
+  return (
+    <div className="space-y-4">
+      <div className="flex h-3 overflow-hidden rounded-full bg-nx-surface-muted dark:bg-nx-line-dark" role="img" aria-label="Tenant status breakdown">
+        {total > 0 && parts.filter(p => p.value > 0).map(p => (
+          <div key={p.label} className={p.bar} style={{ width: `${(p.value / total) * 100}%` }} />
+        ))}
+      </div>
+      <ul className="grid grid-cols-2 gap-3">
+        {parts.map(p => (
+          <li key={p.label} className="rounded-lg border border-nx-line p-3 dark:border-nx-line-dark">
+            <div className="flex items-center gap-2 text-xs text-nx-text-muted dark:text-nx-text-subtle"><span className={`h-2 w-2 rounded-full ${p.dot}`} />{p.label}</div>
+            <div className="mt-1 text-xl font-semibold tabular-nums text-nx-ink dark:text-white">{p.value}</div>
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-nx-text-subtle">{total} tenant{total === 1 ? '' : 's'} in total · {k.new_tenants_this_month} new this month</p>
+    </div>
+  );
+}
+
+/** Plan mix: top plans, with the rest behind a toggle so the card keeps its height. */
+function PlanMix({ packages }: { packages: Summary['packages'] }) {
+  const [all, setAll] = useState(false);
+  const shown = all ? packages : packages.slice(0, 5);
+  const bars = ['bg-nx-accent', 'bg-nx-success', 'bg-nx-violet', 'bg-nx-info', 'bg-nx-warning', 'bg-nx-rose'];
+  return (
+    <div>
+      <ul className="space-y-4">
+        {shown.map((p, i) => (
+          <li key={p.name}>
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
+              <span className="truncate text-nx-ink dark:text-white" title={p.name}>{p.name}</span>
+              <span className="shrink-0 tabular-nums text-nx-text-muted dark:text-nx-text-subtle">{p.count} · {p.percent}%</span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-nx-surface-muted dark:bg-nx-line-dark">
+              <div className={`h-full rounded-full ${bars[i % bars.length]}`} style={{ width: `${p.percent}%` }} />
+            </div>
+          </li>
+        ))}
+      </ul>
+      {packages.length > 5 && (
+        <button type="button" onClick={() => setAll(v => !v)} className="mt-4 text-xs font-semibold text-nx-accent hover:underline">
+          {all ? 'Show top 5' : `Show all ${packages.length} plans`}
+        </button>
+      )}
+    </div>
+  );
+}
+
+export default function DashboardPage() {
   const router = useRouter();
+  const [currency, setCurrency] = useState('LKR');
+  const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
-  
-  // Dashboard Currency Selection (Default LKR)
-  const [selectedCurrency, setSelectedCurrency] = useState<'LKR' | 'USD' | 'EUR'>('LKR');
+  const [error, setError] = useState<string | null>(null);
+  const [updated, setUpdated] = useState<Date | null>(null);
 
-  // Raw states to cache fetched DB data
-  const [rawTenants, setRawTenants] = useState<any[]>([]);
-  const [rawInvoices, setRawInvoices] = useState<any[]>([]);
-  const [rawPackages, setRawPackages] = useState<any[]>([]);
-  const [rawPayments, setRawPayments] = useState<any[]>([]);
-  const [recentRequests, setRecentRequests] = useState<any[]>([]);
-  const [recentTenants, setRecentTenants] = useState<any[]>([]);
-
-  // Computed states
-  const [stats, setStats] = useState({
-    pendingRequests: 0,
-    activeTenants: 0,
-    mrr: 0,
-    pendingInvoices: 0,
-    totalInvoiced: 0,
-    paidRate: 0
-  });
-  const [revenueHistory, setRevenueHistory] = useState<{ month: string; amount: number }[]>([]);
-  const [planSummary, setPlanSummary] = useState<{ name: string; count: number; percent: number }[]>([]);
-
-  const checkAuthAndFetchData = async () => {
+  const load = useCallback(async (cur: string) => {
     setLoading(true);
+    setError(null);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
-
-      // 1. Auth check
-      const authRes = await fetch(`${API_BASE}/auth/check`, { credentials: 'include', headers });
-      if (!authRes.ok) {
-        router.push('/admin/login');
-        return;
-      }
-      const authData = await authRes.json();
-      if (authData.role !== 'super_admin') {
-        router.push('/admin/subscription');
-        return;
-      }
-
-      // 2. Fetch Dashboard metrics
-      const [tenantsRes, requestsRes, invoicesRes, packagesRes, paymentsRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/tenants`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/requests`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/billing/list`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/packages`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/billing/payments/all`, { credentials: 'include', headers })
-      ]);
-
-      const tenantsData = await tenantsRes.json();
-      const requestsData = await requestsRes.json();
-      const invoicesData = await invoicesRes.json();
-      const packagesData = await packagesRes.json();
-      const paymentsData = await paymentsRes.json();
-
-      const tenantsList = tenantsData.data || [];
-      const requestsList = requestsData.data || [];
-      const invoicesList = invoicesData.data || [];
-      const packagesList = packagesData.data || [];
-      const paymentsList = paymentsData.data || [];
-
-      // Save raw data
-      setRawTenants(tenantsList);
-      setRawInvoices(invoicesList);
-      setRawPackages(packagesList);
-      setRawPayments(paymentsList);
-
-      setRecentRequests(requestsList.slice(0, 5));
-      setRecentTenants(tenantsList.slice(0, 5));
-    } catch (err) {
-      console.error('Dashboard initialization failed', err);
-      router.push('/admin/login');
+      const res = await adminFetch(`/admin/dashboard/summary?currency=${cur}`);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || body.status !== 'success') throw new Error(body.message || 'Could not load the dashboard.');
+      setData(body.data);
+      setUpdated(new Date());
+    } catch (e) {
+      setError((e as Error).message);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    checkAuthAndFetchData();
   }, []);
 
-  // Compute stats and trends dynamically when raw data or currency changes
-  useEffect(() => {
-    if (rawTenants.length === 0 && rawInvoices.length === 0) return;
+  useEffect(() => { load(currency); }, [currency, load]);
 
-    // Currency conversion calculator
-    const convertToSelected = (amount: number, fromCurrency: string) => {
-      const from = (fromCurrency || 'USD').toUpperCase();
-      const to = selectedCurrency;
-      if (from === to) return amount;
-      
-      if (from === 'USD' && to === 'LKR') return amount * 300;
-      if (from === 'LKR' && to === 'USD') return amount / 300;
-      if (from === 'EUR' && to === 'LKR') return amount * 330;
-      if (from === 'LKR' && to === 'EUR') return amount / 330;
-      if (from === 'EUR' && to === 'USD') return amount * 1.1;
-      if (from === 'USD' && to === 'EUR') return amount / 1.1;
-      return amount;
-    };
-
-    const pendingReqs = recentRequests.filter((r: any) => r.status === 'Pending').length;
-    const activeTen = rawTenants.filter((t: any) => t.status === 'Active').length;
-
-    // Calculate MRR projection
-    const calculatedMRR = rawTenants.reduce((acc: number, t: any) => {
-      if (t.status === 'Active' || t.status === 'Trial') {
-        const pkg = rawPackages.find((p: any) => p.id == t.package_id);
-        const price = parseFloat(pkg?.monthly_price || 0);
-        return acc + convertToSelected(price, t.currency || 'USD');
-      }
-      return acc;
-    }, 0);
-
-    const pendingInvs = rawInvoices.filter((i: any) => i.status !== 'Paid').length;
-    const totalInvVal = rawInvoices.reduce((acc: number, i: any) => acc + convertToSelected(parseFloat(i.amount || 0), i.currency), 0);
-    const paidInvVal = rawInvoices.filter((i: any) => i.status === 'Paid').reduce((acc: number, i: any) => acc + convertToSelected(parseFloat(i.amount || 0), i.currency), 0);
-    const invoicePaidRate = totalInvVal > 0 ? Math.round((paidInvVal / totalInvVal) * 100) : 0;
-
-    setStats({
-      pendingRequests: pendingReqs,
-      activeTenants: activeTen,
-      mrr: calculatedMRR,
-      pendingInvoices: pendingInvs,
-      totalInvoiced: totalInvVal,
-      paidRate: invoicePaidRate
-    });
-
-    // Calculate monthly revenue collections trend (last 6 months)
-    const monthlyData: Record<string, number> = {};
-    rawPayments.forEach((p: any) => {
-      const date = new Date(p.created_at);
-      const monthYear = date.toLocaleString('default', { month: 'short' });
-      const convertedAmt = convertToSelected(parseFloat(p.amount || 0), p.currency);
-      monthlyData[monthYear] = (monthlyData[monthYear] || 0) + convertedAmt;
-    });
-
-    const monthsOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const currentMonthIdx = new Date().getMonth();
-    const last6Months = Array.from({ length: 6 }, (_, i) => {
-      const idx = (currentMonthIdx - 5 + i + 12) % 12;
-      const m = monthsOrder[idx];
-      return { month: m, amount: monthlyData[m] || 0 };
-    });
-
-    setRevenueHistory(last6Months);
-
-    // Package distributions
-    const planCounts = rawPackages.map((pkg: any) => {
-      const count = rawTenants.filter((t: any) => t.package_id == pkg.id).length;
-      const pct = rawTenants.length > 0 ? Math.round((count / rawTenants.length) * 100) : 0;
-      return { name: pkg.name, count, percent: pct };
-    }).filter((p: any) => p.count > 0).sort((a: any, b: any) => b.count - a.count);
-
-    setPlanSummary(planCounts);
-
-  }, [selectedCurrency, rawTenants, rawInvoices, rawPackages, rawPayments, recentRequests]);
-
-  // Generate SVG path for line/area graph
-  const getGraphPaths = () => {
-    const width = 1000;
-    const height = 180;
-    const padding = 35;
-    
-    if (revenueHistory.length === 0) return { line: '', area: '', points: [] };
-    
-    const maxVal = Math.max(...revenueHistory.map(d => d.amount), 5000);
-    const minVal = 0;
-    
-    const points = revenueHistory.map((d, i) => {
-      const x = padding + (i * (width - 2 * padding)) / (revenueHistory.length - 1);
-      const y = height - padding - ((d.amount - minVal) * (height - 2 * padding)) / (maxVal - minVal);
-      return { x, y, val: d.amount, month: d.month };
-    });
-    
-    let linePath = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      const cpX1 = points[i - 1].x + (points[i].x - points[i - 1].x) / 2;
-      const cpY1 = points[i - 1].y;
-      const cpX2 = points[i - 1].x + (points[i].x - points[i - 1].x) / 2;
-      const cpY2 = points[i].y;
-      linePath += ` C ${cpX1} ${cpY1}, ${cpX2} ${cpY2}, ${points[i].x} ${points[i].y}`;
-    }
-    
-    const areaPath = `${linePath} L ${points[points.length - 1].x} ${height - padding} L ${points[0].x} ${height - padding} Z`;
-    
-    return { line: linePath, area: areaPath, points };
-  };
-
-  const { line, area, points } = getGraphPaths();
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f8] dark:bg-[#09090b]">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-[#e4e4e7] border-t-[#6366f1]" />
-          <span className="text-[13px] text-[#a1a1aa] font-medium font-sans">Assembling operational analytics…</span>
-        </div>
-      </div>
-    );
-  }
+  const k = data?.kpis;
+  const cur = data?.base_currency ?? currency;
+  const monthTotal = useMemo(() => data?.collections_monthly.reduce((a, b) => a + b.amount, 0) ?? 0, [data]);
 
   return (
-    <div className="p-6 space-y-6 w-full">
-      
-      {/* Header section */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-[#09090b] dark:text-white flex items-center gap-2">
-            <ShieldCheck size={18} className="text-[#6366f1]" /> Operations Hub & Analytics
-          </h1>
-          <p className="mt-0.5 text-[13px] text-[#71717a] dark:text-[#a1a1aa]">Real-time system telemetry, collections trends, and registration funnels</p>
+          <h1 className="text-xl font-semibold tracking-tight text-nx-ink dark:text-white">Overview</h1>
+          <p className="mt-1 text-sm text-nx-text-muted dark:text-nx-text-subtle">
+            Platform health, recurring revenue and collections
+            {updated && <span className="ml-2 text-xs text-nx-text-subtle">· updated {updated.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' })}</span>}
+          </p>
         </div>
-        
         <div className="flex items-center gap-2">
-          {/* Dashboard Currency selector */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-[#e4e4e7] bg-white px-2.5 py-1.5 dark:border-[#27272a] dark:bg-[#18181b]">
-            <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa]">Currency:</span>
-            <select 
-              value={selectedCurrency} 
-              onChange={e => setSelectedCurrency(e.target.value as any)}
-              className="bg-transparent text-[12px] font-semibold text-[#09090b] dark:text-white outline-none cursor-pointer"
-            >
-              <option value="LKR">LKR (Rs)</option>
-              <option value="USD">USD ($)</option>
-            </select>
-          </div>
-
-          <button 
-            onClick={checkAuthAndFetchData}
-            className="flex items-center gap-1.5 rounded-lg border border-[#e4e4e7] bg-white px-3 py-2 text-[12px] font-semibold text-[#71717a] hover:bg-[#f4f4f5] dark:border-[#27272a] dark:bg-[#18181b] dark:text-[#a1a1aa] dark:hover:bg-[#27272a] transition-all"
-          >
-            <RefreshCcw size={13} /> Synchronize Data
-          </button>
-          <button 
-            onClick={() => router.push('/admin/tenants/create')}
-            className="flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-3.5 py-2 text-[12px] font-semibold text-white hover:bg-[#4f46e5] shadow-sm transition-all"
-          >
-            <Plus size={14} /> Register Instance
+          <label className="sr-only" htmlFor="cur">Display currency</label>
+          <select id="cur" value={currency} onChange={e => setCurrency(e.target.value)}
+            className="rounded-lg border border-nx-line bg-white px-3 py-2 text-sm font-medium text-nx-ink focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white">
+            {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <button onClick={() => load(currency)} aria-label="Refresh" className="rounded-lg border border-nx-line bg-white p-2.5 text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:bg-nx-surface-dark dark:hover:bg-nx-line-dark">
+            <RefreshCcw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
 
-      {/* Analytics widgets */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        
-        {/* Widget 1 */}
-        <div 
-          onClick={() => router.push('/admin/requests')}
-          className="group cursor-pointer rounded-xl border border-[#e4e4e7] bg-white p-5 hover:border-[#6366f1]/40 dark:border-[#27272a] dark:bg-[#18181b] transition-all relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">ERP Inquiries</span>
-            <div className="rounded-lg bg-amber-50 p-2 text-amber-600 dark:bg-amber-950/20 dark:text-amber-400 group-hover:scale-105 transition-transform">
-              <Inbox size={15} />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#09090b] dark:text-white">{stats.pendingRequests}</span>
-            <span className="text-[11px] font-medium text-amber-600">Pending Setup</span>
-          </div>
-          <p className="mt-1 text-[11px] text-[#a1a1aa]">New signups awaiting database generation</p>
+      {error && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-nx-danger/30 bg-nx-danger-soft p-4 text-sm text-nx-danger">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
         </div>
+      )}
 
-        {/* Widget 2 */}
-        <div 
-          onClick={() => router.push('/admin/tenants')}
-          className="group cursor-pointer rounded-xl border border-[#e4e4e7] bg-white p-5 hover:border-[#6366f1]/40 dark:border-[#27272a] dark:bg-[#18181b] transition-all relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Active Instances</span>
-            <div className="rounded-lg bg-green-50 p-2 text-green-600 dark:bg-green-950/20 dark:text-green-400 group-hover:scale-105 transition-transform">
-              <Building size={15} />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#09090b] dark:text-white">{stats.activeTenants}</span>
-            <span className="text-[11px] font-medium text-green-600">Active SaaS Nodes</span>
-          </div>
-          <p className="mt-1 text-[11px] text-[#a1a1aa]">Deployed customer database environments</p>
+      {/* What needs attention right now */}
+      {data && (data.trials.ended > 0 || data.trials.ending_7d > 0 || k!.overdue_count > 0 || k!.pending_requests > 0) && (
+        <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(280px,1fr))]">
+          {data.trials.ended > 0 && <AlertChip tone="danger" href="/admin/tenants?tab=Trial" text={`${data.trials.ended} trial${data.trials.ended === 1 ? '' : 's'} ended and still need a plan`} />}
+          {data.trials.ending_7d > 0 && <AlertChip tone="warning" href="/admin/tenants" text={`${data.trials.ending_7d} trial${data.trials.ending_7d === 1 ? '' : 's'} end within 7 days`} />}
+          {k!.overdue_count > 0 && <AlertChip tone="danger" href="/admin/invoices" text={`${k!.overdue_count} invoice${k!.overdue_count === 1 ? '' : 's'} overdue · ${fmtMoney(k!.overdue, cur)}`} />}
+          {k!.pending_requests > 0 && <AlertChip tone="info" href="/admin/requests" text={`${k!.pending_requests} ERP request${k!.pending_requests === 1 ? '' : 's'} waiting for setup`} />}
         </div>
+      )}
 
-        {/* Widget 3 */}
-        <div 
-          onClick={() => router.push('/admin/reports')}
-          className="group cursor-pointer rounded-xl border border-[#e4e4e7] bg-white p-5 hover:border-[#6366f1]/40 dark:border-[#27272a] dark:bg-[#18181b] transition-all relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Projected MRR</span>
-            <div className="rounded-lg bg-[#6366f1]/5 p-2 text-[#6366f1] dark:bg-[#6366f1]/10 dark:text-[#818cf8] group-hover:scale-105 transition-transform">
-              <CreditCard size={15} />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#09090b] dark:text-white">
-              {selectedCurrency === 'LKR' ? 'Rs' : '$'} {stats.mrr.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-            </span>
-            <span className="text-[11px] font-medium text-[#6366f1] dark:text-[#818cf8]">Monthly Value</span>
-          </div>
-          <p className="mt-1 text-[11px] text-[#a1a1aa]">Aggregated SaaS subscription MRR</p>
-        </div>
-
-        {/* Widget 4 */}
-        <div 
-          onClick={() => router.push('/admin/invoices')}
-          className="group cursor-pointer rounded-xl border border-[#e4e4e7] bg-white p-5 hover:border-[#6366f1]/40 dark:border-[#27272a] dark:bg-[#18181b] transition-all relative overflow-hidden"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider">Outstanding Invoices</span>
-            <div className="rounded-lg bg-red-50 p-2 text-red-600 dark:bg-red-950/20 dark:text-red-400 group-hover:scale-105 transition-transform">
-              <Users size={15} />
-            </div>
-          </div>
-          <div className="mt-4 flex items-baseline gap-2">
-            <span className="text-3xl font-bold tracking-tight text-[#09090b] dark:text-white">{stats.pendingInvoices}</span>
-            <span className="text-[11px] font-medium text-red-600">{stats.paidRate}% Collection Rate</span>
-          </div>
-          <p className="mt-1 text-[11px] text-[#a1a1aa]">Awaiting client payment clearance</p>
-        </div>
-
+      {/* KPIs */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard label="Monthly recurring revenue" icon={Wallet} tone="success"
+          value={data ? fmtMoney(k!.mrr, cur) : '—'}
+          sub={data ? `${fmtMoney(k!.arr, cur)} annualised · active plans only` : 'Loading…'} />
+        <KpiCard label="Active tenants" icon={Users} tone="accent" href="/admin/tenants?tab=Active"
+          value={data ? String(k!.active_tenants) : '—'}
+          sub={data ? `${k!.trial_tenants} on trial · ${k!.suspended_tenants} suspended · ${k!.new_tenants_this_month} new this month` : 'Loading…'} />
+        <KpiCard label="Collected (last 30 days)" icon={Receipt} tone="info"
+          value={data ? fmtMoney(k!.collected_30d, cur) : '—'}
+          sub={data ? `${fmtMoney(monthTotal, cur)} across the last 12 months` : 'Loading…'} />
+        <KpiCard label="Outstanding invoices" icon={Clock} tone={k && k.overdue_count > 0 ? 'danger' : 'warning'} href="/admin/invoices"
+          value={data ? fmtMoney(k!.outstanding, cur) : '—'}
+          sub={data ? `${k!.outstanding_count} open · ${k!.overdue_count} overdue (${fmtMoney(k!.overdue, cur)})` : 'Loading…'} />
       </div>
 
-      {/* Analytical Visualizations Row */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        
-        {/* Revenue Collection Trend Area Chart */}
-        <div className="lg:col-span-2 rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] flex flex-col justify-between space-y-4">
-          <div className="flex items-center justify-between border-b border-[#e4e4e7] dark:border-[#27272a] pb-3">
+      {/* Row 1: revenue trend + tenant health (equal height) */}
+      <div className="grid items-stretch gap-4 xl:grid-cols-3">
+        <section className="flex flex-col rounded-xl border border-nx-line bg-white p-6 xl:col-span-2 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#09090b] dark:text-white flex items-center gap-2">
-                <TrendingUp size={15} className="text-[#6366f1]" /> Monthly Collections Trend
-              </h3>
-              <p className="text-[11px] text-[#a1a1aa]">Aggregated resolved billing payments over time (Normalized to {selectedCurrency})</p>
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-nx-ink dark:text-white"><TrendingUp size={15} className="text-nx-accent" /> Collections, last 12 months</h2>
+              <p className="mt-1 text-xs text-nx-text-muted dark:text-nx-text-subtle">Payments received, converted to {cur} at the current rate</p>
             </div>
-            <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400">
-              Normalized {selectedCurrency} ({selectedCurrency === 'LKR' ? 'Rs' : '$'})
-            </span>
-          </div>
-
-          <div className="w-full relative h-[180px] pt-4">
-            {points.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-[#a1a1aa]">No payment transactions recorded</div>
-            ) : (
-              <svg viewBox="0 0 1000 180" className="w-full h-full overflow-visible" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6366f1" stopOpacity="0.25" />
-                    <stop offset="100%" stopColor="#6366f1" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Horizontal gridlines */}
-                {[0, 1, 2, 3].map((g) => {
-                  const y = 30 + g * 40;
-                  return (
-                    <line key={g} x1="30" y1={y} x2="970" y2={y} stroke="#e4e4e7" strokeDasharray="3 3" className="dark:stroke-[#27272a]" />
-                  );
-                })}
-
-                {/* Draw area filled with gradient */}
-                <path d={area} fill="url(#areaGrad)" />
-
-                {/* Draw line */}
-                <path d={line} fill="none" stroke="#6366f1" strokeWidth="2.5" />
-
-                {/* Markers / Circles on points */}
-                {points.map((pt, i) => (
-                  <g key={i}>
-                    <circle cx={pt.x} cy={pt.y} r="4.5" fill="#6366f1" stroke="#ffffff" strokeWidth="1.5" className="dark:stroke-[#18181b]" />
-                    {/* Month labels */}
-                    <text x={pt.x} y="172" textAnchor="middle" fontSize="10" fontWeight="600" className="fill-[#a1a1aa] font-sans">
-                      {pt.month}
-                    </text>
-                    {/* Amount labels above points */}
-                    <text x={pt.x} y={pt.y - 8} textAnchor="middle" fontSize="9" fontWeight="700" className="fill-[#09090b] dark:fill-white font-mono">
-                      {selectedCurrency === 'LKR' ? 'Rs' : '$'}{pt.val.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </text>
-                  </g>
-                ))}
-              </svg>
-            )}
-          </div>
-        </div>
-
-        {/* Plan subscription Breakdown */}
-        <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
-          <div className="border-b border-[#e4e4e7] dark:border-[#27272a] pb-3">
-            <h3 className="text-sm font-semibold text-[#09090b] dark:text-white flex items-center gap-2">
-              <PieChart size={15} className="text-[#6366f1]" /> Package Distribution
-            </h3>
-            <p className="text-[11px] text-[#a1a1aa]">Allocation of instances against billing plans</p>
-          </div>
-
-          <div className="space-y-4 pt-2">
-            {planSummary.length === 0 ? (
-              <p className="text-xs text-center text-[#a1a1aa] py-12">No active plans detected.</p>
-            ) : (
-              planSummary.map((p, i) => (
-                <div key={i} className="space-y-1.5">
-                  <div className="flex justify-between items-center text-[12px] font-medium">
-                    <span className="text-[#09090b] dark:text-white">{p.name}</span>
-                    <span className="text-[#71717a] dark:text-[#a1a1aa]">{p.count} Nodes ({p.percent}%)</span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-[#f4f4f5] dark:bg-[#27272a] overflow-hidden">
-                    <div 
-                      className={`h-full rounded-full ${
-                        i === 0 ? 'bg-[#6366f1]' : 
-                        i === 1 ? 'bg-emerald-500' : 'bg-amber-500'
-                      }`}
-                      style={{ width: `${p.percent}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-      </div>
-
-      {/* Split view for recent requests & activity */}
-      <div className="grid gap-6 md:grid-cols-2">
-        
-        {/* Recent requests list */}
-        <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
-          <div className="flex items-center justify-between border-b border-[#e4e4e7] dark:border-[#27272a] pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Recent ERP Inquiries</h3>
-              <p className="text-[11px] text-[#a1a1aa]">Latest registration signals from market portals</p>
-            </div>
-            <button 
-              onClick={() => router.push('/admin/requests')} 
-              className="text-[11px] font-semibold text-[#6366f1] hover:text-[#4f46e5] dark:text-[#818cf8] flex items-center gap-1 transition-all"
-            >
-              See all <ArrowUpRight size={12} />
-            </button>
-          </div>
-
-          <div className="divide-y divide-[#f4f4f5] dark:divide-[#27272a]">
-            {recentRequests.length === 0 ? (
-              <p className="py-6 text-center text-xs text-[#a1a1aa]">No recent ERP requests logged.</p>
-            ) : recentRequests.map((req) => (
-              <div key={req.id} className="py-3 flex items-center justify-between text-[13px]">
-                <div className="space-y-0.5">
-                  <span className="font-medium text-[#09090b] dark:text-white">{req.company_name}</span>
-                  <div className="text-[10px] text-[#a1a1aa] flex items-center gap-1.5">
-                    <span>{req.email}</span>
-                    <span>·</span>
-                    <span>{req.contact_number || 'No contact'}</span>
-                  </div>
-                </div>
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                  req.status === 'Approved' ? 'bg-green-50 text-green-700 dark:bg-green-950/20 dark:text-green-400' :
-                  req.status === 'Rejected' ? 'bg-red-50 text-red-700 dark:bg-red-950/20 dark:text-red-400' :
-                  'bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400'
-                }`}>
-                  {req.status}
-                </span>
+            <div className="flex gap-6 text-right">
+              <div>
+                <div className="text-[11px] text-nx-text-subtle">Total</div>
+                <div className="text-lg font-semibold tabular-nums text-nx-ink dark:text-white">{data ? fmtMoney(monthTotal, cur) : '—'}</div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Recent tenants activity list */}
-        <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
-          <div className="flex items-center justify-between border-b border-[#e4e4e7] dark:border-[#27272a] pb-3">
-            <div>
-              <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Recent Tenant Directories</h3>
-              <p className="text-[11px] text-[#a1a1aa]">Latest SaaS system configurations deployed</p>
+              <div>
+                <div className="text-[11px] text-nx-text-subtle">Collection rate (6 mo)</div>
+                <div className="text-lg font-semibold tabular-nums text-nx-ink dark:text-white">{k?.collection_rate_6m != null ? `${k.collection_rate_6m}%` : '—'}</div>
+              </div>
             </div>
-            <button 
-              onClick={() => router.push('/admin/tenants')} 
-              className="text-[11px] font-semibold text-[#6366f1] hover:text-[#4f46e5] dark:text-[#818cf8] flex items-center gap-1 transition-all"
-            >
-              See all <ArrowUpRight size={12} />
-            </button>
           </div>
-
-          <div className="divide-y divide-[#f4f4f5] dark:divide-[#27272a]">
-            {recentTenants.length === 0 ? (
-              <p className="py-6 text-center text-xs text-[#a1a1aa]">No active nodes deployed yet.</p>
-            ) : (
-              recentTenants.map((ten) => (
-                <div key={ten.id} className="py-3 flex items-center justify-between text-[13px]">
-                  <div className="space-y-0.5">
-                    <span className="font-medium text-[#09090b] dark:text-white">{ten.name}</span>
-                    <div className="text-[10px] text-[#a1a1aa]">
-                      <code>{ten.slug}.nexus.io</code> · Created {new Date(ten.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                    ten.status === 'Active' ? 'border-green-200 bg-green-50 text-green-700' : 'border-amber-200 bg-amber-50 text-amber-700'
-                  }`}>
-                    {ten.status}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
+          {data ? (
+            monthTotal > 0 ? <CollectionsChart data={data.collections_monthly} currency={cur} /> : (
+              <div className="flex h-72 flex-col items-center justify-center rounded-lg border border-dashed border-nx-line text-center dark:border-nx-line-dark">
+                <p className="text-sm font-medium text-nx-ink dark:text-white">No payments recorded yet</p>
+                <p className="mt-1 text-xs text-nx-text-subtle">Payments appear here once invoices are settled.</p>
+              </div>
+            )
+          ) : <div className="h-72 animate-pulse rounded-lg bg-nx-surface-muted dark:bg-nx-line-dark" />}
+        </section>
+        <section className="flex flex-col rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+            <h2 className="text-sm font-semibold text-nx-ink dark:text-white">Tenant health</h2>
+            <p className="mt-0.5 mb-5 text-xs text-nx-text-muted dark:text-nx-text-subtle">Every tenant by lifecycle state</p>
+            {data ? <TenantHealth k={k!} /> : <div className="h-40 animate-pulse rounded-lg bg-nx-surface-muted dark:bg-nx-line-dark" />}
+          </section>
       </div>
 
+      {/* Row 2: newest tenants + plan mix */}
+      <div className="grid items-start gap-4 xl:grid-cols-3">
+        <section className="overflow-hidden rounded-xl border xl:col-span-2 border-nx-line bg-white dark:border-nx-line-dark dark:bg-nx-surface-dark">
+        <div className="flex items-center justify-between border-b border-nx-line px-5 py-4 dark:border-nx-line-dark">
+          <div>
+            <h2 className="text-sm font-semibold text-nx-ink dark:text-white">Recently registered</h2>
+            <p className="text-xs text-nx-text-muted dark:text-nx-text-subtle">Newest six tenants</p>
+          </div>
+          <Link href="/admin/tenants" className="flex items-center gap-1 text-xs font-semibold text-nx-accent hover:underline">All tenants <ArrowRight size={13} /></Link>
+        </div>
+        {data && data.recent_tenants.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-5 py-12 text-center">
+            <Inbox size={22} className="text-nx-text-subtle" />
+            <p className="text-sm font-medium text-nx-ink dark:text-white">No tenants yet</p>
+            <Link href="/admin/tenants/create" className="text-xs font-semibold text-nx-accent hover:underline">Register the first tenant</Link>
+          </div>
+        ) : (
+          <table className="w-full text-left text-sm">
+            <thead className="text-[11px] uppercase tracking-wider text-nx-text-subtle">
+              <tr className="border-b border-nx-line dark:border-nx-line-dark">
+                <th className="px-5 py-2.5 font-semibold">Tenant</th>
+                <th className="px-5 py-2.5 font-semibold">Plan</th>
+                <th className="px-5 py-2.5 font-semibold">Status</th>
+                <th className="px-5 py-2.5 font-semibold">Registered</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-nx-surface-muted dark:divide-nx-line-dark">
+              {(data?.recent_tenants ?? []).map(t => (
+                <tr key={t.id} onClick={() => router.push(`/admin/tenants/edit/${t.id}`)} className="cursor-pointer hover:bg-nx-surface-soft dark:hover:bg-nx-surface-dark-2">
+                  <td className="px-5 py-3">
+                    <div className="font-medium text-nx-ink dark:text-white">{t.name}</div>
+                    <div className="font-mono text-[11px] text-nx-text-subtle">{t.slug}</div>
+                  </td>
+                  <td className="px-5 py-3 text-nx-text-muted dark:text-nx-text-subtle">{t.package ?? '—'}</td>
+                  <td className="px-5 py-3">
+                    <span className={`inline-flex rounded-full border px-2.5 py-0.5 text-xs font-medium ${STATUS_PILL[t.status] ?? 'border-nx-line text-nx-text-muted'}`}>{t.status}</span>
+                  </td>
+                  <td className="px-5 py-3 text-nx-text-muted dark:text-nx-text-subtle">{t.created_at?.slice(0, 10)}</td>
+                </tr>
+              ))}
+              {!data && <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-nx-text-subtle">Loading…</td></tr>}
+            </tbody>
+          </table>
+        )}
+      </section>
+        <section className="rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+            <h2 className="text-sm font-semibold text-nx-ink dark:text-white">Plan mix</h2>
+            <p className="mt-0.5 mb-5 text-xs text-nx-text-muted dark:text-nx-text-subtle">Active and trial tenants by package</p>
+            {data && data.packages.length > 0 ? <PlanMix packages={data.packages} /> : <p className="text-sm text-nx-text-subtle">{data ? 'No live tenants yet.' : 'Loading…'}</p>}
+          </section>
+      </div>
+
+      {/* Method notes: every figure here has a stated definition */}
+      {data && (
+        <details className="rounded-xl border border-nx-line bg-white p-4 text-xs text-nx-text-muted dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-nx-text-subtle">
+          <summary className="cursor-pointer font-medium text-nx-ink dark:text-white">How these numbers are calculated</summary>
+          <ul className="mt-3 list-disc space-y-1 pl-5">
+            {data.assumptions.map(a => <li key={a}>{a}</li>)}
+          </ul>
+          {data.missing_rates.length > 0 && (
+            <p role="alert" className="mt-3 font-medium text-nx-warning">
+              Exchange rate missing for {data.missing_rates.join(', ')}. Those amounts are counted as 0 until the rate is synced in Rates.
+            </p>
+          )}
+        </details>
+      )}
     </div>
   );
 }

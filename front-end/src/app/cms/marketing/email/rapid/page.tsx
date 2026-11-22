@@ -114,6 +114,7 @@ export default function RapidSendPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Customers</SelectItem>
+                    <SelectItem value="subscribers">Newsletter Subscribers</SelectItem>
                     {segments.map(s => <SelectItem key={s.id} value={s.id.toString()}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>

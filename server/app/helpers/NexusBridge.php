@@ -103,7 +103,7 @@ class NexusBridge {
     private function cacheLicense($data) {
         // For simplicity, we use a local file cache. 
         // In production, this should be in the database or Redis.
-        $cachePath = APPROOT . '/scratch/license_cache.json';
+        $cachePath = class_exists('Tenancy', false) ? Tenancy::scratchPath('license_cache.json') : APPROOT . '/scratch/license_cache.json';
         file_put_contents($cachePath, json_encode([
             'timestamp' => time(),
             'data' => $data
@@ -111,7 +111,7 @@ class NexusBridge {
     }
 
     private function getCachedLicense() {
-        $cachePath = APPROOT . '/scratch/license_cache.json';
+        $cachePath = class_exists('Tenancy', false) ? Tenancy::scratchPath('license_cache.json') : APPROOT . '/scratch/license_cache.json';
         if (file_exists($cachePath)) {
             $cache = json_decode(file_get_contents($cachePath), true);
             // Cache valid for 1 hour

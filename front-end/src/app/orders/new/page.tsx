@@ -530,7 +530,7 @@ export default function NewOrderPage() {
                           <ChevronsUpDown className="w-4 h-4 opacity-70" />
                         </Button>
                       </PopoverTrigger>
-                      <PopoverContent align="start" className="w-[460px] p-3 shadow-xl border border-muted/40 rounded-xl">
+                      <PopoverContent align="start" className="w-[460px] p-3 border border-muted/40">
                         <div className="flex items-center gap-2 pb-3">
                           <div className="relative flex-1">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

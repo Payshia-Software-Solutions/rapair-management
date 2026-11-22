@@ -81,8 +81,9 @@ export function SearchableSelect({
 
         <PopoverContent 
           align="start" 
-          sideOffset={12} 
-          className={cn("p-0 w-[--radix-popover-trigger-width] z-[100000] shadow-2xl bg-white dark:bg-slate-900", contentClassName)}
+          sideOffset={6}
+          collisionPadding={8}
+          className={cn("p-0 w-[max(var(--radix-popover-trigger-width),18rem)] max-w-[calc(100vw-1rem)] z-[100000] shadow-lg bg-popover text-popover-foreground", contentClassName)}
           style={{ pointerEvents: 'auto' }}
           disablePortal={disablePortal}
           onWheel={(e) => e.stopPropagation()}
@@ -135,8 +136,8 @@ export function SearchableSelect({
                       key={o.value}
                       type="button"
                       className={cn(
-                        "w-full text-left flex items-center gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted transition-colors",
-                        "text-slate-900 dark:text-slate-100 font-bold",
+                        "w-full text-left flex items-start gap-2 px-2 py-2 rounded-md text-sm hover:bg-muted transition-colors",
+                        "text-foreground",
                         isSelected ? "bg-muted" : ""
                       )}
                       onPointerDown={(e) => e.stopPropagation()}
@@ -148,10 +149,10 @@ export function SearchableSelect({
                         setQuery("");
                       }}
                     >
-                      <span className={cn("h-4 w-4 shrink-0", isSelected ? "text-primary" : "text-transparent")}>
+                      <span className={cn("h-4 w-4 shrink-0 mt-0.5", isSelected ? "text-primary" : "text-transparent")}>
                         <Check className="h-4 w-4" />
                       </span>
-                      <span className="truncate text-slate-900 dark:text-white">{o.label}</span>
+                      <span className="min-w-0 break-words leading-snug">{o.label}</span>
                     </button>
                   );
                 })

@@ -22,7 +22,7 @@ class Customer extends Model {
     public function getEcommerceCustomers() {
         $this->db->query("
             SELECT c.*, 
-                   (SELECT COUNT(*) FROM storefront_orders o WHERE o.customer_id = c.id) as total_store_orders
+                   (SELECT COUNT(*) FROM online_orders o WHERE o.customer_id = c.id) as total_store_orders
             FROM {$this->table} c 
             WHERE c.is_ecommerce_user = 1
             ORDER BY c.name ASC

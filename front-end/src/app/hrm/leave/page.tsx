@@ -255,7 +255,7 @@ export default function LeavePage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[450px] bg-card text-foreground border-muted/20 shadow-2xl">
+        <DialogContent className="sm:max-w-[450px] bg-card text-foreground border-muted/20">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Clock className="w-5 h-5 text-primary" />

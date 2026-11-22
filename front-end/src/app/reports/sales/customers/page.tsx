@@ -79,12 +79,11 @@ export default function CustomerSalesReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Customer Sales Report"
       subtitle="Sales performance and outstanding balances by customer"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

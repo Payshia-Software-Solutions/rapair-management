@@ -60,7 +60,27 @@ class StockcountController extends Controller {
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
                 'details' => json_encode(['line_count' => is_array($data['items'] ?? null) ? count($data['items']) : 0]),
             ]);
-            $this->success(['id' => (int)$res], 'Stock count sheet created');
+            // Approval workflow: the count waits in My Approvals; the last approval applies it.
+            require_once '../app/helpers/Approval.php';
+            $approval = null;
+            if (Approval::isEnabled('stock_count')) {
+                $db = new Database();
+                $db->query("SELECT sc.count_number, sc.location_id,
+                                   COALESCE(SUM(ABS(i.variance) * COALESCE(p.cost_price, 0)), 0) AS value,
+                                   COUNT(i.id) AS lines
+                            FROM stock_counts sc
+                            LEFT JOIN stock_count_items i ON i.stock_count_id = sc.id
+                            LEFT JOIN parts p ON p.id = i.part_id
+                            WHERE sc.id = :id GROUP BY sc.id");
+                $db->bind(':id', (int)$res);
+                $h = $db->single();
+                $approval = Approval::submit('stock_count', (int)$res, [
+                    'doc_no' => $h->count_number ?? null, 'amount' => (float)($h->value ?? 0), 'location_id' => (int)($h->location_id ?? 0),
+                    'summary' => 'Stock count, ' . (int)($h->lines ?? 0) . ' line(s); variance value LKR ' . number_format((float)($h->value ?? 0), 2),
+                ], (int)$u['sub']);
+            }
+            $this->success(['id' => (int)$res, 'approval' => $approval['status'] ?? null],
+                ($approval && $approval['status'] === 'Pending') ? 'Stock count saved and sent for approval (' . $approval['level'] . ')' : 'Stock count sheet created');
         }
         $this->error('Failed to create stock count', 400);
     }
@@ -69,6 +89,11 @@ class StockcountController extends Controller {
         $u = $this->requirePermission('stock.adjust');
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Count ID required', 400);
+        // With approvals on, counts are approved/rejected in My Approvals (which applies them).
+        require_once '../app/helpers/Approval.php';
+        if (Approval::isEnabled('stock_count') && ($ar = Approval::forDocument('stock_count', (int)$id)) && $ar->status === 'Pending') {
+            $this->error('This count is waiting in My Approvals. Approve or reject it there.', 409);
+        }
         $res = $this->model->approve($id, (int)$u['sub']);
         if (is_array($res) && isset($res['error'])) {
             $this->error($res['error'], 400);
@@ -95,6 +120,11 @@ class StockcountController extends Controller {
         $u = $this->requirePermission('stock.adjust');
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') $this->error('Method Not Allowed', 405);
         if (!$id) $this->error('Count ID required', 400);
+        // With approvals on, counts are approved/rejected in My Approvals (which applies them).
+        require_once '../app/helpers/Approval.php';
+        if (Approval::isEnabled('stock_count') && ($ar = Approval::forDocument('stock_count', (int)$id)) && $ar->status === 'Pending') {
+            $this->error('This count is waiting in My Approvals. Approve or reject it there.', 409);
+        }
         $res = $this->model->reject($id, (int)$u['sub']);
         if (is_array($res) && isset($res['error'])) {
             $this->error($res['error'], 400);

@@ -1,5 +1,6 @@
 "use client";
 
+import { readPermsCache } from "@/lib/session";
 import { useState, useEffect } from "react";
 
 export function usePermissions() {
@@ -24,10 +25,9 @@ export function usePermissions() {
           }
         }
 
-        const cached = window.localStorage.getItem("perms_cache");
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) {
+        const parsed = readPermsCache();
+        if (parsed) {
+          {
             setPermissions(parsed);
             if (parsed.includes("*")) {
               setIsAdmin(true);

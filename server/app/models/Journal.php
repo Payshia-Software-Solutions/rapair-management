@@ -82,6 +82,33 @@ class Journal extends Model {
      *   ]
      * ]
      */
+    /** Source table holding location_id for each journal ref type. */
+    const LOCATION_SOURCES = [
+        'Invoice' => 'invoices', 'CogsCorrection' => 'invoices', 'Payment' => 'invoices',
+        'PaymentReceipt' => 'payment_receipts', 'Refund' => 'refunds', 'SalesReturn' => 'sales_returns',
+        'GRN' => 'goods_receive_notes', 'StockMovement' => 'stock_movements', 'Adjustment' => 'stock_adjustments',
+        'IssueNote' => 'issue_notes', 'ProductionOrder' => 'production_orders',
+    ];
+
+    /** Branch an entry belongs to, from its source document (null when the document has none). */
+    public function resolveLocation($refType, $refId) {
+        if (!$refId) return null;
+        if ($refType === 'Reclass') {
+            $this->db->query("SELECT location_id FROM {$this->table_entries} WHERE id = :id");
+            $this->db->bind(':id', (int)$refId);
+            $r = $this->db->single();
+            return $r && $r->location_id ? (int)$r->location_id : null;
+        }
+        $table = self::LOCATION_SOURCES[$refType] ?? null;
+        if (!$table) return null;
+        try {
+            $this->db->query("SELECT location_id FROM $table WHERE id = :id");
+            $this->db->bind(':id', (int)$refId);
+            $r = $this->db->single();
+            return $r && $r->location_id ? (int)$r->location_id : null;
+        } catch (Exception $e) { return null; }
+    }
+
     public function post($data) {
         $items = $data['items'] ?? [];
         if (empty($items)) return false;
@@ -99,6 +126,13 @@ class Journal extends Model {
             return false;
         }
 
+        // Only ledger (level 4) accounts take postings; groups are for reporting
+        $accIds = array_values(array_unique(array_map(fn($i) => (int)($i['account_id'] ?? 0), $items)));
+        if (in_array(0, $accIds, true)) { error_log("Journal Posting Error: line without an account"); return false; }
+        $this->db->query("SELECT code FROM acc_accounts WHERE is_group = 1 AND id IN (" . implode(',', $accIds) . ")");
+        try { $grp = $this->db->resultSet(); } catch (Exception $e) { $grp = []; } // before the hierarchy upgrade
+        if ($grp) { error_log("Journal Posting Error: group account(s) " . implode(',', array_map(fn($g) => $g->code, $grp)) . " can't be posted to"); return false; }
+
         // 1. Date Locking Validation (Prevent posting to closed periods)
         $dateStr = $data['entry_date'] ?? date('Y-m-d');
         $this->db->query("
@@ -113,12 +147,13 @@ class Journal extends Model {
             return false;
         }
 
+        $loc = isset($data['location_id']) ? null : $this->resolveLocation($data['ref_type'] ?? null, $data['ref_id'] ?? null);
         try {
             $this->db->beginTransaction();
 
             $this->db->query("
-                INSERT INTO {$this->table_entries} (entry_date, description, ref_type, ref_id, total_amount, created_by)
-                VALUES (:date, :desc, :ref_t, :ref_i, :total, :user)
+                INSERT INTO {$this->table_entries} (entry_date, description, ref_type, ref_id, total_amount, created_by, location_id)
+                VALUES (:date, :desc, :ref_t, :ref_i, :total, :user, :loc)
             ");
             $this->db->bind(':date', $data['entry_date'] ?? date('Y-m-d'));
             $this->db->bind(':desc', $data['description'] ?? '');
@@ -126,6 +161,7 @@ class Journal extends Model {
             $this->db->bind(':ref_i', $data['ref_id'] ?? null);
             $this->db->bind(':total', $totalDebit);
             $this->db->bind(':user', $data['userId'] ?? null);
+            $this->db->bind(':loc', isset($data['location_id']) ? (int)$data['location_id'] : $loc);
             $this->db->execute();
             
             $entryId = $this->db->lastInsertId();
@@ -222,6 +258,58 @@ class Journal extends Model {
      * Reverses all journal entries associated with a reference.
      * Creates new entries with Debits and Credits swapped.
      */
+    /**
+     * Reverse ONE journal entry (swap debit/credit), once. Already-reversed is detected by the
+     * reversal's line notes ("Reversal of entry #ID"), so entries with the same description
+     * (e.g. two payments on one invoice) are each reversed correctly.
+     */
+    public function reverseEntryById($entryId, $userId) {
+        $this->db->query("SELECT * FROM {$this->table_entries} WHERE id = :id");
+        $this->db->bind(':id', (int)$entryId);
+        $entry = $this->db->single();
+        if (!$entry || strpos((string)$entry->description, 'REVERSAL:') === 0) return true;
+        $this->db->query("SELECT COUNT(*) AS n FROM {$this->table_items} WHERE notes = :n");
+        $this->db->bind(':n', 'Reversal of entry #' . $entry->id);
+        if ((int)($this->db->single()->n ?? 0) > 0) return true;
+
+        $items = [];
+        foreach ($this->getEntryItems($entry->id) as $item) {
+            $items[] = [
+                'account_id' => $item->account_id,
+                'debit' => $item->credit,
+                'credit' => $item->debit,
+                'partner_type' => $item->partner_type,
+                'partner_id' => $item->partner_id,
+                'notes' => 'Reversal of entry #' . $entry->id,
+            ];
+        }
+        if (!$items) return true;
+        $ok = (bool)$this->post([
+            'entry_date' => date('Y-m-d'),
+            'description' => 'REVERSAL: ' . $entry->description,
+            'ref_type' => $entry->ref_type,
+            'ref_id' => $entry->ref_id,
+            'userId' => $userId,
+            'items' => $items,
+        ]);
+        // Reclassifications of this entry (e.g. tax split into VAT/SSCL) are undone with it
+        if ($ok && $entry->ref_type !== 'Reclass') {
+            $this->db->query("SELECT id FROM {$this->table_entries} WHERE ref_type = 'Reclass' AND ref_id = :id AND description NOT LIKE 'REVERSAL:%'");
+            $this->db->bind(':id', (int)$entry->id);
+            foreach ($this->db->resultSet() ?: [] as $rc) $this->reverseEntryById($rc->id, $userId);
+        }
+        return $ok;
+    }
+
+    /** Reverse every (not yet reversed) entry of a reference, one by one. */
+    public function reverseAllForRef($refType, $refId, $userId) {
+        $ok = true;
+        foreach ($this->getEntries(['ref_type' => $refType, 'ref_id' => $refId]) ?: [] as $e) {
+            if (!$this->reverseEntryById($e->id, $userId)) $ok = false;
+        }
+        return $ok;
+    }
+
     public function reverseEntries($refType, $refId, $userId) {
         $entries = $this->getEntries([
             'ref_type' => $refType,

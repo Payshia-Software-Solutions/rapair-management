@@ -11,6 +11,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { currentUserId } from "@/lib/session";
 
 export const OrderTypeSelector: React.FC = () => {
     const { 
@@ -35,7 +36,9 @@ export const OrderTypeSelector: React.FC = () => {
         setGuestPrintSelectionOpen,
         setGuestPrintOrderId,
         setDayLedger,
-        setLoadingLedger
+        setLoadingLedger,
+      printKOT,
+      canCheckout
     } = usePOS();
 
     const [step, setStep] = useState<'choice' | 'mode' | 'table' | 'steward' | 'held'>('choice');
@@ -89,18 +92,26 @@ export const OrderTypeSelector: React.FC = () => {
 
     const handleSelectTable = (table: any) => {
         setLocalTable(table);
+        // Stewards always serve their own tables: assign them and skip the steward list
+        if (!canCheckout) {
+            const me = currentUserId();
+            finalizeDineIn(table, me || 'none');
+            return;
+        }
         setStep('steward');
     };
 
-    const handleFinalizeDineIn = (stewardId: any) => {
+    const handleFinalizeDineIn = (stewardId: any) => finalizeDineIn(localTable, stewardId);
+
+    function finalizeDineIn(table: any, stewardId: any) {
         setOrderType('dine_in');
-        setSelectedTable(localTable ? String(localTable.id) : null);
+        setSelectedTable(table ? String(table.id) : null);
         setSelectedSteward(stewardId === 'none' ? null : stewardId);
         setOrderTypeDialogOpen(false);
         setStep('choice'); 
         setLocalTable(null);
         setLocalSteward("none");
-    };
+    }
 
     return (
         <Dialog 
@@ -111,12 +122,12 @@ export const OrderTypeSelector: React.FC = () => {
                 if (!val) setStep('choice');
             }}
         >
-            <DialogContent 
+            <DialogContent size="lg" 
                 onInteractOutside={(e) => { if (!orderType) e.preventDefault(); }}
                 onEscapeKeyDown={(e) => { if (!orderType) e.preventDefault(); }}
-                className="w-full sm:max-w-2xl h-[100dvh] sm:h-auto sm:max-h-[90vh] p-0 flex flex-col overflow-hidden border-none shadow-2xl rounded-none sm:rounded-[2rem] bg-white dark:bg-slate-950"
+                className="p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg"
             >
-                <div className="p-8 pb-4 border-b border-slate-50 dark:border-slate-900 bg-white/50 dark:bg-slate-950/50 backdrop-blur-xl">
+                <div className="pl-5 pr-14 pt-5 pb-3 border-b border-border shrink-0">
                     <DialogHeader>
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
@@ -129,7 +140,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     </button>
                                 )}
                                 <div>
-                                    <DialogTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                                    <DialogTitle>
                                         {step === 'choice' ? "Get Started" : 
                                          step === 'held' ? "Recent Bills" :
                                          step === 'mode' ? "New Order" : 
@@ -154,22 +165,22 @@ export const OrderTypeSelector: React.FC = () => {
                     </DialogHeader>
                 </div>
 
-                <div className="p-8 flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-5 flex-1 min-h-0 overflow-y-auto custom-scrollbar">
                     {step === 'choice' && (
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <button
                                     onClick={() => setStep('mode')}
-                                    className="group relative flex flex-col p-6 bg-indigo-50/30 dark:bg-indigo-500/5 rounded-3xl border-2 border-transparent hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-900 transition-all text-left shadow-sm hover:shadow-xl hover:shadow-indigo-500/10"
+                                    className="group relative flex flex-col p-4 bg-indigo-50/30 dark:bg-indigo-500/5 rounded-lg border-2 border-transparent hover:border-indigo-500 hover:bg-white dark:hover:bg-slate-900 transition-all text-left shadow-sm hover:shadow-xl hover:shadow-indigo-500/10"
                                 >
-                                    <div className="w-12 h-12 flex items-center justify-center rounded-2xl bg-indigo-600 text-white mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-indigo-200 dark:shadow-none">
+                                    <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-indigo-600 text-white mb-3 group-hover:scale-110 transition-transform">
                                         <FilePlus className="w-6 h-6" />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">New Transaction</h3>
+                                        <h3 className="text-base font-semibold text-foreground">New Transaction</h3>
                                         <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Start a fresh bill</p>
                                     </div>
-                                    <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight className="absolute bottom-4 right-4 w-5 h-5 text-slate-300 group-hover:text-indigo-500 group-hover:translate-x-1 transition-all" />
                                 </button>
 
                                 <button
@@ -177,25 +188,26 @@ export const OrderTypeSelector: React.FC = () => {
                                         setStep('held');
                                         refreshHeldOrders();
                                     }}
-                                    className="group relative flex flex-col p-6 bg-orange-50/30 dark:bg-orange-500/5 rounded-3xl border-2 border-transparent hover:border-orange-500 hover:bg-white dark:hover:bg-slate-900 transition-all text-left shadow-sm hover:shadow-xl hover:shadow-orange-500/10"
+                                    className="group relative flex flex-col p-4 bg-orange-50/30 dark:bg-orange-500/5 rounded-lg border-2 border-transparent hover:border-orange-500 hover:bg-white dark:hover:bg-slate-900 transition-all text-left shadow-sm hover:shadow-xl hover:shadow-orange-500/10"
                                 >
-                                    <div className="w-12 h-12 flex items-center justify-center rounded-2xl bg-orange-500 text-white mb-4 group-hover:scale-110 transition-transform shadow-lg shadow-orange-200 dark:shadow-none">
+                                    <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-orange-500 text-white mb-3 group-hover:scale-110 transition-transform">
                                         <History className="w-6 h-6" />
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">Resume Bill</h3>
+                                        <h3 className="text-base font-semibold text-foreground">Resume Bill</h3>
                                         <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Continue held order</p>
                                     </div>
-                                    <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+                                    <ArrowRight className="absolute bottom-4 right-4 w-5 h-5 text-slate-300 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
                                     {heldOrders.length > 0 && (
-                                        <span className="absolute top-6 right-6 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-bold rounded-full">
+                                        <span className="absolute top-4 right-4 px-2 py-0.5 bg-orange-500 text-white text-[10px] font-bold rounded-full">
                                             {heldOrders.length}
                                         </span>
                                     )}
                                 </button>
                             </div>
 
-                            <div className="space-y-4">
+                            {canCheckout && (
+<div className="space-y-3">
                                 <div className="flex items-center gap-3">
                                     <div className="h-[1px] flex-1 bg-slate-100 dark:bg-slate-800" />
                                     <span className="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Management Hub</span>
@@ -224,9 +236,9 @@ export const OrderTypeSelector: React.FC = () => {
                                         <button
                                             key={idx}
                                             onClick={item.action}
-                                            className="flex flex-col items-center justify-center p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all group"
+                                            className="flex flex-col items-center justify-center p-2.5 bg-slate-50 dark:bg-slate-900 rounded-lg border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all group"
                                         >
-                                            <div className={`p-3 bg-${item.color}-50 dark:bg-${item.color}-500/10 text-${item.color}-600 dark:text-${item.color}-400 rounded-xl mb-2 group-hover:scale-110 transition-transform`}>
+                                            <div className={`p-3 bg-${item.color}-50 dark:bg-${item.color}-500/10 text-${item.color}-600 dark:text-${item.color}-400 rounded-md mb-1.5 group-hover:scale-110 transition-transform`}>
                                                 {item.icon}
                                             </div>
                                             <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400">{item.label}</span>
@@ -234,13 +246,14 @@ export const OrderTypeSelector: React.FC = () => {
                                     ))}
                                 </div>
                             </div>
+)}
                         </div>
                     )}
 
                     {step === 'held' && (
                         <div className="grid grid-cols-1 gap-3">
                             {heldOrders.length === 0 ? (
-                                <div className="py-12 text-center">
+                                <div className="py-8 text-center">
                                     <div className="relative inline-block mb-4">
                                         <Clock className="w-12 h-12 text-slate-200 dark:text-slate-800" />
                                         <div className="absolute inset-0 flex items-center justify-center">
@@ -252,7 +265,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <div className="flex flex-col gap-2 max-w-[200px] mx-auto">
                                         <Button 
                                             variant="outline" 
-                                            className="rounded-xl border-slate-200 dark:border-slate-800 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 hover:border-orange-200 transition-all"
+                                            className="rounded-md border-slate-200 dark:border-slate-800 hover:bg-orange-50 dark:hover:bg-orange-500/10 hover:text-orange-600 hover:border-orange-200 transition-all"
                                             onClick={() => refreshHeldOrders()}
                                         >
                                             Retry Sync
@@ -271,10 +284,10 @@ export const OrderTypeSelector: React.FC = () => {
                                           setOrderTypeDialogOpen(false);
                                           setStep('choice');
                                       }}
-                                      className="group p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg transition-all flex items-center justify-between cursor-pointer"
+                                      className="group p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-orange-500 hover:shadow-lg transition-all flex items-center justify-between cursor-pointer"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-black text-xs shrink-0">
+                                            <div className="w-10 h-10 flex items-center justify-center rounded-md bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 font-black text-xs shrink-0">
                                                 #{order.id}
                                             </div>
                                             <div>
@@ -294,10 +307,7 @@ export const OrderTypeSelector: React.FC = () => {
                                                         variant="outline"
                                                         onClick={(e) => { 
                                                             e.stopPropagation(); 
-                                                            const w = 400; const h = 600;
-                                                            const left = (window.screen.width / 2) - (w / 2);
-                                                            const top = (window.screen.height / 2) - (h / 2);
-                                                            window.open(`/cms/pos/kot/${order.id}?full=1&autoprint=1`, 'KOTPrint', `width=${w},height=${h},top=${top},left=${left}`);
+                                                            void printKOT(order.id, true);
                                                         }}
                                                         className="h-7 px-2 text-[10px] font-black uppercase tracking-tight gap-1 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-700/40 dark:text-amber-400 z-10"
                                                         title="Reprint Full KOT"
@@ -336,9 +346,9 @@ export const OrderTypeSelector: React.FC = () => {
                                 <button
                                     key={type.id}
                                     onClick={() => handleSelectMode(type.id)}
-                                    className="group flex items-center p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all text-left"
+                                    className="group flex items-center p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all text-left"
                                 >
-                                    <div className={`p-3 rounded-xl bg-${type.color}-100/50 dark:bg-${type.color}-500/10 text-${type.color}-600 dark:text-${type.color}-400 group-hover:scale-110 transition-transform mr-4`}>
+                                    <div className={`p-3 rounded-md bg-${type.color}-100/50 dark:bg-${type.color}-500/10 text-${type.color}-600 dark:text-${type.color}-400 group-hover:scale-110 transition-transform mr-4`}>
                                         {type.icon}
                                     </div>
                                     <div className="flex-1">
@@ -355,7 +365,7 @@ export const OrderTypeSelector: React.FC = () => {
                         <div className="space-y-4">
                             <button
                                 onClick={() => handleSelectTable({ id: 'none', name: 'No Table' })}
-                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-white transition-all text-left flex items-center gap-3 group"
+                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-md border border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-white transition-all text-left flex items-center gap-3 group"
                             >
                                 <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-lg">
                                     <LayoutGrid className="w-4 h-4" />
@@ -370,7 +380,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <button
                                         key={t.id}
                                         onClick={() => handleSelectTable(t)}
-                                        className="flex flex-col items-center justify-center p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all group"
+                                        className="flex flex-col items-center justify-center p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-indigo-500 hover:shadow-lg transition-all group"
                                     >
                                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-50 dark:bg-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">
                                             <LayoutGrid className="w-4 h-4" />
@@ -386,7 +396,7 @@ export const OrderTypeSelector: React.FC = () => {
                         <div className="space-y-3">
                             <button
                                 onClick={() => handleFinalizeDineIn('none')}
-                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-white transition-all text-left flex items-center gap-3 group"
+                                className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-md border border-dashed border-slate-200 dark:border-slate-800 hover:border-emerald-500 hover:bg-white transition-all text-left flex items-center gap-3 group"
                             >
                                 <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 rounded-lg">
                                     <User className="w-4 h-4" />
@@ -399,7 +409,7 @@ export const OrderTypeSelector: React.FC = () => {
                                     <button
                                         key={s.id}
                                         onClick={() => handleFinalizeDineIn(String(s.id))}
-                                        className="flex items-center p-4 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all group"
+                                        className="flex items-center p-4 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-800 hover:border-indigo-500 transition-all group"
                                     >
                                         <div className="w-10 h-10 flex items-center justify-center rounded-full bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 font-bold text-xs mr-3">
                                             {s.name.substring(0, 2).toUpperCase()}
@@ -413,7 +423,7 @@ export const OrderTypeSelector: React.FC = () => {
                     )}
                 </div>
 
-                <div className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border-t border-slate-50 dark:border-slate-900 flex justify-center">
+                <div className="py-2.5 border-t border-border flex justify-center shrink-0">
                     <div className="flex gap-1.5">
                         {['choice', 'mode', 'held', 'table', 'steward'].map((s) => (
                             <div 

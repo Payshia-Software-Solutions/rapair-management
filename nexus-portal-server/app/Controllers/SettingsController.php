@@ -7,7 +7,7 @@ use App\Services\ExchangeRateService;
 class SettingsController extends Controller {
     
     private function checkAuth() {
-        if (!isset($_SESSION['admin_id'])) {
+        if (($_SESSION['admin_role'] ?? '') !== 'super_admin') {
             return $this->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
         return true;
@@ -130,13 +130,13 @@ class SettingsController extends Controller {
         
         // Ensure defaults if empty
         $defaults = [
-            'smtp_host' => \App\Core\Config::SMTP_HOST,
-            'smtp_port' => \App\Core\Config::SMTP_PORT,
-            'smtp_user' => \App\Core\Config::SMTP_USER,
-            'smtp_pass' => \App\Core\Config::SMTP_PASS,
-            'smtp_encryption' => \App\Core\Config::SMTP_PORT == 465 ? 'ssl' : 'tls',
-            'smtp_from_name' => \App\Core\Config::SMTP_FROM_NAME,
-            'smtp_from_email' => \App\Core\Config::SMTP_FROM_EMAIL,
+            'smtp_host' => \App\Core\Config::SMTP_HOST(),
+            'smtp_port' => \App\Core\Config::SMTP_PORT(),
+            'smtp_user' => \App\Core\Config::SMTP_USER(),
+            'smtp_pass' => \App\Core\Config::SMTP_PASS(),
+            'smtp_encryption' => \App\Core\Config::SMTP_PORT() == 465 ? 'ssl' : 'tls',
+            'smtp_from_name' => \App\Core\Config::SMTP_FROM_NAME(),
+            'smtp_from_email' => \App\Core\Config::SMTP_FROM_EMAIL(),
             'smtp_global_cc' => 'accounts@nebulync.com',
             'smtp_global_bcc' => 'thilinaruwan112@gmail.com',
         ];
@@ -176,13 +176,13 @@ class SettingsController extends Controller {
         $data = json_decode(file_get_contents('php://input'), true);
         
         // Use provided settings or fallback to current
-        $host = $data['smtp_host'] ?? \App\Core\Config::SMTP_HOST;
-        $port = $data['smtp_port'] ?? \App\Core\Config::SMTP_PORT;
-        $user = $data['smtp_user'] ?? \App\Core\Config::SMTP_USER;
-        $pass = $data['smtp_pass'] ?? \App\Core\Config::SMTP_PASS;
+        $host = $data['smtp_host'] ?? \App\Core\Config::SMTP_HOST();
+        $port = $data['smtp_port'] ?? \App\Core\Config::SMTP_PORT();
+        $user = $data['smtp_user'] ?? \App\Core\Config::SMTP_USER();
+        $pass = $data['smtp_pass'] ?? \App\Core\Config::SMTP_PASS();
         $encryption = $data['smtp_encryption'] ?? ($port == 465 ? 'ssl' : 'tls');
-        $fromName = $data['smtp_from_name'] ?? \App\Core\Config::SMTP_FROM_NAME;
-        $fromEmail = $data['smtp_from_email'] ?? \App\Core\Config::SMTP_FROM_EMAIL;
+        $fromName = $data['smtp_from_name'] ?? \App\Core\Config::SMTP_FROM_NAME();
+        $fromEmail = $data['smtp_from_email'] ?? \App\Core\Config::SMTP_FROM_EMAIL();
 
         try {
             $mail = new \PHPMailer\PHPMailer\PHPMailer(true);

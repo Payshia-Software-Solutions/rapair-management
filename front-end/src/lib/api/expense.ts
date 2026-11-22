@@ -38,7 +38,8 @@ export const createExpense = async (payload: any) => {
     body: JSON.stringify(payload)
   });
   if (!res.ok) throw new Error('Failed to record expense');
-  return res.json() as Promise<ApiSuccess<{ id: number }>>;
+  // Backend returns the new id at the top level: { status, message, id }
+  return res.json() as Promise<{ status: string; message: string; id: number; approval?: 'Pending' }>;
 };
 
 export const fetchExpenseSummary = async () => {

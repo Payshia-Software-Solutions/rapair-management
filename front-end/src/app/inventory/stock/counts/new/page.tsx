@@ -425,7 +425,11 @@ export default function NewStockCountPage() {
         locationId ?? undefined
       );
       const id = (res as any)?.data?.id;
-      toast({ title: "Count Session Created", description: "Counts saved as pending manager approval." });
+      toast({
+        title: (res as any)?.data?.approval === "Pending" ? "Count sent for approval" : "Count Session Created",
+        description: (res as any)?.message || "Counts saved as pending manager approval.",
+      });
+      window.dispatchEvent(new Event("approvals:changed"));
       router.push(`/inventory/stock/counts/${encodeURIComponent(String(id))}`);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Submit failed", variant: "destructive" });

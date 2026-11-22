@@ -187,6 +187,12 @@ class SupplierController extends Controller {
         if (!$id) $this->error('Payment ID required', 400);
 
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        // Cancelling needs a second person: raise a request that another user approves (Approvals & Control -> Cancellation Requests)
+        require_once '../app/helpers/CancellationRequestHelper.php';
+        [$ok, $msg, $rid] = CancellationRequestHelper::create(new Database(), 'VendorPayment', (int)$id, $data['reason'] ?? '', (int)$u['sub']);
+        if (!$ok) { $this->error($msg, 422); return; }
+        $this->success(['request_id' => $rid, 'status' => 'pending'], $msg);
+        return;
         $reason = $data['reason'] ?? 'Cancelled by user';
 
         require_once '../app/models/SupplierPayment.php';

@@ -447,7 +447,7 @@ export function VehicleDocuments({ vehicleId }: VehicleDocumentsProps) {
 
       {/* Document Preview Modal */}
       <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b bg-slate-50/50 dark:bg-slate-900/50 flex-row items-center justify-between space-y-0">
             <div>
               <DialogTitle className="text-xl font-black flex items-center gap-2">
@@ -497,7 +497,7 @@ export function VehicleDocuments({ vehicleId }: VehicleDocumentsProps) {
 
       {/* Renewal Dialog */}
       <Dialog open={!!renewingDoc} onOpenChange={(open) => !open && setRenewingDoc(null)}>
-        <DialogContent className="max-w-md rounded-2xl border-none shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="max-w-md p-0 overflow-hidden">
           <DialogHeader className="p-6 bg-slate-50/50 dark:bg-slate-900/50 border-b">
             <DialogTitle className="text-xl font-black flex items-center gap-2">
               <RotateCw className="w-5 h-5 text-primary" />

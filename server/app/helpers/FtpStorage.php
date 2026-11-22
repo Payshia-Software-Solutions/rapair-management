@@ -74,6 +74,10 @@ class FtpStorage {
     public function upload($localPath, $remoteDir, $remoteFilename) {
         $conn = $this->connect();
         $remoteDir = trim(str_replace('\\', '/', $remoteDir), '/');
+        // Shared deployment: each workspace's files live under t/<slug>/ (CONTENT_BASE_URL matches)
+        if (class_exists('Tenancy', false) && Tenancy::enabled()) {
+            $remoteDir = trim('t/' . Tenancy::slug() . '/' . $remoteDir, '/');
+        }
         $remoteFilename = basename($remoteFilename);
 
         if (!is_string($localPath) || $localPath === '' || !file_exists($localPath)) {

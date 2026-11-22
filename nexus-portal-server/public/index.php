@@ -2,34 +2,22 @@
 /**
  * Nexus Portal API Entry Point
  */
-// 1. Set CORS Headers at the absolute top
-$origin = '';
-if (isset($_SERVER['HTTP_ORIGIN'])) {
-    $origin = $_SERVER['HTTP_ORIGIN'];
-} elseif (function_exists('getallheaders')) {
-    $headers = getallheaders();
-    $origin = $headers['Origin'] ?? $headers['origin'] ?? '';
+// 1. CORS. Credentials (the admin session cookie) are allowed ONLY for known admin origins.
+// Reflecting any Origin with Allow-Credentials would let any website act as a logged-in admin.
+require_once __DIR__ . '/../app/Core/Env.php';
+// .env first, then a real environment variable, then the default
+$cfg = function ($key, $default) { return \App\Core\Env::get($key) ?? (getenv($key) ?: $default); };
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = array_filter(array_map('trim', explode(',',
+    $cfg('NEXUS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000,http://localhost:9003')
+)));
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    header("Access-Control-Allow-Origin: $origin");
+    header('Access-Control-Allow-Credentials: true');
 }
-
-if (empty($origin)) {
-    $referer = $_SERVER['HTTP_REFERER'] ?? '';
-    if (!empty($referer)) {
-        $parts = parse_url($referer);
-        if (isset($parts['scheme']) && isset($parts['host'])) {
-            $port = isset($parts['port']) ? ':' . $parts['port'] : '';
-            $origin = $parts['scheme'] . '://' . $parts['host'] . $port;
-        }
-    }
-}
-
-if (empty($origin)) {
-    $origin = 'http://localhost:3000';
-}
-
-header("Access-Control-Allow-Origin: $origin");
+header('Vary: Origin');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Origin, Accept');
-header('Access-Control-Allow-Credentials: true');
 
 // 2. Handle OPTIONS preflight immediately
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
@@ -37,23 +25,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit;
 }
 
-// 3. Extract Session Token and start session
-$authHeader = $_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? '';
-if (empty($authHeader) && function_exists('apache_request_headers')) {
-    $reqHeaders = apache_request_headers();
-    $authHeader = $reqHeaders['Authorization'] ?? $reqHeaders['authorization'] ?? '';
-}
-if (!empty($authHeader) && preg_match('/Bearer\s+([a-zA-Z0-9,-]+)/i', $authHeader, $matches)) {
-    session_id(trim($matches[1]));
-} elseif (isset($_GET['token']) && !empty($_GET['token']) && preg_match('/^[a-zA-Z0-9,-]+$/', $_GET['token'])) {
-    session_id(trim($_GET['token']));
-}
-
+// 3. Session comes from the httpOnly session cookie only. A bearer/URL token would expose the
+// session id to JavaScript, browser history and server logs.
+$isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
 session_start([
     'cookie_lifetime' => 86400,
     'cookie_httponly' => true,
-    'cookie_samesite' => 'Lax',
-    'cookie_path' => '/'
+    'cookie_secure' => $isHttps,
+    'cookie_samesite' => $cfg('NEXUS_COOKIE_SAMESITE', 'Lax'),
+    'cookie_path' => '/',
+    'use_strict_mode' => true,
 ]);
 
 // Autoloader (Simple PSR-4)
@@ -113,11 +94,14 @@ $router->add('api/auth/verify', ['controller' => 'AuthController', 'action' => '
 $router->add('api/auth/login', ['controller' => 'AuthController', 'action' => 'login'], 'POST');
 $router->add('api/auth/logout', ['controller' => 'AuthController', 'action' => 'logout']);
 $router->add('api/auth/check', ['controller' => 'AuthController', 'action' => 'check']);
+$router->add('api/auth/check-email', ['controller' => 'AuthController', 'action' => 'checkEmail']);
+$router->add('api/auth/resend-verification', ['controller' => 'AuthController', 'action' => 'resendVerification'], 'POST');
 
 // SaaS Public Routes
 $router->add('api/saas/config/([a-z0-9-]+)', ['controller' => 'SaaSController', 'action' => 'getTenantConfig', 'slug' => '$1']);
 $router->add('api/saas/stats', ['controller' => 'SaaSController', 'action' => 'getStats']);
 $router->add('api/saas/packages', ['controller' => 'SaaSController', 'action' => 'listPackages']);
+$router->add('api/saas/usage-report', ['controller' => 'SaaSController', 'action' => 'usageReport'], 'POST');
 $router->add('api/saas/license/check', ['controller' => 'SaaSController', 'action' => 'getLicenseDetails']);
 
 // Admin Protected Routes (Logic in controller handles auth check)
@@ -127,11 +111,14 @@ $router->add('api/admin/users', ['controller' => 'AdminController', 'action' => 
 $router->add('api/admin/users/create', ['controller' => 'AdminController', 'action' => 'createUser'], 'POST');
 
 // SaaS Admin Routes
+$router->add('api/admin/tenants/provision-status', ['controller' => 'ProvisioningController', 'action' => 'provisionStatus']);
+$router->add('api/admin/dashboard/summary', ['controller' => 'DashboardController', 'action' => 'summary']);
 $router->add('api/admin/tenants', ['controller' => 'SaaSController', 'action' => 'listTenants']);
 $router->add('api/admin/tenants/register', ['controller' => 'SaaSController', 'action' => 'registerTenant'], 'POST');
 $router->add('api/admin/tenants/update', ['controller' => 'SaaSController', 'action' => 'updateTenant'], 'POST');
 $router->add('api/admin/tenants/update-status', ['controller' => 'SaaSController', 'action' => 'updateTenantStatus'], 'POST');
 $router->add('api/admin/tenants/delete', ['controller' => 'SaaSController', 'action' => 'deleteTenant'], 'POST');
+$router->add('api/admin/tenants/suspend', ['controller' => 'SaaSController', 'action' => 'suspendTenant'], 'POST');
 $router->add('api/admin/tenants/{id}', ['controller' => 'SaaSController', 'action' => 'getTenant']);
 
 $router->add('api/admin/packages', ['controller' => 'SaaSController', 'action' => 'listPackages']);
@@ -141,6 +128,15 @@ $router->add('api/admin/packages/update', ['controller' => 'SaaSController', 'ac
 $router->add('api/admin/packages/delete', ['controller' => 'SaaSController', 'action' => 'deletePackage'], 'POST');
 
 $router->add('api/client/subscription', ['controller' => 'SaaSController', 'action' => 'getMySubscription']);
+$router->add('api/client/profile', ['controller' => 'SaaSController', 'action' => 'updateMyProfile'], 'POST');
+
+$router->add('api/client/workspace/address/request', ['controller' => 'WorkspaceController', 'action' => 'requestAddressChange'], 'POST');
+$router->add('api/client/workspace/address/confirm', ['controller' => 'WorkspaceController', 'action' => 'confirmAddressChange'], 'POST');
+
+$router->add('api/client/domain', ['controller' => 'DomainController', 'action' => 'show']);
+$router->add('api/client/domain/add', ['controller' => 'DomainController', 'action' => 'add'], 'POST');
+$router->add('api/client/domain/verify', ['controller' => 'DomainController', 'action' => 'verify'], 'POST');
+$router->add('api/client/domain/remove', ['controller' => 'DomainController', 'action' => 'remove'], 'POST');
 
 // Billing Routes
 $router->add('api/admin/billing/run-cycle', ['controller' => 'BillingController', 'action' => 'runBillingCycle'], 'POST');
@@ -180,6 +176,16 @@ $router->add('api/admin/settings/mail/test', ['controller' => 'SettingsControlle
 $router->add('api/admin/settings/billing', ['controller' => 'SettingsController', 'action' => 'getBillingSettings']);
 $router->add('api/admin/settings/billing/update', ['controller' => 'SettingsController', 'action' => 'updateBillingSettings'], 'POST');
 $router->add('api/saas/settings/public', ['controller' => 'SettingsController', 'action' => 'getPublicSettings']);
+
+// Products & automatic workspace provisioning (webhook outbox)
+$router->add('api/admin/products', ['controller' => 'ProvisioningController', 'action' => 'listProducts']);
+$router->add('api/admin/products/save', ['controller' => 'ProvisioningController', 'action' => 'saveProduct'], 'POST');
+$router->add('api/admin/products/delete', ['controller' => 'ProvisioningController', 'action' => 'deleteProduct'], 'POST');
+$router->add('api/admin/packages/set-product', ['controller' => 'ProvisioningController', 'action' => 'setPackageProduct'], 'POST');
+$router->add('api/admin/tenants/provision', ['controller' => 'ProvisioningController', 'action' => 'provisionTenant'], 'POST');
+$router->add('api/admin/webhooks', ['controller' => 'ProvisioningController', 'action' => 'listWebhooks']);
+$router->add('api/admin/webhooks/retry', ['controller' => 'ProvisioningController', 'action' => 'retryWebhook'], 'POST');
+$router->add('api/admin/webhooks/run', ['controller' => 'ProvisioningController', 'action' => 'runWebhooks'], 'POST');
 
 // Match and Dispatch
 $url = $_GET['url'] ?? '';

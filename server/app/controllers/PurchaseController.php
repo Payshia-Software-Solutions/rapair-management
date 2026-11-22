@@ -93,8 +93,40 @@ class PurchaseController extends Controller {
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
         $status = $data['status'] ?? null;
         if (!is_string($status) || trim($status) === '') $this->error('Status is required', 400);
+        // With approvals on, a PO only becomes Approved/Sent through the approval workflow.
+        if (in_array($status, ['Approved', 'Sent'], true)) {
+            require_once '../app/helpers/Approval.php';
+            if (Approval::isEnabled('purchase_order')) {
+                $req = Approval::forDocument('purchase_order', (int)$id);
+                if (!$req || $req->status !== 'Approved') $this->error('This purchase order needs approval first. Use "Send for approval".', 409);
+            }
+        }
         $ok = $this->poModel->setStatus($id, $status, (int)$u['sub']);
         if ($ok) $this->success(null, 'Status updated');
         $this->error('Failed to update status', 400);
+    }
+
+    // POST /api/purchase/submit_approval/1  -> Pending Approval (or Approved when no approval is needed)
+    public function submit_approval($id = null) {
+        $u = $this->requirePermission('purchase.write');
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
+        $id = (int)$id;
+        if ($id <= 0) $this->error('PO ID required', 400);
+        $db = new Database();
+        $db->query("SELECT po.id, po.po_number, po.status, po.location_id, s.name AS supplier,
+                           (SELECT COALESCE(SUM(line_total), 0) FROM purchase_order_items i WHERE i.purchase_order_id = po.id) AS total
+                    FROM purchase_orders po LEFT JOIN suppliers s ON s.id = po.supplier_id WHERE po.id = :id");
+        $db->bind(':id', $id);
+        $po = $db->single();
+        if (!$po) $this->error('Purchase order not found', 404);
+        if ($po->status !== 'Draft') $this->error('Only draft purchase orders can be sent for approval.', 409);
+
+        require_once '../app/helpers/Approval.php';
+        $r = Approval::submit('purchase_order', $id, [
+            'doc_no' => $po->po_number, 'amount' => (float)$po->total, 'location_id' => (int)$po->location_id,
+            'summary' => 'PO ' . $po->po_number . ' to ' . ($po->supplier ?: 'supplier'),
+        ], (int)$u['sub']);
+        $this->poModel->setStatus($id, $r['status'] === 'Approved' ? 'Approved' : 'Pending Approval', (int)$u['sub']);
+        $this->success($r, $r['status'] === 'Approved' ? 'Approved (no approval needed)' : 'Sent for approval: ' . $r['level']);
     }
 }

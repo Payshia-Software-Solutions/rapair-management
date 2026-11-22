@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Printer, FileText, FileSpreadsheet, Loader2 } from "lucide-react";
 import { usePOS } from "../../context/POSContext";
+import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 
 export const PrintGuestSelectionDialog: React.FC = () => {
@@ -18,107 +19,60 @@ export const PrintGuestSelectionDialog: React.FC = () => {
     guestPrintSelectionOpen, 
     setGuestPrintSelectionOpen, 
     guestPrintOrderId,
-    theme
+    theme,
+    locations,
+    selectedLocation,
+    isMenuPricing
   } = usePOS();
 
+  const { toast } = useToast();
   const [isPrinting, setIsPrinting] = React.useState<string | null>(null);
   const [targetPrinter, setTargetPrinter] = React.useState<string>("");
   
   const handlePrint = async (type: 'standard' | 'inclusive') => {
     if (!guestPrintOrderId) return;
     setIsPrinting(type);
-    
     const baseReceiptUrl = `/cms/pos/guest-receipt/${guestPrintOrderId}`;
     const url = type === 'inclusive' ? `${baseReceiptUrl}?tax_inclusive=1` : baseReceiptUrl;
-    
-    // Check for Windows + Silent Bridge
-    const isWindows = !/Android/i.test(navigator.userAgent);
-    const { isPrinterServiceAvailable, silentPrint } = await import("@/lib/api/silent-print");
-    const bridgeAvailable = await isPrinterServiceAvailable();
-
     try {
-        // 1. Lookup the printer name mapping AND Global Printing Mode
-        const settingsRes = await api('/printer/get_settings');
-        const settingsData = await settingsRes.json();
-        
-        let printingMode = "Silent";
-        if (settingsData.success && settingsData.data) {
-            const mapping = settingsData.data.find((m: any) => m.printer_type === 'Receipt');
-            if (mapping) setTargetPrinter(mapping.printer_name);
-
-            const modeSetting = settingsData.data.find((m: any) => m.printer_type === 'PrintingMode');
-            if (modeSetting) printingMode = modeSetting.printer_name;
-        }
-
-        if (printingMode === 'Browser' || !bridgeAvailable || !isWindows) {
-            // Add autoprint=1 ONLY for browser mode so it opens the dialog automatically
-            const browserUrl = url.includes('?') ? `${url}&autoprint=1` : `${url}?autoprint=1`;
-            const w = 400; const h = 600;
-            const left = (window.screen.width / 2) - (w / 2);
-            const top = (window.screen.height / 2) - (h / 2);
-            window.open(browserUrl, 'GuestReceiptPrint', `width=${w},height=${h},top=${top},left=${left}`);
-            setIsPrinting(null);
-            setGuestPrintSelectionOpen(false);
-            return;
-        }
-
-        // 2. Create a hidden iframe to capture the rendered receipt HTML
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        iframe.src = url;
-
-        // 3. Wait for the receipt content to be fully rendered
-        await new Promise((resolve) => {
-            const checkInterval = setInterval(async () => {
-                const doc = iframe.contentDocument || iframe.contentWindow?.document;
-                if (doc && doc.querySelector('.receipt')) {
-                    clearInterval(checkInterval);
-                    
-                    setTimeout(async () => {
-                        const styles = Array.from(doc.querySelectorAll('style')).map(s => s.outerHTML).join('\n');
-                        const clone = doc.body.cloneNode(true) as HTMLElement;
-                        clone.querySelectorAll('nextjs-portal, .no-print, button, .print\\:hidden, #__next-build-watcher').forEach(el => el.remove());
-                        
-                        const body = clone.innerHTML;
-                        const fullHtml = `<html><head>${styles}</head><body>${body}</body></html>`;
-                        
-                        const result = await silentPrint(fullHtml, 'Receipt', '80mm', `Guest Receipt #${guestPrintOrderId}`);
-                        if (result.printer) setTargetPrinter(result.printer);
-                        
-                        document.body.removeChild(iframe);
-                        resolve(true);
-                    }, 500);
-                }
-            }, 100);
-
-            setTimeout(() => {
-                clearInterval(checkInterval);
-                if (document.body.contains(iframe)) document.body.removeChild(iframe);
-                resolve(false);
-            }, 10000);
-        });
-        
-        setTimeout(() => setGuestPrintSelectionOpen(false), 500);
+      const { printPage } = await import("@/lib/api/silent-print");
+      const result = await printPage(url, 'Receipt', `Guest bill #${guestPrintOrderId}`);
+      if (result.printer) setTargetPrinter(result.printer);
+      if (result.error) {
+        toast({ title: "Printed in browser instead", description: result.error, variant: "destructive" });
+      }
     } catch (error) {
-        console.error("Print failed:", error);
-        const browserUrl = url.includes('?') ? `${url}&autoprint=1` : `${url}?autoprint=1`;
-        const w = 400; const h = 600;
-        const left = (window.screen.width / 2) - (w / 2);
-        const top = (window.screen.height / 2) - (h / 2);
-        window.open(browserUrl, 'GuestReceiptPrint', `width=${w},height=${h},top=${top},left=${left}`);
+      console.error("Print failed:", error);
     } finally {
-        setIsPrinting(null);
+      setIsPrinting(null);
+      setGuestPrintSelectionOpen(false);
     }
   };
+
+
+
+  // Location setting decides the receipt: ask (show this dialog), always one format, or no print.
+  // Menu-pricing locations always print menu prices + SC, so there is nothing to ask.
+  const locRow = locations.find((l: any) => String(l.id) === String(selectedLocation));
+  const receiptFormat: string = isMenuPricing
+    ? (locRow?.receipt_format === 'none' ? 'none' : 'standard')
+    : (locRow?.receipt_format || 'ask');
+  const autoHandled = React.useRef(false);
+  React.useEffect(() => {
+    if (!guestPrintSelectionOpen) { autoHandled.current = false; return; }
+    if (receiptFormat === 'ask' || autoHandled.current) return;
+    autoHandled.current = true;
+    if (receiptFormat === 'none') { setGuestPrintSelectionOpen(false); return; }
+    void handlePrint(receiptFormat === 'inclusive' ? 'inclusive' : 'standard');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guestPrintSelectionOpen, receiptFormat]);
 
   const isDark = theme === 'dark' || (typeof document !== 'undefined' && document.documentElement.classList.contains('dark'));
 
   return (
-    <Dialog open={guestPrintSelectionOpen} onOpenChange={setGuestPrintSelectionOpen}>
-      <DialogContent className={`sm:max-w-[480px] p-0 overflow-hidden border shadow-2xl rounded-3xl ${
-        isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'
-      }`}>
+    <Dialog open={guestPrintSelectionOpen && receiptFormat === 'ask'} onOpenChange={setGuestPrintSelectionOpen}>
+      <DialogContent size="sm" className={`p-0 overflow-y-auto border rounded-lg ${ isDark ?'bg-slate-900 border-slate-800 text-white':'bg-white border-slate-200 text-slate-900'
+}`}>
         <div className="p-8 space-y-8">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className={`w-16 h-16 rounded-full flex items-center justify-center ${isDark ? 'bg-blue-500/20' : 'bg-blue-500/10'}`}>
@@ -146,7 +100,7 @@ export const PrintGuestSelectionDialog: React.FC = () => {
               onClick={() => handlePrint('standard')}
               disabled={isPrinting !== null}
             >
-              <div className={`p-3 rounded-xl transition-colors ${
+              <div className={`p-3 rounded-md transition-colors ${
                 isDark ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-700'
               }`}>
                 {isPrinting === 'standard' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <Printer className="w-6 h-6 text-primary" />}
@@ -172,7 +126,7 @@ export const PrintGuestSelectionDialog: React.FC = () => {
               onClick={() => handlePrint('inclusive')}
               disabled={isPrinting !== null}
             >
-              <div className={`p-3 rounded-xl transition-colors ${
+              <div className={`p-3 rounded-md transition-colors ${
                 isDark ? 'bg-slate-700 text-slate-200' : 'bg-white text-slate-700'
               }`}>
                 {isPrinting === 'inclusive' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <FileText className="w-6 h-6 text-primary" />}

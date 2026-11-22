@@ -143,14 +143,27 @@ class SalesReturn extends Model {
                     $this->db->bind(':pid', $item['item_id']);
                     $this->db->execute();
 
+                    // Cost it goes back in at = what it cost when sold on this invoice (else item cost)
+                    $this->db->query("
+                        SELECT COALESCE(
+                            (SELECT SUM(-qty_change * unit_cost) / NULLIF(SUM(-qty_change), 0) FROM stock_movements
+                              WHERE ref_table = 'invoices' AND ref_id = :inv AND part_id = :pid AND movement_type = 'SALE'),
+                            (SELECT cost_price FROM parts WHERE id = :pid2), 0) AS c
+                    ");
+                    $this->db->bind(':inv', $data['invoice_id']);
+                    $this->db->bind(':pid', $item['item_id']);
+                    $this->db->bind(':pid2', $item['item_id']);
+                    $retCost = (float)($this->db->single()->c ?? 0);
+
                     // Log stock movement
                     $this->db->query("
                         INSERT INTO stock_movements (
-                            part_id, location_id, qty_change, movement_type, ref_table, ref_id, unit_price, notes, created_by
+                            part_id, location_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by
                         ) VALUES (
-                            :part_id, :location_id, :qty_change, 'SALES_RETURN', 'sales_returns', :ref_id, :unit_price, :notes, :created_by
+                            :part_id, :location_id, :qty_change, 'SALES_RETURN', 'sales_returns', :ref_id, :unit_cost, :unit_price, :notes, :created_by
                         )
                     ");
+                    $this->db->bind(':unit_cost', $retCost);
                     $this->db->bind(':part_id', $item['item_id']);
                     $this->db->bind(':location_id', $data['location_id'] ?? 1);
                     $this->db->bind(':qty_change', $item['quantity']);

@@ -44,3 +44,5 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+# Second local dev server (shared mode)
+/.next-shared/

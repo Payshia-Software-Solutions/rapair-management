@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Receipt, ExternalLink, Loader2, Banknote, CreditCard, Building2, Printer, XCircle, AlertCircle } from "lucide-react";
 import Link from "next/link";
+import { PageHeader, StatCard, LoadingState, EmptyState } from "@/components/page-shell";
 import { DataTablePagination } from "@/components/data-table-pagination";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -94,7 +95,7 @@ export default function PaymentReceiptsPage() {
     setIsCancelling(true);
     try {
         await cancelPaymentReceipt(cancellingReceipt.id, cancelReason);
-        toast({ title: "Cancelled", description: `Receipt ${cancellingReceipt.receipt_no} has been cancelled.` });
+        toast({ title: "Cancellation requested", description: `Receipt ${cancellingReceipt.receipt_no} will be cancelled once another user approves it (Approvals & Control → Cancellation Requests).` });
         setIsCancelDialogOpen(false);
         setCancelReason("");
         setCancellingReceipt(null);
@@ -126,24 +127,22 @@ export default function PaymentReceiptsPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-3 space-y-3 w-full">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">Payment Receipts</h1>
-            <p className="text-muted-foreground text-sm mt-1">Track all recorded payments across invoices</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-base px-4 py-1.5 font-bold">
-              Total: LKR {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </Badge>
-            <Link href="/cms/payment-receipts/new">
-              <Button className="bg-primary hover:bg-primary/90 font-bold gap-2">
-                <Banknote className="w-4 h-4" />
-                Record Payment
-              </Button>
-            </Link>
-          </div>
+      <div className="space-y-5 w-full">
+        <PageHeader
+          title="Payment receipts"
+          description="Money received against invoices. Shows today by default; change the dates to see more."
+          actions={
+            <Button asChild className="gap-2">
+              <Link href="/cms/payment-receipts/new"><Banknote className="w-4 h-4" /> Record payment</Link>
+            </Button>
+          }
+        />
+
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <StatCard label="Received (LKR)" value={totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} hint={fromDate && fromDate === toDate ? (fromDate === today ? "Today" : fromDate) : "Selected period"} />
+          {["Cash", "Card", "Cheque"].map(m => (
+            <StatCard key={m} label={m} value={receipts.filter(r => r.payment_method === m).reduce((a, r) => a + Number(r.amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} />
+          ))}
         </div>
 
         {/* Filters */}
@@ -159,7 +158,7 @@ export default function PaymentReceiptsPage() {
                 value={method}
                 onChange={e => setMethod(e.target.value)}
               >
-                <option value="">All Methods</option>
+                <option value="">All methods</option>
                 <option>Cash</option>
                 <option>Card</option>
                 <option>Bank Transfer</option>
@@ -170,13 +169,16 @@ export default function PaymentReceiptsPage() {
                 value={locationId}
                 onChange={e => setLocationId(e.target.value)}
               >
-                <option value="all">All Locations</option>
+                <option value="all">All locations</option>
                 {locations.map((loc: any) => (
                   <option key={loc.id} value={loc.id}>{loc.name}</option>
                 ))}
               </select>
-              <Input type="date" className="w-38" placeholder="From" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-              <Input type="date" className="w-38" placeholder="To" value={toDate} onChange={e => setToDate(e.target.value)} />
+              <div className="flex items-center gap-2">
+                <Input type="date" className="w-40" aria-label="From date" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+                <span className="text-muted-foreground text-sm">to</span>
+                <Input type="date" className="w-40" aria-label="To date" value={toDate} onChange={e => setToDate(e.target.value)} />
+              </div>
               <Button variant="outline" onClick={() => { setSearch(""); setMethod(""); setLocationId("all"); setFromDate(""); setToDate(""); }}>Clear</Button>
             </div>
           </CardContent>
@@ -186,34 +188,29 @@ export default function PaymentReceiptsPage() {
         <Card>
           <CardContent className="p-0 overflow-auto">
             {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : receipts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                <Receipt className="w-10 h-10 opacity-30" />
-                <p className="text-sm">No payment receipts found</p>
-              </div>
+              <LoadingState label="Loading receipts…" />
+            ) : filtered.length === 0 ? (
+              <div className="p-4"><EmptyState title="No receipts" description="Nothing for these filters. Try a wider date range." /></div>
             ) : (
               <div className="flex flex-col">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-border bg-muted/40">
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Receipt No.</th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Invoice No.</th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Location</th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Customer</th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Method</th>
-                      <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Date</th>
-                      <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Amount (LKR)</th>
-                      <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Actions</th>
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Receipt No.</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Invoice No.</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Location</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Method</th>
+                      <th className="text-left px-4 py-3 font-medium text-muted-foreground">Date</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Amount (LKR)</th>
+                      <th className="text-right px-4 py-3 font-medium text-muted-foreground">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map((r, idx) => (
-                      <tr key={r.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${idx % 2 === 0 ? '' : 'bg-muted/10'}`}>
-                        <td className="px-4 py-3 font-mono font-bold text-primary">{r.receipt_no}</td>
-                        <td className="px-4 py-3 font-mono text-muted-foreground">{r.invoice_no}</td>
+                      <tr key={r.id} className="border-b border-border/50 hover:bg-muted/40 transition-colors">
+                        <td className="px-4 py-3 font-medium whitespace-nowrap">{r.receipt_no}</td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{r.invoice_no}</td>
                         <td className="px-4 py-3 font-medium text-muted-foreground">
                           {locations.find(loc => loc.id == r.location_id)?.name || `Location ${r.location_id || 'N/A'}`}
                         </td>
@@ -228,8 +225,8 @@ export default function PaymentReceiptsPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-muted-foreground">{new Date(r.payment_date).toLocaleDateString('en-GB')}</td>
-                        <td className="px-4 py-3 text-right font-bold tabular-nums">{Number(r.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 text-right flex justify-end gap-1">
+                        <td className="px-4 py-3 text-right font-medium tabular-nums">{Number(r.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3"><div className="flex justify-end gap-1">
                           <Link href={`/cms/payment-receipts/${r.id}/print`} target="_blank">
                             <Button variant="ghost" size="sm" className="text-xs text-primary">
                               <Printer className="w-3 h-3 mr-1" /> Print
@@ -240,7 +237,7 @@ export default function PaymentReceiptsPage() {
                               <ExternalLink className="w-3 h-3 mr-1" /> Invoice
                             </Button>
                           </Link>
-                        </td>
+                        </div></td>
                       </tr>
                     ))}
                   </tbody>

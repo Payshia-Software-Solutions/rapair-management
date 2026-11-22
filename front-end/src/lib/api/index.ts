@@ -2,6 +2,7 @@
  * API Module Barrel Export
  */
 import { api } from './client';
+import { tenantSlug } from '../tenant';
 export * from './client';
 export * from './orders';
 export * from './inventory';
@@ -27,6 +28,12 @@ export * from './routes';
 export const CONTENT_BASE_URL =
   (process.env.NEXT_PUBLIC_CONTENT_BASE_URL ?? 'https://content-provider.payshia.com/service-center-system/').replace(/\/+$/, '') + '/';
 
+/** Content server folder: per workspace (<root>/t/<slug>/) on the shared deployment. */
+export const contentBase = (): string => {
+  const slug = tenantSlug();
+  return slug ? `${CONTENT_BASE_URL}t/${encodeURIComponent(slug)}/` : CONTENT_BASE_URL;
+};
+
 export const contentUrl = (folder: 'vehicles' | 'orders' | 'items' | 'company' | 'brands' | 'employees' | 'documents', filename?: string | null) => {
   if (!filename) return '';
   // If it's already a full URL, return it
@@ -36,7 +43,7 @@ export const contentUrl = (folder: 'vehicles' | 'orders' | 'items' | 'company' |
   
   // Strip any leading slashes and take only the basename to be safe against legacy path data
   const safe = filename.split(/[/\\]/).pop() || '';
-  return `${CONTENT_BASE_URL}${folder}/${encodeURIComponent(safe)}`;
+  return `${contentBase()}${folder}/${encodeURIComponent(safe)}`;
 };
 
 // --- Shipping Zones ---
@@ -494,3 +501,6 @@ export const fetchBanquetBookings = async () => {
   const res = await api('/api/banquet/bookings');
   return res.json();
 };
+export * from './pin';
+export * from './printqueue';
+export * from './setup';

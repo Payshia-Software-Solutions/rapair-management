@@ -400,7 +400,7 @@ export default function ProcessPaymentPage() {
       </div>
       {/* Post-Creation Print Options Modal */}
       <Dialog open={showPrintModal} onOpenChange={setShowPrintModal}>
-        <DialogContent className="sm:max-w-[450px] rounded-3xl border-none shadow-2xl p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[450px] p-0 overflow-hidden">
             <div className="bg-emerald-600 p-8 text-white text-center">
                 <CheckCircle2 className="w-16 h-16 mx-auto mb-4 opacity-50" />
                 <h2 className="text-2xl font-black uppercase italic tracking-tighter">Payment Posted!</h2>

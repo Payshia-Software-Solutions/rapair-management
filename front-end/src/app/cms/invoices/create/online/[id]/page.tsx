@@ -348,50 +348,39 @@ export default function CreateOnlineInvoicePage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6 w-full">
+      <div className="flex flex-col gap-5 w-full">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Sales</span>
           <ChevronRight className="w-3 h-3" />
           <span className="cursor-pointer hover:text-primary transition-colors" onClick={() => router.push('/sales/online-orders')}>Online Orders</span>
           <ChevronRight className="w-3 h-3" />
-          <span className="font-medium text-foreground">Convert to Invoice</span>
+          <span className="font-medium text-foreground">Create invoice</span>
         </div>
 
-        {/* Hero Header */}
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-50 via-white to-blue-50 dark:from-slate-800 dark:via-slate-700 dark:to-slate-900 border border-slate-200 dark:border-0 px-8 py-7 shadow-sm dark:shadow-xl">
-          <div className="relative flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <ShoppingCart className="w-5 h-5 text-amber-500 dark:text-amber-400" />
-                <span className="text-amber-600 dark:text-amber-400 text-sm font-semibold tracking-widest uppercase">Online Order Conversion</span>
-              </div>
-              <h2 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">
-                Invoice for Order {order?.order_no}
-              </h2>
-              <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">
-                Transforming online order into a system-wide invoice for accounting and inventory.
-              </p>
-            </div>
-            <Button
-              onClick={handleSave}
-              disabled={submitting || items.length === 0 || !selectedLocation || !selectedCustomer}
-              className="h-12 px-8 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold shadow-lg shadow-amber-500/30 border-0 transition-all hover:scale-105"
-            >
-              {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-              Generate Invoice
-            </Button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-foreground">Invoice for web order {order?.order_no}</h2>
+            <p className="text-muted-foreground mt-1 text-sm">Check the items and customer, then save. Stock and accounts update when you save.</p>
           </div>
+          <Button
+            onClick={handleSave}
+            disabled={submitting || items.length === 0 || !selectedLocation || !selectedCustomer}
+            className="h-11 px-6"
+          >
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Save invoice
+          </Button>
         </div>
 
         {/* Location + Customer Bar */}
         {/* Location + Customer + Payment Info */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5 p-5 rounded-2xl border border-slate-200 dark:border-border bg-white dark:bg-card shadow-sm">
+          <div className="md:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-5 p-5 rounded-2xl border border-border bg-card shadow-sm">
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest block">📍 Fulfillment Location</label>
+              <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground block">📍 Fulfillment Location</label>
               <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                <SelectTrigger className="h-11 border-slate-200 dark:border-border bg-slate-50 dark:bg-muted/40">
+                <SelectTrigger className="h-11 border-border bg-muted/40">
                   <SelectValue placeholder="Select location" />
                 </SelectTrigger>
                 <SelectContent>
@@ -403,7 +392,7 @@ export default function CreateOnlineInvoicePage() {
             </div>
 
             <div className="space-y-2">
-              <label className="text-[11px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest block">👤 Customer Account</label>
+              <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground block">👤 Customer Account</label>
               <div className="flex items-center gap-2">
                 <div className="flex-1">
                   <SearchableSelect
@@ -415,7 +404,7 @@ export default function CreateOnlineInvoicePage() {
                         <div className="flex items-center justify-between w-full gap-2">
                           <span>{c.name} ({c.phone || 'No Phone'})</span>
                           {Number(c.is_ecommerce_user) === 1 && (
-                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[9px] font-black uppercase h-5 px-1.5 shrink-0">Web</Badge>
+                            <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-xs font-semibold h-5 px-1.5 shrink-0">Web</Badge>
                           )}
                         </div>
                       ),
@@ -425,7 +414,7 @@ export default function CreateOnlineInvoicePage() {
                   />
                 </div>
                 {selectedCustomer && customers.find(c => String(c.id) === String(selectedCustomer))?.is_ecommerce_user == 1 && (
-                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white font-black text-[10px] h-10 px-3 uppercase tracking-tighter shrink-0 animate-in zoom-in-50 duration-300">
+                  <Badge className="bg-blue-500 hover:bg-blue-600 text-white font-semibold text-xs h-10 px-3 shrink-0 animate-in zoom-in-50 duration-300">
                     Web Customer
                   </Badge>
                 )}
@@ -436,9 +425,9 @@ export default function CreateOnlineInvoicePage() {
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl border border-slate-200 dark:border-border bg-slate-50/50 dark:bg-muted/20 shadow-sm flex flex-col justify-center">
+          <div className="p-5 rounded-2xl border border-border bg-slate-50/50 dark:bg-muted/20 shadow-sm flex flex-col justify-center">
              <div className="flex items-center justify-between mb-4">
-               <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Order Payment</h3>
+               <h3 className="text-xs font-semibold text-slate-500">Order Payment</h3>
                <Badge variant={order?.payment_status === 'Paid' ? 'default' : 'outline'} className={order?.payment_status === 'Paid' ? 'bg-green-500 hover:bg-green-600 border-none' : ''}>
                  {order?.payment_status || 'Pending'}
                </Badge>
@@ -450,8 +439,8 @@ export default function CreateOnlineInvoicePage() {
                       <CreditCard className="w-4 h-4 text-slate-400" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Method</p>
-                      <p className="text-sm font-black">{order?.payment_method || 'N/A'}</p>
+                      <p className="text-xs font-bold text-slate-400">Method</p>
+                      <p className="text-sm font-semibold">{order?.payment_method || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -459,12 +448,12 @@ export default function CreateOnlineInvoicePage() {
                   {order?.payment_status === 'Paid' && order?.payment_method !== 'COD' ? (
                     <div className="flex items-center gap-2 text-green-600">
                       <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-[11px] font-bold uppercase tracking-tight">Auto-Receipt Enabled</span>
+                      <span className="text-xs font-bold tracking-tight">Auto-Receipt Enabled</span>
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-amber-600">
                       <div className="w-2 h-2 rounded-full bg-amber-500" />
-                      <span className="text-[11px] font-bold uppercase tracking-tight">Payment via {order?.payment_method === 'COD' ? 'COD (Manual)' : 'Verification'}</span>
+                      <span className="text-xs font-bold tracking-tight">Payment via {order?.payment_method === 'COD' ? 'COD (Manual)' : 'Verification'}</span>
                     </div>
                   )}
                 </div>
@@ -475,19 +464,19 @@ export default function CreateOnlineInvoicePage() {
         {/* Items and Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="md:col-span-2 space-y-4">
-            <Card className="rounded-2xl border-slate-200 dark:border-border shadow-sm">
-              <CardHeader className="bg-slate-50 dark:bg-muted/40 border-b">
-                <CardTitle className="text-sm font-bold uppercase tracking-widest">Order Items</CardTitle>
+            <Card className="rounded-2xl border-border shadow-sm">
+              <CardHeader className="bg-muted/40 border-b">
+                <CardTitle className="text-sm font-bold">Order Items</CardTitle>
               </CardHeader>
               <CardContent className="p-5 space-y-3">
                 {items.map((item, index) => (
-                  <div key={index} className="flex flex-wrap lg:flex-nowrap items-start gap-3 p-4 rounded-xl border border-slate-100 dark:border-border bg-slate-50/50 dark:bg-muted/20">
+                  <div key={index} className="flex flex-wrap lg:flex-nowrap items-start gap-3 p-4 rounded-xl border border-border bg-slate-50/50 dark:bg-muted/20">
                     <div className="w-full lg:w-2/5">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Description</label>
+                      <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground mb-1.5 block">Description</label>
                       <Input value={item.description} readOnly className="bg-muted/50 cursor-not-allowed" />
                       {item.is_fifo && item.available_batches && item.available_batches.length > 0 && (
                         <div className="mt-2 flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-amber-600 uppercase">Batch:</span>
+                          <span className="text-xs font-bold text-amber-600">Batch:</span>
                           <Select value={item.selected_batch || 'auto'} onValueChange={(val) => handleItemChange(index, 'selected_batch', val)}>
                             <SelectTrigger className="h-7 text-xs border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-900/10">
                               <SelectValue />
@@ -503,19 +492,19 @@ export default function CreateOnlineInvoicePage() {
                       )}
                     </div>
                     <div className="w-1/2 lg:w-20">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Qty</label>
+                      <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground mb-1.5 block">Qty</label>
                       <Input type="number" value={item.quantity} onChange={(e) => handleItemChange(index, 'quantity', e.target.value)} />
                     </div>
                     <div className="w-1/2 lg:w-28">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Unit Price</label>
+                      <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground mb-1.5 block">Unit Price</label>
                       <Input type="number" value={item.unit_price} onChange={(e) => handleItemChange(index, 'unit_price', e.target.value)} />
                     </div>
                     <div className="w-1/2 lg:w-28">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Disc/Unit</label>
+                      <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground mb-1.5 block">Disc/Unit</label>
                       <Input type="number" value={item.discount} onChange={(e) => handleItemChange(index, 'discount', e.target.value)} />
                     </div>
                     <div className="w-1/2 lg:w-28">
-                      <label className="text-[10px] font-bold text-slate-500 dark:text-muted-foreground uppercase tracking-widest mb-1.5 block">Total</label>
+                      <label className="text-xs font-bold text-slate-500 dark:text-muted-foreground mb-1.5 block">Total</label>
                       <Input readOnly value={Number(item.line_total || 0).toFixed(2)} className="bg-amber-50 dark:bg-amber-500/10 font-bold" />
                     </div>
                     <div className="w-full lg:w-auto pt-5 flex justify-end">
@@ -569,9 +558,9 @@ export default function CreateOnlineInvoicePage() {
             </Card>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="rounded-2xl border-slate-200 dark:border-border shadow-sm">
-                <CardHeader className="bg-slate-50 dark:bg-muted/40 py-3 border-b">
-                  <CardTitle className="text-xs font-bold uppercase tracking-widest">Notes & Terms</CardTitle>
+              <Card className="rounded-2xl border-border shadow-sm">
+                <CardHeader className="bg-muted/40 py-3 border-b">
+                  <CardTitle className="text-xs font-bold">Notes & Terms</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4">
                   <textarea 
@@ -582,17 +571,17 @@ export default function CreateOnlineInvoicePage() {
                   />
                 </CardContent>
               </Card>
-              <Card className="rounded-2xl border-slate-200 dark:border-border shadow-sm">
-                <CardHeader className="bg-slate-50 dark:bg-muted/40 py-3 border-b">
-                  <CardTitle className="text-xs font-bold uppercase tracking-widest">Address Details</CardTitle>
+              <Card className="rounded-2xl border-border shadow-sm">
+                <CardHeader className="bg-muted/40 py-3 border-b">
+                  <CardTitle className="text-xs font-bold">Address Details</CardTitle>
                 </CardHeader>
                 <CardContent className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Billing Address</label>
+                    <label className="text-xs font-bold text-muted-foreground mb-1 block">Billing Address</label>
                     <textarea value={billingAddress} onChange={e => setBillingAddress(e.target.value)} className="w-full text-xs bg-muted/20 border-slate-200 rounded-lg p-2" rows={2} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1 block">Shipping Address</label>
+                    <label className="text-xs font-bold text-muted-foreground mb-1 block">Shipping Address</label>
                     <textarea value={shippingAddress} onChange={e => setShippingAddress(e.target.value)} className="w-full text-xs bg-muted/20 border-slate-200 rounded-lg p-2" rows={2} />
                   </div>
                 </CardContent>
@@ -601,7 +590,7 @@ export default function CreateOnlineInvoicePage() {
           </div>
 
           <div className="space-y-4">
-            <Card className="rounded-3xl border-none shadow-2xl bg-slate-900 text-white overflow-hidden">
+            <Card className="rounded-xl border-none shadow-sm bg-slate-900 text-white overflow-hidden">
               <CardHeader className="bg-white/5 border-b border-white/10 p-6">
                 <div className="flex items-center justify-between">
                   <span className="font-bold tracking-tight">Invoice Summary</span>
@@ -615,7 +604,7 @@ export default function CreateOnlineInvoicePage() {
                     <span className="font-bold">Rs. {totals.line_totals_sum.toLocaleString()}</span>
                   </div>
                   {totals.line_discount > 0 && (
-                    <div className="flex justify-between text-[10px] text-muted-foreground italic">
+                    <div className="flex justify-between text-xs text-muted-foreground italic">
                       <span>(Incl. Rs. {totals.line_discount.toLocaleString()} line discounts)</span>
                     </div>
                   )}
@@ -637,11 +626,11 @@ export default function CreateOnlineInvoicePage() {
                 <div className="pt-6 border-t border-white/10">
                   <div className="flex justify-between items-end">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Grand Total</p>
-                      <p className="text-3xl font-black text-amber-400">Rs. {grandTotal.toLocaleString()}</p>
+                      <p className="text-xs font-semibold text-slate-500 mb-1">Grand Total</p>
+                      <p className="text-2xl font-semibold text-amber-400">Rs. {grandTotal.toLocaleString()}</p>
                     </div>
                     <div className="text-right">
-                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Savings</p>
+                       <p className="text-xs font-semibold text-slate-500 mb-1">Savings</p>
                        <p className="text-sm font-bold text-emerald-400">Rs. {totalDiscount.toLocaleString()}</p>
                     </div>
                   </div>
@@ -649,17 +638,17 @@ export default function CreateOnlineInvoicePage() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-slate-200 dark:border-border shadow-sm overflow-hidden">
-               <CardHeader className="bg-slate-50 dark:bg-muted/40 py-3 border-b">
-                  <CardTitle className="text-xs font-bold uppercase tracking-widest">Timeline</CardTitle>
+            <Card className="rounded-2xl border-border shadow-sm overflow-hidden">
+               <CardHeader className="bg-muted/40 py-3 border-b">
+                  <CardTitle className="text-xs font-bold">Timeline</CardTitle>
                 </CardHeader>
                 <CardContent className="p-5 space-y-4">
                   <div>
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block">Issue Date</label>
+                    <label className="text-xs font-bold text-muted-foreground mb-1.5 block">Issue Date</label>
                     <Input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} />
                   </div>
                   <div>
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase mb-1.5 block">Due Date</label>
+                    <label className="text-xs font-bold text-muted-foreground mb-1.5 block">Due Date</label>
                     <Input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
                   </div>
                 </CardContent>

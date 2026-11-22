@@ -123,12 +123,11 @@ export default function InvoiceReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Invoice Report"
       subtitle="Detailed list of all invoices"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

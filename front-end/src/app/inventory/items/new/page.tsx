@@ -1,5 +1,9 @@
 "use client";
 
+import { ItemPrintStationField } from "../ItemPrintStationField";
+import { ItemBasePricePreview } from "../ItemBasePricePreview";
+import { assignItemsToStation } from "@/lib/api/printqueue";
+
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -73,6 +77,7 @@ export default function NewItemPage() {
   const { toast } = useToast();
 
   const [units, setUnits] = useState<UnitRow[]>([]);
+  const [printStationId, setPrintStationId] = useState<number | null>(null);
   const [brands, setBrands] = useState<BrandRow[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierRow[]>([]);
   const [collections, setCollections] = useState<any[]>([]);
@@ -248,6 +253,11 @@ export default function NewItemPage() {
         kiosk_module: form.kiosk_module,
       });
 
+      if (res?.status === "success" && res?.data?.id && printStationId) {
+        await assignItemsToStation(printStationId, [Number(res.data.id)]).catch(() => {
+          toast({ title: "Print station not saved", description: "Set it again on the item page.", variant: "destructive" });
+        });
+      }
       toast({ title: "Created", description: "Product created successfully." });
       
       // Redirect to the newly created product detail page so they can manage gallery & attributes!
@@ -515,6 +525,7 @@ export default function NewItemPage() {
                       <div className="space-y-2">
                         <Label className="text-primary font-bold">Selling Price</Label>
                         <Input className="border-primary/30 bg-primary/5 font-bold" type="number" placeholder="0.00" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} required />
+                        <ItemBasePricePreview price={form.price} />
                       </div>
                       <div className="space-y-2">
                         <Label>Wholesale Price</Label>
@@ -635,6 +646,8 @@ export default function NewItemPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <ItemPrintStationField current={printStationId} onSelect={setPrintStationId} />
 
               </div>
             </TabsContent>

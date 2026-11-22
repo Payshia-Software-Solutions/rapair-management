@@ -1,219 +1,354 @@
-"use client";
-import { API_BASE } from '@/config';
+﻿"use client";
 
-import React, { useState, useEffect } from 'react';
-import { RefreshCcw, Search, Plus, Edit, Trash2, MoreVertical, Copy, Check } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { RefreshCcw, Search, Plus, Edit, Trash2, Copy, Check, Eye, EyeOff, ExternalLink, AlertTriangle, Clock, X, Loader2 } from 'lucide-react';
 import Pagination from '@/components/Pagination';
+import { adminFetch } from '@/lib/adminApi';
 
-function StatusBadge({ status }: { status: string }) {
-  const active = status === 'Active';
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
-      active
-        ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800/40 dark:bg-green-950/40 dark:text-green-400'
-        : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/40 dark:bg-amber-950/40 dark:text-amber-400'
-    }`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-green-500' : 'bg-amber-500'}`} />
-      {status}
-    </span>
-  );
+type Tenant = {
+  id: number | string;
+  name: string;
+  slug: string;
+  admin_email: string;
+  status: 'Active' | 'Trial' | 'Suspended' | 'Expired' | 'pending_trial' | string;
+  package_name?: string | null;
+  package_id?: number | string;
+  billing_cycle?: string;
+  currency?: string;
+  trial_expiry?: string | null;
+  renewal_date?: string | null;
+  license_key?: string;
+  api_key?: string;
+  workspace_url?: string | null;
+  provision_status?: string | null;
+  created_at?: string;
+};
+
+const STATUS_STYLE: Record<string, { pill: string; dot: string; label: string }> = {
+  Active:    { pill: 'border-nx-success/30 bg-nx-success-soft text-nx-success', dot: 'bg-nx-success', label: 'Active' },
+  Trial:     { pill: 'border-nx-info/30 bg-nx-info-soft text-nx-info', dot: 'bg-nx-info', label: 'Trial' },
+  Suspended: { pill: 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger', dot: 'bg-nx-danger', label: 'Suspended' },
+  Expired:   { pill: 'border-nx-warning/30 bg-nx-warning-soft text-nx-warning', dot: 'bg-nx-warning', label: 'Expired' },
+};
+const FALLBACK = { pill: 'border-nx-line bg-nx-surface-muted text-nx-text-muted', dot: 'bg-nx-text-subtle', label: 'Unknown' };
+const TABS = ['All', 'Active', 'Trial', 'Suspended', 'Expired'] as const;
+const AVATAR = [
+  'bg-nx-accent-soft text-nx-accent dark:bg-nx-accent/15 dark:text-nx-accent-light',
+  'bg-nx-success-soft text-nx-success',
+  'bg-nx-violet-soft text-nx-violet',
+  'bg-nx-info-soft text-nx-info',
+  'bg-nx-rose-soft text-nx-rose',
+  'bg-nx-warning-soft text-nx-warning',
+];
+
+const avatarTone = (name: string) => {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return AVATAR[h % AVATAR.length];
+};
+
+/** Whole days until a YYYY-MM-DD date (negative once it has passed), or null. */
+const daysUntil = (d?: string | null) => {
+  if (!d) return null;
+  const t = new Date(d.slice(0, 10) + 'T00:00:00').getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.ceil((t - Date.now()) / 86_400_000);
+};
+
+const maskKey = (k?: string) => (k && k.length > 12 ? `${k.slice(0, 8)}…${k.slice(-4)}` : k || '—');
+
+/** Lifecycle line shown under the status pill. Trial rows carry the urgency. */
+function lifecycle(t: Tenant): { text: string; tone: 'muted' | 'warn' | 'danger' } {
+  const days = daysUntil(t.trial_expiry || t.renewal_date);
+  if (t.status === 'Trial') {
+    if (days === null) return { text: 'No end date set', tone: 'warn' };
+    if (days < 0) return { text: `Trial ended ${-days} day${days === -1 ? '' : 's'} ago. Needs follow-up`, tone: 'danger' };
+    if (days === 0) return { text: 'Trial ends today', tone: 'warn' };
+    return { text: `${days} day${days === 1 ? '' : 's'} left in trial`, tone: days <= 7 ? 'warn' : 'muted' };
+  }
+  if (t.status === 'Active' && days !== null) {
+    return { text: days < 0 ? `Renewal overdue by ${-days} days` : `Renews in ${days} day${days === 1 ? '' : 's'}`, tone: days < 0 ? 'danger' : days <= 7 ? 'warn' : 'muted' };
+  }
+  return { text: t.status === 'Suspended' ? 'Access paused' : t.status === 'Expired' ? 'Subscription lapsed' : '', tone: 'muted' };
 }
 
 export default function TenantsPage() {
-  const [tenants,     setTenants]     = useState<any[]>([]);
-  const [loading,     setLoading]     = useState(true);
-  const [searchTerm,  setSearchTerm]  = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [copiedKey,   setCopiedKey]   = useState<string | null>(null);
-  const itemsPerPage = 10;
   const router = useRouter();
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<(typeof TABS)[number]>('All');
+  // Deep links from the dashboard, e.g. /admin/tenants?tab=Trial. Read after mount to keep SSR and client markup equal.
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab') ?? '';
+    if ((TABS as readonly string[]).includes(requested)) setTab(requested as (typeof TABS)[number]);
+  }, []);
+  const [plan, setPlan] = useState('all');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({});
+  const [copied, setCopied] = useState<string | null>(null);
+  const [approving, setApproving] = useState<string | null>(null);
+  const perPage = 10;
 
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedKey(id);
-    setTimeout(() => setCopiedKey(null), 1800);
-  };
-
-  const fetchData = async () => {
+  const load = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res  = await fetch(`${API_BASE}/admin/tenants`, { credentials: 'include' });
+      const res = await adminFetch('/admin/tenants');
       const data = await res.json();
+      if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Could not load tenants.');
       setTenants(data.data || []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  useEffect(() => { fetchData(); }, []);
-  useEffect(() => { setCurrentPage(1); }, [searchTerm]);
+  useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [tab, plan, search]);
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this tenant? This cannot be undone.')) return;
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { All: tenants.length };
+    tenants.forEach(t => { c[t.status] = (c[t.status] || 0) + 1; });
+    return c;
+  }, [tenants]);
+
+  const trialAlerts = useMemo(() => tenants.filter(t => t.status === 'Trial' && (daysUntil(t.trial_expiry) ?? 999) <= 7).length, [tenants]);
+
+  const plans = useMemo(() => Array.from(new Set(tenants.map(t => t.package_name).filter(Boolean))) as string[], [tenants]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return tenants.filter(t => {
+      if (tab !== 'All' && t.status !== tab) return false;
+      if (plan !== 'all' && t.package_name !== plan) return false;
+      if (!q) return true;
+      return [t.name, t.slug, t.admin_email, t.license_key].some(v => (v || '').toLowerCase().includes(q));
+    });
+  }, [tenants, tab, plan, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageItems = filtered.slice((page - 1) * perPage, page * perPage);
+
+  const copy = (text: string, key: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(null), 1600);
+  };
+
+  const suspend = async (t: Tenant) => {
+    const reason = prompt(`Suspend ${t.name}? Enter the reason (the customer is emailed):`, 'Account suspended by administrator');
+    if (!reason) return;
+
+    setApproving(`reject-${t.id}`);
     try {
-      await fetch(`${API_BASE}/admin/tenants/delete`, {
+      const res = await adminFetch('/admin/tenants/suspend', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id: t.id, reason }),
       });
-      fetchData();
-    } catch (err) { console.error(err); }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Rejection failed.');
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setApproving(null);
+    }
   };
 
-  const filtered   = tenants.filter(t =>
-    t.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    t.slug.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  const totalPages = Math.ceil(filtered.length / itemsPerPage);
-  const pageItems  = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const remove = async (t: Tenant) => {
+    if (!confirm(`Delete ${t.name}? Their workspace stops working and the record is hidden. This cannot be undone here.`)) return;
+    try {
+      const res = await adminFetch('/admin/tenants/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: t.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Delete failed.');
+      load();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   return (
-    <div className="p-6 space-y-5">
-
-      {/* ── Header ─────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-[#09090b] dark:text-white">SaaS Tenants</h1>
-          <p className="mt-0.5 text-[13px] text-[#71717a] dark:text-[#a1a1aa]">Directory of enterprise instances</p>
+          <h1 className="text-xl font-semibold tracking-tight text-nx-ink dark:text-white">Tenants</h1>
+          <p className="mt-1 text-sm text-nx-text-muted dark:text-nx-text-subtle">
+            {tenants.length} workspace{tenants.length === 1 ? '' : 's'} on the platform
+            {trialAlerts > 0 && <span className="ml-2 font-medium text-nx-warning">· {trialAlerts} trial{trialAlerts === 1 ? '' : 's'} ending within 7 days</span>}
+          </p>
         </div>
-
         <div className="flex items-center gap-2">
-          <div className="relative">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#a1a1aa]" />
-            <input
-              type="text"
-              placeholder="Search tenants…"
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="
-                rounded-lg border border-[#e4e4e7] bg-white py-2 pl-9 pr-3
-                text-[13px] text-[#09090b] placeholder:text-[#a1a1aa] w-52
-                focus:border-[#6366f1] focus:outline-none focus:ring-2 focus:ring-[#6366f1]/20
-                dark:border-[#27272a] dark:bg-[#18181b] dark:text-white
-                transition-all
-              "
-            />
-          </div>
-          <button
-            onClick={() => router.push('/admin/tenants/create')}
-            className="flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-3 py-2 text-[13px] font-medium text-white hover:bg-[#4f46e5] transition-colors"
-          >
-            <Plus size={14} /> Register
-          </button>
-          <button
-            onClick={fetchData}
-            className="rounded-lg border border-[#e4e4e7] bg-white p-2 text-[#71717a] hover:bg-[#f4f4f5] dark:border-[#27272a] dark:bg-[#18181b] dark:hover:bg-[#27272a] transition-colors"
-          >
+          <button onClick={load} className="rounded-lg border border-nx-line bg-white p-2.5 text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:bg-nx-surface-dark dark:hover:bg-nx-line-dark" aria-label="Refresh">
             <RefreshCcw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+          <button onClick={() => router.push('/admin/tenants/create')} className="flex items-center gap-1.5 rounded-lg bg-nx-accent-strong px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-nx-accent">
+            <Plus size={15} /> Register tenant
           </button>
         </div>
       </div>
 
-      {/* ── Table ──────────────────────────────────── */}
-      <div className="overflow-hidden rounded-xl border border-[#e4e4e7] bg-white dark:border-[#27272a] dark:bg-[#18181b]">
+      {error && (
+        <div role="alert" className="flex items-start gap-3 rounded-xl border border-nx-danger/30 bg-nx-danger-soft p-4 text-sm text-nx-danger">
+          <AlertTriangle size={16} className="mt-0.5 shrink-0" /> <span>{error}</span>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-1 rounded-xl border border-nx-line bg-white p-1 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+          {TABS.map(t => {
+            const on = tab === t;
+            return (
+              <button key={t} role="tab" aria-selected={on} onClick={() => setTab(t)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${on ? 'bg-nx-accent-soft text-nx-accent dark:bg-nx-accent/15 dark:text-nx-accent-light' : 'text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'}`}>
+                {t === 'All' ? 'All' : STATUS_STYLE[t]?.label ?? t}
+                <span className="rounded-md bg-nx-surface-muted px-1.5 text-xs tabular-nums text-nx-text-muted dark:bg-nx-line-dark dark:text-nx-text-subtle">{counts[t] ?? 0}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex gap-2">
+          <select value={plan} onChange={e => setPlan(e.target.value)} aria-label="Filter by plan"
+            className="rounded-lg border border-nx-line bg-white px-3 py-2 text-sm text-nx-ink focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white">
+            <option value="all">All plans</option>
+            {plans.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-subtle" />
+            <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, slug, email or license…" aria-label="Search tenants"
+              className="w-72 rounded-lg border border-nx-line bg-white py-2 pl-9 pr-3 text-sm text-nx-ink placeholder:text-nx-text-subtle focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white" />
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-xl border border-nx-line bg-white dark:border-nx-line-dark dark:bg-nx-surface-dark">
         <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-[#e4e4e7] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#18181b]">
-                {['Tenant', 'Plan', 'License Key', 'API Key', 'Status', ''].map((h, i) => (
-                  <th key={i} className={`px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#71717a] dark:text-[#a1a1aa] ${i === 4 ? 'text-center' : ''} ${i === 5 ? 'text-right' : ''}`}>
-                    {h}
-                  </th>
-                ))}
+          <table className="w-full min-w-[960px] text-left">
+            <thead className="border-b border-nx-line bg-nx-surface-soft text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted dark:border-nx-line-dark dark:bg-nx-surface-dark-2 dark:text-nx-text-subtle">
+              <tr>
+                <th className="px-5 py-3">Tenant</th>
+                <th className="px-5 py-3">Plan</th>
+                <th className="px-5 py-3">Status & lifecycle</th>
+                <th className="px-5 py-3">Keys</th>
+                <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#f4f4f5] dark:divide-[#27272a]">
-              {loading ? (
+            <tbody className="divide-y divide-nx-surface-muted dark:divide-nx-line-dark">
+              {loading && (
+                <tr><td colSpan={5} className="px-5 py-14 text-center text-sm text-nx-text-subtle">Loading tenants…</td></tr>
+              )}
+              {!loading && pageItems.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-[13px] text-[#a1a1aa]">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#e4e4e7] border-t-[#6366f1]" />
-                      Loading tenants…
-                    </div>
+                  <td colSpan={5} className="px-5 py-14 text-center">
+                    <p className="text-sm font-medium text-nx-ink dark:text-white">No tenants match these filters</p>
+                    <p className="mt-1 text-xs text-nx-text-subtle">Clear the search or pick another status.</p>
                   </td>
                 </tr>
-              ) : pageItems.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-[13px] text-[#a1a1aa]">No tenants found</td>
-                </tr>
-              ) : pageItems.map(tenant => (
-                <tr key={tenant.id} className="group hover:bg-[#fafafa] dark:hover:bg-[#1c1c1f] transition-colors">
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#6366f1]/10 text-[12px] font-bold text-[#6366f1] dark:bg-[#6366f1]/15 dark:text-[#818cf8]">
-                        {tenant.name.substring(0, 2).toUpperCase()}
+              )}
+              {!loading && pageItems.map(t => {
+                const st = STATUS_STYLE[t.status] ?? FALLBACK;
+                const life = lifecycle(t);
+                const urgent = t.status === 'Trial' && life.tone === 'danger';
+                const url = t.workspace_url || `${t.slug}`;
+                return (
+                  <tr key={t.id} className={`group transition-colors hover:bg-nx-surface-soft dark:hover:bg-nx-surface-dark-2 ${urgent ? 'bg-nx-danger-soft/40 dark:bg-nx-danger-soft/30' : ''}`}>
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${avatarTone(t.name)}`}>
+                          {t.name.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0">
+                          <button onClick={() => router.push(`/admin/tenants/edit/${t.id}`)} className="block truncate text-sm font-medium text-nx-ink hover:text-nx-accent dark:text-white">{t.name}</button>
+                          <div className="truncate text-xs text-nx-text-muted dark:text-nx-text-subtle">{t.admin_email}</div>
+                          <div className="mt-0.5 flex items-center gap-1 font-mono text-[11px] text-nx-text-subtle">
+                            <span className="truncate">{url}</span>
+                            {t.workspace_url && (
+                              <a href={t.workspace_url} target="_blank" rel="noreferrer" aria-label={`Open ${t.name} workspace`} className="hover:text-nx-accent"><ExternalLink size={11} /></a>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-[13px] font-medium text-[#09090b] dark:text-white">{tenant.name}</div>
-                        <div className="text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa]">{tenant.slug}.nexus.io</div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="text-sm text-nx-ink dark:text-white">{t.package_name || <span className="text-nx-text-subtle">No package</span>}</div>
+                      <div className="mt-1 text-xs capitalize text-nx-text-muted dark:text-nx-text-subtle">{t.billing_cycle || 'monthly'} · {t.currency || 'USD'}</div>
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium ${st.pill}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}
+                      </span>
+                      {life.text && (
+                        <div className={`mt-1.5 flex items-center gap-1 text-xs ${life.tone === 'danger' ? 'font-medium text-nx-danger' : life.tone === 'warn' ? 'text-nx-warning' : 'text-nx-text-muted dark:text-nx-text-subtle'}`}>
+                          {life.tone !== 'muted' && <Clock size={11} />}{life.text}
+                        </div>
+                      )}
+                      {t.provision_status && t.provision_status !== 'ready' && (
+                        <div className="mt-1 text-[11px] text-nx-text-subtle">Provisioning: {t.provision_status}</div>
+                      )}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      {[
+                        { key: 'lic', label: 'License', value: t.license_key },
+                        { key: 'api', label: 'API key', value: t.api_key },
+                      ].map(row => {
+                        const id = `${row.key}-${t.id}`;
+                        const shown = revealed[id] ? row.value : maskKey(row.value);
+                        return (
+                          <div key={row.key} className="flex items-center gap-1.5 py-0.5">
+                            <span className="w-14 text-[10px] uppercase tracking-wide text-nx-text-subtle">{row.label}</span>
+                            <code className="max-w-[170px] truncate rounded bg-nx-surface-muted px-1.5 py-0.5 font-mono text-[11px] text-nx-text-muted dark:bg-nx-line-dark dark:text-nx-text-subtle">{shown || '—'}</code>
+                            {row.value && (
+                              <>
+                                <button onClick={() => setRevealed(r => ({ ...r, [id]: !r[id] }))} aria-label={revealed[id] ? 'Hide key' : 'Show key'} className="rounded p-1 text-nx-text-subtle hover:text-nx-accent">
+                                  {revealed[id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                                </button>
+                                <button onClick={() => copy(row.value!, id)} aria-label="Copy key" className="rounded p-1 text-nx-text-subtle hover:text-nx-accent">
+                                  {copied === id ? <Check size={12} className="text-nx-success" /> : <Copy size={12} />}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </td>
+
+                    <td className="px-5 py-4">
+                      <div className="flex items-center justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
+                        {t.status !== 'Suspended' && (
+                          <button onClick={() => suspend(t)} disabled={approving !== null} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-nx-danger hover:bg-nx-danger-soft disabled:opacity-60">
+                            {approving === `reject-${t.id}` ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
+                            Suspend
+                          </button>
+                        )}
+                        <button onClick={() => router.push(`/admin/tenants/edit/${t.id}`)} className="rounded-md p-2 text-nx-text-subtle hover:bg-nx-surface-muted hover:text-nx-accent dark:hover:bg-nx-line-dark" aria-label={`Edit ${t.name}`}>
+                          <Edit size={15} />
+                        </button>
+                        <button onClick={() => remove(t)} className="rounded-md p-2 text-nx-text-subtle hover:bg-nx-danger-soft hover:text-nx-danger" aria-label={`Delete ${t.name}`}>
+                          <Trash2 size={15} />
+                        </button>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="rounded-md border border-[#e0e7ff] bg-[#eef2ff] px-2 py-0.5 text-[11px] font-medium text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8]">
-                        {tenant.package_name}
-                      </span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
-                        tenant.billing_cycle === 'yearly'
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400'
-                      }`}>
-                        {tenant.billing_cycle === 'yearly' ? 'Annual' : 'Monthly'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1.5">
-                      <code className="rounded border border-[#e4e4e7] bg-[#f4f4f5] px-1.5 py-0.5 font-mono text-[11px] text-[#71717a] dark:border-[#27272a] dark:bg-[#27272a] dark:text-[#a1a1aa] select-all max-w-[140px] truncate">
-                        {tenant.license_key}
-                      </code>
-                      <button
-                        onClick={() => copyToClipboard(tenant.license_key, `lic-${tenant.id}`)}
-                        className="rounded p-1 text-[#a1a1aa] hover:bg-[#f4f4f5] hover:text-[#6366f1] dark:hover:bg-[#27272a] transition-colors"
-                        title="Copy License Key"
-                      >
-                        {copiedKey === `lic-${tenant.id}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-1.5">
-                      <code className="rounded border border-[#e0e7ff] bg-[#eef2ff] px-1.5 py-0.5 font-mono text-[11px] text-[#6366f1] dark:border-[#6366f1]/20 dark:bg-[#6366f1]/10 dark:text-[#818cf8] select-all max-w-[140px] truncate">
-                        {tenant.api_key}
-                      </code>
-                      <button
-                        onClick={() => copyToClipboard(tenant.api_key, `api-${tenant.id}`)}
-                        className="rounded p-1 text-[#a1a1aa] hover:bg-[#f4f4f5] hover:text-[#6366f1] dark:hover:bg-[#27272a] transition-colors"
-                        title="Copy API Key"
-                      >
-                        {copiedKey === `api-${tenant.id}` ? <Check size={12} className="text-green-500" /> : <Copy size={12} />}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="px-5 py-3.5 text-center">
-                    <StatusBadge status={tenant.status} />
-                  </td>
-                  <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => router.push(`/admin/tenants/edit/${tenant.id}`)} className="rounded-md p-1.5 text-[#a1a1aa] hover:bg-[#f4f4f5] hover:text-[#6366f1] dark:hover:bg-[#27272a] transition-colors" title="Edit">
-                        <Edit size={14} />
-                      </button>
-                      <button onClick={() => handleDelete(tenant.id)} className="rounded-md p-1.5 text-[#a1a1aa] hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 dark:hover:text-red-400 transition-colors" title="Delete">
-                        <Trash2 size={14} />
-                      </button>
-                      <button className="rounded-md p-1.5 text-[#a1a1aa] hover:bg-[#f4f4f5] dark:hover:bg-[#27272a] transition-colors">
-                        <MoreVertical size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} totalItems={filtered.length} itemsPerPage={itemsPerPage} />
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} itemsPerPage={perPage} />
       </div>
     </div>
   );

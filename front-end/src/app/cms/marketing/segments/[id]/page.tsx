@@ -333,7 +333,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
       </div>
 
       <Dialog open={isManualModalOpen} onOpenChange={setIsManualModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">Add Contact Manually</DialogTitle>
             <DialogDescription className="font-medium">Directly add a new contact to this targeted list.</DialogDescription>
@@ -378,7 +378,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
       </Dialog>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">Edit Contact</DialogTitle>
             <DialogDescription className="font-medium">Update the details for this contact in the segment.</DialogDescription>
@@ -423,7 +423,7 @@ export default function SegmentDetailPage({ params }: { params: Promise<{ id: st
       </Dialog>
 
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4">
               <AlertTriangle className="w-8 h-8 text-rose-500" />

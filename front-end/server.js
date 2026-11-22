@@ -8,7 +8,6 @@
 //   node server.js --dev --port 9003
 
 const http = require("http");
-const url = require("url");
 const next = require("next");
 
 function parseArgs(argv) {
@@ -84,8 +83,8 @@ async function main() {
 
   const server = http.createServer(async (req, res) => {
     try {
-      const parsedUrl = url.parse(req.url, true);
-      await handle(req, res, parsedUrl);
+      // Next parses the URL itself (with the WHATWG URL API); url.parse() is deprecated.
+      await handle(req, res);
     } catch (err) {
       const e = err || {};
       const isMissingNextArtifact =

@@ -260,12 +260,11 @@ export default function ItemWiseSalesReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Item Wise Sale Report"
       subtitle="Detailed analysis of sales by individual items and their categories"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

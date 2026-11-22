@@ -93,7 +93,7 @@ export const MultiLocationSelector: React.FC<MultiLocationSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent 
-            className="p-0 w-[300px] border-none shadow-2xl rounded-2xl overflow-hidden bg-white dark:bg-slate-950 z-[9999]" 
+            className="p-0 w-[300px] overflow-hidden z-[9999]" 
             align="start"
             onPointerDown={(e) => e.stopPropagation()}
             style={{ pointerEvents: 'auto' }}

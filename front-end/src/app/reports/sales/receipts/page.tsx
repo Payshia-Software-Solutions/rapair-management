@@ -122,12 +122,11 @@ export default function ReceiptReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Payment Receipt Report"
       subtitle="List of all payment receipts issued"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

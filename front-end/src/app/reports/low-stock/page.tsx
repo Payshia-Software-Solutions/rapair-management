@@ -60,7 +60,7 @@ export default function LowStockReportPage() {
     setLoading(true);
     try {
       const data = await fetchReportLowStock({
-        locationId: locationId === "all" ? "all" : Number(locationId),
+        location_id: String(locationId),
         q: query.trim() || undefined,
       });
       setRows(Array.isArray(data) ? data : []);
@@ -90,12 +90,11 @@ export default function LowStockReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Low Stock Report"
       subtitle="Items at/below reorder level (All or location-wise)."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

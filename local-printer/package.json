@@ -1,12 +1,23 @@
 {
-  "name": "local-printer-service",
-  "version": "1.0.0",
-  "description": "Silent print service for POS thermal printers",
+  "name": "bizzflow-printer",
+  "version": "2.0.0",
+  "description": "BizzFlow silent print bridge for POS / KOT thermal printers",
   "main": "server.js",
   "bin": "server.js",
   "scripts": {
     "start": "node server.js",
-    "build": "pkg . --targets node18-win-x64 --output bizzflow-printer.exe"
+    "icon": "node scripts/make-icon.js",
+    "build": "pkg . --targets node18-win-x64 --output bizzflow-printer.exe && node scripts/hide-console.js bizzflow-printer.exe",
+    "installer": "node scripts/build-installer.js",
+    "release": "npm run build && npm run installer"
+  },
+  "pkg": {
+    "assets": [
+      "ui/**/*",
+      "assets/**/*",
+      "node_modules/pdf-to-printer/dist/SumatraPDF-3.4.6-32.exe",
+      "node_modules/systray2/traybin/tray_windows_release.exe"
+    ]
   },
   "dependencies": {
     "body-parser": "^1.20.2",

@@ -32,6 +32,19 @@ class AdminModel {
         return $this->db->single();
     }
 
+    /** New verification token for an account that has not verified yet. Returns the user, or null. */
+    public function refreshToken($username) {
+        $user = $this->findByUsername($username);
+        if (!$user || (int)$user->email_verified === 1) return null;
+        $token = bin2hex(random_bytes(32));
+        $this->db->query("UPDATE portal_admins SET verification_token = :token WHERE id = :id");
+        $this->db->bind(':token', $token);
+        $this->db->bind(':id', $user->id);
+        $this->db->execute();
+        $user->verification_token = $token;
+        return $user;
+    }
+
     public function verifyByToken($token) {
         $this->db->query("UPDATE portal_admins SET email_verified = 1, verification_token = NULL WHERE verification_token = :token");
         $this->db->bind(':token', $token);

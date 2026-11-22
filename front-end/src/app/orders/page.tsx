@@ -583,7 +583,7 @@ export default function OrderQueuePage() {
 
       {/* Assignment Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent className="w-screen h-[100dvh] max-w-none rounded-none sm:max-w-[720px] sm:w-[96vw] sm:h-auto sm:max-h-[85vh] sm:rounded-xl overflow-hidden flex flex-col">
+        <DialogContent className="w-screen h-[100dvh] max-w-none rounded-none sm:max-w-[720px] sm:w-[96vw] sm:h-auto sm:max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader className="shrink-0">
             <DialogTitle className="flex items-center gap-2">
               <UserPlus className="w-5 h-5 text-primary" />
@@ -745,7 +745,7 @@ export default function OrderQueuePage() {
 
       {/* Completion Dialog */}
       <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
-        <DialogContent className="w-[95vw] rounded-xl">
+        <DialogContent className="w-[95vw]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-green-500" />

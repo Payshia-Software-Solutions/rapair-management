@@ -11,6 +11,8 @@ import { fetchCompany, updateCompany, fetchTaxes, type CompanyRow } from "@/lib/
 import { Building2, Loader2, Save, Percent, CheckCircle2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { CompanyLogoCard } from "./CompanyLogoCard";
+import { HomeDashboardCard } from "./HomeDashboardCard";
 
 export default function AdminCompanyPage() {
   const { toast } = useToast();
@@ -169,6 +171,9 @@ export default function AdminCompanyPage() {
           </CardContent>
         </Card>
 
+        <div className="space-y-6">
+        <HomeDashboardCard />
+        <CompanyLogoCard filename={company?.logo_filename} onChange={(f) => setCompany(prev => ({ ...(prev || {}), logo_filename: f } as CompanyRow))} />
         <Card className="border-none shadow-md overflow-hidden">
           <CardHeader className="border-b bg-muted/20">
             <div className="flex items-center gap-2">
@@ -217,6 +222,7 @@ export default function AdminCompanyPage() {
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
     </DashboardLayout>
   );

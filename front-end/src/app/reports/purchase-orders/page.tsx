@@ -64,12 +64,11 @@ export default function PurchaseOrderReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Purchase Orders Report"
       subtitle="PO list and quick export (uses purchasing data)."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

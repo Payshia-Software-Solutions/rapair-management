@@ -106,11 +106,11 @@ export default function DayEndReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Day End Sales Report"
       subtitle="Complete daily financial closure"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank"><Printer className="w-4 h-4 mr-2" /> Print</Link></Button>
         </>
       }
       printMeta={

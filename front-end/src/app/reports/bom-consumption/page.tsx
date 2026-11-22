@@ -299,12 +299,11 @@ export default function BOMConsumptionReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="BOM Stock Consumption Report"
       subtitle="Theoretical raw material consumption based on sales volume and BOM formulations"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

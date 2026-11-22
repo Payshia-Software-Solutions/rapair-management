@@ -79,12 +79,11 @@ export default function LocationSalesReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Location-wise Sales Report"
       subtitle="Sales performance breakdown by service location"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

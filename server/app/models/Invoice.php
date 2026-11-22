@@ -4,11 +4,36 @@
  */
 class Invoice extends Model {
     private $table = 'invoices';
+    /** Why the last cancel() refused (shown to the user). */
+    public $lastError = null;
+
+    /** Reason an invoice can't be cancelled, or null. Returns/refunds must be undone first. */
+    public function cancelBlocker($id) {
+        $inv = $this->getById($id);
+        if (!$inv) return 'Invoice not found';
+        if (strtolower((string)$inv->status) === 'cancelled') return 'Invoice is already cancelled';
+        try {
+            $this->db->query("SELECT return_no FROM sales_returns WHERE invoice_id = :id AND LOWER(COALESCE(status, '')) <> 'cancelled' LIMIT 1");
+            $this->db->bind(':id', (int)$id);
+            $r = $this->db->single();
+            if ($r) return "Items on this invoice were returned ({$r->return_no}). Cancel the return first, or keep the invoice.";
+        } catch (Exception $e) {}
+        try {
+            $this->db->query("SELECT refund_no FROM refunds WHERE invoice_id = :id LIMIT 1");
+            $this->db->bind(':id', (int)$id);
+            $r = $this->db->single();
+            if ($r) return "A refund ({$r->refund_no}) was paid on this invoice. It can't be cancelled.";
+        } catch (Exception $e) {}
+        return null;
+    }
     private $db_ref;
 
     public function __construct() {
         $this->db_ref = new Database();
         $this->db = $this->db_ref;
+        // Comp columns on invoice_items (one cheap check per request; DDL only the first time)
+        require_once __DIR__ . '/../helpers/CompSchema.php';
+        CompSchema::ensure();
     }
 
     public function ensureSchema() { return;
@@ -43,16 +68,44 @@ class Invoice extends Model {
 
     public function cancel($id, $reason, $userId) {
         $inv = $this->getById($id);
-        if (!$inv) return false;
-        if ($inv->status === 'Cancelled') return true;
+        if (!$inv) { $this->lastError = 'Invoice not found'; return false; }
+        if (strtolower((string)$inv->status) === 'cancelled') return true;
+        $block = $this->cancelBlocker($id);
+        if ($block) { $this->lastError = $block; return false; }
 
         $this->db->beginTransaction();
         try {
-            // 1. Revert Stock
-            $items = $this->getItems($id);
-            require_once 'Part.php';
-            $partModel = new Part();
+            // 1. Put stock back exactly as the sale took it: every movement of this invoice
+            //    (sold items, recipe ingredients, FIFO batches) is reversed one for one.
+            $this->db->query("SELECT * FROM stock_movements WHERE ref_table = 'invoices' AND ref_id = :id AND qty_change < 0 ORDER BY id ASC");
+            $this->db->bind(':id', $id);
+            $moves = $this->db->resultSet() ?: [];
+            foreach ($moves as $m) {
+                $qty = -1 * (float)$m->qty_change;
+                $this->db->query("
+                    INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
+                    VALUES (:loc, :part, :batch, :qty, 'SALE_CANCEL', 'invoices', :ref, :cost, :price, :notes, :by)
+                ");
+                $this->db->bind(':loc', $m->location_id);
+                $this->db->bind(':part', $m->part_id);
+                $this->db->bind(':batch', $m->batch_id ?? null);
+                $this->db->bind(':qty', $qty);
+                $this->db->bind(':ref', $id);
+                $this->db->bind(':cost', $m->unit_cost);
+                $this->db->bind(':price', $m->unit_price);
+                $this->db->bind(':notes', 'CANCELLATION: ' . $inv->invoice_no);
+                $this->db->bind(':by', $userId);
+                $this->db->execute();
+                if (!empty($m->batch_id)) {
+                    $this->db->query("UPDATE inventory_batches SET quantity_on_hand = quantity_on_hand + :q, is_exhausted = 0 WHERE id = :b");
+                    $this->db->bind(':q', $qty); $this->db->bind(':b', $m->batch_id); $this->db->execute();
+                }
+                $this->db->query("UPDATE parts SET stock_quantity = stock_quantity + :qty WHERE id = :pid");
+                $this->db->bind(':qty', $qty); $this->db->bind(':pid', $m->part_id); $this->db->execute();
+            }
 
+            // Very old invoices may have no movements recorded: fall back to the sold lines
+            $items = $moves ? [] : $this->getItems($id);
             foreach ($items as $item) {
                 if ($item->item_type === 'Part' && !empty($item->item_id)) {
                     // Return stock to inventory
@@ -61,7 +114,7 @@ class Invoice extends Model {
                     // Create reversal movement
                     $this->db->query("
                         INSERT INTO stock_movements (location_id, part_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
-                        VALUES (:loc, :part_id, :qty_change, 'SALE', 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
+                        VALUES (:loc, :part_id, :qty_change, 'SALE_CANCEL', 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
                     ");
                     $this->db->bind(':loc', $inv->location_id);
                     $this->db->bind(':part_id', $item->item_id);
@@ -141,13 +194,19 @@ class Invoice extends Model {
             // 5. Reverse Accounting Entries
             require_once 'Journal.php';
             $journal = new Journal();
-            $journal->reverseEntries('Invoice', $id, $userId);
-            $journal->reverseEntries('Payment', $id, $userId);
+            $journal->reverseAllForRef('Invoice', $id, $userId);
+            $journal->reverseAllForRef('CogsCorrection', $id, $userId);
+            // payments: older ones booked against the invoice, newer ones against each receipt
+            $journal->reverseAllForRef('Payment', $id, $userId);
+            $this->db->query("SELECT id FROM payment_receipts WHERE invoice_id = :id");
+            $this->db->bind(':id', $id);
+            foreach ($this->db->resultSet() ?: [] as $rc) $journal->reverseAllForRef('PaymentReceipt', (int)$rc->id, $userId);
 
             $this->db->commit();
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
+            $this->lastError = 'Cancellation failed: ' . $e->getMessage();
             error_log("Invoice cancellation failed: " . $e->getMessage());
             return false;
         }
@@ -246,12 +305,14 @@ class Invoice extends Model {
                 invoice_no, order_id, online_order_id, location_id, customer_id, billing_address, shipping_address, issue_date, due_date, 
                 subtotal, tax_total, discount_total, shipping_fee, grand_total, order_type, table_id, steward_id, notes,
                 is_international, shipping_provider_id, shipping_country,
-                applied_promotion_id, applied_promotion_name, offline_id, device_id, created_by, updated_by
+                applied_promotion_id, applied_promotion_name, offline_id, device_id, created_by, updated_by,
+                price_display_mode, display_subtotal, display_discount_total, display_service_charge
             ) VALUES (
                 :invoice_no, :order_id, :online_order_id, :location_id, :customer_id, :billing_address, :shipping_address, :issue_date, :due_date, 
                 :subtotal, :tax_total, :discount_total, :shipping_fee, :grand_total, :order_type, :table_id, :steward_id, :notes,
                 :is_international, :shipping_provider_id, :shipping_country,
-                :applied_promo_id, :applied_promo_name, :offline_id, :device_id, :created_by, :updated_by
+                :applied_promo_id, :applied_promo_name, :offline_id, :device_id, :created_by, :updated_by,
+                :price_display_mode, :display_subtotal, :display_discount_total, :display_service_charge
             )
         ");
         $this->db->bind(':invoice_no', $data['invoice_no']);
@@ -281,6 +342,11 @@ class Invoice extends Model {
         $this->db->bind(':device_id', $data['device_id'] ?? null);
         $this->db->bind(':created_by', $data['userId']);
         $this->db->bind(':updated_by', $data['userId']);
+        $isMenu = ($data['price_display_mode'] ?? 'standard') === 'menu';
+        $this->db->bind(':price_display_mode', $isMenu ? 'menu' : 'standard');
+        $this->db->bind(':display_subtotal', $isMenu ? ($data['display_subtotal'] ?? null) : null);
+        $this->db->bind(':display_discount_total', $isMenu ? ($data['display_discount_total'] ?? null) : null);
+        $this->db->bind(':display_service_charge', $isMenu ? ($data['display_service_charge'] ?? null) : null);
 
         if ($this->db->execute()) {
             return $this->db->lastInsertId();
@@ -331,18 +397,30 @@ class Invoice extends Model {
 
                         // Always deduct the main item if it's a part and $shouldDeduct is true
                         // This handles Standard, A La Carte, and Buffet (which now has an offsetting plus entry above)
-                        $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $item['unit_price'], $item['selected_batches'] ?? null, 'Retail Sale', 'SALE', $userId);
+                        // Complimentary items still leave stock (they were served), at a selling price of 0
+                        $isCompLine = !empty($item['is_complimentary']) && !empty($item['comp_approved_by']);
+                        $this->deductStock($pid, $qty, $invoiceLocationId, $invoiceId, $isCompLine ? 0 : $item['unit_price'], $item['selected_batches'] ?? null, $isCompLine ? 'Complimentary' : 'Retail Sale', 'SALE', $userId);
                     }
                 }
             }
 
             $this->db->query("
                 INSERT INTO invoice_items (
-                    invoice_id, item_id, description, item_type, quantity, unit_price, cost_price, discount, line_total
+                    invoice_id, item_id, description, item_type, quantity, unit_price, cost_price, discount, line_total,
+                    display_unit_price, display_discount, display_line_total, item_notes, modifiers_json,
+                    is_complimentary, comp_reason, comp_approved_by, comp_amount
                 ) VALUES (
-                    :invoice_id, :item_id, :description, :item_type, :quantity, :unit_price, :cost_price, :discount, :line_total
+                    :invoice_id, :item_id, :description, :item_type, :quantity, :unit_price, :cost_price, :discount, :line_total,
+                    :display_unit_price, :display_discount, :display_line_total, :item_notes, :modifiers_json,
+                    :is_comp, :comp_reason, :comp_by, :comp_amount
                 )
             ");
+            // Comp values are set by InvoiceController::prepareCompLines after checking the approval
+            $isComp = !empty($item['is_complimentary']) && !empty($item['comp_approved_by']);
+            $this->db->bind(':is_comp', $isComp ? 1 : 0);
+            $this->db->bind(':comp_reason', $isComp ? ($item['comp_reason'] ?? null) : null);
+            $this->db->bind(':comp_by', $isComp ? (int)$item['comp_approved_by'] : null);
+            $this->db->bind(':comp_amount', $isComp ? (float)($item['comp_amount'] ?? 0) : 0);
             $this->db->bind(':invoice_id', $invoiceId);
             $this->db->bind(':item_id', $pid);
             $this->db->bind(':description', $item['description']);
@@ -352,6 +430,13 @@ class Invoice extends Model {
             $this->db->bind(':cost_price', $costPrice);
             $this->db->bind(':discount', $item['discount'] ?? 0);
             $this->db->bind(':line_total', $item['line_total']);
+            $this->db->bind(':display_unit_price', $item['display_unit_price'] ?? null);
+            $this->db->bind(':display_discount', $item['display_discount'] ?? null);
+            $this->db->bind(':display_line_total', $item['display_line_total'] ?? null);
+            $notes = trim((string)($item['item_notes'] ?? ''));
+            $this->db->bind(':item_notes', $notes !== '' ? mb_substr($notes, 0, 500) : null);
+            $mods = $item['modifiers'] ?? null;
+            $this->db->bind(':modifiers_json', (is_array($mods) && !empty($mods)) ? json_encode($mods) : null);
             $this->db->execute();
         }
         return true;
@@ -386,6 +471,14 @@ class Invoice extends Model {
             }
 
             foreach ($deductions as $d) {
+                // Value each batch at what it actually cost (FIFO); item cost only when the batch has none
+                $lineCost = $costPrice;
+                if (!empty($d['batch_id'])) {
+                    $this->db->query("SELECT unit_cost FROM inventory_batches WHERE id = :b");
+                    $this->db->bind(':b', $d['batch_id']);
+                    $bc = $this->db->single();
+                    if ($bc && (float)$bc->unit_cost > 0) $lineCost = (float)$bc->unit_cost;
+                }
                 $this->db->query("
                     INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, unit_price, notes, created_by)
                     VALUES (:loc, :part_id, :batch_id, :qty_change, :type, 'invoices', :ref_id, :unit_cost, :unit_price, :notes, :created_by)
@@ -396,7 +489,7 @@ class Invoice extends Model {
                 $this->db->bind(':qty_change', -1 * $d['qty_deducted']);
                 $this->db->bind(':type', $movementType);
                 $this->db->bind(':ref_id', $invoiceId);
-                $this->db->bind(':unit_cost', $costPrice);
+                $this->db->bind(':unit_cost', $lineCost);
                 $this->db->bind(':unit_price', (float)$unitPrice);
                 $this->db->bind(':notes', $notes . ($selectedBatches ? ' (Manual Batch)' : ' (Auto Batch)'));
                 $this->db->bind(':created_by', $userId);
@@ -487,7 +580,7 @@ class Invoice extends Model {
                 $receiptModel = new PaymentReceipt();
                 $inv = $this->getById($invoiceId);
                 if ($inv) {
-                    $receiptModel->create([
+                    $receiptNo = $receiptModel->create([
                         'invoice_id' => $invoiceId,
                         'invoice_no' => $inv->invoice_no,
                         'customer_id' => $inv->customer_id,
@@ -500,10 +593,18 @@ class Invoice extends Model {
                         'notes' => $data['notes'] ?? null,
                         'created_by' => $data['userId'] ?? null
                     ]);
+                    if ($receiptNo) {
+                        $this->db->query("SELECT id FROM payment_receipts WHERE receipt_no = :n ORDER BY id DESC LIMIT 1");
+                        $this->db->bind(':n', $receiptNo);
+                        $r = $this->db->single();
+                        if ($r) $data['receipt_id'] = (int)$r->id;
+                    }
                 }
             } catch (Exception $e) {}
 
-            // Automated Accounting
+            // Automated Accounting: the receipt already posted its journal; only post here
+            // when no receipt could be created.
+            if (!empty($data['receipt_id'])) return true;
             try {
                 AccountingHelper::postPayment($invoiceId, $data);
             } catch (Exception $e) {

@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { ReportShell } from "../../_components/report-shell";
+import { CompareBar, CompareTable, buildSeries, defaultCompare, mergeSeriesRows, useCompare, type CompareState, type Series } from "../../_components/compare";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,6 +113,26 @@ export default function SalesSummaryReportPage() {
     return { invoices, subtotal, tax, discount, grand, paid };
   }, [rows]);
 
+  // ── Compare (period / branch / monthly trend) ──
+  const [compare, setCompare] = useState<CompareState>(defaultCompare);
+  const series = useMemo(() => buildSeries(compare, { from, to, locationId }, locations), [compare, from, to, locationId, locations]);
+  const fetchSeries = async (sr: Series) => {
+    const data = await fetchSalesReportSummary({ location_id: sr.locationId || "all", from: sr.from, to: sr.to });
+    const list: any[] = Array.isArray(data) ? data : [];
+    const sum = (k: string) => list.reduce((a, x) => a + Number(x[k] ?? 0), 0);
+    return [
+      { key: "inv", label: "Invoices", value: sum("invoice_count"), format: "count" as const },
+      { key: "sub", label: "Subtotal", value: sum("total_subtotal") },
+      { key: "tax", label: "Tax", value: sum("total_tax") },
+      { key: "disc", label: "Discount", value: sum("total_discount") },
+      { key: "grand", label: "Grand total", value: sum("total_grand"), kind: "grand" as const },
+      { key: "paid", label: "Paid", value: sum("total_paid") },
+      { key: "avg", label: "Average invoice", value: sum("invoice_count") ? sum("total_grand") / sum("invoice_count") : 0 },
+    ];
+  };
+  const cmp = useCompare(series, fetchSeries, compare.mode !== "off");
+  const cmpRows = useMemo(() => (cmp.results ? mergeSeriesRows(cmp.results) : []), [cmp.results]);
+
   const printHref = useMemo(() => {
     const qs = new URLSearchParams();
     qs.set("print", "1");
@@ -128,12 +149,11 @@ export default function SalesSummaryReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Sale Summary Report"
       subtitle="Daily aggregation of sales totals (Excludes Cancelled Invoices)"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={
@@ -192,6 +212,22 @@ export default function SalesSummaryReportPage() {
         </Card>
       ) : null}
 
+      {!isPrint && (
+        <div className="mb-5">
+          <CompareBar value={compare} onChange={setCompare} locations={locations} />
+        </div>
+      )}
+
+      {compare.mode !== "off" ? (
+        <Card className="overflow-hidden" data-report-section>
+          <CardHeader className="border-b py-3"><CardTitle className="text-base">
+            {compare.mode === "period" ? "Period comparison" : compare.mode === "location" ? "Branch comparison" : "Monthly trend"}
+          </CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <CompareTable series={series} rows={cmpRows} loading={cmp.loading} error={cmp.error} />
+          </CardContent>
+        </Card>
+      ) : (
       <Card className="border-none shadow-md overflow-hidden">
         <CardContent className="p-0">
           <div className="overflow-auto">
@@ -241,6 +277,7 @@ export default function SalesSummaryReportPage() {
           </div>
         </CardContent>
       </Card>
+      )}
     </ReportShell>
   );
 }

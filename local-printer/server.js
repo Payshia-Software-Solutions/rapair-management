@@ -1,190 +1,269 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const cors = require('cors');
-const puppeteer = require('puppeteer-core');
-const ptp = require('pdf-to-printer');
-const fs = require('fs');
-const path = require('path');
-const SysTray = require('systray2').default;
-const { exec } = require('child_process');
-
 /**
- * Finds the path to Chrome or Edge on Windows
+ * BizzFlow Printer - local silent-print bridge for the BizzFlow web app.
+ *
+ * Public API (used by front-end/src/lib/api/silent-print.ts - keep compatible):
+ *   GET  /printers   -> { success, data: [{ name, ... }] }
+ *   POST /print      { html, printer?, width?, title? } -> { success, jobId, error? }
+ *
+ * Dashboard API (only from this PC, same origin):  /api/*
+ *
+ * Flags:  --startup   launched by Windows at sign-in: run quietly in the tray
+ *         --restarted relaunched by "Restart service": wait for the port to free up
  */
-function getBrowserPath() {
-    const paths = [
-        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
-        'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
-        path.join(process.env.LOCALAPPDATA, 'Google\\Chrome\\Application\\chrome.exe'),
-    ];
-    for (const p of paths) {
-        if (fs.existsSync(p)) return p;
-    }
-    return null;
-}
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const express = require('express');
+const cors = require('cors');
+
+const env = require('./lib/env');
+const system = require('./lib/system');
+const printer = require('./lib/printer');
+const tray = require('./lib/tray');
+const queue = require('./lib/queue');
+
+const args = process.argv.slice(2);
+const LAUNCHED_AT_STARTUP = args.includes('--startup');
+const RESTARTED = args.includes('--restarted');
+const startedAt = Date.now();
+
+const config = env.loadConfig();
+const port = Number(config.port) || 5001;
+
+process.on('uncaughtException', e => env.log.error('Uncaught exception:', e));
+process.on('unhandledRejection', e => env.log.error('Unhandled rejection:', e));
 
 const app = express();
-const configPath = path.join(__dirname, 'config.json');
-let config = { printerName: 'Receipt-Printer', paperWidth: '80mm', port: 5001 };
+app.disable('x-powered-by');
 
-function loadConfig() {
-    try {
-        if (fs.existsSync(configPath)) {
-            const data = fs.readFileSync(configPath, 'utf8');
-            config = { ...config, ...JSON.parse(data) };
-        }
-    } catch (e) { console.error('Load config error:', e); }
+// Web pages served over http(s) need these to reach a service on localhost (Chrome Private Network Access).
+app.use((req, res, next) => {
+    if (req.headers['access-control-request-private-network']) res.setHeader('Access-Control-Allow-Private-Network', 'true');
+    next();
+});
+
+// ---------------------------------------------------------------- public API (CORS open, as before)
+const publicCors = cors({ origin: '*', methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'] });
+app.options(['/print', '/printers', '/health', '/jobs'], publicCors);
+
+app.get('/health', publicCors, (req, res) => res.json({ success: true, app: env.APP_ID, version: env.VERSION }));
+
+// Recent jobs on this PC (no document content) for the POS print queue panel
+app.get('/jobs', publicCors, (req, res) => res.json({ success: true, version: env.VERSION, data: printer.getJobs().slice(0, 40) }));
+
+app.get('/printers', publicCors, async (req, res) => {
+    try { res.json({ success: true, data: await system.getPrinters(req.query.refresh === '1') }); }
+    catch (e) { env.log.error('List printers failed:', e.message); res.status(500).json({ success: false, error: e.message }); }
+});
+
+app.post('/print', publicCors, express.json({ limit: '50mb' }), async (req, res) => {
+    const { html, printer: printerName, width, title } = req.body || {};
+    if (!html || typeof html !== 'string') return res.status(400).json({ success: false, error: 'HTML content is required' });
+    const job = await printer.submit({ html, printer: printerName, width, title, source: 'web' });
+    if (job.status === 'done') return res.json({ success: true, jobId: job.id, printer: job.printer || 'default' });
+    res.status(500).json({ success: false, jobId: job.id, error: job.error });
+});
+
+// ---------------------------------------------------------------- dashboard API (this PC only)
+function isLoopback(addr = '') {
+    return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
 }
-loadConfig();
 
-const port = config.port || 5001;
-
-app.use(cors({
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-}));
-app.options('*', cors()); // Enable pre-flight for all routes
-app.use(bodyParser.json({ limit: '50mb' }));
-
-// --- PRINT ENDPOINT ---
-app.post('/print', async (req, res) => {
-    const { html, printer = config.printerName, width = config.paperWidth } = req.body;
-    if (!html) return res.status(400).json({ success: false, error: 'HTML content is required' });
-
-    let browser;
-    try {
-        const executablePath = getBrowserPath();
-        if (!executablePath) throw new Error('Chrome/Edge not found.');
-
-        browser = await puppeteer.launch({
-            executablePath,
-            headless: 'new',
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        });
-
-        const page = await browser.newPage();
-        const widthPx = width.includes('80') ? 302 : 219;
-        await page.setViewport({ width: widthPx, height: 1000 });
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-
-        const pdfPath = path.join(__dirname, `temp_${Date.now()}.pdf`);
-        await page.pdf({ path: pdfPath, width, printBackground: true, margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' } });
-        await browser.close();
-
-        await ptp.print(pdfPath, { printer });
-        fs.unlinkSync(pdfPath);
-        res.json({ success: true });
-    } catch (error) {
-        if (browser) await browser.close();
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// --- ADMIN GUI (Lightweight HTML) ---
-app.get('/', async (req, res) => {
-    let printerOptions = '';
-    try {
-        const printers = await ptp.getPrinters();
-        printerOptions = printers.map(p => 
-            `<option value="${p.name}" ${p.name === config.printerName ? 'selected' : ''}>${p.name}</option>`
-        ).join('');
-    } catch (e) {
-        printerOptions = `<option value="${config.printerName}">${config.printerName}</option>`;
-    }
-
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>BizzFlow Printer Manager</title>
-            <style>
-                body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f4f7f6; color: #333; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-                .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 380px; }
-                h1 { margin: 0 0 20px; font-size: 20px; color: #1a56db; text-align: center; }
-                .field { margin-bottom: 20px; }
-                label { display: block; font-size: 12px; font-weight: bold; margin-bottom: 8px; color: #666; }
-                select, input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; background: #fafafa; font-size: 14px; }
-                select:focus { border-color: #1a56db; outline: none; background: white; }
-                button { width: 100%; padding: 14px; background: #1a56db; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 15px; transition: all 0.2s; }
-                button:hover { background: #1e429f; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(26, 86, 219, 0.2); }
-                .status { text-align: center; font-size: 12px; margin-top: 25px; color: #057a55; display: flex; align-items: center; justify-content: center; gap: 8px; border-top: 1px solid #eee; padding-top: 20px; }
-                .dot { width: 10px; height: 10px; background: #31c48d; border-radius: 50%; box-shadow: 0 0 0 4px rgba(49, 196, 141, 0.1); }
-            </style>
-        </head>
-        <body>
-            <div class="card">
-                <h1>🖨 Printer Manager</h1>
-                <form action="/save" method="POST">
-                    <div class="field">
-                        <label>SELECT THERMAL PRINTER</label>
-                        <select name="printerName">
-                            <option value="">-- Choose a printer --</option>
-                            ${printerOptions}
-                        </select>
-                    </div>
-                    <div class="field">
-                        <label>PAPER WIDTH</label>
-                        <select name="paperWidth">
-                            <option value="80mm" ${config.paperWidth === '80mm' ? 'selected' : ''}>80mm (Standard)</option>
-                            <option value="58mm" ${config.paperWidth === '58mm' ? 'selected' : ''}>58mm (Small)</option>
-                        </select>
-                    </div>
-                    <button type="submit">Apply & Save Settings</button>
-                </form>
-                <div class="status">
-                    <div class="dot"></div> 
-                    Service is active on port ${port}
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
-});
-
-app.post('/save', bodyParser.urlencoded({ extended: true }), (req, res) => {
-    config.printerName = req.body.printerName;
-    config.paperWidth = req.body.paperWidth;
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    res.send('<script>alert("Settings Saved! Restarting service..."); window.location.href="/";</script>');
-    process.exit(0); // PM2 will restart it
-});
-
-app.get('/printers', async (req, res) => {
-    try { res.json({ success: true, data: await ptp.getPrinters() }); }
-    catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// --- SYSTEM TRAY ---
-const trayConfig = {
-    menu: {
-        items: [
-            { title: 'BizzFlow Printer: Online', enabled: false },
-            { title: 'Open Settings', tooltip: 'Configure Printer', callback: { click: () => exec(`start http://localhost:${port}`) } },
-            { title: '---', enabled: false },
-            { title: 'Restart Service', callback: { click: () => process.exit(0) } },
-            { title: 'Exit', callback: { click: () => { tray.kill(); process.exit(0); } } }
-        ]
-    },
-    icon: fs.readFileSync(path.join(__dirname, 'icon.png')).toString('base64'),
-    tooltip: 'BizzFlow Printer Service'
+const adminOnly = (req, res, next) => {
+    if (!isLoopback(req.socket.remoteAddress)) return res.status(403).json({ success: false, error: 'Dashboard is only available on this computer' });
+    // Block other websites from changing settings in the background (CSRF).
+    const origin = req.headers.origin;
+    if (origin && !/^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(origin)) return res.status(403).json({ success: false, error: 'Forbidden origin' });
+    next();
 };
 
-let tray;
-try {
-    // Check if icon exists, if not use a fallback empty string or throw
-    if (fs.existsSync(path.join(__dirname, 'icon.png'))) {
-        tray = new SysTray(trayConfig);
-        tray.ready(() => {
-            console.log('Tray is ready');
-            tray.on('click', (item) => {
-                if (item.callback && item.callback.click) item.callback.click();
-            });
-        });
-    }
-} catch (e) { console.log('Tray failed to start:', e.message); }
+const api = express.Router();
+api.use(adminOnly, express.json());
 
-app.listen(port, '0.0.0.0', () => {
-    console.log(`Print Service + GUI running at http://localhost:${port}`);
+api.get('/ping', (req, res) => res.json({ app: env.APP_ID, version: env.VERSION }));
+
+api.get('/status', async (req, res) => {
+    const cfg = env.getConfig();
+    res.json({
+        success: true,
+        app: env.APP_NAME,
+        version: env.VERSION,
+        port,
+        uptimeMs: Date.now() - startedAt,
+        printerName: cfg.printerName,
+        paperWidth: cfg.paperWidth,
+        configuredPort: Number(cfg.port) || 5001,
+        autostart: await system.isAutostartEnabled(),
+        browser: system.getBrowserPath(),
+        stats: printer.getStats(),
+        queue: queue.getStatus(),
+        dataDir: env.DATA_DIR,
+        packaged: env.IS_PACKAGED,
+    });
 });
+
+api.get('/jobs', (req, res) => res.json({ success: true, data: printer.getJobs() }));
+
+// Kitchen print stations (from the BizzFlow server) and which local printer each uses
+api.get('/stations', async (req, res) => {
+    try { res.json({ success: true, data: await queue.getStations() }); }
+    catch (e) { res.status(e.status && e.status < 500 ? e.status : 502).json({ success: false, error: e.message }); }
+});
+api.post('/stations/:id', async (req, res) => {
+    const { printerName, paperWidth } = req.body || {};
+    try { await queue.setStationPrinter(Number(req.params.id), String(printerName || ''), paperWidth); res.json({ success: true }); }
+    catch (e) { res.status(e.status && e.status < 500 ? e.status : 502).json({ success: false, error: e.message }); }
+});
+api.get('/logs', (req, res) => res.json({ success: true, data: env.log.recent(200) }));
+
+api.post('/settings', async (req, res) => {
+    const { printerName, paperWidth, port: newPort, autostart, queueEnabled, queueServerUrl, queueDeviceKey } = req.body || {};
+    const patch = {};
+    // Server print queue (kitchen tickets from tablets)
+    if (typeof queueEnabled === 'boolean') patch.queueEnabled = queueEnabled;
+    if (typeof queueServerUrl === 'string') {
+        const u = queueServerUrl.trim().replace(/\/+$/, '');
+        if (u && !/^https?:\/\//i.test(u)) return res.status(400).json({ success: false, error: 'Server address must start with http:// or https://' });
+        patch.queueServerUrl = u;
+    }
+    if (typeof queueDeviceKey === 'string' && queueDeviceKey.trim()) patch.queueDeviceKey = queueDeviceKey.trim();
+    if (typeof printerName === 'string') patch.printerName = printerName;
+    if (paperWidth === '80mm' || paperWidth === '58mm') patch.paperWidth = paperWidth;
+    if (newPort !== undefined) {
+        const p = Number(newPort);
+        if (!Number.isInteger(p) || p < 1024 || p > 65535) return res.status(400).json({ success: false, error: 'Port must be between 1024 and 65535' });
+        patch.port = p;
+    }
+    if (typeof autostart === 'boolean') {
+        try {
+            patch.autostart = await system.setAutostart(autostart);
+            tray.setAutostart(patch.autostart);
+        } catch (e) { return res.status(500).json({ success: false, error: 'Could not change startup setting: ' + e.message }); }
+    }
+    const cfg = env.updateConfig(patch);
+    env.log.info('Settings saved:', JSON.stringify({ ...patch, queueDeviceKey: patch.queueDeviceKey ? '(set)' : undefined }));
+    queue.apply();
+    updateTrayStatus();
+    res.json({ success: true, config: cfg, restartRequired: cfg.port !== port });
+});
+
+api.post('/test-print', async (req, res) => {
+    const job = await printer.testPrint(req.body || {});
+    res.status(job.status === 'done' ? 200 : 500).json({ success: job.status === 'done', job });
+});
+
+api.post('/open-logs', (req, res) => { system.openFolder(env.LOG_DIR); res.json({ success: true }); });
+api.post('/restart', (req, res) => { res.json({ success: true }); setTimeout(restart, 300); });
+
+app.use('/api', api);
+
+// ---------------------------------------------------------------- dashboard UI
+const UI_DIR = path.join(__dirname, 'ui');
+app.get('/', (req, res) => {
+    if (!isLoopback(req.socket.remoteAddress)) return res.status(403).send('BizzFlow Printer dashboard is only available on this computer.');
+    res.type('html').send(fs.readFileSync(path.join(UI_DIR, 'index.html'), 'utf8'));
+});
+app.get('/favicon.ico', (req, res) => res.type('image/x-icon').send(fs.readFileSync(path.join(__dirname, 'assets', 'icon.ico'))));
+
+// ---------------------------------------------------------------- lifecycle
+let server;
+
+function updateTrayStatus() {
+    const cfg = env.getConfig();
+    tray.setStatus(`Online - ${cfg.printerName || 'Default printer'} (${cfg.paperWidth})`);
+}
+
+async function shutdown(code = 0) {
+    env.log.info('Shutting down');
+    await tray.stop();
+    await printer.closeBrowser();
+    if (server) server.close();
+    setTimeout(() => process.exit(code), 200);
+}
+
+async function restart() {
+    env.log.info('Restarting service');
+    await tray.stop();
+    await printer.closeBrowser();
+    if (server) server.close();
+    system.relaunch();
+    setTimeout(() => process.exit(0), 200);
+}
+
+/** Asks an already-running copy (if any) to show its dashboard. */
+function pingExisting() {
+    return new Promise(resolve => {
+        const req = http.get({ host: '127.0.0.1', port, path: '/api/ping', timeout: 2000 }, res => {
+            let body = '';
+            res.on('data', c => body += c);
+            res.on('end', () => { try { resolve(JSON.parse(body).app === env.APP_ID); } catch (_) { resolve(false); } });
+        });
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => { req.destroy(); resolve(false); });
+    });
+}
+
+function listen(attempt = 1) {
+    server = app.listen(port, '0.0.0.0');
+    server.on('listening', onListening);
+    server.on('error', async err => {
+        if (err.code !== 'EADDRINUSE') {
+            env.log.error('Server error:', err);
+            return;
+        }
+        if (RESTARTED && attempt < 20) return setTimeout(() => listen(attempt + 1), 500);
+        if (await pingExisting()) {
+            env.log.info('Already running - opening the existing dashboard');
+            if (!LAUNCHED_AT_STARTUP) system.openDashboard(port);
+            return process.exit(0);
+        }
+        env.log.error(`Port ${port} is used by another program`);
+        system.messageBox(`BizzFlow Printer could not start because port ${port} is already used by another program.\n\nClose that program, or change the port in ${env.CONFIG_PATH}.`);
+        setTimeout(() => process.exit(1), 1500);
+    });
+}
+
+async function onListening() {
+    env.log.info(`${env.APP_NAME} ${env.VERSION} listening on http://127.0.0.1:${port}`);
+
+    // First run of a copied (not installed) exe: register to start with Windows.
+    // When installed with the setup wizard, the wizard's "start with Windows" choice wins.
+    let autostart = await system.isAutostartEnabled();
+    const cfg = env.getConfig();
+    const installedBySetup = fs.existsSync(path.join(env.INSTALL_DIR, 'unins000.exe'));
+    if (env.IS_PACKAGED && cfg.autostart === null && !autostart && !installedBySetup) {
+        try { autostart = await system.setAutostart(true); env.log.info('Registered to start with Windows'); }
+        catch (e) { env.log.warn('Could not register autostart:', e.message); }
+    } else if (env.IS_PACKAGED && autostart) {
+        // Keep the Run entry pointing at the current exe location (in case the folder was moved).
+        system.setAutostart(true).catch(() => { });
+    }
+    env.updateConfig({ autostart });
+
+    tray.start({
+        autostart,
+        onOpen: () => system.openDashboard(port),
+        onTestPrint: () => printer.testPrint().catch(() => { }),
+        onToggleAutostart: async () => {
+            const next = await system.setAutostart(!(await system.isAutostartEnabled())).catch(() => null);
+            if (next !== null) { env.updateConfig({ autostart: next }); tray.setAutostart(next); }
+        },
+        onRestart: restart,
+        onExit: () => shutdown(0),
+    });
+    updateTrayStatus();
+
+    // Unpack the PDF print engine now so a broken install shows up in the log immediately.
+    system.getSumatraPath();
+
+    // Collect kitchen tickets from the server queue (if set up)
+    queue.apply();
+
+    // Warm up the printer list so the dashboard opens instantly.
+    system.getPrinters().catch(e => env.log.warn('Printer discovery failed:', e.message));
+
+    if (!LAUNCHED_AT_STARTUP && !RESTARTED) system.openDashboard(port);
+}
+
+env.log.info(`Starting ${env.APP_NAME} ${env.VERSION}${LAUNCHED_AT_STARTUP ? ' (Windows startup)' : ''}`);
+listen();

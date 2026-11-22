@@ -1,174 +1,106 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { DashboardLayout } from "@/components/dashboard-layout";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle,
-  CardDescription
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { 
-  LayoutDashboard, 
-  History, 
-  LayoutGrid, 
-  BarChart3, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  DollarSign, 
-  TrendingUp,
-  Receipt,
-  Package,
-  ArrowRight
-} from "lucide-react";
 import Link from "next/link";
+import { DashboardLayout } from "@/components/dashboard-layout";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  History,
+  LayoutGrid,
+  BarChart3,
+  ArrowUpRight,
+  ArrowDownRight,
+  TrendingUp,
+  FileText,
+  Receipt,
+  Landmark,
+  ChevronRight,
+} from "lucide-react";
 import { fetchAccounts } from "@/lib/api";
+import { PageHeader, StatCard } from "@/components/accounting/page-shell";
+
+const quickLinks = [
+  { title: "Journal Entries", icon: History, href: "/accounting/journal", desc: "Audit trail of posted transactions" },
+  { title: "Chart of Accounts", icon: LayoutGrid, href: "/accounting/accounts", desc: "Account structure and balances" },
+  { title: "Trial Balance", icon: BarChart3, href: "/accounting/trial-balance", desc: "Check debits equal credits" },
+  { title: "Financial Statements", icon: FileText, href: "/accounting/statements", desc: "P&L and balance sheet" },
+  { title: "Expenses", icon: Receipt, href: "/accounting/expenses", desc: "Record payment vouchers" },
+  { title: "Bank Reconciliation", icon: Landmark, href: "/accounting/reconciliation", desc: "Match against bank statements" },
+];
+
+const automated = [
+  { title: "Sale invoices", desc: "Revenue and accounts receivable" },
+  { title: "Customer payments", desc: "Cash and accounts receivable" },
+  { title: "Goods receipts (GRN)", desc: "Inventory and accounts payable" },
+];
 
 export default function AccountingOverviewPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchAccounts().then(data => {
-      setAccounts(data || []);
-      setLoading(false);
-    });
+    fetchAccounts()
+      .then(data => setAccounts(data || []))
+      .catch(() => setAccounts([]))
+      .finally(() => setLoading(false));
   }, []);
 
-  const totalIncome = accounts.filter(a => a.type === 'INCOME').reduce((sum, a) => sum + Math.abs(Number(a.balance)), 0);
-  const totalExpense = accounts.filter(a => a.type === 'EXPENSE').reduce((sum, a) => sum + Math.abs(Number(a.balance)), 0);
+  const totalIncome = accounts.filter(a => a.type === "INCOME").reduce((sum, a) => sum + Math.abs(Number(a.balance)), 0);
+  const totalExpense = accounts.filter(a => a.type === "EXPENSE").reduce((sum, a) => sum + Math.abs(Number(a.balance)), 0);
   const netProfit = totalIncome - totalExpense;
-
-  const quickLinks = [
-    { title: "Journal Entries", icon: History, href: "/accounting/journal", desc: "Audit transactional records", color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Chart of Accounts", icon: LayoutGrid, href: "/accounting/accounts", desc: "Manage financial structure", color: "text-purple-500", bg: "bg-purple-500/10" },
-    { title: "Trial Balance", icon: BarChart3, href: "/accounting/trial-balance", desc: "Verify ledger integrity", color: "text-green-500", bg: "bg-green-500/10" },
-    { title: "Balance Sheet", icon: TrendingUp, href: "#", desc: "Statement of position", color: "text-orange-500", bg: "bg-orange-500/10" },
-  ];
+  const fmt = (n: number) => (loading ? "—" : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 
   return (
-    <DashboardLayout title="Accounting Overview">
-      <div className="space-y-8 w-full p-6">
-        {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl bg-primary px-8 py-12 text-primary-foreground shadow-2xl">
-          <div className="relative z-10 space-y-4">
-            <h1 className="text-4xl font-extrabold tracking-tight">Financial Command Center</h1>
-            <p className="max-w-xl text-lg opacity-90">
-              Your real-time double-entry engine is active. Every sale and purchase is being tracked automatically.
-            </p>
-            <div className="flex gap-4 pt-4">
-               <Button asChild variant="secondary" size="lg" className="rounded-full shadow-lg">
-                 <Link href="/accounting/journal">View Audit Trail</Link>
-               </Button>
-               <Button asChild variant="outline" size="lg" className="rounded-full bg-white/10 border-white/20 hover:bg-white/20">
-                 <Link href="/accounting/accounts">Manage Accounts</Link>
-               </Button>
-            </div>
-          </div>
-          {/* Abstract background shapes */}
-          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute bottom-0 right-10 h-32 w-32 rounded-full bg-accent/20 blur-2xl" />
+    <DashboardLayout title="Accounting">
+      <div className="space-y-5">
+        <PageHeader
+          title="Accounting"
+          description="Sales, payments and purchases post to the ledger automatically."
+          actions={<>
+            <Button variant="outline" asChild><Link href="/accounting/accounts">Chart of accounts</Link></Button>
+            <Button asChild><Link href="/accounting/journal">Journal entries</Link></Button>
+          </>}
+        />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <StatCard label="Total income (LKR)" value={fmt(totalIncome)} icon={<ArrowUpRight />} />
+          <StatCard label="Total expenses (LKR)" value={fmt(totalExpense)} icon={<ArrowDownRight />} />
+          <StatCard
+            label="Net profit (LKR)"
+            value={<span className={!loading && netProfit < 0 ? "text-destructive" : undefined}>{fmt(netProfit)}</span>}
+            icon={<TrendingUp />}
+          />
         </div>
 
-        {/* Financial Highlights */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-none shadow-xl bg-gradient-to-br from-green-500/5 to-transparent">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Total Income</CardTitle>
-              <div className="rounded-full bg-green-500/20 p-2"><ArrowUpRight className="w-4 h-4 text-green-500" /></div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black">LKR {totalIncome.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-2">Aggregated from all revenue streams</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-xl bg-gradient-to-br from-rose-500/5 to-transparent">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Total Expenses</CardTitle>
-              <div className="rounded-full bg-rose-500/20 p-2"><ArrowDownRight className="w-4 h-4 text-rose-500" /></div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black">LKR {totalExpense.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-2">Operating costs and COGS</p>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-xl bg-primary text-primary-foreground">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-bold uppercase tracking-widest opacity-70">Net Profit</CardTitle>
-              <div className="rounded-full bg-white/20 p-2"><TrendingUp className="w-4 h-4 text-white" /></div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-black">LKR {netProfit.toLocaleString()}</div>
-              <p className="text-xs opacity-70 mt-2">Financial health of your business</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Navigation Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {quickLinks.map((link, i) => (
-            <Link key={i} href={link.href}>
-              <Card className="group h-full transition-all hover:scale-[1.02] hover:shadow-2xl cursor-pointer overflow-hidden border-none shadow-lg">
-                <CardContent className="p-0">
-                  <div className={`h-2 w-full ${link.bg}`} />
-                  <div className="p-6 space-y-4">
-                    <div className={`rounded-xl p-3 w-fit ${link.bg} ${link.color}`}>
-                      <link.icon className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-lg">{link.title}</h3>
-                      <p className="text-sm text-muted-foreground">{link.desc}</p>
-                    </div>
-                    <div className="flex items-center gap-2 text-primary font-bold text-xs uppercase opacity-0 group-hover:opacity-100 transition-opacity">
-                      Navigate <ArrowRight className="w-3 h-3" />
-                    </div>
-                  </div>
-                </CardContent>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {quickLinks.map((link) => (
+            <Link key={link.href} href={link.href} className="group rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <Card className="flex h-full items-center gap-3 p-4 transition-colors group-hover:bg-muted/40">
+                <div className="rounded-md bg-muted p-2 text-muted-foreground"><link.icon className="h-4 w-4" aria-hidden="true" /></div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{link.title}</p>
+                  <p className="text-sm text-muted-foreground">{link.desc}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               </Card>
             </Link>
           ))}
         </div>
 
-        {/* Automated Events Information */}
-        <Card className="border-dashed border-2 bg-muted/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="animate-pulse h-2 w-2 rounded-full bg-green-500" />
-              Real-time Automation Active
-            </CardTitle>
-            <CardDescription>
-              The following business events are currently driving your ledger:
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-background border">
-                <Receipt className="w-8 h-8 text-blue-500 opacity-50" />
-                <div>
-                  <div className="font-bold text-sm">Sale Invoices</div>
-                  <div className="text-[10px] text-muted-foreground">Posts to Revenue & AR</div>
-                </div>
+        <Card className="overflow-hidden">
+          <div className="border-b px-4 py-3">
+            <h2 className="font-semibold">Automatic postings</h2>
+            <p className="text-xs text-muted-foreground">These business events create journal entries without manual input.</p>
+          </div>
+          <div className="grid grid-cols-1 divide-y sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            {automated.map((a) => (
+              <div key={a.title} className="p-4">
+                <p className="text-sm font-medium">{a.title}</p>
+                <p className="text-xs text-muted-foreground">Posts to {a.desc}</p>
               </div>
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-background border">
-                <DollarSign className="w-8 h-8 text-green-500 opacity-50" />
-                <div>
-                  <div className="font-bold text-sm">Customer Payments</div>
-                  <div className="text-[10px] text-muted-foreground">Posts to Cash & AR</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-background border">
-                <Package className="w-8 h-8 text-orange-500 opacity-50" />
-                <div>
-                  <div className="font-bold text-sm">Goods Receipts (GRN)</div>
-                  <div className="text-[10px] text-muted-foreground">Posts to Inventory & AP</div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
+            ))}
+          </div>
         </Card>
       </div>
     </DashboardLayout>

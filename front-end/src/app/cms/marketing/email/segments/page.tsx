@@ -257,7 +257,7 @@ export default function AudienceSegmentsPage() {
 
       {/* New Segment Modal */}
       <Dialog open={isSegmentModalOpen} onOpenChange={setIsSegmentModalOpen}>
-        <DialogContent className="max-w-md rounded-2xl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold">Create New Segment</DialogTitle>
             <DialogDescription>Define a new audience group for your campaigns.</DialogDescription>

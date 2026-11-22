@@ -163,7 +163,7 @@ export const BankOfferModal: React.FC<BankOfferModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md p-0 overflow-hidden border-none shadow-2xl rounded-[2rem] bg-white dark:bg-slate-950">
+      <DialogContent className="max-w-md p-0 overflow-hidden">
         <div className="bg-indigo-600 p-8 text-white relative shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 scale-150">
             <CreditCard className="w-24 h-24" />

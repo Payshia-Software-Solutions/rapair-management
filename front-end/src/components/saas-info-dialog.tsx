@@ -86,7 +86,7 @@ export function SaasInfoDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-slate-950 border-white/5 p-0 overflow-hidden rounded-[2rem] shadow-2xl">
+      <DialogContent className="max-w-md bg-slate-950 border-white/5 p-0 overflow-hidden">
         <DialogTitle className="sr-only">License Information</DialogTitle>
         <div className="relative">
           {/* Header Banner */}

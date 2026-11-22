@@ -45,6 +45,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { usePOS } from "../../context/POSContext";
+import { PosDialogHeader } from "./PosDialogHeader";
 import { 
   fetchInvoiceForReturn, 
   fetchReturnDetails, 
@@ -55,6 +56,13 @@ import {
   api as apiHelper 
 } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { printPage } from "@/lib/api/silent-print";
+
+/** POS documents go through the one print path: silent to the receipt printer, browser window only as fallback. */
+const printPosDoc = async (url: string, name: string, toast?: (t: any) => void) => {
+  const r = await printPage(url, 'Receipt', name);
+  if (r.error && toast) toast({ title: 'Opened in browser', description: r.error, variant: 'destructive' });
+};
 
 import { ReservationSelectionDialog } from "./ReservationSelectionDialog";
 
@@ -181,15 +189,15 @@ export const ManagementModals: React.FC = () => {
     <>
       {/* 1. POS GUIDE MODAL */}
       <Dialog open={guideModalOpen} onOpenChange={setGuideModalOpen}>
-        <DialogContent className="w-full sm:max-w-md h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl bg-slate-900 text-white border-none shadow-2xl p-8">
+        <DialogContent size="sm" className="p-6">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
-              <div className="p-2 bg-blue-500 rounded-xl"><HelpCircle className="w-6 h-6 text-white" /></div>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500 rounded-md"><HelpCircle className="w-6 h-6 text-white" /></div>
               POS Guide
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
-             <div className="flex items-start gap-4 p-4 bg-white/5 rounded-2xl border border-white/10 italic text-blue-200">
+             <div className="flex items-start gap-4 p-4 bg-white/5 rounded-lg border border-white/10 italic text-blue-200">
                 <Zap className="w-5 h-5 mt-1 shrink-0" />
                 <p className="text-sm">Power user tip: Use the numeric keypad and Enter key for the fastest retail checkout experience.</p>
              </div>
@@ -210,7 +218,7 @@ export const ManagementModals: React.FC = () => {
                 </div>
              </div>
           </div>
-          <Button className="w-full bg-blue-600 hover:bg-blue-700 h-12 rounded-xl font-bold uppercase tracking-widest" onClick={() => setGuideModalOpen(false)}>Got it!</Button>
+          <Button className="w-full h-11" onClick={() => setGuideModalOpen(false)}>Got it!</Button>
         </DialogContent>
       </Dialog>
 
@@ -230,20 +238,11 @@ export const ManagementModals: React.FC = () => {
               setActiveTabMobile('list');
           }
       }}>
-        <DialogContent className="w-full sm:max-w-4xl h-[100dvh] sm:h-[90vh] sm:max-h-[850px] p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-[2rem] flex flex-col bg-white dark:bg-slate-950">
-          <div className="bg-white dark:bg-slate-950 sm:bg-indigo-600 px-4 py-3 sm:px-8 sm:py-5 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none shrink-0">
-            <div className="flex sm:flex-row items-center gap-3 sm:gap-4">
-               <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 sm:bg-white/20 rounded-xl shrink-0">
-                 <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600 sm:text-white" />
-               </div>
-               <div className="text-left">
-                  <DialogTitle className="text-base sm:text-xl font-black uppercase tracking-tight">Pending Invoices</DialogTitle>
-                  <p className="hidden sm:block text-indigo-100 text-[10px] font-bold uppercase tracking-widest opacity-80 mt-0.5">
-                    Debt Collection Management
-                  </p>
-               </div>
-            </div>
-          </div>
+        <DialogContent size="lg" className="sm:h-[min(760px,calc(100dvh-2rem))] p-0 overflow-hidden sm:rounded-lg flex flex-col">
+          <PosDialogHeader
+            title="Pending invoices"
+            description="Collect payments against unpaid or part-paid customer invoices."
+          />
 
           <div className="flex-1 flex flex-col md:flex-row overflow-hidden bg-white dark:bg-slate-950">
              {/* Left Panel: List & Search */}
@@ -257,7 +256,7 @@ export const ManagementModals: React.FC = () => {
                               placeholder="Search customer name..." 
                               value={searchInvoice}
                               onChange={e => setSearchInvoice(e.target.value)}
-                              className="h-10 pl-9 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-sm"
+                              className="h-10 pl-9 bg-slate-50 dark:bg-slate-900 border-none rounded-md text-sm"
                             />
                          </div>
                       </div>
@@ -265,7 +264,7 @@ export const ManagementModals: React.FC = () => {
                          {loadingPending ? (
                             <div className="flex flex-col items-center justify-center py-10 gap-2">
                                <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-                               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Loading...</p>
+                               <p className="text-sm font-medium">Loading...</p>
                             </div>
                          ) : (
                             customerGroups
@@ -279,7 +278,7 @@ export const ManagementModals: React.FC = () => {
                                       setAllocations({});
                                       setPaymentAmount("");
                                    }}
-                                   className="w-full p-3.5 rounded-xl text-left transition-all border border-slate-100/60 dark:border-slate-800/40 bg-white dark:bg-slate-950 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 flex justify-between items-center shadow-sm"
+                                   className="w-full p-3.5 rounded-md text-left transition-all border border-slate-100/60 dark:border-slate-800/40 bg-white dark:bg-slate-950 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10 flex justify-between items-center shadow-sm"
                                  >
                                     <div>
                                        <span className="text-xs font-black tracking-tight text-slate-800 dark:text-slate-200">{g.name}</span>
@@ -294,7 +293,7 @@ export const ManagementModals: React.FC = () => {
                          {customerGroups.length === 0 && !loadingPending && (
                             <div className="py-20 text-center text-muted-foreground opacity-30">
                                <Receipt className="w-12 h-12 mx-auto mb-4" />
-                               <p className="text-xs font-black uppercase tracking-widest">No outstanding balances</p>
+                               <p className="text-xs font-semibold">No outstanding balances</p>
                             </div>
                          )}
                       </div>
@@ -315,7 +314,7 @@ export const ManagementModals: React.FC = () => {
                          >
                             ← Back
                          </Button>
-                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate max-w-[120px]">
+                         <span className="text-xs font-medium text-slate-500 truncate max-w-[120px]">
                             {selectedCustomerForPending.name}
                          </span>
                          {selectedCustomerForPending.invoices.length > 0 && (
@@ -390,7 +389,7 @@ export const ManagementModals: React.FC = () => {
                                     });
                                     setPaymentAmount(String(totalAlloc.toFixed(2)));
                                  }}
-                                 className={`w-full p-3 rounded-xl text-left transition-all border flex gap-3 items-center ${isSelected ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-white dark:bg-slate-950 border-transparent hover:bg-slate-50 dark:hover:bg-slate-900'}`}
+                                 className={`w-full p-3 rounded-md text-left transition-all border flex gap-3 items-center ${isSelected ? 'bg-indigo-50 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-white dark:bg-slate-950 border-transparent hover:bg-slate-50 dark:hover:bg-slate-900'}`}
                                >
                                   <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 transition-all ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white' : 'border-slate-300 dark:border-slate-700 bg-white'}`}>
                                      {isSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
@@ -402,7 +401,7 @@ export const ManagementModals: React.FC = () => {
                                      </div>
                                      <p className="text-[8px] text-muted-foreground uppercase font-bold tracking-wide mt-0.5">{inv.issue_date}</p>
                                      <div className="flex justify-between items-end mt-1.5">
-                                        <div className="text-[8px] font-black uppercase tracking-tighter text-muted-foreground">Balance</div>
+                                        <div className="text-[8px] font-semibolder text-muted-foreground">Balance</div>
                                         <div className="text-xs font-black text-indigo-600">LKR {maxBal.toLocaleString()}</div>
                                      </div>
                                   </div>
@@ -415,7 +414,7 @@ export const ManagementModals: React.FC = () => {
                 {selectedInvoices.length > 0 && (
                    <div className="p-3 border-t bg-white dark:bg-slate-950 md:hidden shrink-0">
                       <Button 
-                         className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-tight text-xs rounded-xl"
+                         className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-tight text-xs rounded-md"
                          onClick={() => setActiveTabMobile('checkout')}
                       >
                          Settle Invoices ({selectedInvoices.length}) →
@@ -436,13 +435,13 @@ export const ManagementModals: React.FC = () => {
                        >
                           ← Back to Invoices
                        </Button>
-                      <div className="p-5 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+                      <div className="p-5 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-lg shadow-sm space-y-4">
                          <div>
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Receiving Payment For</p>
+                            <p className="text-sm font-medium">Receiving Payment For</p>
                             <p className="text-lg font-black">{selectedInvoices.length} Selected Invoices</p>
                          </div>
                          
-                         <div className="border border-slate-100 dark:border-slate-800 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-900/50 space-y-3 max-h-[160px] overflow-y-auto custom-scrollbar">
+                         <div className="border border-slate-100 dark:border-slate-800 rounded-md p-3 bg-slate-50/50 dark:bg-slate-900/50 space-y-3 max-h-[160px] overflow-y-auto custom-scrollbar">
                             {selectedInvoices.map(inv => {
                                const maxBal = parseFloat(inv.grand_total) - parseFloat(inv.paid_amount);
                                return (
@@ -480,13 +479,13 @@ export const ManagementModals: React.FC = () => {
                       </div>
 
                       <div className="space-y-4">
-                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Payment Method</label>
+                         <label className="text-sm font-medium">Payment Method</label>
                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
                             {(['Cash', 'Card', 'Cheque', 'Bank Transfer'] as const).map(m => (
                                <Button 
                                  key={m}
                                  variant={paymentMethod === m ? 'default' : 'outline'}
-                                 className={`h-12 font-bold text-[10px] uppercase rounded-xl transition-all ${paymentMethod === m ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-950'}`}
+                                 className={`h-12 font-bold text-[10px] uppercase rounded-md transition-all ${paymentMethod === m ? 'bg-indigo-600 text-white' : 'bg-white dark:bg-slate-950'}`}
                                  onClick={() => setPaymentMethod(m)}
                                >
                                   {m}
@@ -496,20 +495,20 @@ export const ManagementModals: React.FC = () => {
                       </div>
 
                       <div className="space-y-4">
-                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Total Payment Amount</label>
+                         <label className="text-sm font-medium">Total Payment Amount</label>
                          <div className="relative">
                             <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-slate-400">LKR</span>
                             <Input 
                                type="number"
                                readOnly
                                value={paymentAmount}
-                               className="h-16 pl-14 text-2xl font-black bg-slate-50 dark:bg-slate-900 cursor-not-allowed border-2 border-indigo-100 dark:border-indigo-900 rounded-2xl shadow-inner focus-visible:ring-indigo-500 text-indigo-600"
+                               className="h-16 pl-14 text-2xl font-black bg-slate-50 dark:bg-slate-900 cursor-not-allowed border-2 border-indigo-100 dark:border-indigo-900 rounded-lg shadow-inner focus-visible:ring-indigo-500 text-indigo-600"
                             />
                          </div>
                       </div>
 
                       {paymentMethod === 'Cheque' && (
-                         <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl space-y-4 animate-in fade-in zoom-in-95">
+                         <div className="p-5 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg space-y-4 animate-in fade-in zoom-in-95">
                             <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2">
                                <Receipt className="w-4 h-4" /> Cheque Documentation
                             </p>
@@ -546,7 +545,7 @@ export const ManagementModals: React.FC = () => {
                       )}
 
                       <Button 
-                        className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-lg shadow-xl shadow-indigo-200 active:scale-[0.98] transition-all rounded-2xl"
+                        className="w-full h-16 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-lg shadow-xl shadow-indigo-200 active:scale-[0.98] transition-all rounded-lg"
                         disabled={isRecordingPayment || !paymentAmount || parseFloat(paymentAmount) <= 0}
                         onClick={async () => {
                            setIsRecordingPayment(true);
@@ -586,7 +585,7 @@ export const ManagementModals: React.FC = () => {
                                  await refreshPendingInvoices();
                                  if (res.receipt_ids && Array.isArray(res.receipt_ids)) {
                                     res.receipt_ids.forEach((rcpId: string) => {
-                                       window.open(`/cms/payment-receipts/${rcpId}/print?autoprint=1`, '_blank');
+                                       void printPosDoc(`/cms/payment-receipts/${rcpId}/print`, `Payment receipt #${rcpId}`, toast);
                                     });
                                  }
                                  setSelectedCustomerForPending(null);
@@ -607,7 +606,7 @@ export const ManagementModals: React.FC = () => {
                 ) : (
                    <div className="h-full flex flex-col items-center justify-center text-muted-foreground opacity-30 text-center">
                       <Calculator className="w-16 h-16 mb-4" />
-                      <p className="text-sm font-black uppercase tracking-widest max-w-[200px]">Select one or more invoices from the left to start collecting payment.</p>
+                      <p className="text-sm max-w-[240px]">Select one or more invoices on the left to collect a payment.</p>
                    </div>
                 )}
              </div>
@@ -629,30 +628,21 @@ export const ManagementModals: React.FC = () => {
                setVKeyboardActiveInput(null);
            }
       }}>
-        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl flex flex-col">
-          <div className="bg-white dark:bg-slate-950 sm:bg-rose-600 p-4 sm:p-6 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none">
-            <div className="flex sm:flex-col items-center sm:justify-center gap-3">
-               <div className="p-2 sm:p-3 bg-rose-100 dark:bg-rose-900/30 sm:bg-white/20 rounded-xl sm:rounded-2xl shrink-0">
-                 <RotateCcw className="w-5 h-5 sm:w-8 sm:h-8 text-rose-600 sm:text-white" />
-               </div>
-               <div className="text-left sm:text-center">
-                  <DialogTitle className="text-base sm:text-2xl font-black uppercase tracking-tight">Return Items</DialogTitle>
-                  <DialogDescription className="hidden sm:block text-rose-100 text-sm font-medium opacity-90 mt-2">
-                    Restock items from a previous sale and generate a completion note.
-                  </DialogDescription>
-               </div>
-            </div>
-          </div>
+        <DialogContent size="lg" className="p-0 overflow-y-auto sm:rounded-lg flex flex-col">
+          <PosDialogHeader
+            title="Return items"
+            description="Restock items from a previous sale and issue a return note."
+          />
 
           <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto custom-scrollbar">
              {!returnInvoiceData && !isManualReturn ? (
                <div className="space-y-4 sm:space-y-6">
                   <div className="space-y-3">
                      <div className="flex justify-between items-end px-1">
-                        <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Step 1: Lookup Original Invoice</label>
+                        <label className="text-sm font-medium">Original invoice number</label>
                         <Button 
                            variant="link" 
-                           className="h-auto p-0 text-[10px] font-black uppercase tracking-widest text-rose-600 hover:text-rose-700"
+                           className="h-auto p-0 text-sm"
                            onClick={() => setIsManualReturn(true)}
                         >
                            Manual Return (No Invoice)
@@ -672,7 +662,7 @@ export const ManagementModals: React.FC = () => {
                                 });
                              }
                           }}
-                          className="h-12 font-bold bg-white dark:bg-slate-950 rounded-xl"
+                          className="h-11"
                           onKeyDown={async (e) => {
                              if (e.key === 'Enter' && searchInvoiceNo) {
                                 setSearchingReturn(true);
@@ -688,7 +678,7 @@ export const ManagementModals: React.FC = () => {
                           }}
                         />
                         <Button 
-                          className="h-12 px-6 bg-rose-600 hover:bg-rose-700 rounded-xl font-bold uppercase tracking-widest text-white shadow-lg shadow-rose-200"
+                          className="h-11 px-5"
                           onClick={async () => {
                              if (!searchInvoiceNo) return;
                              setSearchingReturn(true);
@@ -709,22 +699,22 @@ export const ManagementModals: React.FC = () => {
                   </div>
 
                   {newReturnNo && (
-                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col items-center gap-4 animate-in zoom-in-95">
+                     <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col items-center gap-4 animate-in zoom-in-95">
                         <div className="p-3 bg-emerald-600 text-white rounded-full"><Check className="w-5 h-5" /></div>
                         <div className="text-center">
-                           <p className="text-xs font-black uppercase tracking-widest text-emerald-800">Return Created</p>
+                           <p className="text-xs font-semibold text-emerald-800">Return Created</p>
                            <p className="text-lg font-black text-emerald-950">No: {newReturnNo}</p>
                            <p className="text-[10px] text-emerald-700 max-w-[200px] mt-1">Stock restored. Proceed to the Refunds modal to release payment.</p>
                         </div>
                         <div className="flex gap-2 w-full">
                            <Button 
-                             className="flex-1 h-11 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 font-black uppercase tracking-widest text-[10px] rounded-xl border border-slate-200 dark:border-slate-800"
-                             onClick={() => window.open(`/cms/sales-returns/${newReturnId}/receipt?autoprint=1`, '_blank')}
+                             className="flex-1 h-11 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-900 dark:text-slate-100 font-semibold text-[10px] rounded-md border border-slate-200 dark:border-slate-800"
+                             onClick={() => void printPosDoc(`/cms/sales-returns/${newReturnId}/receipt`, `Return #${newReturnId}`, toast)}
                            >
                              <Printer className="w-4 h-4 mr-2" /> Print Note
                            </Button>
                            <Button 
-                             className="flex-1 h-11 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-[10px] rounded-xl shadow-lg shadow-rose-200 dark:shadow-rose-950/20"
+                             className="flex-1 h-11 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-[10px] rounded-md shadow-lg shadow-rose-200 dark:shadow-rose-950/20"
                              onClick={async () => {
                                 if (!newReturnNo) return;
                                 setSearchReturnNo(newReturnNo);
@@ -753,10 +743,10 @@ export const ManagementModals: React.FC = () => {
                 <div className="space-y-6">
                    <div className="space-y-3">
                       <div className="flex justify-between items-end px-1">
-                         <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Manual Return: Select Customer</label>
+                         <label className="text-sm font-medium">Manual Return: Select Customer</label>
                          <Button 
                             variant="link" 
-                            className="h-auto p-0 text-[10px] font-black uppercase tracking-widest text-slate-500"
+                            className="h-auto p-0 text-xs font-medium text-slate-500"
                             onClick={() => setIsManualReturn(false)}
                          >
                             Back to Invoice Lookup
@@ -777,7 +767,7 @@ export const ManagementModals: React.FC = () => {
                                  });
                               }
                            }}
-                           className="h-12 pl-10 font-bold bg-white dark:bg-slate-950 rounded-xl"
+                           className="h-12 pl-10 font-bold bg-white dark:bg-slate-950 rounded-md"
                          />
                       </div>
                       <div className="space-y-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -787,7 +777,7 @@ export const ManagementModals: React.FC = () => {
                            .map(customer => (
                               <button 
                                 key={customer.id}
-                                className="w-full p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl text-left hover:border-rose-500 transition-all flex justify-between items-center group"
+                                className="w-full p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-lg text-left hover:border-rose-500 transition-all flex justify-between items-center group"
                                 onClick={() => setSelectedManualCustomer(customer)}
                               >
                                  <div>
@@ -804,13 +794,13 @@ export const ManagementModals: React.FC = () => {
               ) : (
                 <div className="space-y-6">
                    <div className="space-y-4">
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900/50 p-3 rounded-md border border-slate-100 dark:border-slate-800">
                          <div className="flex items-center gap-3">
                             <div className="p-2 bg-rose-100 dark:bg-rose-900/30 text-rose-600 rounded-lg">
                                {isManualReturn ? <Building2 className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
                             </div>
                             <div>
-                               <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                               <p className="text-sm font-medium">
                                   {isManualReturn ? "Return For Customer" : "Return From Invoice"}
                                </p>
                                <p className="text-sm font-black">
@@ -832,7 +822,7 @@ export const ManagementModals: React.FC = () => {
 
                       {isManualReturn && (
                          <div className="space-y-3">
-                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Search & Add Items</label>
+                            <label className="text-sm font-medium">Search & Add Items</label>
                             <div className="relative">
                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                <Input 
@@ -848,11 +838,11 @@ export const ManagementModals: React.FC = () => {
                                        });
                                     }
                                  }}
-                                 className="h-11 pl-10 text-xs font-bold bg-white dark:bg-slate-950 rounded-xl"
+                                 className="h-11 pl-10 text-xs font-bold bg-white dark:bg-slate-950 rounded-md"
                                />
                             </div>
                             {partSearchTerm && (
-                               <div className="space-y-1 bg-slate-50 dark:bg-slate-900 rounded-xl p-2 border border-slate-100 dark:border-slate-800 max-h-[200px] overflow-y-auto custom-scrollbar">
+                               <div className="space-y-1 bg-slate-50 dark:bg-slate-900 rounded-md p-2 border border-slate-100 dark:border-slate-800 max-h-[200px] overflow-y-auto custom-scrollbar">
                                   {inventory
                                     .filter(p => p.part_name.toLowerCase().includes(partSearchTerm.toLowerCase()) || p.sku?.toLowerCase().includes(partSearchTerm.toLowerCase()))
                                     .slice(0, 5)
@@ -892,7 +882,7 @@ export const ManagementModals: React.FC = () => {
                          </div>
                       )}
 
-                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">
+                      <label className="text-sm font-medium">
                          {isManualReturn ? "Items to Return" : "Step 2: Selection Items to Return"}
                       </label>
                       <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -902,7 +892,7 @@ export const ManagementModals: React.FC = () => {
                             const isDisabled = !isManualReturn && avail <= 0;
 
                             return (
-                               <div key={item.id} className={`p-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl ${isDisabled ? "opacity-30 grayscale pointer-events-none" : ""}`}>
+                               <div key={item.id} className={`p-3 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-md ${isDisabled ? "opacity-30 grayscale pointer-events-none" : ""}`}>
                                   <div className="flex justify-between items-start mb-2">
                                      <div>
                                         <p className="text-sm font-black">{item.description}</p>
@@ -970,7 +960,7 @@ export const ManagementModals: React.FC = () => {
                    </div>
 
                   <div className="space-y-4">
-                     <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Return Reason</label>
+                     <label className="text-sm font-medium">Return Reason</label>
                      <div className="flex flex-wrap gap-2">
                         {["Damage", "Exchange", "Mistake", "Expired"].map(r => (
                            <Button 
@@ -992,7 +982,7 @@ export const ManagementModals: React.FC = () => {
                   </div>
 
                   <Button 
-                    className="w-full h-14 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest shadow-xl shadow-rose-200 active:scale-[0.98] transition-all rounded-xl mt-2"
+                    className="w-full h-14 bg-rose-600 hover:bg-rose-700 text-white font-semibold shadow-xl shadow-rose-200 active:scale-[0.98] transition-all rounded-md mt-2"
                     disabled={returnCart.length === 0 || isProcessingReturn}
                     onClick={async () => {
                        setIsProcessingReturn(true);
@@ -1055,26 +1045,17 @@ export const ManagementModals: React.FC = () => {
               setVKeyboardActiveInput(null);
           }
       }}>
-        <DialogContent className="w-full sm:max-w-xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl flex flex-col">
-          <div className="bg-white dark:bg-slate-950 sm:bg-amber-500 p-4 sm:p-6 text-slate-900 dark:text-white sm:text-white relative border-b border-slate-100 dark:border-slate-800 sm:border-none">
-            <div className="flex sm:flex-col items-center sm:justify-center gap-3">
-               <div className="p-2 sm:p-3 bg-amber-100 dark:bg-amber-900/30 sm:bg-white/20 rounded-xl sm:rounded-2xl shrink-0">
-                 <Banknote className="w-5 h-5 sm:w-8 sm:h-8 text-amber-600 sm:text-white" />
-               </div>
-               <div className="text-left sm:text-center">
-                  <DialogTitle className="text-base sm:text-2xl font-black uppercase tracking-tight">Financial Refund</DialogTitle>
-                  <DialogDescription className="hidden sm:block text-amber-50 text-sm font-medium opacity-90 mt-2">
-                    Issue cash or bank transfer for a completed return document.
-                  </DialogDescription>
-               </div>
-            </div>
-          </div>
+        <DialogContent size="lg" className="p-0 overflow-y-auto sm:rounded-lg flex flex-col">
+          <PosDialogHeader
+            title="Refund"
+            description="Pay back cash or bank transfer for a completed return."
+          />
 
           <div className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto custom-scrollbar">
               {!refundReturnData ? (
                  <div className="space-y-4 sm:space-y-6">
                    <div className="space-y-3">
-                      <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Step 1: Lookup Return Number</label>
+                      <label className="text-sm font-medium">Return number</label>
                       <div className="flex gap-2">
                          <Input 
                            placeholder="Enter SR Number (e.g. SR-00001)" 
@@ -1089,7 +1070,7 @@ export const ManagementModals: React.FC = () => {
                                  });
                               }
                            }}
-                           className="h-12 font-bold bg-white dark:bg-slate-950 rounded-xl"
+                           className="h-11"
                            onKeyDown={async (e) => {
                               if (e.key === 'Enter' && searchReturnNo) {
                                  setSearchingRefund(true);
@@ -1106,7 +1087,7 @@ export const ManagementModals: React.FC = () => {
                            }}
                          />
                          <Button 
-                           className="h-12 px-6 bg-amber-600 hover:bg-amber-700 rounded-xl font-bold uppercase tracking-widest text-white"
+                           className="h-11 px-5"
                            onClick={async () => {
                               if (!searchReturnNo) return;
                               setSearchingRefund(true);
@@ -1126,7 +1107,7 @@ export const ManagementModals: React.FC = () => {
                          </Button>
                       </div>
                    </div>
-                   <div className="p-8 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center text-center opacity-40">
+                   <div className="p-8 border-2 border-dashed rounded-lg flex flex-col items-center justify-center text-center opacity-40">
                       <Search className="w-12 h-12 mb-4" />
                       <p className="text-sm font-bold">Please search for a return document to proceed with financial refund.</p>
                    </div>
@@ -1134,17 +1115,17 @@ export const ManagementModals: React.FC = () => {
               ) : (
                 <div className="space-y-6">
                    <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-100 rounded-xl">
-                         <div className="p-3 bg-amber-600 text-white rounded-xl"><Receipt className="w-5 h-5" /></div>
+                      <div className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-950/20 border-2 border-amber-100 rounded-md">
+                         <div className="p-3 bg-amber-600 text-white rounded-md"><Receipt className="w-5 h-5" /></div>
                                  <div className="flex-1 min-w-0">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-amber-600">Releasing Payment For</p>
+                            <p className="text-xs font-medium text-amber-600">Releasing Payment For</p>
                             <p className="text-base font-black truncate">{refundReturnData.return.return_no}</p>
                             <p className="text-xs text-muted-foreground font-bold">{refundReturnData.return.customer_name} • Invoice #{refundReturnData.return.invoice_no}</p>
                          </div>
                       </div>
 
                       {refundReturnData.is_refunded ? (
-                         <div className="p-4 bg-orange-100 border border-orange-200 rounded-xl flex items-center gap-3 text-orange-900 animate-pulse">
+                         <div className="p-4 bg-orange-100 border border-orange-200 rounded-md flex items-center gap-3 text-orange-900 animate-pulse">
                             <AlertCircle className="w-5 h-5" />
                             <p className="text-xs font-bold">This return has already been refunded. Check the Day Ledger to reprint the receipt.</p>
                          </div>
@@ -1152,19 +1133,19 @@ export const ManagementModals: React.FC = () => {
                          <>
                             {!newRefundId && (
                                <>
-                                  <div className="p-6 bg-amber-50/50 dark:bg-amber-950/10 border-2 border-dashed border-amber-200 dark:border-amber-900/50 rounded-2xl flex flex-col items-center">
-                                     <p className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground mb-1">Payable Refund Amount</p>
+                                  <div className="p-6 bg-amber-50/50 dark:bg-amber-950/10 border-2 border-dashed border-amber-200 dark:border-amber-900/50 rounded-lg flex flex-col items-center">
+                                     <p className="text-[10px] font-semibolder text-muted-foreground mb-1">Payable Refund Amount</p>
                                      <p className="text-4xl font-black text-amber-600 tabular-nums">LKR {parseFloat(refundReturnData.return.total_amount).toLocaleString()}</p>
                                   </div>
 
                                   <div className="space-y-2">
-                                     <label className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Select Refund Method</label>
+                                     <label className="text-sm font-medium">Select Refund Method</label>
                                      <div className="grid grid-cols-2 gap-2">
                                         {['Cash', 'Bank Transfer'].map(m => (
                                           <Button 
                                             key={m} 
                                             variant={refundPaymentMethod === m ? 'default' : 'outline'}
-                                            className={`h-12 font-black uppercase tracking-widest transition-all ${refundPaymentMethod === m ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'bg-white dark:bg-slate-950'}`}
+                                            className={`h-11 font-medium transition-colors ${refundPaymentMethod === m ? 'bg-primary text-primary-foreground hover:bg-primary/90' : 'bg-white dark:bg-slate-950'}`}
                                             onClick={() => setRefundPaymentMethod(m as any)}
                                           >
                                              {m === 'Cash' ? <Banknote className="w-4 h-4 mr-2" /> : <Store className="w-4 h-4 mr-2" />}
@@ -1177,23 +1158,23 @@ export const ManagementModals: React.FC = () => {
                             )}
 
                             {newRefundId ? (
-                               <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col items-center gap-3 animate-in fade-in zoom-in-95">
+                               <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-lg flex flex-col items-center gap-3 animate-in fade-in zoom-in-95">
                                   <div className="p-3 bg-emerald-600 text-white rounded-full"><Check className="w-6 h-6" /></div>
                                   <div className="text-center">
-                                     <p className="text-xs font-black uppercase tracking-widest text-emerald-800">Refund Successful</p>
+                                     <p className="text-xs font-semibold text-emerald-800">Refund Successful</p>
                                      <p className="text-sm font-black text-emerald-950 mt-1">{newRefundNo}</p>
                                      <p className="text-[10px] font-bold text-emerald-950/60 mt-1 text-center">Cash flow updated successfully.</p>
                                   </div>
                                   <Button 
-                                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs rounded-xl shadow-lg shadow-emerald-200"
-                                    onClick={() => window.open(`/cms/refunds/${newRefundId}/receipt?autoprint=1`, '_blank')}
+                                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-md shadow-lg shadow-emerald-200"
+                                    onClick={() => void printPosDoc(`/cms/refunds/${newRefundId}/receipt`, `Refund #${newRefundId}`, toast)}
                                   >
                                     <Printer className="w-4 h-4 mr-2" /> Print Refund Receipt
                                   </Button>
                                </div>
                             ) : (
                               <Button 
-                                className="w-full h-15 font-black uppercase tracking-widest bg-amber-600 hover:bg-amber-700 text-white shadow-xl shadow-amber-200 active:scale-[0.98] transition-all rounded-xl mt-4"
+                                className="w-full h-12 transition-all rounded-md mt-4"
                                 disabled={isProcessingReturn}
                                 onClick={async () => {
                                    setIsProcessingReturn(true);
@@ -1234,202 +1215,94 @@ export const ManagementModals: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* 4. DAY LEDGER DIALOG */}
+      {/* 4. DAY LEDGER DIALOG — standard ERP layout: header / summary / payments / activity */}
       <Dialog open={ledgerDialogOpen} onOpenChange={setLedgerDialogOpen}>
-         <DialogContent className="w-full sm:max-w-3xl h-[100dvh] sm:h-auto p-0 overflow-hidden border-none shadow-2xl rounded-none sm:rounded-2xl bg-slate-900">
-            <div className="bg-slate-900 p-4 text-white flex justify-between items-center rounded-t-2xl">
-               <div>
-                  <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
-                     <div className="p-1.5 bg-white/10 rounded-lg"><History className="w-5 h-5 text-blue-400" /></div>
-                     Today&apos;s Day Ledger
-                  </DialogTitle>
-                  <DialogDescription className="text-[10px] text-slate-400 font-bold opacity-80 mt-0.5 pl-1">
-                     Daily Summary • {new Date().toLocaleDateString()}
-                  </DialogDescription>
-               </div>
-               <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-none h-8 px-3 font-black uppercase tracking-widest text-[9px] rounded-lg shadow-lg"
-                    onClick={() => window.open(`/cms/pos/day-end?location_id=${selectedLocation}&autoprint=1`, '_blank')}
-                  >
-                     <Printer className="w-3.5 h-3.5 mr-1.5" /> Print
-                  </Button>
-                  <Button variant="ghost" className="text-slate-400 hover:text-white h-8 w-8 p-0 rounded-lg bg-white/5" onClick={() => setLedgerDialogOpen(false)}>
-                     <Trash2 className="w-4 h-4" />
-                  </Button>
-               </div>
-            </div>
-
-            <div className="p-4 space-y-4 bg-white dark:bg-slate-950 h-full">
-                {loadingLedger ? (
-                  <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
-                     <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Compiling...</p>
-                  </div>
-                ) : dayLedger ? (
+         <DialogContent size="lg" className="p-0 gap-0 flex flex-col overflow-hidden">
+            {(() => {
+               const fmt = (n: any) => `LKR ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+               const reload = async () => {
+                  setLoadingLedger(true);
+                  try { setDayLedger(await fetchPosDayLedger(selectedLocation)); } finally { setLoadingLedger(false); }
+               };
+               const TYPE: Record<string, { label: string; plural: string; icon: any; out?: boolean }> = {
+                  Invoice: { label: 'Sale', plural: 'sales', icon: FileText },
+                  Receipt: { label: 'Payment', plural: 'payments', icon: Receipt },
+                  Return: { label: 'Return', plural: 'returns', icon: RotateCcw, out: true },
+                  Refund: { label: 'Refund', plural: 'refunds', icon: Banknote, out: true },
+               };
+               const events: any[] = dayLedger?.events || [];
+               const count = (t: string) => events.filter((e: any) => e.type === t).length;
+               const methods = dayLedger?.summary?.methods || {};
+               return (
                   <>
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                         <div className="p-3 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <p className="text-[9px] font-black uppercase text-muted-foreground mb-0.5">Today&apos;s Sales</p>
-                            <p className="text-base font-black text-slate-950 dark:text-white">LKR {dayLedger.summary.sales.toLocaleString()}</p>
-                         </div>
-                         <div className="p-3 bg-rose-50/50 rounded-xl border border-rose-100">
-                            <p className="text-[9px] font-black uppercase text-rose-600 mb-0.5">Stock Returns</p>
-                            <p className="text-base font-black text-rose-800">LKR {dayLedger.summary.returns.toLocaleString()}</p>
-                         </div>
-                         <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-100">
-                            <p className="text-[9px] font-black uppercase text-amber-600 mb-0.5">Total Refunds</p>
-                            <p className="text-base font-black text-amber-800">LKR {dayLedger.summary.refunds.toLocaleString()}</p>
-                         </div>
-                         <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-right font-black">
-                            <p className="text-[9px] font-black uppercase text-emerald-600 mb-0.5">Total Intake</p>
-                            <p className="text-base font-black text-emerald-800">LKR {dayLedger.summary.net.toLocaleString()}</p>
-                         </div>
-                      </div>
-
-                      <div className="p-3 bg-slate-900 text-white rounded-2xl shadow-xl shadow-slate-200/50 flex items-center justify-between border-[3px] border-white dark:border-slate-800">
-                         <div className="flex gap-6 items-center px-1">
-                            <div className="flex flex-col">
-                               <p className="text-[8px] font-black uppercase text-blue-400 mb-0.5">Cash Balance</p>
-                               <p className="text-lg font-black tracking-tight leading-none">LKR {(dayLedger.summary.methods?.['Cash'] || 0).toLocaleString()}</p>
-                            </div>
-                            <div className="w-px h-8 bg-white/10" />
-                            <div className="flex gap-5">
-                                <div>
-                                   <p className="text-[8px] font-black uppercase text-slate-400">Card</p>
-                                   <p className="text-xs font-black italic">LKR {(dayLedger.summary.methods?.['Card'] || 0).toLocaleString()}</p>
-                                </div>
-                                <div>
-                                   <p className="text-[8px] font-black uppercase text-slate-400">Transfer</p>
-                                   <p className="text-xs font-black italic">LKR {(dayLedger.summary.methods?.['Bank Transfer'] || 0).toLocaleString()}</p>
-                                </div>
-                                <div>
-                                   <p className="text-[8px] font-black uppercase text-slate-400">Cheque</p>
-                                   <p className="text-xs font-black italic">LKR {(dayLedger.summary.methods?.['Cheque'] || 0).toLocaleString()}</p>
-                                </div>
-                            </div>
-                         </div>
-                         <div className="text-right pr-2">
-                            <p className="text-[8px] font-black uppercase text-emerald-400 flex items-center gap-1 justify-end">
-                               <ShieldCheck className="w-2.5 h-2.5" /> Audited Records
-                            </p>
-                            <p className="text-[7px] text-slate-500 font-bold uppercase tracking-tighter">Verified from Database Ledger</p>
-                         </div>
-                      </div>
-                        <div className="flex justify-between items-center mb-1 px-1">
-                           <label className="text-xs font-black uppercase tracking-widest text-muted-foreground underline decoration-blue-500/30 underline-offset-4">Categorized Ledger</label>
-                           <div className="flex gap-2">
-                               <Button 
-                                 variant="ghost" size="sm" className="h-6 text-[10px] font-black uppercase text-blue-500 hover:text-blue-600 hover:bg-blue-50"
-                                 onClick={async () => {
-                                    setLoadingLedger(true);
-                                    try {
-                                       const data = await fetchPosDayLedger(selectedLocation);
-                                       setDayLedger(data);
-                                    } finally {
-                                       setLoadingLedger(false);
-                                    }
-                                 }}
-                               >
-                                  <RotateCcw className="w-3 h-3 mr-1" /> Force Refresh
-                               </Button>
-                            </div>
+                     {/* Header */}
+                     <div className="px-5 pt-5 pb-3 border-b border-border flex items-start justify-between gap-3 pr-12 shrink-0">
+                        <div>
+                           <DialogTitle>Day summary</DialogTitle>
+                           <DialogDescription>
+                              {new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                           </DialogDescription>
                         </div>
+                        <div className="flex gap-2 shrink-0">
+                           <Button variant="outline" size="sm" className="h-9" onClick={reload} disabled={loadingLedger} aria-label="Refresh figures">
+                              <RotateCcw className={`w-4 h-4 ${loadingLedger ? 'animate-spin' : ''}`} />
+                           </Button>
+                           <Button size="sm" className="h-9 gap-2" onClick={() => void printPosDoc(`/cms/pos/day-end?location_id=${selectedLocation}`, 'Day end summary', toast)}>
+                              <Printer className="w-4 h-4" aria-hidden="true" /> Print day-end
+                           </Button>
+                        </div>
+                     </div>
 
-                        <Tabs defaultValue="all" className="w-full">
-                           <TabsList className="w-full flex justify-start bg-slate-100/50 dark:bg-slate-900/50 p-1 mb-4 rounded-xl">
-                              <TabsTrigger value="all" className="flex-1 text-[10px] font-black uppercase data-[state=active]:bg-white data-[state=active]:shadow-sm rounded-lg py-2">
-                                 All <span className="ml-1 opacity-40">({dayLedger.events.length})</span>
-                              </TabsTrigger>
-                              <TabsTrigger value="Invoice" className="flex-1 text-[10px] font-black uppercase data-[state=active]:bg-blue-600 data-[state=active]:text-white rounded-lg py-2">
-                                 Sales ({dayLedger.events.filter((e: any) => e.type === 'Invoice').length})
-                              </TabsTrigger>
-                              <TabsTrigger value="Return" className="flex-1 text-[10px] font-black uppercase data-[state=active]:bg-rose-600 data-[state=active]:text-white rounded-lg py-2">
-                                 Returns ({dayLedger.events.filter((e: any) => e.type === 'Return').length})
-                              </TabsTrigger>
-                              <TabsTrigger value="Refund" className="flex-1 text-[10px] font-black uppercase data-[state=active]:bg-amber-600 data-[state=active]:text-white rounded-lg py-2">
-                                 Refunds ({dayLedger.events.filter((e: any) => e.type === 'Refund').length})
-                              </TabsTrigger>
-                              <TabsTrigger value="Receipt" className="flex-1 text-[10px] font-black uppercase data-[state=active]:bg-emerald-600 data-[state=active]:text-white rounded-lg py-2">
-                                 Receipts ({dayLedger.events.filter((e: any) => e.type === 'Receipt').length})
-                              </TabsTrigger>
-                           </TabsList>
+                     <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+                        {loadingLedger && !dayLedger ? (
+                           <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                              <Loader2 className="w-5 h-5 animate-spin" /> Loading today's figures…
+                           </div>
+                        ) : !dayLedger ? (
+                           <div className="py-16 text-center space-y-3">
+                              <p className="text-sm text-muted-foreground">Couldn't load today's figures.</p>
+                              <Button variant="outline" size="sm" onClick={reload}>Try again</Button>
+                           </div>
+                        ) : (
+                           <>
+                              {/* Summary */}
+                              <div className="grid grid-cols-2 md:grid-cols-4 rounded-lg border border-border divide-x divide-y md:divide-y-0 divide-border overflow-hidden">
+                                 {[
+                                    { label: 'Sales', value: dayLedger.summary.sales },
+                                    { label: 'Returns', value: dayLedger.summary.returns, out: true },
+                                    { label: 'Refunds', value: dayLedger.summary.refunds, out: true },
+                                    { label: 'Net intake', value: dayLedger.summary.net, strong: true },
+                                 ].map((k: any) => (
+                                    <div key={k.label} className={`px-4 py-3 ${k.strong ? 'bg-primary/5' : ''}`}>
+                                       <div className="text-xs text-muted-foreground">{k.label}</div>
+                                       <div className={`mt-0.5 tabular-nums ${k.strong ? 'text-lg font-semibold' : 'text-base font-medium'} ${k.out && Number(k.value) > 0 ? 'text-destructive' : ''}`}>
+                                          {k.out && Number(k.value) > 0 ? '− ' : ''}{fmt(k.value)}
+                                       </div>
+                                    </div>
+                                 ))}
+                              </div>
 
-                           {["all", "Invoice", "Return", "Refund", "Receipt"].map((tab) => (
-                               <TabsContent key={tab} value={tab} className="mt-0">
-                                  <div className="space-y-1.5 max-h-[350px] overflow-y-auto pr-2 custom-scrollbar">
-                                  {dayLedger.events
-                                    .filter((ev: any) => tab === "all" || ev.type === tab)
-                                    .map((ev: any, idx: number) => (
-                                     <div key={idx} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl hover:border-blue-100 transition-all group shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                           <div className={`p-2 rounded-lg ${
-                                              ev.type === 'Invoice' ? 'bg-blue-50 text-blue-600' :
-                                              ev.type === 'Return' ? 'bg-rose-50 text-rose-600' :
-                                              ev.type === 'Refund' ? 'bg-amber-50 text-amber-600' :
-                                              'bg-emerald-50 text-emerald-600'
-                                           }`}>
-                                              {ev.type === 'Invoice' ? <FileText className="w-4 h-4" /> :
-                                               ev.type === 'Return' ? <RotateCcw className="w-4 h-4" /> :
-                                               ev.type === 'Refund' ? <Banknote className="w-4 h-4" /> :
-                                               <Receipt className="w-4 h-4" />
-                                              }
-                                           </div>
-                                           <div>
-                                              <div className="flex items-center gap-1.5 mb-0.5">
-                                                 <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${
-                                                    ev.type === 'Invoice' ? 'bg-blue-600 text-white' :
-                                                    ev.type === 'Return' ? 'bg-rose-600 text-white' :
-                                                    ev.type === 'Refund' ? 'bg-amber-600 text-white' :
-                                                    'bg-emerald-600 text-white'
-                                                 }`}>{ev.type === 'Invoice' ? 'INV' : ev.type === 'Return' ? 'RTN' : ev.type === 'Refund' ? 'RFD' : 'RCP'}</span>
-                                                 <span className="text-[9px] text-muted-foreground font-black opacity-60">{new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                                              </div>
-                                              <p className="text-sm font-black tracking-tight leading-none mb-0.5">{ev.doc_no}</p>
-                                              <p className="text-[10px] text-muted-foreground font-bold">{ev.customer_name || 'Walk-in Customer'}</p>
-                                           </div>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                           <div className="text-right">
-                                              <p className={`text-sm font-black ${ev.type === 'Return' || ev.type === 'Refund' ? 'text-rose-600' : 'text-slate-900 dark:text-white'}`}>
-                                                 LKR {parseFloat(ev.amount).toLocaleString()}
-                                              </p>
-                                              <span className="text-[9px] font-black uppercase text-muted-foreground opacity-60 tracking-wider">
-                                                 {ev.payment_method || (ev.type === 'Invoice' ? 'POS SALE' : 'N/A')}
-                                              </span>
-                                           </div>
-                                           <Button 
-                                             variant="outline" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-50 transition-colors"
-                                             onClick={() => {
-                                                 let url = '';
-                                                 if (ev.type === 'Invoice') url = `/cms/invoices/${ev.id}/receipt?autoprint=1`;
-                                                 if (ev.type === 'Return') url = `/cms/sales-returns/${ev.id}/receipt?autoprint=1`;
-                                                 if (ev.type === 'Refund') url = `/cms/refunds/${ev.id}/receipt?autoprint=1`;
-                                                 if (ev.type === 'Receipt') url = `/cms/invoices/${ev.invoice_id}/receipt?autoprint=1`; 
-                                                 if (url) window.open(url, '_blank');
-                                             }}
-                                           >
-                                              <Printer className="w-3.5 h-3.5 text-slate-400 group-hover:text-blue-500 transition-colors" />
-                                           </Button>
-                                        </div>
-                                     </div>
-                                  ))}
-                                  {dayLedger.events.filter((ev: any) => tab === "all" || ev.type === tab).length === 0 && (
-                                     <div className="flex flex-col items-center justify-center py-20 opacity-30 text-center">
-                                        <History className="w-16 h-16 mb-4" />
-                                        <p className="text-sm font-black uppercase tracking-widest">No {tab === 'all' ? 'activity' : tab.toLowerCase()} recorded</p>
-                                     </div>
-                                  )}
-                               </div>
-                             </TabsContent>
-                           ))}
-                        </Tabs>
+                              {/* Collected by payment method */}
+                              <div>
+                                 <h3 className="text-sm font-medium mb-2">Collected by payment method</h3>
+                                 <dl className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                    {[['Cash', 'Cash'], ['Card', 'Card'], ['Bank Transfer', 'Transfer'], ['Cheque', 'Cheque']].map(([key, label]) => (
+                                       <div key={key} className="rounded-md border border-border px-3 py-2">
+                                          <dt className="text-xs text-muted-foreground">{label}</dt>
+                                          <dd className="font-medium tabular-nums">{fmt(methods[key])}</dd>
+                                       </div>
+                                    ))}
+                                 </dl>
+                              </div>
+
+                              {/* Activity (searchable, paged) */}
+                              <LedgerActivity events={events} TYPE={TYPE} fmt={fmt} />
+                           </>
+                        )}
+                     </div>
                   </>
-                ) : (
-                   <div className="text-center py-20 text-muted-foreground font-bold">Failed to synchronize ledger data.</div>
-                )}
-            </div>
+               );
+            })()}
          </DialogContent>
         </Dialog>
 
@@ -1437,3 +1310,121 @@ export const ManagementModals: React.FC = () => {
       </>
     );
 };
+
+/**
+ * Day activity list built for busy days (50–500+ documents):
+ *  - search by document no, customer, payment method or amount
+ *  - type tabs with counts
+ *  - newest first, 25 rows at a time with "Show more" (no giant DOM, no nested scroll box)
+ */
+const PAGE = 25;
+function LedgerActivity({ events, TYPE, fmt }: { events: any[]; TYPE: Record<string, any>; fmt: (n: any) => string }) {
+  const [tab, setTab] = React.useState<string>('all');
+  const [q, setQ] = React.useState('');
+  const [limit, setLimit] = React.useState(PAGE);
+
+  React.useEffect(() => { setLimit(PAGE); }, [tab, q]);
+
+  const sorted = React.useMemo(
+    () => [...events].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [events]
+  );
+  const query = q.trim().toLowerCase();
+  const matches = (ev: any) => !query || [ev.doc_no, ev.customer_name, ev.payment_method, String(ev.amount)]
+    .some((v) => String(v || '').toLowerCase().includes(query));
+  const inTab = (ev: any) => tab === 'all' || ev.type === tab;
+  const searched = sorted.filter(matches);
+  const rows = searched.filter(inTab);
+  const count = (t: string) => searched.filter((e) => t === 'all' || e.type === t).length;
+  const shown = rows.slice(0, limit);
+  const rowsTotal = rows.reduce((s, e) => s + (TYPE[e.type]?.out ? -1 : 1) * Number(e.amount || 0), 0);
+
+  const tabs: Array<[string, string]> = [['all', 'All'], ['Invoice', 'Sales'], ['Receipt', 'Payments'], ['Return', 'Returns'], ['Refund', 'Refunds']];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 justify-between">
+        <h3 className="text-sm font-medium">Activity</h3>
+        <div className="relative sm:w-64">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
+          <Input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search no., customer, amount"
+            aria-label="Search today's activity"
+            className="h-9 pl-8 text-sm"
+          />
+        </div>
+      </div>
+
+      <div role="tablist" aria-label="Activity type" className="grid grid-cols-5 gap-1 p-1 rounded-md bg-muted">
+        {tabs.map(([val, label]) => (
+          <button
+            key={val}
+            type="button"
+            role="tab"
+            aria-selected={tab === val}
+            onClick={() => setTab(val)}
+            className={`h-8 rounded-sm text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${tab === val ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {label} ({count(val)})
+          </button>
+        ))}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
+          {query ? `Nothing matches "${q}".` : `No ${tab === 'all' ? 'activity' : TYPE[tab]?.plural} today yet.`}
+        </div>
+      ) : (
+        <>
+          <ul className="rounded-lg border border-border divide-y divide-border">
+            {shown.map((ev: any, idx: number) => {
+              const t = TYPE[ev.type] || { label: ev.type, icon: FileText };
+              const Icon = t.icon;
+              const url =
+                ev.type === 'Invoice' ? `/cms/invoices/${ev.id}/receipt` :
+                ev.type === 'Return' ? `/cms/sales-returns/${ev.id}/receipt` :
+                ev.type === 'Refund' ? `/cms/refunds/${ev.id}/receipt` :
+                ev.type === 'Receipt' ? `/cms/invoices/${ev.invoice_id}/receipt` : '';
+              return (
+                <li key={`${ev.type}-${ev.id}-${idx}`} className="flex items-center gap-3 px-3 py-2">
+                  <Icon className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium truncate">{ev.doc_no}</span>
+                      <span className="rounded border border-border px-1.5 text-[11px] text-muted-foreground shrink-0">{t.label}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {ev.customer_name || 'Walk-in customer'}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className={`text-sm font-medium tabular-nums ${t.out ? 'text-destructive' : ''}`}>{t.out ? '− ' : ''}{fmt(ev.amount)}</div>
+                    <div className="text-xs text-muted-foreground">{ev.payment_method || (ev.type === 'Invoice' ? 'POS sale' : '')}</div>
+                  </div>
+                  {url && (
+                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" aria-label={`Print ${ev.doc_no}`} onClick={() => void printPosDoc(url, ev.doc_no)}>
+                      <Printer className="w-4 h-4" />
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>
+              Showing {shown.length} of {rows.length}
+              {tab !== 'all' && <> · total <span className="font-medium text-foreground tabular-nums">{fmt(Math.abs(rowsTotal))}</span></>}
+            </span>
+            {rows.length > limit && (
+              <Button variant="outline" size="sm" className="h-8" onClick={() => setLimit((l) => l + PAGE)}>
+                Show {Math.min(PAGE, rows.length - limit)} more
+              </Button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}

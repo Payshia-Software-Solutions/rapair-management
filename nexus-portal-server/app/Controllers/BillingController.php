@@ -10,6 +10,14 @@ use App\Core\Mailer;
 class BillingController extends Controller {
     
     private function checkAuth() {
+        if (($_SESSION['admin_role'] ?? '') !== 'super_admin') {
+            return $this->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
+        }
+        return true;
+    }
+
+    /** Any signed-in portal account. Endpoints using this must scope the data to the caller's tenant. */
+    private function checkLogin() {
         if (!isset($_SESSION['admin_id'])) {
             return $this->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
@@ -24,7 +32,7 @@ class BillingController extends Controller {
     }
 
     public function runBillingCycle() {
-        if ($this->checkAuth() !== true) return;
+        if (!isset($_SESSION['admin_id'])) return $this->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         if ($this->checkSuperAdmin() !== true) return;
 
         $tenantModel = new TenantModel();
@@ -151,7 +159,7 @@ class BillingController extends Controller {
     }
 
     public function getMyHistory() {
-        if ($this->checkAuth() !== true) return;
+        if ($this->checkLogin() !== true) return;
         
         if (!isset($_SESSION['tenant_id'])) {
             return $this->json(['status' => 'error', 'message' => 'Not a tenant account'], 403);
@@ -174,7 +182,7 @@ class BillingController extends Controller {
     }
 
     public function download() {
-        if ($this->checkAuth() !== true) return;
+        if ($this->checkLogin() !== true) return;
         
         $id = $_GET['id'] ?? null;
         if (!$id) return $this->json(['status' => 'error', 'message' => 'ID required'], 400);

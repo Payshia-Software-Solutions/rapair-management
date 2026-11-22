@@ -16,6 +16,7 @@ import { fetchTaxes, TaxRow } from "@/lib/api/finance";
 import { Badge } from "@/components/ui/badge";
 import { Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { fetchPriceLists, type PriceList } from "@/lib/api/pricelists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface LocationFormProps {
@@ -38,6 +39,12 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
 
   const [allowServiceCharge, setAllowServiceCharge] = useState(false);
   const [serviceChargeRate, setServiceChargeRate] = useState("0");
+  const [menuPricing, setMenuPricing] = useState(false);
+  const [receiptFormat, setReceiptFormat] = useState<"ask" | "standard" | "inclusive" | "none">("ask");
+  // Selling price list ("" = Standard: item master Selling Price)
+  const [priceListId, setPriceListId] = useState<string>("");
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  useEffect(() => { fetchPriceLists().then(setPriceLists).catch(() => {}); }, []);
   const [allowDineIn, setAllowDineIn] = useState(true);
   const [allowTakeAway, setAllowTakeAway] = useState(true);
   const [allowRetail, setAllowRetail] = useState(true);
@@ -61,6 +68,9 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       setTaxLabel(initialData.tax_label || "");
       setAllowServiceCharge(Boolean(initialData.allow_service_charge));
       setServiceChargeRate(String(initialData.service_charge_rate || "0"));
+      setMenuPricing(initialData.tax_mode === "inclusive");
+      setReceiptFormat((initialData.receipt_format as any) || "ask");
+      setPriceListId((initialData as any).price_list_id ? String((initialData as any).price_list_id) : "");
       setAllowDineIn(Boolean(initialData.allow_dine_in));
       setAllowTakeAway(Boolean(initialData.allow_take_away));
       setAllowRetail(Boolean(initialData.allow_retail));
@@ -106,6 +116,9 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
         tax_label: taxLabel.trim() || undefined,
         allow_service_charge: allowServiceCharge ? 1 : 0,
         service_charge_rate: Number(serviceChargeRate) || 0,
+        tax_mode: (menuPricing ? "inclusive" : "exclusive") as "inclusive" | "exclusive",
+        receipt_format: receiptFormat,
+        price_list_id: priceListId ? Number(priceListId) : null,
         allow_dine_in: allowDineIn ? 1 : 0,
         allow_take_away: allowTakeAway ? 1 : 0,
         allow_retail: allowRetail ? 1 : 0,
@@ -433,6 +446,62 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="space-y-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <Percent className="w-4 h-4 text-primary" />
+                    <Label htmlFor="menu-pricing" className="font-semibold">Menu pricing (taxes included)</Label>
+                  </div>
+                  <Switch id="menu-pricing" checked={menuPricing} onCheckedChange={setMenuPricing} />
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Item prices are the menu card prices with TDL, SSCL, VAT and other taxes already included. The cashier and the customer bill show only Menu price + Service charge = Total. The system works out the base price and books the full tax breakdown for reports.
+                </p>
+                {menuPricing && (
+                  <p className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                    Example: menu price 1,900 + 10% SC = 2,090 on the bill. Internally: base 1,555.72 + SC 155.57 + taxes = 2,090.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                <Label htmlFor="price-list" className="font-semibold">Selling price list</Label>
+                <select
+                  id="price-list"
+                  value={priceListId}
+                  onChange={(e) => setPriceListId(e.target.value)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Standard (item Selling Price)</option>
+                  {priceLists.filter(l => Number(l.is_active) || String(l.id) === priceListId).map(l => (
+                    <option key={l.id} value={l.id}>{l.name}{Number(l.is_active) ? "" : " (off)"}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  The POS sells at this list&rsquo;s prices. Manage lists in Master Data &rarr; Price Lists.
+                </p>
+              </div>
+
+              <div className="space-y-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                <Label htmlFor="receipt-format" className="font-semibold">POS receipt after checkout</Label>
+                <select
+                  id="receipt-format"
+                  value={receiptFormat}
+                  onChange={(e) => setReceiptFormat(e.target.value as any)}
+                  className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="ask">Ask the cashier each time</option>
+                  <option value="standard">Always print standard receipt</option>
+                  <option value="inclusive" disabled={menuPricing}>Always print tax-inclusive receipt</option>
+                  <option value="none">Don't print (finish the sale only)</option>
+                </select>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {menuPricing
+                    ? "Menu pricing locations always print menu prices + service charge, so there's no tax choice to make."
+                    : "Standard lists taxes separately; tax-inclusive shows each item price with taxes included."}
+                </p>
               </div>
             </CardContent>
           </Card>

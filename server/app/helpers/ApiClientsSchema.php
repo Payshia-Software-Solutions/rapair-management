@@ -45,5 +45,14 @@ class ApiClientsSchema {
                 $pdo->exec("ALTER TABLE api_clients ADD COLUMN location_id INT NULL AFTER api_key");
             }
         } catch (Exception $e) {}
+
+        // Website refresh: where to tell this website its cached storefront data changed
+        foreach (['revalidate_url' => 'VARCHAR(500) NULL', 'revalidate_secret' => 'VARCHAR(500) NULL'] as $col => $def) {
+            try {
+                if (!$pdo->query("SHOW COLUMNS FROM api_clients LIKE '$col'")->fetch()) {
+                    $pdo->exec("ALTER TABLE api_clients ADD COLUMN $col $def");
+                }
+            } catch (Exception $e) {}
+        }
     }
 }

@@ -224,12 +224,11 @@ export default function MaterialIssuesSummaryReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Material Issues Summary Report"
       subtitle="Summary of items issued from stock to production or cost centers"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

@@ -58,12 +58,11 @@ export default function GrnReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="GRN Summary Report"
       subtitle="GRN list and quick export (uses GRN data)."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

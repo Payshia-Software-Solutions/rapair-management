@@ -23,6 +23,7 @@ export const viewport: Viewport = {
 };
 
 import { ProgressBar } from "@/components/progress-bar";
+import { TENANT_MODE_SHARED, tenantBootScript } from "@/lib/tenant";
 
 export default function RootLayout({
   children,
@@ -32,6 +33,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {TENANT_MODE_SHARED && (
+          // Shared deployment: every API request carries the workspace domain (see lib/tenant.ts)
+          // eslint-disable-next-line react/no-danger
+          <script dangerouslySetInnerHTML={{ __html: tenantBootScript(process.env.NEXT_PUBLIC_API_URL || "") }} />
+        )}
         <meta name="application-name" content="BizzFlow" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -214,11 +220,10 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.documentElement.classList.add('dark')
-                } else {
-                  document.documentElement.classList.remove('dark')
-                }
+                var t = localStorage.theme;
+                var dark = t === 'dark' || t === 'dim' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.classList.toggle('dark', dark);
+                document.documentElement.classList.toggle('theme-dim', t === 'dim');
               } catch (_) {}
             `,
           }}

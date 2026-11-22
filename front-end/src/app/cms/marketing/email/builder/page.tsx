@@ -208,6 +208,7 @@ export default function CampaignBuilderPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Global Customer Base</SelectItem>
+                      <SelectItem value="subscribers">Newsletter Subscribers</SelectItem>
                       {segments.map(seg => (
                         <SelectItem key={seg.id} value={seg.id.toString()}>{seg.name}</SelectItem>
                       ))}

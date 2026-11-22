@@ -61,10 +61,17 @@ class LocationController extends Controller {
             return;
         }
         $data['location_type'] = $type;
-        
+
         // Handle tax_ids conversion
         if (isset($data['tax_ids']) && is_array($data['tax_ids'])) {
             $data['allowed_taxes_json'] = json_encode($data['tax_ids']);
+        }
+
+        // Plan limit: block adding a branch beyond the package allowance
+        $limitError = SaasHelper::limitError('locations');
+        if ($limitError) {
+            $this->error($limitError, 403);
+            return;
         }
 
         $ok = $this->locationModel->create($data, (int)$u['sub']);
@@ -72,6 +79,7 @@ class LocationController extends Controller {
             $this->error('Failed to create location');
             return;
         }
+        SaasHelper::reportUsage();
         $this->auditModel->write([
             'user_id' => (int)$u['sub'],
             'location_id' => null,
@@ -160,6 +168,7 @@ class LocationController extends Controller {
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'details' => null,
         ]);
+        SaasHelper::reportUsage();
         $this->success(null, 'Location deleted');
     }
 }

@@ -74,6 +74,17 @@ class InvoiceController extends Controller {
         $raw = file_get_contents('php://input');
         $data = json_decode($raw, true);
 
+        // POS billing needs "pos.checkout" (stewards on tablets take orders but can't close bills).
+        // Skipped on databases where that permission hasn't been set up yet.
+        if (($data['source'] ?? '') === 'pos' && !$this->isAdmin($u)) {
+            $db0 = new Database();
+            $db0->query("SELECT COUNT(*) AS n FROM permissions WHERE perm_key = 'pos.checkout'");
+            if ((int)($db0->single()->n ?? 0) > 0 && !$this->hasPermission('pos.checkout', $u)) {
+                $this->error('Your role can take orders but not take payments. Ask a cashier to close this bill.', 403);
+                return;
+            }
+        }
+
         // Ensure schema is up to date BEFORE starting a transaction
         $this->invoiceModel->ensureSchema();
         
@@ -156,14 +167,25 @@ class InvoiceController extends Controller {
         require_once '../app/models/OnlineOrder.php';
         $onlineOrderModel = new OnlineOrder();
 
+        require_once '../app/helpers/CompSchema.php';
+        CompSchema::ensure();
+
         $db = new Database();
         $db->beginTransaction();
 
         try {
+            $compApprovalIds = $this->prepareCompLines($data['items'], $db);
+
             $invoiceId = $this->invoiceModel->create($data);
             if (!$invoiceId) throw new Exception('Failed to create invoice');
 
             $this->invoiceModel->addItems($invoiceId, $data['items'], $data['userId']);
+
+            if ($compApprovalIds) {
+                $db->query("UPDATE pos_comp_approvals SET invoice_id = :inv, used_at = NOW() WHERE id IN (" . implode(',', $compApprovalIds) . ")");
+                $db->bind(':inv', (int)$invoiceId);
+                $db->execute();
+            }
             if (!empty($data['applied_taxes'])) {
                 $this->invoiceModel->addAppliedTaxes($invoiceId, $data['applied_taxes']);
             }
@@ -207,6 +229,11 @@ class InvoiceController extends Controller {
                     $receiptModel->create($receiptData);
                 }
             }
+
+            // Nothing to collect (e.g. fully complimentary bill): settled, not a credit sale
+            $db->query("UPDATE invoices SET status = 'Paid' WHERE id = :id AND grand_total <= 0.004 AND status = 'Unpaid'");
+            $db->bind(':id', (int)$invoiceId);
+            $db->execute();
 
             // Audit Log
             $this->auditModel->write([
@@ -259,6 +286,65 @@ class InvoiceController extends Controller {
             error_log("Invoice Checkout Error: " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
             $this->error($e->getMessage() . " at " . basename($e->getFile()) . ":" . $e->getLine());
         }
+    }
+
+    /**
+     * Complimentary lines must carry a manager's approval token (from /api/pos/approve_comp).
+     * Checks each token (unused, not expired, covers the comped value) and sets the line's
+     * comp values here, so the client can't make an item free on its own.
+     * Runs inside the invoice transaction; locks the approvals. Returns the approval ids used.
+     */
+    private function prepareCompLines(array &$items, Database $db) {
+        $approvals = [];   // token => approval row
+        $used = [];        // token => comped value (customer prices)
+
+        foreach ($items as &$item) {
+            if (empty($item['is_complimentary'])) {
+                $item['is_complimentary'] = 0;
+                continue;
+            }
+            $token = (string)($item['comp_token'] ?? '');
+            if (!preg_match('/^[a-f0-9]{40}$/', $token)) {
+                throw new Exception('"' . ($item['description'] ?? 'Item') . '" is marked complimentary without a manager approval.');
+            }
+            if (!isset($approvals[$token])) {
+                $db->query("SELECT * FROM pos_comp_approvals WHERE token = :t LIMIT 1 FOR UPDATE");
+                $db->bind(':t', $token);
+                $a = $db->single();
+                if (!$a) throw new Exception('The complimentary approval for "' . ($item['description'] ?? 'Item') . '" was not found. Approve it again.');
+                if (!empty($a->used_at)) throw new Exception('The complimentary approval for "' . ($item['description'] ?? 'Item') . '" was already used on another bill.');
+                if (strtotime($a->expires_at) < time()) throw new Exception('The complimentary approval for "' . ($item['description'] ?? 'Item') . '" has expired. Approve it again.');
+                $approvals[$token] = $a;
+                $used[$token] = 0;
+            }
+            $a = $approvals[$token];
+
+            $qty = (float)($item['quantity'] ?? 0);
+            $price = (float)($item['unit_price'] ?? 0);
+            $shownPrice = isset($item['display_unit_price']) && $item['display_unit_price'] !== null ? (float)$item['display_unit_price'] : $price;
+            $used[$token] += $qty * $shownPrice;
+
+            // Full price stays on the line; 100% off
+            $item['is_complimentary'] = 1;
+            $item['discount'] = $price;
+            $item['line_total'] = 0;
+            if (isset($item['display_unit_price']) && $item['display_unit_price'] !== null) {
+                $item['display_discount'] = $shownPrice;
+                $item['display_line_total'] = 0;
+            }
+            $item['comp_reason'] = $a->reason;
+            $item['comp_approved_by'] = (int)$a->approver_id;
+            $item['comp_amount'] = round($qty * $price, 2);
+        }
+        unset($item);
+
+        foreach ($used as $token => $value) {
+            if (round($value, 2) > (float)$approvals[$token]->amount_limit + 0.01) {
+                throw new Exception('Complimentary items on this bill are worth more than the manager approved (LKR '
+                    . number_format((float)$approvals[$token]->amount_limit, 2) . '). Approve them again.');
+            }
+        }
+        return array_map(function ($a) { return (int)$a->id; }, array_values($approvals));
     }
 
     public function addPayment($id = null) {
@@ -442,26 +528,13 @@ class InvoiceController extends Controller {
             return;
         }
 
-        $raw = file_get_contents('php://input');
-        $data = json_decode($raw, true);
-        $reason = $data['reason'] ?? 'Cancelled by user';
-
-        if ($this->invoiceModel->cancel($id, $reason, $u['sub'])) {
-            $this->auditModel->write([
-                'user_id' => (int)$u['sub'],
-                'action' => 'cancel',
-                'entity' => 'invoice',
-                'entity_id' => (int)$id,
-                'method' => 'POST',
-                'path' => $_SERVER['REQUEST_URI'] ?? '',
-                'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
-                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-                'details' => json_encode(['reason' => $reason]),
-            ]);
-            $this->success(null, 'Invoice cancelled successfully');
-        } else {
-            $this->error('Failed to cancel invoice');
-        }
+        // Cancelling needs a second person: this raises a request that another user approves
+        // (Approvals & Control -> Cancellation Requests). The cancel itself runs on approval.
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        require_once '../app/helpers/CancellationRequestHelper.php';
+        [$ok, $msg, $rid] = CancellationRequestHelper::create(new Database(), 'Invoice', (int)$id, $data['reason'] ?? '', (int)$u['sub']);
+        if (!$ok) { $this->error($msg, 422); return; }
+        $this->success(['request_id' => $rid, 'status' => 'pending'], $msg);
     }
 
     private function generateInvoiceNo($locationId = 1) {

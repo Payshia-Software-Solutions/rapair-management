@@ -434,7 +434,7 @@ export default function BanquetCalendarPage() {
 
         {/* Detail Dialog */}
         <Dialog open={!!selectedBooking} onOpenChange={(o) => !o && setSelectedBooking(null)}>
-          <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
+          <DialogContent className="max-w-md p-0 overflow-hidden">
             {selectedBooking && (
               <>
                 <div className={cn(

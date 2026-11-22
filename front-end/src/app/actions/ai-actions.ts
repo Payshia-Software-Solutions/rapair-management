@@ -1,23 +1,8 @@
 'use server';
 
-import { bizflowInsightsFlow } from '@/ai/flows/bizflow-insights-flow';
 import { suggestRepairDetails } from '@/ai/flows/suggest-repair-details-flow';
 
-export async function getBizFlowAiInsight(question: string) {
-    try {
-        const result = await bizflowInsightsFlow({ question });
-        return { 
-            success: true, 
-            answer: result.answer, 
-            sql: result.sql, 
-            thoughts: result.thoughts,
-            retryCount: result.retryCount
-        };
-    } catch (error: any) {
-        console.error('AI Insight Error:', error);
-        return { success: false, error: error.message || 'Failed to get AI insight' };
-    }
-}
+// Business Intelligence moved to the ERP server: see getBizFlowAiInsight in lib/api/intelligence.ts.
 
 export async function getRepairSuggestions(problemDescription: string) {
     try {

@@ -52,6 +52,7 @@ class RbacSchema {
                 ['reports.read', 'View dashboards, analytics, and business intelligence reports'],
                 ['pos.read', 'View POS terminal and sales transactions'],
                 ['pos.write', 'Process POS sales, refunds, and discounts'],
+                ['pos.comp', 'Approve complimentary (free) items on POS bills with a PIN'],
                 
                 // Fleet & Service Management
                 ['orders.read', 'View repair and banquet service orders'],

@@ -1,5 +1,6 @@
 "use client";
 
+import { contentBase } from "@/lib/api";
 import React from "react";
 import NextLink from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
@@ -46,8 +47,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { fetchLocations, type ServiceLocation, fetchStorefrontSettings, updateStorefrontSettings, testSmtpSettings, uploadStorefrontIcon } from "@/lib/api/admin";
+import { fetchLocations, type ServiceLocation, fetchSystemSettings, fetchStorefrontSettings, updateStorefrontSettings, testSmtpSettings, uploadStorefrontIcon } from "@/lib/api/admin";
 import { fetchItemCategories, fetchParts, type ItemCategory, type PartRow } from "@/lib/api/inventory";
+import { AI_PROVIDERS } from "@/components/admin/ai-model-settings";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Dialog,
@@ -87,7 +89,8 @@ export default function EcommerceSettingsPage() {
   const [activeTab, setActiveTab] = React.useState<string>("identity");
   const [testingSmtp, setTestingSmtp] = React.useState(false);
 
-  const CONTENT_BASE_URL = (process.env.NEXT_PUBLIC_CONTENT_BASE_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/$/, '');
+  // Per-workspace folder on the shared deployment (contentBase); same as before otherwise
+  const CONTENT_BASE_URL = (process.env.NEXT_PUBLIC_CONTENT_BASE_URL ? contentBase() : (process.env.NEXT_PUBLIC_API_URL || '')).replace(/\/$/, '');
 
   // Dialog State
   const [showDialog, setShowDialog] = React.useState(false);
@@ -135,6 +138,14 @@ export default function EcommerceSettingsPage() {
   const [aiProvider, setAiProvider] = React.useState<"gemini" | "claude" | "openai">("gemini");
   const [aiKeys, setAiKeys] = React.useState({ gemini: "", claude: "", openai: "" });
   const [aiModels, setAiModels] = React.useState({ gemini: "", claude: "", openai: "" });
+  // Provider/model/key now live in System Settings > AI (shared with Business Intelligence).
+  const [aiModelLabel, setAiModelLabel] = React.useState("");
+  React.useEffect(() => {
+    void fetchSystemSettings().then((s) => {
+      const p = AI_PROVIDERS.find((x) => x.id === s.ai_provider) || AI_PROVIDERS[0];
+      setAiModelLabel(`${p.name} · ${s[`ai_${p.id}_model`] || p.defaultModel}${s[`ai_${p.id}_key`] ? "" : " (no API key yet)"}`);
+    }).catch(() => setAiModelLabel("Not set"));
+  }, []);
   const [aiServerSecret, setAiServerSecret] = React.useState("");
 
   const [fetchingParts, setFetchingParts] = React.useState(false);
@@ -407,13 +418,6 @@ export default function EcommerceSettingsPage() {
         delivery_note: deliveryNote,
         announcement_text: announcementText,
         ai_enabled: aiEnabled ? "1" : "0",
-        ai_provider: aiProvider,
-        ai_gemini_key: aiKeys.gemini,
-        ai_claude_key: aiKeys.claude,
-        ai_openai_key: aiKeys.openai,
-        ai_gemini_model: aiModels.gemini,
-        ai_claude_model: aiModels.claude,
-        ai_openai_model: aiModels.openai,
         ai_server_secret: aiServerSecret
       };
       await updateStorefrontSettings(payload);
@@ -1373,54 +1377,15 @@ export default function EcommerceSettingsPage() {
                             <Switch checked={aiEnabled} onCheckedChange={setAiEnabled} />
                         </div>
 
-                        <div className="space-y-3">
-                            <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Active provider</Label>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                {([
-                                  { id: "gemini", name: "Google Gemini", hint: "aistudio.google.com/apikey" },
-                                  { id: "claude", name: "Anthropic Claude", hint: "console.anthropic.com" },
-                                  { id: "openai", name: "OpenAI ChatGPT", hint: "platform.openai.com/api-keys" },
-                                ] as const).map((p) => (
-                                  <button
-                                    key={p.id}
-                                    type="button"
-                                    onClick={() => setAiProvider(p.id)}
-                                    className={`text-left rounded-xl border-2 p-4 transition-colors ${aiProvider === p.id ? "border-primary bg-primary/5" : "border-muted hover:border-primary/40"}`}
-                                  >
-                                    <span className="block font-bold text-sm">{p.name}</span>
-                                    <span className="block text-[11px] text-muted-foreground mt-1">Key from {p.hint}</span>
-                                    <span className={`mt-2 inline-block text-[10px] font-bold uppercase tracking-wider ${aiKeys[p.id] ? "text-emerald-600" : "text-muted-foreground"}`}>{aiKeys[p.id] ? "Key saved" : "No key"}</span>
-                                  </button>
-                                ))}
+                        <div className="flex flex-col gap-3 rounded-xl border p-5 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="space-y-0.5">
+                                <h3 className="font-bold text-sm">AI model</h3>
+                                <p className="text-[11px] text-muted-foreground font-medium">
+                                    {aiModelLabel || "Loading…"} · shared with Business Intelligence. Change the provider, model and API key in System Settings.
+                                </p>
                             </div>
+                            <Button type="button" variant="outline" asChild><NextLink href="/admin/settings/system?tab=ai">Open AI settings</NextLink></Button>
                         </div>
-
-                        {([
-                          { id: "gemini", name: "Gemini", placeholder: "gemini-3.5-flash-lite" },
-                          { id: "claude", name: "Claude", placeholder: "claude-haiku-5-5" },
-                          { id: "openai", name: "ChatGPT", placeholder: "gpt-5-mini" },
-                        ] as const).map((p) => (
-                          <div key={p.id} className={`grid grid-cols-1 md:grid-cols-2 gap-6 rounded-xl border p-5 ${aiProvider === p.id ? "border-primary/40" : "opacity-80"}`}>
-                              <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">{p.name} API key</Label>
-                                  <Input
-                                    type="password"
-                                    autoComplete="off"
-                                    value={aiKeys[p.id]}
-                                    onFocus={(e) => { if (e.target.value.startsWith("\u2022\u2022\u2022\u2022")) setAiKeys((k) => ({ ...k, [p.id]: "" })); }}
-                                    onChange={(e) => setAiKeys((k) => ({ ...k, [p.id]: e.target.value }))}
-                                    placeholder="Paste the API key"
-                                    className="h-11 rounded-lg font-mono"
-                                  />
-                                  <p className="text-[11px] text-muted-foreground">Stored on the ERP only. A saved key shows as dots with its last 4 characters.</p>
-                              </div>
-                              <div className="space-y-2">
-                                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">{p.name} model</Label>
-                                  <Input value={aiModels[p.id]} onChange={(e) => setAiModels((m) => ({ ...m, [p.id]: e.target.value }))} placeholder={p.placeholder} className="h-11 rounded-lg font-mono" />
-                                  <p className="text-[11px] text-muted-foreground">Leave empty to use {p.placeholder}.</p>
-                              </div>
-                          </div>
-                        ))}
 
                         <div className="space-y-2 rounded-xl border border-dashed p-5">
                             <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider ml-0.5">Website connection secret</Label>
@@ -1478,7 +1443,7 @@ export default function EcommerceSettingsPage() {
       </div>
 
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
-        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
+        <DialogContent className="sm:max-w-[400px] p-0 overflow-hidden">
             <div className={`p-8 flex flex-col items-center text-center gap-4 ${
                 dialogStatus.type === 'success' ? 'bg-emerald-50' : 
                 dialogStatus.type === 'error' ? 'bg-red-50' : 'bg-blue-50'
@@ -1518,7 +1483,7 @@ export default function EcommerceSettingsPage() {
       </Dialog>
 
       <Dialog open={showTestEmailDialog} onOpenChange={setShowTestEmailDialog}>
-        <DialogContent className="sm:max-w-[400px] p-6 rounded-2xl">
+        <DialogContent className="sm:max-w-[400px] p-6">
             <DialogHeader className="mb-4">
                 <DialogTitle className="text-xl font-bold tracking-tight">Test SMTP Connection</DialogTitle>
                 <DialogDescription className="text-sm font-medium">

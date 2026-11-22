@@ -800,7 +800,7 @@ export default function VehicleLookupPage() {
 
       {/* Document Preview Modal */}
       <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
-        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden rounded-2xl border-none shadow-2xl">
+        <DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden">
           <DialogHeader className="p-6 border-b bg-slate-50/50 dark:bg-slate-900/50 flex-row items-center justify-between space-y-0">
             <div>
               <DialogTitle className="text-xl font-black flex items-center gap-2">

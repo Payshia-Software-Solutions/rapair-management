@@ -167,12 +167,15 @@ class PublicsettingsController extends Controller {
         $given = (string)($_SERVER['HTTP_X_SERVER_SECRET'] ?? '');
         if ($expected === '' || $given === '' || !hash_equals($expected, $given)) $this->error('Unauthorized', 403);
 
-        $provider = in_array(($s['ai_provider'] ?? ''), ['gemini', 'claude', 'openai'], true) ? $s['ai_provider'] : 'gemini';
+        // Provider, model and key are the company-wide AI setting (System Settings > AI),
+        // shared with Business Intelligence. On/off and the server secret stay per storefront.
+        require_once '../app/helpers/AiConfig.php';
+        $ai = AiConfig::active();
         $this->success([
             'enabled' => (string)($s['ai_enabled'] ?? '1') === '1',
-            'provider' => $provider,
-            'model' => (string)($s['ai_' . $provider . '_model'] ?? ''),
-            'apiKey' => (string)($s['ai_' . $provider . '_key'] ?? ''),
+            'provider' => $ai['provider'],
+            'model' => $ai['model'],
+            'apiKey' => $ai['apiKey'],
         ]);
     }
 }

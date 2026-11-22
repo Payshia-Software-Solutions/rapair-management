@@ -67,6 +67,14 @@ export const rbacSetRolePermissions = async (roleId: string | number, permission
   return res.json() as Promise<ApiSuccess<null>>;
 };
 
+/** Most a role can make complimentary in one POS approval. null = no limit. */
+export const rbacSetRoleCompLimit = async (roleId: string | number, compLimit: number | null) => {
+  const res = await api(`/api/rbac/set_role_comp_limit/${roleId}`, { method: 'POST', body: JSON.stringify({ comp_limit: compLimit }) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Failed to save limit');
+  return data;
+};
+
 export const rbacCreateRole = async (payload: { name: string; description?: string }) => {
   const res = await api('/api/rbac/create_role', { method: 'POST', body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Failed to create role');
@@ -89,6 +97,8 @@ export interface ApiClientRow {
   is_active: number;
   created_at: string;
   last_used_at?: string;
+  revalidate_url?: string | null;
+  has_revalidate_secret?: number;
 }
 
 export const fetchApiClients = async () => {
@@ -105,6 +115,20 @@ export const createApiClient = async (payload: { client_name: string; domain: st
     throw new Error(err.message || 'Failed to create API client');
   }
   return res.json();
+};
+
+export const saveApiClientSite = async (id: string | number, payload: { revalidate_url: string; revalidate_secret?: string }) => {
+  const res = await api(`/api/apiclient/site/${id}`, { method: 'POST', body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Failed to save');
+  return data;
+};
+
+export const testApiClientSite = async (id: string | number) => {
+  const res = await api(`/api/apiclient/test/${id}`, { method: 'POST', body: '{}' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Test failed');
+  return data.data as { ok: boolean; http_code: number; error: string | null };
 };
 
 export const deleteApiClient = async (id: string | number) => {
@@ -136,6 +160,10 @@ export interface ServiceLocation {
   tax_label?: string | null;
   allow_service_charge?: number;
   service_charge_rate?: number;
+  /** "inclusive" = menu pricing: prices include taxes, breakdown hidden from customer. */
+  tax_mode?: 'inclusive' | 'exclusive';
+  /** POS receipt after checkout: ask, always one format, or don't print */
+  receipt_format?: 'ask' | 'standard' | 'inclusive' | 'none';
   allow_dine_in?: number;
   allow_take_away?: number;
   allow_retail?: number;
@@ -353,3 +381,21 @@ export const fetchMigrationLogs = async (): Promise<MigrationLog[]> => {
   return data.data || [];
 };
 
+
+/** Company logo (receipts, invoices, reports). Pass null to remove it. */
+export const uploadCompanyLogo = async (file: File | null): Promise<{ filename: string | null; url?: string }> => {
+  const fd = new FormData();
+  if (file) fd.append('logo', file); else fd.append('remove', '1');
+  const res = await api('/api/company/upload_logo', { method: 'POST', body: fd });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status === 'error') throw new Error(data.message || 'Logo upload failed');
+  return data.data;
+};
+
+/** Mobile number used for approval SMS alerts (blank removes it). Admin only. */
+export const adminSetUserPhone = async (id: number, phone: string) => {
+  const res = await api(`/api/admin/set_user_phone/${id}`, { method: 'POST', body: JSON.stringify({ phone }) });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || d.status === 'error') throw new Error(d.message || 'Failed to save phone');
+  return d;
+};

@@ -32,6 +32,9 @@
     --sidebar-accent-foreground: 222 47% 11%;
     --sidebar-border: 214.3 31.8% 91.4%;
     --sidebar-ring: 243 75% 59%;
+    /* Chart series, fixed order (validated for CVD + contrast; see components/dashboard/chart-theme.ts) */
+    --chart-1: #2a78d6; --chart-2: #eb6834; --chart-3: #1baf7a;
+    --chart-4: #eda100; --chart-5: #e87ba4; --chart-6: #008300;
   }
 
   .dark {
@@ -62,6 +65,42 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 222 20% 18%;
     --sidebar-ring: 243 75% 65%;
+    --chart-1: #3987e5; --chart-2: #d95926; --chart-3: #199e70;
+    --chart-4: #c98500; --chart-5: #d55181; --chart-6: #0ca30c;
+  }
+
+  /*
+   * "Dim" theme: neutral charcoal greys instead of navy (easier on the eyes for long shifts).
+   * Applied together with .dark, so every dark: utility still works; only the tokens change.
+   */
+  .dark.theme-dim {
+    --background: 220 6% 11%;   /* #1a1b1e */
+    --foreground: 220 10% 92%;
+    --card: 220 6% 14%;         /* #212226 */
+    --card-foreground: 220 10% 92%;
+    --popover: 220 6% 15%;
+    --popover-foreground: 220 10% 92%;
+    --primary: 243 80% 72%;
+    --primary-foreground: 220 6% 10%;
+    --secondary: 220 5% 19%;
+    --secondary-foreground: 220 10% 92%;
+    --muted: 220 5% 19%;
+    --muted-foreground: 220 6% 66%;
+    --accent: 173 60% 48%;
+    --accent-foreground: 220 6% 10%;
+    --destructive: 0 70% 58%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 5% 24%;
+    --input: 220 5% 26%;
+    --ring: 243 80% 72%;
+    --sidebar-background: 220 6% 10%;
+    --sidebar-foreground: 220 10% 92%;
+    --sidebar-primary: 243 80% 72%;
+    --sidebar-primary-foreground: 220 6% 10%;
+    --sidebar-accent: 220 5% 18%;
+    --sidebar-accent-foreground: 220 10% 92%;
+    --sidebar-border: 220 5% 22%;
+    --sidebar-ring: 243 80% 72%;
   }
 
   * {
@@ -139,3 +178,24 @@
   }
 }
 
+
+/*
+ * Dim theme: components that hard-code navy slate shades in dark mode
+ * (dark:bg-slate-900 etc.) are remapped to the neutral Dim greys, so the
+ * whole app follows the palette without editing hundreds of files.
+ */
+.theme-dim .dark\:bg-slate-950,
+.theme-dim .dark\:bg-black { background-color: hsl(220 6% 11%); }
+.theme-dim .dark\:bg-slate-950\/50 { background-color: hsl(220 6% 11% / 0.5); }
+.theme-dim .dark\:bg-slate-900 { background-color: hsl(220 6% 14%); }
+.theme-dim .dark\:bg-slate-900\/50 { background-color: hsl(220 6% 14% / 0.5); }
+.theme-dim .dark\:bg-slate-900\/30 { background-color: hsl(220 6% 14% / 0.3); }
+.theme-dim .dark\:bg-slate-800 { background-color: hsl(220 5% 19%); }
+.theme-dim .dark\:bg-slate-800\/50 { background-color: hsl(220 5% 19% / 0.5); }
+.theme-dim .dark\:bg-slate-700 { background-color: hsl(220 5% 26%); }
+.theme-dim .dark\:border-slate-900 { border-color: hsl(220 5% 18%); }
+.theme-dim .dark\:border-slate-800 { border-color: hsl(220 5% 24%); }
+.theme-dim .dark\:border-slate-800\/50 { border-color: hsl(220 5% 24% / 0.5); }
+.theme-dim .dark\:border-slate-700 { border-color: hsl(220 5% 30%); }
+.theme-dim .dark\:hover\:bg-slate-800:hover { background-color: hsl(220 5% 22%); }
+.theme-dim .dark\:hover\:bg-slate-900:hover { background-color: hsl(220 5% 17%); }

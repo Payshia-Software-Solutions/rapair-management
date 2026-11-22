@@ -34,6 +34,46 @@ class ApiClientController extends Controller {
         }
     }
 
+    // POST /api/apiclient/site/{id}  {revalidate_url, revalidate_secret?}  Where this website is told to refresh.
+    public function site($id) {
+        $u = $this->requireAuth();
+        if (!$this->isAdmin($u)) { $this->error('Permission denied', 403); }
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $url = trim((string)($data['revalidate_url'] ?? ''));
+        $secret = isset($data['revalidate_secret']) ? (string)$data['revalidate_secret'] : null;
+
+        if ($url !== '') {
+            require_once __DIR__ . '/../helpers/StorefrontNotifier.php';
+            $problem = StorefrontNotifier::urlProblem($url);
+            if ($problem) { $this->error($problem, 400); }
+            $client = $this->apiClientModel->getById($id);
+            if (!$client) { $this->error('API client not found', 404); }
+            if (($secret === null || $secret === '') && empty($client->revalidate_secret)) {
+                $this->error('Enter the secret the website expects.', 400);
+            }
+        }
+        if ($this->apiClientModel->setSite($id, $url, $secret, $u['sub'])) {
+            $this->success(null, $url === '' ? 'Website refresh turned off' : 'Website refresh saved');
+        } else {
+            $this->error('Failed to save');
+        }
+    }
+
+    // POST /api/apiclient/test/{id}  Sends one refresh request to the website and reports the result.
+    public function test($id) {
+        $u = $this->requireAuth();
+        if (!$this->isAdmin($u)) { $this->error('Permission denied', 403); }
+        require_once __DIR__ . '/../helpers/StorefrontNotifier.php';
+        $client = $this->apiClientModel->getById($id);
+        if (!$client || empty($client->revalidate_url) || empty($client->revalidate_secret)) {
+            $this->error('Save the website address and secret first.', 400);
+        }
+        $problem = StorefrontNotifier::urlProblem($client->revalidate_url);
+        if ($problem) { $this->error($problem, 400); }
+        $r = StorefrontNotifier::test($client->revalidate_url, StorefrontNotifier::unseal($client->revalidate_secret));
+        $this->success($r, $r['ok'] ? 'The website answered.' : 'The website did not accept the request.');
+    }
+
     // POST /api/apiclient/regenerate/{id}
     public function regenerate($id) {
         $u = $this->requireAuth();

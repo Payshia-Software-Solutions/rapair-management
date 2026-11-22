@@ -99,13 +99,16 @@ class TenantModel {
                    substr($random, 10, 5) . "-" . 
                    substr($random, 15, 5);
         $apiKey = "NX-" . bin2hex(random_bytes(24)); // Also make API key longer
-        $expiry = date('Y-m-d', strtotime('+14 days'));
+        $expiry = $data['trial_expiry'] ?? date('Y-m-d', strtotime('+14 days'));
         $billingCycle = in_array(strtolower($data['billing_cycle'] ?? ''), ['monthly', 'yearly']) 
             ? strtolower($data['billing_cycle']) 
             : 'monthly';
 
-        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, contact_number, billing_cc_email, slug, package_id, currency, billing_cycle, db_name, api_url, status, trial_expiry, license_key, api_key) 
-                         VALUES (:name, :address, :type, :email, :phone, :cc, :slug, :pid, :curr, :cycle, :db, :url, 'Trial', :expiry, :license, :apikey)");
+        $this->db->query("INSERT INTO saas_tenants (name, address, business_type, admin_email, contact_number, billing_cc_email, slug, package_id, currency, billing_cycle, db_name, api_url, status, trial_expiry, license_key, api_key, customer_type, nic_br_number, contact_person_name)
+                         VALUES (:name, :address, :type, :email, :phone, :cc, :slug, :pid, :curr, :cycle, :db, :url, :status, :expiry, :license, :apikey, :ctype, :nicbr, :cpname)");
+        $this->db->bind(':ctype', $data['customer_type'] ?? 'company');
+        $this->db->bind(':nicbr', $data['nic_br_number'] ?? null);
+        $this->db->bind(':cpname', $data['contact_person_name'] ?? null);
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':address', $data['address'] ?? '');
         $this->db->bind(':type', $data['business_type'] ?? '');
@@ -118,6 +121,7 @@ class TenantModel {
         $this->db->bind(':cycle', $billingCycle);
         $this->db->bind(':db', $data['db_name'] ?? 'repair_management_db');
         $this->db->bind(':url', $data['api_url'] ?? null);
+        $this->db->bind(':status', $data['status'] ?? 'Trial');
         $this->db->bind(':expiry', $expiry);
         $this->db->bind(':license', $license);
         $this->db->bind(':apikey', $apiKey);
@@ -188,13 +192,24 @@ class TenantModel {
 
     public function getByIdWithPackage($id) {
         $this->db->query("
-            SELECT t.*, p.name as package_name, p.monthly_price, p.yearly_price, p.modules as package_modules
+            SELECT t.*, p.name as package_name, p.monthly_price, p.yearly_price, p.modules as package_modules,
+                   p.max_users, p.max_locations
             FROM saas_tenants t
             LEFT JOIN saas_packages p ON t.package_id = p.id
             WHERE t.id = :id
         ");
         $this->db->bind(':id', $id);
         return $this->db->single();
+    }
+
+    /** Stores the usage a workspace reported (any status, so a suspended tenant still updates). */
+    public function saveUsageByApiKey(string $key, int $users, int $locations): bool {
+        $this->db->query("UPDATE saas_tenants SET usage_users = :u, usage_locations = :l, usage_updated_at = NOW() WHERE api_key = :k");
+        $this->db->bind(':u', max(0, $users));
+        $this->db->bind(':l', max(0, $locations));
+        $this->db->bind(':k', $key);
+        $this->db->execute();
+        return $this->db->rowCount() > 0;
     }
 
     public function getAllActive() {

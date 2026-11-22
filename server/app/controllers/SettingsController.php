@@ -32,7 +32,11 @@ class SettingsController extends Controller {
     // GET /api/settings/system
     public function system() {
         $this->requireAuth();
-        $this->success($this->systemModel->getAll());
+        // AI keys never leave the server in clear text (AiConfig masks them).
+        require_once '../app/helpers/AiConfig.php';
+        $all = $this->systemModel->getAll();
+        foreach ($all as $k => $_) if (strpos((string)$k, 'ai_') === 0) unset($all[$k]);
+        $this->success(array_merge($all, AiConfig::forDisplay()));
     }
 
     // POST /api/settings/system
@@ -44,7 +48,11 @@ class SettingsController extends Controller {
         $data = json_decode(file_get_contents('php://input'), true);
         if (!is_array($data)) { $this->error('Invalid input'); return; }
 
+        require_once '../app/helpers/AiConfig.php';
         foreach ($data as $key => $value) {
+            // An unchanged masked key means "keep the stored one".
+            if (in_array($key, AiConfig::SECRET_KEYS, true) && AiConfig::isMasked($value)) continue;
+            if ($key === 'ai_provider' && !in_array($value, AiConfig::PROVIDERS, true)) continue;
             $this->systemModel->update($key, $value);
         }
         $this->success(null, 'System settings updated');

@@ -17,7 +17,6 @@ import {
   RefreshCcw,
   CheckCircle,
   AlertCircle,
-  AlertCircle,
   Edit,
   Zap
 } from "lucide-react";
@@ -176,25 +175,25 @@ export default function RecurringInvoicesPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Recurring Invoices</h2>
-            <p className="text-muted-foreground mt-1">Manage automated invoice templates and schedules.</p>
+            <h2 className="text-2xl font-bold">Recurring invoices</h2>
+            <p className="text-muted-foreground mt-1 text-sm">Invoices that repeat on a schedule (e.g. monthly service). "Create due now" makes any that are due today.</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" onClick={handleProcess} disabled={isProcessing}>
               {isProcessing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
-              Process Due
+              Create due now
             </Button>
             <Button onClick={() => router.push("/cms/invoices/recurring/new")}>
               <Plus className="w-4 h-4 mr-2" />
-              New Template
+              New recurring invoice
             </Button>
           </div>
         </div>
 
-        <Card className="border-none shadow-md">
+        <Card>
           <CardContent className="p-0">
             <div className="p-4 border-b bg-muted/20">
               <div className="relative max-w-sm">
@@ -354,21 +353,3 @@ export default function RecurringInvoicesPage() {
   );
 }
 
-function Loader2(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
-  );
-}

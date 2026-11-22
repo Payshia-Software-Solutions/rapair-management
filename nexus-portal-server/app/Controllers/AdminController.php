@@ -12,7 +12,7 @@ class AdminController extends Controller {
     }
 
     private function checkAuth() {
-        if (!isset($_SESSION['admin_id'])) {
+        if (($_SESSION['admin_role'] ?? '') !== 'super_admin') {
             $this->json(['status' => 'error', 'message' => 'Unauthorized'], 401);
         }
     }

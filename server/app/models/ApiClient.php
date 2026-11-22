@@ -18,7 +18,12 @@ class ApiClient extends Model {
             LEFT JOIN service_locations sl ON ac.location_id = sl.id
             ORDER BY ac.client_name ASC
         ");
-        return $this->db->resultSet();
+        $rows = $this->db->resultSet();
+        foreach ($rows as $r) {
+            $r->has_revalidate_secret = !empty($r->revalidate_secret) ? 1 : 0;
+            unset($r->revalidate_secret);
+        }
+        return $rows;
     }
 
     public function getById($id) {
@@ -43,6 +48,25 @@ class ApiClient extends Model {
             return $this->db->lastInsertId();
         }
         return false;
+    }
+
+    /** Sets where this website is told to refresh. A blank secret keeps the stored one; a blank URL turns it off. */
+    public function setSite($id, $url, $secret, $userId = null) {
+        require_once __DIR__ . '/../helpers/StorefrontNotifier.php';
+        $url = trim((string)$url);
+        if ($url === '') {
+            $this->db->query("UPDATE {$this->table} SET revalidate_url = NULL, revalidate_secret = NULL, updated_by = :u WHERE id = :id");
+        } elseif ($secret !== null && $secret !== '') {
+            $this->db->query("UPDATE {$this->table} SET revalidate_url = :url, revalidate_secret = :sec, updated_by = :u WHERE id = :id");
+            $this->db->bind(':sec', StorefrontNotifier::seal($secret));
+            $this->db->bind(':url', $url);
+        } else {
+            $this->db->query("UPDATE {$this->table} SET revalidate_url = :url, updated_by = :u WHERE id = :id");
+            $this->db->bind(':url', $url);
+        }
+        $this->db->bind(':u', $userId);
+        $this->db->bind(':id', (int)$id);
+        return $this->db->execute();
     }
 
     public function delete($id) {

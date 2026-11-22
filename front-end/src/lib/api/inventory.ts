@@ -549,7 +549,7 @@ export type PurchaseOrderRow = {
   location_name?: string;
   ordered_at: string;
   expected_at: string | null;
-  status: 'Draft' | 'Sent' | 'Approved' | 'Received' | 'Partial' | 'Completed' | 'Cancelled';
+  status: 'Draft' | 'Pending Approval' | 'Sent' | 'Approved' | 'Partially Received' | 'Received' | 'Partial' | 'Completed' | 'Cancelled';
   total_amount: number;
   tax_amount: number;
   grand_total: number;

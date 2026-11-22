@@ -17,22 +17,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SectionCard, LoadingState } from "@/components/page-shell";
 import { useToast } from "@/hooks/use-toast";
-import { 
-  Plus, 
-  Trash2, 
-  Save, 
-  ChevronLeft, 
-  Loader2, 
-  Calculator, 
-  User, 
-  Package, 
-  Info,
-  Calendar,
-  Globe,
-  Truck
-} from "lucide-react";
+import { Plus, Trash2, Save, ChevronLeft, Loader2 } from "lucide-react";
 import { 
   Select, 
   SelectContent, 
@@ -63,6 +54,8 @@ export default function CreateQuotationPage() {
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<any[]>([{ description: "", quantity: 1, unit_price: 0, line_total: 0 }]);
   const [selectedTaxIds, setSelectedTaxIds] = useState<string[]>([]);
+  const [defaultTaxIds, setDefaultTaxIds] = useState<string[]>([]);
+  const [showAllTaxes, setShowAllTaxes] = useState(false);
   const [shippingProviders, setShippingProviders] = useState<any[]>([]);
   const [costingTemplates, setCostingTemplates] = useState<any[]>([]);
 
@@ -113,6 +106,7 @@ export default function CreateQuotationPage() {
             const ids = JSON.parse(compData.tax_ids_json);
             if (Array.isArray(ids)) {
               setSelectedTaxIds(ids.map(id => id.toString()));
+              setDefaultTaxIds(ids.map(id => id.toString()));
             }
           } catch (e) {}
         }
@@ -224,9 +218,27 @@ export default function CreateQuotationPage() {
   const taxTotal = appliedTaxes.reduce((sum, t) => sum + t.amount, 0);
   const grandTotal = subtotal + taxTotal + (isInternational ? Number(shippingCost || 0) : 0);
 
+  const companyTaxIds = new Set(defaultTaxIds);
+  // Company taxes first; the rest only when asked for (master data holds other countries' taxes too).
+  const visibleTaxes = showAllTaxes
+    ? taxes
+    : taxes.filter((t) => companyTaxIds.has(t.id.toString()) || selectedTaxIds.includes(t.id.toString()));
+  const hiddenTaxCount = taxes.length - visibleTaxes.length;
+
+  const filledItems = items.filter((it) => String(it.description || "").trim() || it.item_id);
+
   const handleSubmit = async () => {
     if (!selectedCustomerId) {
-      toast({ title: "Missing Information", description: "Please select a customer.", variant: "destructive" });
+      toast({ title: "Choose a customer", description: "Pick who this quotation is for.", variant: "destructive" });
+      return;
+    }
+    if (filledItems.length === 0) {
+      toast({ title: "Add an item", description: "A quotation needs at least one line.", variant: "destructive" });
+      return;
+    }
+    const bad = filledItems.findIndex((it) => !(Number(it.quantity) > 0));
+    if (bad >= 0) {
+      toast({ title: "Check the quantities", description: `Line ${bad + 1} needs a quantity above 0.`, variant: "destructive" });
       return;
     }
 
@@ -241,7 +253,7 @@ export default function CreateQuotationPage() {
         subtotal,
         tax_total: taxTotal,
         grand_total: grandTotal,
-        items,
+        items: filledItems,
         taxes: appliedTaxes,
         is_international: isInternational ? 1 : 0,
         shipping_provider_id: isInternational ? shippingProviderId : null,
@@ -252,430 +264,201 @@ export default function CreateQuotationPage() {
       };
 
       const res = await createQuotation(payload);
-      toast({ title: "Success", description: "Quotation created successfully" });
-      
-      // Professional Auto-Print: Open print layout in a new tab
-      window.open(`/sales/quotations/print/${res.data.id}`, '_blank');
-      
-      // Redirect to details view instead of just the list
+      toast({ title: "Quotation saved", description: "You can print or send it from the next screen." });
       router.push(`/sales/quotations/${res.data.id}`);
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Couldn't save the quotation", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
+  const money = (n: number) => `LKR ${Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const partOptions = parts.map((p) => ({ value: p.id.toString(), label: `${p.part_name} · LKR ${Number(p.price || 0).toLocaleString()}`, keywords: `${p.part_name} ${p.part_number || ""} ${p.sku || ""}` }));
+  const customerOptions = customers.map((c) => ({ value: c.id.toString(), label: `${c.name}${c.phone ? ` · ${c.phone}` : ""}`, keywords: `${c.name} ${c.phone || ""} ${c.email || ""}` }));
+  const carrierBase = Number(shippingProviders.find((p) => p.id.toString() === shippingProviderId)?.base_cost || 0);
+  const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+
   if (loading) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center h-64 gap-3">
-          <Loader2 className="w-10 h-10 animate-spin text-primary" />
-          <p className="text-muted-foreground font-medium">Initializing builder...</p>
-        </div>
-      </DashboardLayout>
-    );
+    return <DashboardLayout title="New Quotation"><Card><LoadingState /></Card></DashboardLayout>;
   }
 
   return (
-    <DashboardLayout fullWidth={true}>
-      <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/sales/quotations">
-              <Button variant="ghost" size="icon" className="rounded-full">
-                <ChevronLeft className="w-6 h-6" />
-              </Button>
-            </Link>
+    <DashboardLayout title="New Quotation">
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Button asChild variant="ghost" size="icon" aria-label="Back to quotations"><Link href="/sales/quotations"><ChevronLeft className="h-5 w-5" /></Link></Button>
             <div>
-              <h1 className="text-3xl font-black tracking-tight">New Quotation</h1>
-              <p className="text-muted-foreground text-sm">Create a professional estimate for your client</p>
+              <h1 className="text-2xl font-bold tracking-tight">New Quotation</h1>
+              <p className="text-sm text-muted-foreground">Price estimate for a customer, valid until the expiry date.</p>
             </div>
           </div>
-          <Button 
-            className="h-11 px-8 font-bold shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95"
-            onClick={handleSubmit}
-            disabled={saving}
-          >
-            {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Save className="w-5 h-5 mr-2" />}
-            Save Quotation
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" asChild><Link href="/sales/quotations">Cancel</Link></Button>
+            <Button onClick={handleSubmit} disabled={saving}>
+              {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" /> : <Save className="h-4 w-4 mr-2" aria-hidden="true" />}
+              Save quotation
+            </Button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Main Form */}
-          <div className="lg:col-span-8 space-y-6">
-            <Card className="border-none shadow-xl bg-muted/30">
-              <CardHeader className="pb-4">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Package className="w-5 h-5 text-primary" /> Items & Services
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="hidden md:grid grid-cols-12 gap-4 px-2 text-[10px] uppercase font-black tracking-widest text-muted-foreground opacity-70">
-                  <div className="col-span-6">Description / Item</div>
-                  <div className="col-span-2 text-center">Qty</div>
-                  <div className="col-span-2 text-right">Unit Price</div>
-                  <div className="col-span-2 text-right pr-4">Total</div>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_360px]">
+          <div className="min-w-0 space-y-5">
+            <SectionCard title="Customer" bodyClassName="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Customer</Label>
+                <SearchableSelect value={selectedCustomerId} onValueChange={setSelectedCustomerId} options={customerOptions}
+                  placeholder="Search customers by name or phone" searchPlaceholder="Name, phone or email…" emptyText="No customer found" />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="q-issue">Issue date</Label>
+                <Input id="q-issue" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="q-expiry">Valid until</Label>
+                <Input id="q-expiry" type="date" value={expiryDate} min={issueDate} onChange={(e) => setExpiryDate(e.target.value)} />
+              </div>
+              {locations.length > 1 && (
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label>Location</Label>
+                  <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
+                    <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                    <SelectContent>{locations.map((l) => <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>)}</SelectContent>
+                  </Select>
                 </div>
+              )}
+            </SectionCard>
 
+            <SectionCard title="Items" description="Pick from your item list, or type a description for anything else."
+              action={<Button size="sm" variant="outline" onClick={handleAddItem}><Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Add line</Button>}>
+              <div className="hidden grid-cols-[1fr_90px_130px_130px_36px] gap-3 border-b bg-muted/40 px-4 py-2 text-xs text-muted-foreground md:grid">
+                <span>Item / description</span><span className="text-right">Qty</span><span className="text-right">Unit price</span><span className="text-right">Amount</span><span />
+              </div>
+              <ol className="divide-y">
                 {items.map((item, index) => (
-                  <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-4 bg-background p-4 rounded-xl border border-primary/10 shadow-sm relative group animate-in fade-in slide-in-from-top-2 duration-300">
-                    <div className="col-span-1 md:col-span-6 space-y-2">
-                      <Select 
-                        value={item.item_id?.toString()} 
-                        onValueChange={(val) => updateItem(index, 'item_id', val)}
-                      >
-                        <SelectTrigger className="h-11 font-medium">
-                          <SelectValue placeholder="Select an item or type below..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {parts.map(p => (
-                            <SelectItem key={p.id} value={p.id.toString()}>{p.part_name} (LKR {p.price})</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input 
-                        placeholder="Additional details or custom description..." 
-                        className="h-10 text-xs bg-muted/30"
-                        value={item.description}
-                        onChange={(e) => updateItem(index, 'description', e.target.value)}
-                      />
+                  <li key={index} className="grid grid-cols-2 gap-3 px-4 py-3 md:grid-cols-[1fr_90px_130px_130px_36px] md:items-start">
+                    <div className="col-span-2 space-y-2 md:col-span-1">
+                      <SearchableSelect value={item.item_id?.toString() || ""} onValueChange={(val) => updateItem(index, 'item_id', val)}
+                        options={partOptions} placeholder="Search items…" searchPlaceholder="Item name or code…" emptyText="No item found" />
+                      <Input placeholder="Description (shown on the quotation)" value={item.description}
+                        onChange={(e) => updateItem(index, 'description', e.target.value)} aria-label={`Line ${index + 1} description`} />
                     </div>
-                    <div className="col-span-1 md:col-span-2">
-                      <Label className="md:hidden">Quantity</Label>
-                      <Input 
-                        type="number" 
-                        className="h-11 text-center font-bold"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(index, 'quantity', e.target.value)}
-                      />
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground md:sr-only">Qty</Label>
+                      <Input type="number" min={0} step="any" className="text-right tabular-nums" value={item.quantity}
+                        onChange={(e) => updateItem(index, 'quantity', e.target.value)} aria-label={`Line ${index + 1} quantity`} />
                     </div>
-                    <div className="col-span-1 md:col-span-2">
-                      <Label className="md:hidden">Unit Price</Label>
-                      <Input 
-                        type="number" 
-                        className="h-11 text-right font-bold"
-                        value={item.unit_price}
-                        onChange={(e) => updateItem(index, 'unit_price', e.target.value)}
-                      />
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground md:sr-only">Unit price</Label>
+                      <Input type="number" min={0} step="0.01" className="text-right tabular-nums" value={item.unit_price}
+                        onChange={(e) => updateItem(index, 'unit_price', e.target.value)} aria-label={`Line ${index + 1} unit price`} />
                     </div>
-                    <div className="col-span-1 md:col-span-2 flex flex-col justify-center items-end pr-4">
-                      <div className="md:hidden text-xs text-muted-foreground uppercase font-black mb-1">Line Total</div>
-                      <div className="font-black text-lg">
-                        LKR {Number(item.line_total).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="absolute -right-3 -top-3 h-8 w-8 rounded-full bg-destructive text-white shadow-md opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive hover:scale-110"
-                      onClick={() => handleRemoveItem(index)}
-                    >
-                      <Trash2 className="w-4 h-4" />
+                    <p className="self-center text-right text-sm font-medium tabular-nums md:pt-2">{money(item.line_total)}</p>
+                    <Button variant="ghost" size="icon" className="h-9 w-9 justify-self-end text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemoveItem(index)} aria-label={`Remove line ${index + 1}`} disabled={items.length === 1 && !item.description && !item.item_id}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
-                  </div>
+                  </li>
                 ))}
+              </ol>
+              <div className="border-t p-3">
+                <Button variant="ghost" size="sm" onClick={handleAddItem}><Plus className="h-4 w-4 mr-1" aria-hidden="true" /> Add another line</Button>
+              </div>
+            </SectionCard>
 
-                <Button 
-                  variant="outline" 
-                  className="w-full h-12 border-dashed border-2 hover:bg-primary/5 hover:border-primary/30 text-primary font-bold transition-all"
-                  onClick={handleAddItem}
-                >
-                  <Plus className="w-4 h-4 mr-2" /> Add Line Item
-                </Button>
-              </CardContent>
-            </Card>
+            <SectionCard title="Terms & notes" description="Printed at the bottom of the quotation." bodyClassName="p-4">
+              <Textarea rows={4} placeholder="Payment terms, delivery time, warranty…" value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Terms and notes" />
+            </SectionCard>
 
-            <Card className="border-none shadow-xl bg-muted/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Terms & Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <textarea 
-                  className="w-full min-h-[120px] p-4 rounded-xl border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
-                  placeholder="Terms of service, payment instructions, or internal notes..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                />
-              </CardContent>
-            </Card>
+            <SectionCard title="International delivery" description="Add a carrier and shipping cost for overseas customers."
+              action={<Switch checked={isInternational} onCheckedChange={setIsInternational} aria-label="International delivery" />}
+              bodyClassName={isInternational ? "grid grid-cols-1 gap-4 p-4 sm:grid-cols-2" : "hidden"}>
+              <div className="space-y-1.5">
+                <Label>Carrier</Label>
+                <Select value={shippingProviderId} onValueChange={handleProviderChange}>
+                  <SelectTrigger><SelectValue placeholder="Select carrier" /></SelectTrigger>
+                  <SelectContent>{shippingProviders.map((p) => <SelectItem key={p.id} value={p.id.toString()}>{p.name} · base {money(p.base_cost)}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Costing template</Label>
+                <Select value={selectedTemplateId || "none"} onValueChange={handleTemplateChange}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (carrier base cost only)</SelectItem>
+                    {costingTemplates.map((t) => <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="q-ship-cost">Shipping cost (LKR)</Label>
+                <Input id="q-ship-cost" type="number" min={0} step="0.01" className="tabular-nums" value={shippingCost} onChange={(e) => setShippingCost(Number(e.target.value))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="q-country">Country</Label>
+                <Input id="q-country" placeholder="e.g. Maldives" value={shippingCountry} onChange={(e) => setShippingCountry(e.target.value)} />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="q-ship-addr">Delivery address</Label>
+                <Textarea id="q-ship-addr" rows={2} value={shippingAddress} onChange={(e) => setShippingAddress(e.target.value)} />
+              </div>
+              {templateItems.length > 0 && (
+                <div className="space-y-1 rounded-md border bg-muted/30 p-3 text-sm sm:col-span-2">
+                  <p className="text-xs font-medium text-muted-foreground">How the shipping cost adds up</p>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Carrier base rate</span><span className="tabular-nums">{money(carrierBase)}</span></div>
+                  {templateItems.map((ti, idx) => {
+                    const amount = ti.cost_type === 'Fixed' ? Number(ti.value) : ti.cost_type === 'Percentage' ? carrierBase * (Number(ti.value) / 100) : ti.cost_type === 'Per Unit' ? Number(ti.value) * totalQty : 0;
+                    return (
+                      <div key={idx} className="flex justify-between">
+                        <span className="text-muted-foreground">{ti.name}{ti.cost_type === 'Percentage' ? ` (${ti.value}%)` : ''}{ti.cost_type === 'Per Unit' ? ` (LKR ${ti.value} × ${totalQty})` : ''}</span>
+                        <span className="tabular-nums">{money(amount)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </SectionCard>
           </div>
 
-          {/* Right Column: Customer & Totals */}
-          <div className="lg:col-span-4 space-y-6">
-            <Card className="border-none shadow-xl bg-primary text-white overflow-hidden relative">
-              <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-                <User className="w-32 h-32" />
+          <div className="lg:sticky lg:top-4 lg:self-start">
+            <SectionCard title="Summary">
+              <div className="space-y-2 p-4 text-sm">
+                <div className="flex justify-between"><span className="text-muted-foreground">Subtotal ({filledItems.length} line{filledItems.length === 1 ? "" : "s"})</span><span className="tabular-nums">{money(subtotal)}</span></div>
+                {appliedTaxes.map((at, idx) => (
+                  <div key={idx} className="flex justify-between"><span className="text-muted-foreground">{at.name} ({Number(at.rate_percent)}%)</span><span className="tabular-nums">{money(at.amount)}</span></div>
+                ))}
+                {isInternational && <div className="flex justify-between"><span className="text-muted-foreground">Shipping</span><span className="tabular-nums">{money(shippingCost)}</span></div>}
+                <div className="flex items-baseline justify-between border-t pt-3">
+                  <span className="font-medium">Total</span>
+                  <span className="text-xl font-semibold tabular-nums">{money(grandTotal)}</span>
+                </div>
               </div>
-              <CardHeader>
-                <CardTitle className="text-white flex items-center gap-2">
-                  <User className="w-5 h-5" /> Customer Details
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label className="text-white/70">Service Location</Label>
-                    <Select value={selectedLocationId} onValueChange={setSelectedLocationId}>
-                      <SelectTrigger className="h-12 bg-white/10 border-white/20 text-white font-bold">
-                        <SelectValue placeholder="Select location..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {locations.map(l => (
-                          <SelectItem key={l.id} value={l.id.toString()}>{l.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+
+              <div className="space-y-2 border-t p-4">
+                <p className="text-xs font-medium text-muted-foreground">Taxes on this quotation</p>
+                {visibleTaxes.length === 0 ? <p className="text-sm text-muted-foreground">No taxes set up for the company.</p> : (
+                  <div className="grid gap-1.5">
+                    {visibleTaxes.map((t) => {
+                      const on = selectedTaxIds.includes(t.id.toString());
+                      return (
+                        <label key={t.id} htmlFor={`tax-${t.id}`} className="flex cursor-pointer items-center gap-2 text-sm">
+                          <Checkbox id={`tax-${t.id}`} checked={on}
+                            onCheckedChange={(checked) => setSelectedTaxIds(checked ? [...selectedTaxIds, t.id.toString()] : selectedTaxIds.filter((id) => id !== t.id.toString()))} />
+                          <span className="flex-1">{t.name}</span>
+                          <span className="text-xs text-muted-foreground tabular-nums">{Number(t.rate_percent)}%</span>
+                        </label>
+                      );
+                    })}
                   </div>
-
-                  <div className="space-y-2">
-                    <Label className="text-white/70">Customer</Label>
-                    <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
-                      <SelectTrigger className="h-12 bg-white/10 border-white/20 text-white font-bold">
-                        <SelectValue placeholder="Select a customer..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {customers.map(c => (
-                          <SelectItem key={c.id} value={c.id.toString()}>{c.name} {c.phone ? `(${c.phone})` : ""}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-white/70">Issue Date</Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                      <Input 
-                        type="date" 
-                        className="h-11 bg-white/10 border-white/20 text-white pl-10"
-                        value={issueDate}
-                        onChange={(e) => setIssueDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-white/70">Expiry Date</Label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
-                      <Input 
-                        type="date" 
-                        className="h-11 bg-white/10 border-white/20 text-white pl-10"
-                        value={expiryDate}
-                        onChange={(e) => setExpiryDate(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-xl bg-card border-t-4 border-t-primary">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl flex items-center gap-2">
-                  <Calculator className="w-5 h-5 text-primary" /> Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-muted-foreground font-medium">Subtotal</span>
-                    <span className="font-bold">LKR {subtotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Applicable Taxes</Label>
-                    <div className="grid grid-cols-1 gap-2">
-                      {taxes.map(t => (
-                        <div key={t.id} className="flex items-center space-x-2 bg-muted/20 p-2 rounded-lg border border-transparent hover:border-primary/20 transition-colors">
-                          <Checkbox 
-                            id={`tax-${t.id}`} 
-                            checked={selectedTaxIds.includes(t.id.toString())}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedTaxIds([...selectedTaxIds, t.id.toString()]);
-                              } else {
-                                setSelectedTaxIds(selectedTaxIds.filter(id => id !== t.id.toString()));
-                              }
-                            }}
-                          />
-                          <label 
-                            htmlFor={`tax-${t.id}`}
-                            className="text-sm font-medium leading-none cursor-pointer flex-1"
-                          >
-                            {t.name} ({t.rate_percent}%)
-                          </label>
-                        </div>
-                      ))}
-                      {taxes.length === 0 && <p className="text-xs text-muted-foreground italic">No taxes configured</p>}
-                    </div>
-                  </div>
-
-                  {appliedTaxes.length > 0 && (
-                    <div className="space-y-2 pt-2">
-                      {appliedTaxes.map((at, idx) => (
-                        <div key={idx} className="flex justify-between items-center text-sm animate-in fade-in slide-in-from-right-2">
-                          <span className="text-muted-foreground font-medium">{at.name} ({at.rate_percent}%)</span>
-                          <span className="font-bold text-primary">+ LKR {at.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* International Shipping Section */}
-                  <div className="pt-4 border-t border-dashed space-y-4">
-                    <div className="flex items-center justify-between bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-900/20">
-                      <div className="flex items-center gap-2">
-                        <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                        <Label htmlFor="intl-toggle" className="font-bold text-blue-900 dark:text-blue-300 cursor-pointer">International Delivery</Label>
-                      </div>
-                      <Checkbox 
-                        id="intl-toggle" 
-                        checked={isInternational}
-                        onCheckedChange={(checked) => setIsInternational(!!checked)}
-                      />
-                    </div>
-
-                    {isInternational && (
-                      <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
-                        <div className="space-y-2">
-                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Carrier</Label>
-                          <Select 
-                            value={shippingProviderId} 
-                            onValueChange={handleProviderChange}
-                          >
-                            <SelectTrigger className="h-11 font-bold border-blue-200 dark:border-blue-900/30">
-                              <SelectValue placeholder="Select carrier..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {shippingProviders.map(p => (
-                                <SelectItem key={p.id} value={p.id.toString()}>{p.name} (Base: LKR {p.base_cost})</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Costing Template</Label>
-                          <Select 
-                            value={selectedTemplateId || "none"} 
-                            onValueChange={handleTemplateChange}
-                          >
-                            <SelectTrigger className="h-11 font-bold border-indigo-200 dark:border-indigo-900/30">
-                              <SelectValue placeholder="No template (Base Cost Only)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">No template (Base Cost Only)</SelectItem>
-                              {costingTemplates.map(t => (
-                                <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Cost</Label>
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">LKR</span>
-                              <Input 
-                                type="number"
-                                className="h-11 pl-12 font-black text-blue-600"
-                                value={shippingCost}
-                                onChange={(e) => setShippingCost(Number(e.target.value))}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Country</Label>
-                            <Input 
-                              placeholder="e.g. USA"
-                              className="h-11 font-bold"
-                              value={shippingCountry}
-                              onChange={(e) => setShippingCountry(e.target.value)}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label className="text-xs uppercase font-black text-muted-foreground opacity-70 tracking-widest">Shipping Address</Label>
-                          <textarea 
-                            className="w-full min-h-[80px] p-3 rounded-xl border bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium"
-                            placeholder="Full destination address..."
-                            value={shippingAddress}
-                            onChange={(e) => setShippingAddress(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                    )}
-
-                    {isInternational && (
-                      <div className="flex justify-between items-center text-sm font-bold text-blue-600 dark:text-blue-400">
-                        <span>Total Shipping Fee</span>
-                        <span>LKR {Number(shippingCost || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                      </div>
-                    )}
-
-                    {isInternational && templateItems.length > 0 && (
-                      <div className="mt-2 p-3 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl border border-indigo-100 dark:border-indigo-900/20 animate-in fade-in zoom-in-95 duration-300">
-                        <div className="text-[10px] uppercase font-black text-indigo-400 tracking-widest mb-2 flex items-center gap-2">
-                          <Calculator className="w-3 h-3" /> Costing Sheet Breakdown
-                        </div>
-                        <div className="space-y-1.5">
-                          {/* Base Cost from Carrier */}
-                          <div className="flex justify-between text-[11px] font-bold text-slate-500">
-                            <span>Base Carrier Rate</span>
-                            <span>LKR {Number(shippingProviders.find(p => p.id.toString() === shippingProviderId)?.base_cost || 0).toLocaleString()}</span>
-                          </div>
-                          {/* Template Components */}
-                          {templateItems.map((ti, idx) => {
-                            const base = Number(shippingProviders.find(p => p.id.toString() === shippingProviderId)?.base_cost || 0);
-                            const totalQty = items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-                            
-                            let amount = 0;
-                            if (ti.cost_type === 'Fixed') amount = Number(ti.value);
-                            else if (ti.cost_type === 'Percentage') amount = base * (Number(ti.value) / 100);
-                            else if (ti.cost_type === 'Per Unit') amount = Number(ti.value) * totalQty;
-
-                            return (
-                              <div key={idx} className="flex justify-between text-[11px] font-medium text-slate-600 dark:text-slate-400">
-                                <span>
-                                  {ti.name} 
-                                  {ti.cost_type === 'Percentage' ? ` (${ti.value}%)` : ''}
-                                  {ti.cost_type === 'Per Unit' ? ` (LKR ${ti.value} x ${totalQty})` : ''}
-                                </span>
-                                <span>+ LKR {amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t-2 border-dashed flex justify-between items-center">
-                  <span className="text-lg font-black tracking-tight">Grand Total</span>
-                  <div className="text-right">
-                    <span className="text-3xl font-black text-primary tracking-tighter">
-                      LKR {grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </span>
-                    <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-1">Inclusive of all taxes</p>
-                  </div>
-                </div>
-              </CardContent>
-              <CardFooter className="bg-muted/30 p-4 rounded-b-xl">
-                <div className="flex items-start gap-2 text-[10px] text-muted-foreground italic leading-tight">
-                  <Info className="w-3 h-3 shrink-0 mt-0.5" />
-                  Prices are based on current inventory and are valid until the expiry date specified.
-                </div>
-              </CardFooter>
-            </Card>
+                )}
+                {(hiddenTaxCount > 0 || showAllTaxes) && (
+                  <Button variant="link" size="sm" className="h-auto px-0 text-xs" onClick={() => setShowAllTaxes((v) => !v)}>
+                    {showAllTaxes ? "Show company taxes only" : `Show ${hiddenTaxCount} other tax${hiddenTaxCount === 1 ? "" : "es"}`}
+                  </Button>
+                )}
+              </div>
+            </SectionCard>
           </div>
         </div>
       </div>

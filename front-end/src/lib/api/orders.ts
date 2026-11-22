@@ -263,8 +263,64 @@ export const markKOTPrinted = async (orderId: number) => {
   return res.json();
 };
 
-export const fetchKOTDetails = async (id: string | number, full: boolean = false) => {
-  const res = await api(`/api/pos/kot-details/${id}${full ? '?full=1' : ''}`);
+/** People who can approve removing sent items (Admin or pos.void permission, with a PIN). */
+export const fetchVoidApprovers = async (): Promise<Array<{ id: number; name: string; role: string }>> => {
+  const res = await api('/api/pos/void_approvers');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Failed to load approvers');
+  return data.data || [];
+};
+
+/** Remove/reduce an item already sent to the kitchen, approved with the approver's PIN. */
+export const voidHeldItem = async (payload: { held_item_id: number; quantity: number; reason: string; approver_id: number; approver_pin: string }) => {
+  const res = await api('/api/pos/void_held_item', { method: 'POST', body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') {
+    const err: any = new Error(data.message || 'Could not remove the item');
+    err.status = res.status;
+    throw err;
+  }
+  return data.data;
+};
+
+export type CompApprover = { id: number; name: string; role: string; comp_limit: number | string | null };
+
+/** People who can approve complimentary items (Admin or pos.comp permission, with a PIN). comp_limit null = no limit. */
+export const fetchCompApprovers = async (): Promise<CompApprover[]> => {
+  const res = await api('/api/pos/comp_approvers');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Failed to load approvers');
+  return data.data || [];
+};
+
+/** Manager approves comping items worth `amount`. Returns a one-time token the invoice presents. */
+export const approveComp = async (payload: { approver_id: number; approver_pin: string; reason: string; amount: number; held_order_id?: number | null }) => {
+  const res = await api('/api/pos/approve_comp', { method: 'POST', body: JSON.stringify(payload) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') {
+    const err: any = new Error(data.message || 'Could not approve');
+    err.status = res.status;
+    throw err;
+  }
+  return data.data as { token: string; approver_id: number; approver_name: string; reason: string; amount: number };
+};
+
+/** Comps (settled bills) and voids (items removed after KOT) for a period. */
+export const fetchCompVoidReport = async (params: { from: string; to: string; location_id?: string | number | null }) => {
+  const qs = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.location_id) qs.set('location_id', String(params.location_id));
+  const res = await api(`/api/pos/comp_report?${qs.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Failed to load report');
+  return data.data as { from: string; to: string; comps: any[]; voids: any[] };
+};
+
+/** station: only that print station's part (Kitchen / Bar ...); the response always lists `stations`. */
+export const fetchKOTDetails = async (id: string | number, full: boolean = false, station?: string | number | null) => {
+  const qs = new URLSearchParams();
+  if (full) qs.set('full', '1');
+  if (station !== undefined && station !== null && station !== '') qs.set('station', String(station));
+  const res = await api(`/api/pos/kot-details/${id}${qs.toString() ? `?${qs.toString()}` : ''}`);
   if (!res.ok) throw new Error('Failed to load KOT details');
   const data = await res.json();
   return data.status === 'success' ? data.data : data;

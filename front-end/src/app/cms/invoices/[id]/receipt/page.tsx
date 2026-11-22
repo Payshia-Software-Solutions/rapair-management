@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { fetchInvoiceDetails, fetchCompany } from "@/lib/api";
+import { fetchInvoiceDetails, fetchCompany, contentUrl } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 function ReceiptContent() {
@@ -100,6 +100,7 @@ function ReceiptContent() {
         .grand-total { display: flex; justify-content: space-between; font-size: 15px; font-weight: bold; margin: 4px 0; }
         .shop-name { font-size: 16px; font-weight: bold; letter-spacing: 1px; margin-bottom: 2px; }
         .tag { font-size: 10px; color: #333; }
+        .shop-logo { display: block; margin: 0 auto 4px; max-width: 46mm; max-height: 22mm; object-fit: contain; filter: grayscale(1); }
         .paid-badge { display: inline-block; border: 1.5px solid #000; padding: 2px 8px; font-weight: bold; font-size: 13px; letter-spacing: 2px; margin-top: 4px; }
         .preview-wrap { min-height: 100vh; background: #e5e7eb; display: flex; align-items: flex-start; justify-content: center; padding: 24px; }
         .preview-paper { background: white; width: 80mm; padding: 6px 8px; box-shadow: 0 4px 24px rgba(0,0,0,0.15); min-height: 200px; }
@@ -147,7 +148,10 @@ function ReceiptContent() {
   );
 }
 
-function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
+function ReceiptBody({ invoice, company, balance, fmt, taxInclusive: taxInclusiveParam }: any) {
+  // Menu-pricing invoices: customer sees menu prices + service charge only.
+  const isMenu = invoice.price_display_mode === 'menu';
+  const taxInclusive = isMenu ? false : taxInclusiveParam;
   const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
   const invoiceSubtotal = Number(invoice.subtotal || 0);
   const taxRatio = invoiceSubtotal > 0 ? (taxSum / invoiceSubtotal) : 0;
@@ -163,10 +167,18 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
     <>
       {/* Store Header */}
       <div className="center">
+        {/* Company logo + name, then THIS outlet's address / phone (falls back to the company's) */}
+        {company?.logo_filename && (
+          <img src={contentUrl('company', company.logo_filename)} alt="" className="shop-logo" />
+        )}
         {company?.name && <div className="shop-name">{company.name}</div>}
-        {invoice.location_name && <div className="tag">{invoice.location_name}</div>}
-        {company?.phone && <div className="tag">Tel: {company.phone}</div>}
-        {company?.address && <div className="tag">{company.address}</div>}
+        {invoice.location_name && invoice.location_name !== company?.name && <div className="tag bold">{invoice.location_name}</div>}
+        {(invoice.location_address || company?.address) && <div className="tag">{invoice.location_address || company.address}</div>}
+        {(invoice.location_phone || company?.phone) && <div className="tag">Tel: {invoice.location_phone || company.phone}</div>}
+        {company?.email && <div className="tag">{company.email}</div>}
+        {(invoice.location_tax_no || company?.tax_no) && (
+          <div className="tag">{(() => { const l = invoice.location_tax_label || company?.tax_label || ''; return /[A-Za-z]/.test(l) ? `${l} Reg No` : 'Tax Reg No'; })()}: {invoice.location_tax_no || company.tax_no}</div>
+        )}
       </div>
 
       <hr className="hr-solid" />
@@ -193,11 +205,15 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       {(invoice.items || []).map((item: any, idx: number) => {
         const lineTotal = Number(item.line_total);
         const isFree = Number(item.discount) >= Number(item.unit_price) && Number(item.unit_price) > 0;
+        const isComp = Number(item.is_complimentary) === 1;
         
         let displayUnitPrice = Number(item.unit_price) - Number(item.discount);
         let displayLineTotal = lineTotal;
-        
-        if (taxInclusive && taxRatio > 0) {
+
+        if (isMenu && item.display_unit_price != null) {
+          displayUnitPrice = Number(item.display_unit_price) - Number(item.display_discount || 0);
+          displayLineTotal = Number(item.display_line_total ?? displayUnitPrice * Number(item.quantity));
+        } else if (taxInclusive && taxRatio > 0) {
           displayUnitPrice = displayUnitPrice * (1 + taxRatio);
           displayLineTotal = displayLineTotal * (1 + taxRatio);
         }
@@ -208,12 +224,16 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
           <div className="row-item" key={idx}>
             <div className="item-name">
               {item.description || item.item_name}
-              {isFree && <span style={{ marginLeft: '4px', fontSize: '8px', fontWeight: '900', background: '#000', color: '#fff', padding: '1px 3px', borderRadius: '2px', textTransform: 'uppercase' }}>Gift</span>}
+              {isFree && <span style={{ marginLeft: '4px', fontSize: '8px', fontWeight: '900', background: '#000', color: '#fff', padding: '1px 3px', borderRadius: '2px', textTransform: 'uppercase' }}>{isComp ? 'Comp' : 'Gift'}</span>}
             </div>
+            {isComp && item.comp_reason && (
+              <div style={{ fontSize: '9px', fontStyle: 'italic', paddingLeft: '6px' }}>Complimentary: {item.comp_reason}</div>
+            )}
             <div className="item-detail">
               <span>{item.quantity} × {unitDisplay}</span>
               <span className="bold">{isFree ? 'LKR 0.00' : `LKR ${fmt(displayLineTotal)}`}</span>
             </div>
+            <ItemNotes item={item} />
           </div>
         );
       })}
@@ -221,7 +241,26 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
       <hr className="hr" />
       
       {/* Totals */}
-      {taxInclusive ? (
+      {isMenu ? (
+        <>
+          <div className="row"><span>Subtotal</span><span>LKR {fmt(invoice.display_subtotal ?? 0)}</span></div>
+          {Number(invoice.display_discount_total || 0) > 0 && (
+            <div className="row">
+              <span>Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}</span>
+              <span>-LKR {fmt(invoice.display_discount_total)}</span>
+            </div>
+          )}
+          {Number(invoice.display_service_charge || 0) > 0 && (() => {
+            const sc = (invoice.applied_taxes || []).find((t: any) => t.tax_code === 'SC');
+            return (
+              <div className="row">
+                <span>Service Charge{sc && Number(sc.rate_percent) > 0 ? ` (${Number(sc.rate_percent)}%)` : ''}</span>
+                <span>LKR {fmt(invoice.display_service_charge)}</span>
+              </div>
+            );
+          })()}
+        </>
+      ) : taxInclusive ? (
         <>
           {(() => {
             const taxSum = (invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
@@ -340,6 +379,18 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive }: any) {
         <div style={{ marginTop: '10px', fontSize: '9px', letterSpacing: '1px' }}>* * * * * * * * * *</div>
       </div>
     </>
+  );
+}
+
+function ItemNotes({ item }: { item: any }) {
+  let mods: string[] = [];
+  try { mods = item.modifiers_json ? JSON.parse(item.modifiers_json) : []; } catch {}
+  if (!(Array.isArray(mods) && mods.length) && !item.item_notes) return null;
+  return (
+    <div style={{ fontSize: '9px', fontStyle: 'italic', paddingLeft: '6px' }}>
+      {Array.isArray(mods) && mods.length > 0 && <div>+ {mods.join(', ')}</div>}
+      {item.item_notes && <div>* {item.item_notes}</div>}
+    </div>
   );
 }
 

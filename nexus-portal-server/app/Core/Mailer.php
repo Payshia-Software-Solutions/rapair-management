@@ -35,16 +35,18 @@ class Mailer {
             $dbSettings[$row->setting_key] = $row->setting_value;
         }
 
-        $mail = new PHPMailer(true);
+        // Local development: Config::MAIL_DISABLED() = true never connects to a mail server (the DB holds
+        // the real SMTP settings, which would email real clients). Emails are saved as files instead.
+        $mail = Config::MAIL_DISABLED() ? new OutboxMailer(true) : new PHPMailer(true);
         $mail->isSMTP();
         
-        $host = $dbSettings['smtp_host'] ?? Config::SMTP_HOST;
-        $port = $dbSettings['smtp_port'] ?? Config::SMTP_PORT;
-        $user = $dbSettings['smtp_user'] ?? Config::SMTP_USER;
-        $pass = $dbSettings['smtp_pass'] ?? Config::SMTP_PASS;
+        $host = $dbSettings['smtp_host'] ?? Config::SMTP_HOST();
+        $port = $dbSettings['smtp_port'] ?? Config::SMTP_PORT();
+        $user = $dbSettings['smtp_user'] ?? Config::SMTP_USER();
+        $pass = $dbSettings['smtp_pass'] ?? Config::SMTP_PASS();
         $enc  = $dbSettings['smtp_encryption'] ?? ($port == 465 ? 'ssl' : 'tls');
-        $fromName = $dbSettings['smtp_from_name'] ?? Config::SMTP_FROM_NAME;
-        $fromEmail = $dbSettings['smtp_from_email'] ?? Config::SMTP_FROM_EMAIL;
+        $fromName = $dbSettings['smtp_from_name'] ?? Config::SMTP_FROM_NAME();
+        $fromEmail = $dbSettings['smtp_from_email'] ?? Config::SMTP_FROM_EMAIL();
 
         $mail->Host       = $host;
         $mail->SMTPAuth   = true;
@@ -89,7 +91,7 @@ class Mailer {
         try {
             $mail = self::getMailer();
             $mail->addAddress($to, $name);
-            $link = Config::SITE_URL . "/verify-email?token=" . $token;
+            $link = Config::SITE_URL() . "/verify-email?token=" . $token;
             $mail->isHTML(true);
             $mail->Subject = 'Verify Your Nexus ERP Account';
             $mail->Body = "<h2>Welcome to Nexus ERP, $name!</h2><p>Please verify your email: <a href='$link'>$link</a></p>";
@@ -361,10 +363,10 @@ class Mailer {
             $mail = self::getMailer();
             $mail->addAddress($to, $name);
             self::addCCAddresses($mail, $cc);
-            
+
             $mail->isHTML(true);
             $mail->Subject = $subject;
-            
+
             // Use a clean, branded template for custom emails
             $mail->Body = "
                 <div style='font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;'>
@@ -385,5 +387,62 @@ class Mailer {
             error_log("Custom Mailer Error: " . $mail->ErrorInfo);
             return false;
         }
+    }
+    public static function sendSuspensionEmail($to, $name, $reason) {
+        try {
+            $mail = self::getMailer();
+            $mail->addAddress($to, $name);
+            $mail->isHTML(true);
+            $mail->Subject = "Your BizzFlow workspace has been suspended";
+
+            $safeName = htmlspecialchars($name, ENT_QUOTES);
+            $safeReason = htmlspecialchars($reason, ENT_QUOTES);
+            $mail->Body = "
+                <div style=\"font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;\">
+                    <div style=\"background: #ef4444; padding: 40px; text-align: center;\">
+                        <h1 style=\"color: white; margin: 0; font-size: 24px;\">Workspace suspended</h1>
+                    </div>
+                    <div style=\"padding: 40px;\">
+                        <h3 style=\"margin-top: 0;\">Hello $safeName,</h3>
+                        <p style=\"line-height: 1.6;\">Access to your <strong>$safeName</strong> workspace has been suspended.</p>
+                        <div style=\"background: #fef2f2; padding: 25px; border-radius: 12px; margin: 30px 0; border: 1px solid #fee2e2;\">
+                            <p style=\"margin: 0; color: #991b1b;\"><strong>Reason:</strong></p>
+                            <p style=\"margin: 10px 0 0 0; color: #7f1d1d;\">$safeReason</p>
+                        </div>
+                        <p style=\"line-height: 1.6;\">If you think this is a mistake, reply to this email and our team will help you restore access.</p>
+                        <p style=\"margin-top: 40px; border-top: 1px solid #f1f5f9; padding-top: 20px; font-size: 13px; color: #64748b;\">
+                            Best regards,<br>
+                            <strong>The Nexus Systems Team</strong>
+                        </p>
+                    </div>
+                    <div style=\"background: #f1f5f9; padding: 20px; text-align: center; font-size: 11px; color: #94a3b8;\">
+                        &copy; ".date('Y')." Nebulync Systems (Pvt) Ltd. All rights reserved.
+                    </div>
+                </div>
+            ";
+
+            return $mail->send();
+        } catch (Exception $e) {
+            error_log("Mailer Error: {$e->getMessage()}");
+            return false;
+        }
+    }
+}
+
+/**
+ * Local development stand-in for PHPMailer (Config::MAIL_DISABLED()): send() writes the email to
+ * scratch/mail_outbox/<time>_<subject>.html and never contacts a mail server.
+ */
+class OutboxMailer extends PHPMailer {
+    public function send() {
+        $dir = __DIR__ . '/../../scratch/mail_outbox';
+        if (!is_dir($dir)) @mkdir($dir, 0775, true);
+        $to = implode(', ', array_map(function ($a) { return $a[0]; }, $this->getToAddresses()));
+        $name = date('Ymd_His') . '_' . preg_replace('/[^A-Za-z0-9]+/', '-', substr((string)$this->Subject, 0, 60)) . '.html';
+        $html = "<!-- To: " . htmlspecialchars($to) . " | Subject: " . htmlspecialchars((string)$this->Subject) . " -->\n"
+              . "<p style='font:13px sans-serif;color:#666'>LOCAL OUTBOX (not sent) &middot; To: " . htmlspecialchars($to) . "</p>\n" . $this->Body;
+        file_put_contents($dir . '/' . $name, $html);
+        error_log("Mailer (local): saved to scratch/mail_outbox/$name instead of sending");
+        return true;
     }
 }

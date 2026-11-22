@@ -154,7 +154,7 @@ export const BOGOModal: React.FC<BOGOModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-white dark:bg-slate-950 max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden max-h-[90vh] flex flex-col">
         <div className="bg-amber-500 p-8 text-white relative shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 scale-150">
             <Sparkles className="w-24 h-24" />

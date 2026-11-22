@@ -193,7 +193,7 @@ export const PromotionFormModal: React.FC<PromotionFormModalProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-slate-50 dark:bg-slate-950 max-h-[90vh] flex flex-col">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden bg-slate-50 max-h-[90vh] flex flex-col">
         {/* Header Section */}
         <div className="bg-gradient-to-br from-primary to-blue-700 p-8 text-white relative overflow-hidden shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12 scale-150">

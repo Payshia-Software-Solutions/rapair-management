@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { api, fetchLocations } from "@/lib/api";
 import { Loader2, Target, MapPin, CalendarDays, Save, Trash2, Plus, PlusCircle, ArrowLeft } from "lucide-react";
+import { PageHeader, LoadingState, EmptyState, SectionCard } from "@/components/page-shell";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 2 + i);
@@ -27,6 +28,8 @@ const MONTHS = [
   { value: "11", label: "November" },
   { value: "12", label: "December" },
 ];
+const monthLabel = (ym: string) => { const [y, m] = String(ym || "").split("-"); const f = MONTHS.find(x => x.value === m); return f ? `${f.label} ${y}` : ym; };
+const money = (n: any) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export default function SalesTargetsPage() {
   const { toast } = useToast();
@@ -49,7 +52,7 @@ export default function SalesTargetsPage() {
 
   useEffect(() => {
     fetchLocations().then((locs) => {
-      const valid = locs.filter(l => l.id > 0);
+      const valid = locs.filter((l: any) => l.id > 0);
       setLocations(valid);
       if (valid.length > 0) {
         setLocationId(valid[0].id);
@@ -136,60 +139,46 @@ export default function SalesTargetsPage() {
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6 w-full">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Target className="w-6 h-6 text-primary" />
-              Sales Targets
-            </h1>
-            <p className="text-muted-foreground mt-1">Set monthly value-based sales targets per location and collection.</p>
-          </div>
-          {view === 'list' ? (
+      <div className="space-y-5 w-full">
+        <PageHeader
+          title={view === 'list' ? "Sales targets" : "Set sales target"}
+          description={view === 'list' ? "Monthly sales goals (LKR) for each location, optionally split by collection." : "Pick a location and month, then enter the goal."}
+          actions={view === 'list' ? (
             <Button onClick={() => setView('form')} className="gap-2">
-              <PlusCircle className="w-4 h-4" /> New Target
+              <PlusCircle className="w-4 h-4" /> New target
             </Button>
           ) : (
             <Button onClick={() => setView('list')} variant="outline" className="gap-2">
-              <ArrowLeft className="w-4 h-4" /> Back to List
+              <ArrowLeft className="w-4 h-4" /> Back
             </Button>
           )}
-        </div>
+        />
 
         {view === 'list' ? (
-          <Card className="border-none shadow-md">
-            <CardHeader>
-              <CardTitle>Existing Targets</CardTitle>
-              <CardDescription>Overview of targets set across locations</CardDescription>
-            </CardHeader>
-            <CardContent>
+          <div>
               {listLoading ? (
-                <div className="flex justify-center py-10 text-muted-foreground">
-                  <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading targets...
-                </div>
+                <LoadingState label="Loading targets…" />
               ) : targetList.length === 0 ? (
-                <div className="text-center py-10 text-muted-foreground bg-muted/20 rounded-md border border-dashed">
-                  No targets configured yet. Click "New Target" to set up your first target.
-                </div>
+                <EmptyState title="No targets yet" description="Use New target to set this month's goal for a location." />
               ) : (
-                <div className="border rounded-md">
+                <div className="border rounded-lg bg-card overflow-hidden">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Location</TableHead>
                         <TableHead>Month</TableHead>
-                        <TableHead className="text-right">Global Target</TableHead>
-                        <TableHead className="text-right">Collection Targets</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="text-right">Location target (LKR)</TableHead>
+                        <TableHead className="text-right">Collection targets</TableHead>
+                        <TableHead className="w-20"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {targetList.map((t, i) => (
                         <TableRow key={i}>
                           <TableCell className="font-medium">{t.location_name}</TableCell>
-                          <TableCell>{t.target_month}</TableCell>
-                          <TableCell className="text-right">{Number(t.global_target).toLocaleString(undefined, {minimumFractionDigits: 2})}</TableCell>
-                          <TableCell className="text-right">{t.collection_count} Set</TableCell>
+                          <TableCell>{monthLabel(t.target_month)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{money(t.global_target)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{Number(t.collection_count) ? `${t.collection_count} set` : "None"}</TableCell>
                           <TableCell className="text-right">
                             <Button 
                               variant="ghost" 
@@ -209,15 +198,10 @@ export default function SalesTargetsPage() {
                   </Table>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </div>
         ) : (
-          <Card className="border-none shadow-md">
-            <CardHeader>
-              <CardTitle>Target Configuration</CardTitle>
-              <CardDescription>Select a location and month to configure targets</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
+          <Card>
+            <CardContent className="space-y-6 p-5">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="flex-1 space-y-2">
                 <Label className="flex items-center gap-2"><MapPin className="w-4 h-4"/> Location</Label>
@@ -270,15 +254,13 @@ export default function SalesTargetsPage() {
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-10 text-muted-foreground">
-                <Loader2 className="w-6 h-6 animate-spin mr-2" /> Loading targets...
-              </div>
+              <LoadingState label="Loading targets…" />
             ) : (
               <div className="space-y-8 animate-in fade-in">
                 <div className="space-y-3 bg-muted/20 p-4 rounded-lg border">
                   <div>
-                    <Label className="text-base font-semibold">Global Location Target</Label>
-                    <p className="text-xs text-muted-foreground mb-3">Overall sales target for the entire location for the selected month.</p>
+                    <Label className="text-base font-semibold">Location target (LKR)</Label>
+                    <p className="text-xs text-muted-foreground mb-3">Total sales goal for this location in the chosen month.</p>
                   </div>
                   <div className="max-w-xs">
                     <Input 
@@ -292,8 +274,8 @@ export default function SalesTargetsPage() {
 
                 <div className="space-y-3">
                   <div>
-                    <Label className="text-base font-semibold">Collection-Wise Targets (Optional)</Label>
-                    <p className="text-xs text-muted-foreground mb-3">Set specific sales targets for individual product collections.</p>
+                    <Label className="text-base font-semibold">By collection (optional)</Label>
+                    <p className="text-xs text-muted-foreground mb-3">Add a goal for a product collection if you track it separately.</p>
                   </div>
                   
                   {Object.keys(collectionTargets).length === 0 && collections.length > 0 ? (
@@ -359,7 +341,7 @@ export default function SalesTargetsPage() {
                 <div className="flex justify-end pt-4">
                   <Button onClick={save} disabled={saving} className="gap-2">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save Targets
+                    Save target
                   </Button>
                 </div>
               </div>

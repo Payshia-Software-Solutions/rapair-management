@@ -95,7 +95,7 @@ export const MultiItemSelector: React.FC<MultiItemSelectorProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent 
-            className="p-0 w-[400px] border-none shadow-2xl rounded-2xl overflow-hidden bg-white dark:bg-slate-950 z-[9999]" 
+            className="p-0 w-[400px] overflow-hidden z-[9999]" 
             align="start"
             style={{ pointerEvents: 'auto' }}
         >

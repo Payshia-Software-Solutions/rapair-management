@@ -1,391 +1,230 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { 
-  Plus, 
-  Search, 
-  RefreshCw, 
-  Wallet, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  Scale,
-  Landmark,
-  Coins,
-  ShieldCheck,
-  History
-} from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ChevronRight, ChevronsDownUp, ChevronsUpDown, Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { fetchAccounts, createAccount } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 
+type Acc = {
+  id: number; parent_id: number | null; level: number; is_group: number | string; code: string; name: string;
+  type: string; category: string | null; balance: string | number; is_system: number | string;
+};
+type Node = Acc & { children: Node[]; total: number };
+
+const CREDIT = ["LIABILITY", "EQUITY", "INCOME"];
+const money = (v: number) => {
+  const s = Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return v < 0 ? `(${s})` : s;
+};
+const LEVEL_LABEL = ["", "Class", "Group", "Sub-group", "Ledger"];
+
+/**
+ * Chart of accounts as a 4-level tree: Class > Group > Sub-group > Ledger.
+ * Only ledgers (level 4) take postings; group totals roll up from them.
+ */
 export default function ChartOfAccountsPage() {
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
   const { toast } = useToast();
+  const [accounts, setAccounts] = useState<Acc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<Record<number, boolean>>({});
+  const [dialog, setDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ parent_id: "", code: "", name: "", opening_balance: "", as_of_date: new Date().toISOString().slice(0, 10), is_bank: false });
 
-  // Create Modal State
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    code: "",
-    name: "",
-    type: "ASSET",
-    category: "",
-    opening_balance: "0",
-    as_of_date: new Date().toISOString().split('T')[0]
-  });
-
-  const loadAccounts = async () => {
+  const load = async () => {
     setLoading(true);
-    try {
-      const data = await fetchAccounts();
-      setAccounts(data || []);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load chart of accounts",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    try { setAccounts(await fetchAccounts({ include_groups: 1 }) || []); }
+    catch { toast({ title: "Couldn't load accounts", variant: "destructive" }); }
+    finally { setLoading(false); }
   };
+  useEffect(() => { void load(); }, []);
 
-  useEffect(() => {
-    loadAccounts();
-  }, []);
+  // Build tree with natural-sign roll-up (credit-nature accounts shown positive)
+  const roots = useMemo(() => {
+    const map = new Map<number, Node>();
+    accounts.forEach(a => map.set(Number(a.id), { ...a, children: [], total: 0 }));
+    const top: Node[] = [];
+    map.forEach(n => {
+      const p = n.parent_id ? map.get(Number(n.parent_id)) : undefined;
+      if (p) p.children.push(n); else top.push(n);
+    });
+    const sum = (n: Node): number => {
+      n.children.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      const own = Number(n.balance || 0) * (CREDIT.includes(n.type) ? -1 : 1);
+      n.total = Number(n.is_group) ? n.children.reduce((s, c) => s + sum(c), 0) : own;
+      return n.total;
+    };
+    top.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+    top.forEach(sum);
+    return top;
+  }, [accounts]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const needle = q.trim().toLowerCase();
+  const matches = (n: Node): boolean =>
+    !needle || n.name.toLowerCase().includes(needle) || n.code.toLowerCase().includes(needle) || n.children.some(matches);
+  const isOpen = (n: Node) => !!needle || open[n.id] !== false && (open[n.id] || Number(n.level) < 3);
+
+  const groups3 = accounts.filter(a => Number(a.is_group) && Number(a.level) === 3)
+    .sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+  const setAll = (v: boolean) => setOpen(Object.fromEntries(accounts.filter(a => Number(a.is_group)).map(a => [a.id, v])));
+
+  const totals = useMemo(() => Object.fromEntries(roots.map(r => [r.type, r.total])), [roots]);
+
+  // Ledgers under Cash & Bank (111) can be tagged as bank accounts for reconciliation.
+  const isCashBankGroup = groups3.find(g => String(g.id) === form.parent_id)?.code === "111";
+
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
+    setSaving(true);
     try {
-      await createAccount(formData);
-      toast({
-        title: "Success",
-        description: "Account created successfully with opening balance.",
-      });
-      setIsModalOpen(false);
-      setFormData({
-        code: "",
-        name: "",
-        type: "ASSET",
-        category: "",
-        opening_balance: "0",
-        as_of_date: new Date().toISOString().split('T')[0]
-      });
-      loadAccounts();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create account",
-        variant: "destructive",
-      });
-    } finally {
-      setSubmitting(false);
-    }
+      await createAccount({ ...form, is_bank: isCashBankGroup && form.is_bank, parent_id: Number(form.parent_id), opening_balance: form.opening_balance || 0 });
+      toast({ title: "Account added", description: `${form.code} ${form.name}` });
+      setDialog(false);
+      setForm(f => ({ ...f, code: "", name: "", opening_balance: "", is_bank: false }));
+      void load();
+    } catch (err: any) {
+      toast({ title: "Couldn't add account", description: err?.message, variant: "destructive" });
+    } finally { setSaving(false); }
   };
 
-  const filteredAccounts = accounts.filter(acc => 
-    acc.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    acc.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const getTypeColor = (type: string) => {
-    switch (type) {
-      case 'ASSET': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'LIABILITY': return 'bg-orange-100 text-orange-700 border-orange-200';
-      case 'EQUITY': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'INCOME': return 'bg-green-100 text-green-700 border-green-200';
-      case 'EXPENSE': return 'bg-rose-100 text-rose-700 border-rose-200';
-      default: return 'bg-slate-100 text-slate-700';
-    }
+  const Row = ({ n, depth }: { n: Node; depth: number }) => {
+    if (!matches(n)) return null;
+    const group = Number(n.is_group) === 1;
+    const expanded = group && isOpen(n);
+    return (
+      <>
+        <tr className={`border-b ${group ? (depth === 0 ? "bg-muted/50 font-semibold" : "bg-muted/20 font-medium") : "hover:bg-muted/20"}`}>
+          <td className="py-2 pr-3" style={{ paddingLeft: 12 + depth * 20 }}>
+            <div className="flex items-center gap-1.5 min-w-0">
+              {group ? (
+                <button type="button" aria-expanded={expanded} aria-label={`${expanded ? "Collapse" : "Expand"} ${n.name}`}
+                  onClick={() => setOpen(o => ({ ...o, [n.id]: !expanded }))} className="rounded p-0.5 hover:bg-muted">
+                  <ChevronRight className={`h-4 w-4 transition-transform ${expanded ? "rotate-90" : ""}`} />
+                </button>
+              ) : <span className="w-5 shrink-0" />}
+              <span className="font-mono text-xs text-muted-foreground w-12 shrink-0">{n.code}</span>
+              {group ? <span className="truncate">{n.name}</span> : (
+                <Link href={`/accounting/accounts/${n.id}/ledger`} className="truncate text-primary hover:underline">{n.name}</Link>
+              )}
+            </div>
+          </td>
+          <td className="py-2 px-3 text-xs text-muted-foreground hidden sm:table-cell">{LEVEL_LABEL[Number(n.level)] || ""}</td>
+          <td className={`py-2 px-3 text-right tabular-nums whitespace-nowrap ${n.total < 0 ? "text-destructive" : ""}`}>{money(n.total)}</td>
+        </tr>
+        {expanded && n.children.map(c => <Row key={c.id} n={c} depth={depth + 1} />)}
+      </>
+    );
   };
 
   return (
     <DashboardLayout title="Chart of Accounts">
-      <div className="space-y-6">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h1 className="text-4xl font-black tracking-tighter uppercase text-slate-900 flex items-center gap-3">
-              <Landmark className="w-10 h-10 text-primary" />
-              Chart of Accounts
-            </h1>
-            <p className="text-muted-foreground text-sm font-medium">Manage your financial structure, categories and opening positions.</p>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Chart of Accounts</h1>
+            <p className="text-sm text-muted-foreground mt-1">Class → Group → Sub-group → Ledger. Transactions post to ledgers only; group totals add up from them.</p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={loadAccounts} disabled={loading} className="rounded-xl h-11 w-11 shadow-sm border-muted-foreground/20 italic">
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} aria-hidden="true" /> Refresh
             </Button>
-            <Button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 font-black uppercase text-xs tracking-widest px-6 shadow-lg shadow-primary/20 rounded-xl h-11">
-              <Plus className="w-4 h-4" /> Add New Account
-            </Button>
+            <Button onClick={() => setDialog(true)}><Plus className="h-4 w-4 mr-2" aria-hidden="true" /> Add ledger</Button>
           </div>
         </div>
 
-        {/* Stats Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-           {[
-             { label: 'Total Assets', icon: Wallet, color: 'blue', type: 'ASSET' },
-             { label: 'Total Liabilities', icon: Scale, color: 'orange', type: 'LIABILITY' },
-             { label: 'Annual Income', icon: ArrowUpRight, color: 'green', type: 'INCOME' },
-             { label: 'Operating Expenses', icon: ArrowDownRight, color: 'rose', type: 'EXPENSE' }
-           ].map((stat) => {
-             const filtered = accounts.filter(a => a.type === stat.type);
-             const rawVal = filtered.reduce((sum, a) => sum + Number(a.balance), 0);
-             const isCreditNature = ['LIABILITY', 'EQUITY', 'INCOME'].includes(stat.type);
-             const val = isCreditNature ? -rawVal : rawVal;
-
-             return (
-               <Card key={stat.label} className={`border shadow-sm border-${stat.color}-500/10 rounded-xl overflow-hidden group hover:border-${stat.color}-500/30 transition-all`}>
-                 <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0 opacity-60 group-hover:opacity-100 transition-opacity">
-                   <CardTitle className="text-[10px] font-black uppercase tracking-widest">{stat.label}</CardTitle>
-                   <stat.icon className={`w-4 h-4 text-${stat.color}-500`} />
-                 </CardHeader>
-                 <CardContent>
-                   <div className={`text-2xl font-black tabular-nums tracking-tighter ${val < 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                     LKR {val < 0 ? `(${Math.abs(val).toLocaleString(undefined, { minimumFractionDigits: 2 })})` : val.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                   </div>
-                 </CardContent>
-               </Card>
-             );
-           })}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          {[["ASSET", "Assets"], ["LIABILITY", "Liabilities"], ["EQUITY", "Equity"], ["INCOME", "Income"], ["EXPENSE", "Expenses"]].map(([t, l]) => (
+            <Card key={t} className="p-3">
+              <p className="text-xs text-muted-foreground">{l}</p>
+              <p className="text-lg font-semibold tabular-nums">{money(Number(totals[t] || 0))}</p>
+            </Card>
+          ))}
         </div>
 
-        {/* Search Bar */}
-        <Card className="border shadow-sm rounded-xl overflow-hidden bg-muted/20">
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground opacity-50" />
-              <Input 
-                placeholder="Search accounts by name or code..." 
-                className="pl-11 h-12 rounded-xl border-none shadow-inner font-bold focus-visible:ring-primary text-slate-700"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b p-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Input className="pl-9 h-9" placeholder="Search by code or name…" value={q} onChange={e => setQ(e.target.value)} aria-label="Search accounts" />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Accounts Table */}
-        <Card className="border shadow-sm rounded-xl overflow-hidden">
-          <Table>
-            <TableHeader className="bg-muted/30 border-b-2">
-              <TableRow className="hover:bg-transparent uppercase tabular-nums">
-                <TableHead className="w-[120px] font-black tracking-widest text-[10px] py-6 px-8 text-slate-500">Code</TableHead>
-                <TableHead className="font-black tracking-widest text-[10px] text-slate-500">Account Name</TableHead>
-                <TableHead className="font-black tracking-widest text-[10px] text-slate-500 text-center">Classification</TableHead>
-                <TableHead className="font-black tracking-widest text-[10px] text-slate-500">Category / Group</TableHead>
-                <TableHead className="text-right font-black tracking-widest text-[10px] text-slate-500 px-8">Running Balance</TableHead>
-                <TableHead className="text-right font-black tracking-widest text-[10px] text-slate-500 px-8">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-64 text-center">
-                    <RefreshCw className="w-10 h-10 animate-spin mx-auto text-muted-foreground opacity-20" />
-                    <p className="text-sm text-muted-foreground mt-4 font-medium italic">Synchronizing ledger...</p>
-                  </TableCell>
-                </TableRow>
-              ) : filteredAccounts.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-64 text-center">
-                    <History className="w-12 h-12 mx-auto text-muted-foreground opacity-10" />
-                    <p className="text-muted-foreground font-medium italic mt-4">No accounts match your criteria.</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredAccounts.map((acc) => {
-                  const isCreditNature = ['LIABILITY', 'EQUITY', 'INCOME'].includes(acc.type);
-                  const displayBalance = isCreditNature ? -Number(acc.balance || 0) : Number(acc.balance || 0);
-
-                  return (
-                    <TableRow key={acc.id} className="hover:bg-muted/30 transition-colors group">
-                      <TableCell className="font-mono font-black text-primary py-4 px-8 text-xs">{acc.code}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <div className="flex items-center gap-2 font-bold text-slate-800">
-                            {acc.name}
-                            {acc.is_system == 1 && (
-                              <div title="System Protected" className="p-1 rounded-full bg-slate-100 text-slate-400">
-                                <ShieldCheck className="w-3 h-3" />
-                              </div>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-muted-foreground font-medium italic uppercase opacity-40">Financial Entity</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge className={`${getTypeColor(acc.type)} variant="secondary" font-black text-[9px] uppercase tracking-widest px-3 py-1 border shadow-sm`}>
-                          {acc.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground font-bold text-[11px] uppercase tracking-tighter opacity-70">
-                        {acc.category || 'General'}
-                      </TableCell>
-                      <TableCell className={`text-right font-mono font-black px-8 ${displayBalance < 0 ? 'text-rose-600' : 'text-slate-900 bg-muted/5 group-hover:bg-transparent transition-colors'}`}>
-                        {displayBalance < 0 ? `(${Math.abs(displayBalance).toLocaleString(undefined, { minimumFractionDigits: 2 })})` : displayBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </TableCell>
-                      <TableCell className="text-right px-8">
-                         <Button 
-                           variant="ghost" 
-                           size="sm"
-                           onClick={() => window.location.href = `/accounting/accounts/${acc.id}/ledger`}
-                           className="h-8 rounded-lg font-black uppercase text-[10px] tracking-wider hover:bg-primary/10 hover:text-primary transition-all flex items-center gap-2 ml-auto"
-                         >
-                           <History className="w-3 h-3" /> View Audit
-                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
+            <Button size="sm" variant="ghost" onClick={() => setAll(true)}><ChevronsUpDown className="h-4 w-4 mr-1" aria-hidden="true" /> Expand all</Button>
+            <Button size="sm" variant="ghost" onClick={() => setAll(false)}><ChevronsDownUp className="h-4 w-4 mr-1" aria-hidden="true" /> Collapse</Button>
+          </div>
+          {loading && !accounts.length ? (
+            <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
+                  <tr>
+                    <th className="py-2 px-3 font-medium">Account</th>
+                    <th className="py-2 px-3 font-medium hidden sm:table-cell w-28">Level</th>
+                    <th className="py-2 px-3 font-medium text-right w-40">Balance (LKR)</th>
+                  </tr>
+                </thead>
+                <tbody>{roots.map(r => <Row key={r.id} n={r} depth={0} />)}</tbody>
+              </table>
+            </div>
+          )}
         </Card>
       </div>
 
-      {/* New Account Dialog */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-        <DialogContent className="max-w-xl rounded-xl border shadow-lg">
-          <form onSubmit={handleCreate}>
-            <DialogHeader className="mb-6">
-              <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
-                <Plus className="w-6 h-6 text-primary" />
-                Initialize New Account
-              </DialogTitle>
-              <DialogDescription className="font-medium text-slate-500">
-                Define a new category in your financial structure and set its opening position.
-              </DialogDescription>
+      <Dialog open={dialog} onOpenChange={setDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <form onSubmit={submit} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle>Add ledger account</DialogTitle>
+              <DialogDescription>Ledgers sit under a sub-group. The type (asset, income…) comes from the sub-group.</DialogDescription>
             </DialogHeader>
-
-            <div className="grid grid-cols-2 gap-6 pb-6 border-b border-dashed mb-6">
-              <div className="space-y-2">
-                <Label htmlFor="code" className="text-[10px] font-black uppercase tracking-widest opacity-60">Account Code</Label>
-                <Input 
-                  id="code"
-                  placeholder="e.g. 1020" 
-                  value={formData.code}
-                  onChange={(e) => setFormData({...formData, code: e.target.value})}
-                  required
-                  className="rounded-xl font-bold shadow-sm h-11 border-muted-foreground/20"
-                />
+            <div className="space-y-1.5">
+              <Label htmlFor="parent">Sub-group</Label>
+              <select id="parent" required value={form.parent_id} onChange={e => setForm({ ...form, parent_id: e.target.value })}
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                <option value="">Choose…</option>
+                {groups3.map(g => <option key={g.id} value={g.id}>{g.code} · {g.name} ({g.type.toLowerCase()})</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="code">Code</Label>
+                <Input id="code" required value={form.code} onChange={e => setForm({ ...form, code: e.target.value.trim() })} placeholder="e.g. 1011" />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="type" className="text-[10px] font-black uppercase tracking-widest opacity-60">Classification</Label>
-                <Select value={formData.type} onValueChange={(val) => setFormData({...formData, type: val})}>
-                  <SelectTrigger className="rounded-xl font-bold shadow-sm h-11 border-muted-foreground/20">
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl shadow-xl">
-                    <SelectItem value="ASSET" className="font-bold">ASSET (Current/Fixed)</SelectItem>
-                    <SelectItem value="LIABILITY" className="font-bold">LIABILITY (Debt/Payables)</SelectItem>
-                    <SelectItem value="EQUITY" className="font-bold">EQUITY (Capital/Opening)</SelectItem>
-                    <SelectItem value="INCOME" className="font-bold">INCOME (Revenue/Sales)</SelectItem>
-                    <SelectItem value="EXPENSE" className="font-bold">EXPENSE (COGS/Operating)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="name" className="text-[10px] font-black uppercase tracking-widest opacity-60">Account Name</Label>
-                <Input 
-                  id="name"
-                  placeholder="e.g. Petty Cash - Branch II" 
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  required
-                  className="rounded-xl font-bold shadow-sm h-11 border-muted-foreground/20"
-                />
-              </div>
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="category" className="text-[10px] font-black uppercase tracking-widest opacity-60">Category / Sub-Group</Label>
-                <Input 
-                  id="category"
-                  placeholder="e.g. Fixed Assets, Operational Costs..." 
-                  value={formData.category}
-                  onChange={(e) => setFormData({...formData, category: e.target.value})}
-                  className="rounded-xl font-bold shadow-sm h-11 border-muted-foreground/20 italic"
-                />
+              <div className="space-y-1.5 col-span-2">
+                <Label htmlFor="name">Name</Label>
+                <Input id="name" required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. BOC Current Account" />
               </div>
             </div>
-
-            {/* Opening Balance Section */}
-            <div className="bg-muted/30 p-6 rounded-xl border border-dashed space-y-4">
-              <div className="flex items-center gap-2 mb-2">
-                 <Coins className="w-4 h-4 text-orange-500" />
-                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Opening Balance Calibration</span>
+            {isCashBankGroup && (
+              <label htmlFor="is-bank" className="flex items-start gap-3 rounded-md border p-3 text-sm cursor-pointer">
+                <input id="is-bank" type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={form.is_bank} onChange={e => setForm({ ...form, is_bank: e.target.checked })} />
+                <span>
+                  <span className="font-medium">This is a bank account</span>
+                  <span className="block text-muted-foreground">Shows in Bank Reconciliation and as a deposit account for card settlements. Leave off for cash, petty cash or clearing ledgers.</span>
+                </span>
+              </label>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="ob">Opening balance (optional)</Label>
+                <Input id="ob" type="number" step="0.01" value={form.opening_balance} onChange={e => setForm({ ...form, opening_balance: e.target.value })} />
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="opening_balance" className="text-[9px] font-black uppercase opacity-60">Starting Balance (LKR)</Label>
-                  <Input 
-                    id="opening_balance"
-                    type="number" 
-                    step="0.01"
-                    value={formData.opening_balance}
-                    onChange={(e) => setFormData({...formData, opening_balance: e.target.value})}
-                    className="rounded-xl font-mono font-black shadow-sm h-11 border-muted-foreground/20 text-primary bg-background"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="as_of_date" className="text-[9px] font-black uppercase opacity-60">Balance As Of</Label>
-                  <Input 
-                    id="as_of_date"
-                    type="date" 
-                    value={formData.as_of_date}
-                    onChange={(e) => setFormData({...formData, as_of_date: e.target.value})}
-                    className="rounded-xl font-bold shadow-sm h-11 border-muted-foreground/20 bg-background"
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="asof">As of</Label>
+                <Input id="asof" type="date" value={form.as_of_date} onChange={e => setForm({ ...form, as_of_date: e.target.value })} />
               </div>
-              <p className="text-[9px] text-muted-foreground italic font-medium leading-relaxed">
-                Recording an opening balance will automatically post a balanced entry against the system's initialization equity account.
-              </p>
             </div>
-
-            <DialogFooter className="mt-8 gap-3 sm:gap-0">
-              <Button type="button" variant="ghost" onClick={() => setIsModalOpen(false)} className="rounded-xl font-bold h-11 px-8">
-                Cancel
-              </Button>
-              <Button type="submit" disabled={submitting} className="rounded-xl font-black uppercase text-xs tracking-widest px-8 h-11 bg-primary shadow-lg shadow-primary/20">
-                {submitting && <RefreshCw className="w-4 h-4 mr-2 animate-spin" />}
-                Initialize Account
-              </Button>
+            <p className="text-xs text-muted-foreground">An opening balance is posted against Opening Balance Equity.</p>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDialog(false)}>Cancel</Button>
+              <Button type="submit" disabled={saving}>{saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Add account</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -70,10 +70,7 @@ class ReviewsController extends Controller {
     }
 
     private function handleImageUploads($reviewId, $files) {
-        $uploadDir = '../public/uploads/reviews/';
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0777, true);
-        }
+        require_once __DIR__ . '/../helpers/ContentStore.php';
 
         $normalizedFiles = [];
         if (is_array($files['name'])) {
@@ -91,13 +88,23 @@ class ReviewsController extends Controller {
             }
         }
 
+        // Images only, judged by the file's real content (not its name), up to 5 MB, at most 5 per review.
+        // The saved extension comes from that check, so a script can never be stored under public/uploads.
+        $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $saved = 0;
         foreach ($normalizedFiles as $file) {
-            $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-            $filename = 'review_' . $reviewId . '_' . uniqid() . '.' . $ext;
-            $targetPath = $uploadDir . $filename;
-            
-            if (move_uploaded_file($file['tmp_name'], $targetPath)) {
-                $this->reviewModel->addImage($reviewId, 'uploads/reviews/' . $filename);
+            if ($saved >= 5) break;
+            if (!is_uploaded_file($file['tmp_name']) || filesize($file['tmp_name']) > 5 * 1024 * 1024) continue;
+            $mime = $finfo->file($file['tmp_name']) ?: '';
+            if (!isset($allowed[$mime]) || @getimagesize($file['tmp_name']) === false) continue;
+            $ext = $allowed[$mime];
+            $filename = 'review_' . (int)$reviewId . '_' . bin2hex(random_bytes(8)) . '.' . $ext;
+            $saved++;
+            try {
+                $this->reviewModel->addImage($reviewId, ContentStore::save($file['tmp_name'], 'reviews', $filename));
+            } catch (Throwable $e) {
+                error_log('Review image: ' . $e->getMessage());
             }
         }
     }

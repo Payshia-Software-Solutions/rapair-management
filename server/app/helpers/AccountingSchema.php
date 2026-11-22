@@ -224,6 +224,14 @@ class AccountingSchema {
                 ");
             }
 
+            // 4-level chart of accounts, standard ledgers and tax mappings
+            try {
+                require_once __DIR__ . '/ChartOfAccounts.php';
+                ChartOfAccounts::upgrade($pdo);
+            } catch (Exception $e) {
+                error_log('Chart of accounts upgrade failed: ' . $e->getMessage());
+            }
+
             // Fiscal Periods
             if (!self::hasTable($pdo, 'acc_fiscal_periods')) {
                 $pdo->exec("

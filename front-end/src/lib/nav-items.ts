@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Inbox,
+  SlidersHorizontal,
   LayoutDashboard,
   ClipboardList,
   PlusCircle,
@@ -62,14 +64,13 @@ export type NavItem = {
 
 export const mainNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Executive Dashboard", href: "/dashboard/overall", perm: "reports.read" },
-  { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard", perm: "reports.read" },
   { icon: MessageSquare, label: "AI Business Intelligence", href: "/ai/insights", perm: "reports.read" },
   { icon: TrendingUp, label: "Sales Dashboard", href: "/dashboard/sales", perm: "reports.read" },
   { icon: LayoutDashboard, label: "POS Quick Sale", href: "/cms/pos", perm: "pos.read" },
-  { icon: BarChart3, label: "Reports", href: "/reports", perm: "reports.read" },
 ];
 
 export const serviceCenterItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Workshop Dashboard", href: "/dashboard", perm: "reports.read" },
   { icon: PlusCircle, label: "Create Order", href: "/orders/new", perm: "orders.read" },
   { icon: ClipboardList, label: "Order Queue", href: "/orders", perm: "orders.read" },
   { icon: CalendarIcon, label: "Service Calendar", href: "/orders/calendar", perm: "orders.read" },
@@ -142,6 +143,7 @@ export const salesItems: NavItem[] = [
 
 export const masterDataItems: NavItem[] = [
   { icon: LayoutGrid, label: "Product Collections", href: "/master-data/collections", perm: "parts.read" },
+  { icon: Tags, label: "Price Lists", href: "/master-data/price-lists", perm: "parts.read" },
   { icon: LayoutGrid, label: "Item Sections", href: "/master-data/item-sections", perm: "parts.read" },
   { icon: Layers, label: "Item Departments", href: "/master-data/item-departments", perm: "parts.read" },
   { icon: Grid, label: "Item Categories", href: "/master-data/item-categories", perm: "parts.read" },
@@ -161,9 +163,11 @@ export const accountingItems: NavItem[] = [
   { icon: LayoutGrid, label: "Chart of Accounts", href: "/accounting/accounts", perm: "accounting.read" },
   { icon: Receipt, label: "Expenses & Vouchers", href: "/accounting/expenses", perm: "accounting.read" },
   { icon: CheckCircle2, label: "Bank Reconciliation", href: "/accounting/reconciliation", perm: "accounting.reconcile" },
+  { icon: ShieldCheck, label: "Posting Check", href: "/accounting/posting-check", perm: "accounting.read" },
+  { icon: CreditCard, label: "Card Settlements", href: "/accounting/card-settlements", perm: "accounting.read" },
   { icon: BarChart3, label: "Trial Balance", href: "/accounting/trial-balance", perm: "accounting.read" },
   { icon: History, label: "Fiscal Management", href: "/accounting/fiscal-years", perm: "fiscal.read" },
-  { icon: TrendingUp, label: "Balance Sheet", href: "/accounting/balance-sheet", perm: "accounting.read" },
+  { icon: TrendingUp, label: "P&L & Balance Sheet", href: "/accounting/statements", perm: "accounting.read" },
   { icon: Calculator, label: "Product Costing Templates", href: "/admin/shipping/templates", perm: "costing.manage" },
   { icon: FileText, label: "Product & Export Costing", href: "/accounts/costing-sheet", perm: "costing.manage" },
   { icon: Settings, label: "Accounting Settings", href: "/accounting/settings", perm: "accounting.read" },
@@ -205,6 +209,7 @@ export const banquetItems: NavItem[] = [
 export const ecommerceItems: NavItem[] = [
   { icon: ShoppingCart, label: "Online Orders", href: "/ecommerce/orders", perm: "invoices.read" },
   { icon: Users, label: "Storefront Customers", href: "/ecommerce/customers", perm: "customers.read" },
+  { icon: Mail, label: "Newsletter Subscribers", href: "/ecommerce/subscribers", perm: "customers.read" },
   { icon: History, label: "Payment Webhook Logs", href: "/ecommerce/payment-logs", perm: "invoices.read" },
   { icon: LayoutGrid, label: "Content Management", href: "/ecommerce/content", perm: "promotions.read" },
   { icon: FolderTree, label: "Navigation Menu", href: "/ecommerce/navigation", perm: "promotions.read" },
@@ -228,6 +233,18 @@ export const adminNavItems: NavItem[] = [
   { icon: Layers, label: "Database Schema", href: "/admin/schema", perm: "settings.read" },
   { icon: ShieldCheck, label: "Table Verification", href: "/reports/database", perm: "settings.read" },
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription", perm: "settings.read" },
-  { icon: FileX, label: "Document Cancellations", href: "/accounting/cancellations", perm: "accounting.write" },
+
 ];
 
+
+/**
+ * Core "Approvals & Control" group: not tied to a module, shown to every signed-in user.
+ * Requesters see their own requests; managers with cancellations.approve decide on them
+ * (the API enforces who can approve).
+ */
+export const approvalItems: NavItem[] = [
+  { icon: Inbox, label: "My Approvals", href: "/approvals/inbox" },
+  { icon: SlidersHorizontal, label: "Approval Rules", href: "/approvals/rules", perm: "approvals.manage" },
+  { icon: FileX, label: "Cancellation Requests", href: "/approvals/cancellations" },
+  { icon: FileX, label: "Request Cancellation", href: "/approvals/request-cancellation" },
+];

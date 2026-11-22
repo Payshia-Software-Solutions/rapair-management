@@ -4,6 +4,7 @@
  */
 class Account extends Model {
     private $table = 'acc_accounts';
+    public $lastError = null;
 
     public function __construct() {
         parent::__construct();
@@ -18,8 +19,10 @@ class Account extends Model {
         if (isset($filters['active'])) {
             $sql .= " AND is_active = :active";
         }
+        // Group accounts (levels 1–3) are for reporting only; lists show postable ledgers
+        if (empty($filters['include_groups'])) $sql .= " AND COALESCE(is_group, 0) = 0";
         $sql .= " ORDER BY code ASC";
-        
+
         $this->db->query($sql);
         if (isset($filters['type'])) $this->db->bind(':type', $filters['type']);
         if (isset($filters['active'])) $this->db->bind(':active', (int)$filters['active']);
@@ -40,10 +43,27 @@ class Account extends Model {
     }
 
     public function create($data) {
+        // New ledgers sit under a level-3 group; type follows the group
+        $parentId = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
+        if ($parentId) {
+            $this->db->query("SELECT code, type, level, is_group, category FROM {$this->table} WHERE id = :id");
+            $this->db->bind(':id', $parentId);
+            $p = $this->db->single();
+            if (!$p || !(int)$p->is_group || (int)$p->level !== 3) { $this->lastError = 'Pick a level-3 group as the parent'; return false; }
+            $data['type'] = $p->type;
+            // Category follows the sub-group; under Cash & Bank (111) the user can mark it as a bank
+            require_once __DIR__ . '/../helpers/ChartOfAccounts.php';
+            $data['category'] = ((string)$p->code === '111' && !empty($data['is_bank'])) ? 'Bank' : ChartOfAccounts::categoryFor((string)$p->code);
+        }
+        $this->db->query("SELECT id FROM {$this->table} WHERE code = :c");
+        $this->db->bind(':c', $data['code']);
+        if ($this->db->single()) { $this->lastError = 'Account code ' . $data['code'] . ' is already used'; return false; }
+
         $this->db->query("
-            INSERT INTO {$this->table} (code, name, type, category, is_system, is_active)
-            VALUES (:code, :name, :type, :category, :is_system, :is_active)
+            INSERT INTO {$this->table} (code, name, type, category, is_system, is_active, parent_id, level, is_group)
+            VALUES (:code, :name, :type, :category, :is_system, :is_active, :parent_id, 4, 0)
         ");
+        $this->db->bind(':parent_id', $parentId);
         $this->db->bind(':code', $data['code']);
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':type', $data['type']);
@@ -137,7 +157,7 @@ class Account extends Model {
                 WHERE je.entry_date BETWEEN :from AND :to
                 GROUP BY ji.account_id
             ) mov ON a.id = mov.account_id
-            WHERE a.is_active = 1
+            WHERE a.is_active = 1 AND COALESCE(a.is_group, 0) = 0
             ORDER BY a.code ASC
         ");
         $this->db->bind(':from', $fromDate);
@@ -166,7 +186,7 @@ class Account extends Model {
                 WHERE je.entry_date <= :as_of
                 GROUP BY ji.account_id
             ) mov ON a.id = mov.account_id
-            WHERE a.is_active = 1
+            WHERE a.is_active = 1 AND COALESCE(a.is_group, 0) = 0
             ORDER BY a.code ASC
         ");
         $this->db->bind(':as_of', $date);

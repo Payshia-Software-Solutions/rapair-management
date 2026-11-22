@@ -70,7 +70,7 @@ function PrintContent() {
                 </body>
               </html>
             `;
-            const success = await silentPrint(html);
+            const success = (await silentPrint(html, "Receipt")).success;
             if (success) {
               window.close();
               return;

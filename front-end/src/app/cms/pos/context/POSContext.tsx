@@ -22,8 +22,32 @@ import {
   loadHeldOrder,
   fetchHeldOrders,
   fetchSystemSettings,
+  fetchKOTDetails,
+  voidHeldItem,
+  approveComp,
+  markKOTPrinted,
   api as apiHelper
 } from "@/lib/api";
+import { applyTheme, getTheme, nextTheme, THEME_EVENT, type AppTheme } from "@/lib/theme";
+import { enqueueKot, fetchJobStatus, getKotRoute } from "@/lib/api/printqueue";
+import { computePosTotals, resolveLocationTaxes, type PosTotals } from "@/lib/pricing/pos-totals";
+
+export type PosLayout = 'mobile' | 'compact' | 'full';
+export type PosLayoutPref = 'auto' | 'compact' | 'full';
+
+/**
+ * Phones (narrow) get the tabbed view. Typical POS terminals (1024x768,
+ * 800x600, 1280x1024, 1366x768) get the compact side-by-side view: no
+ * filter sidebar, narrower cart, denser item grid. Wide screens get full.
+ */
+export function resolvePosLayout(w: number, h: number, pref: PosLayoutPref): PosLayout {
+  if (w < 700) return 'mobile';
+  // Portrait tablets: a side cart leaves too little room for items, so use Menu / Order tabs
+  if (h > w && w < 1024 && pref !== 'compact' && pref !== 'full') return 'mobile';
+  if (pref === 'compact') return 'compact';
+  if (pref === 'full') return w >= 1100 ? 'full' : 'compact';
+  return (w < 1440 || h < 820) ? 'compact' : 'full';
+}
 
 interface POSContextType {
   // Data State
@@ -76,24 +100,44 @@ interface POSContextType {
   addToCartWithQty: (product: any, qty: number, discountAmt?: number) => void;
   updateCartLine: (index: number, field: string, value: any) => void;
   removeCartLine: (index: number) => void;
+  voidRequest: { index: number; newQty: number } | null;
+  setVoidRequest: (v: { index: number; newQty: number } | null) => void;
+  approveVoid: (approverId: number, pin: string, reason: string) => Promise<void>;
+  /** Complimentary request: one line (index) or the whole bill (index null) */
+  compRequest: { index: number | null } | null;
+  setCompRequest: (v: { index: number | null } | null) => void;
+  /** Manager approved: comp `qty` of the line (or every line for a whole-bill comp) */
+  approveCompItems: (approverId: number, pin: string, reason: string, qty?: number) => Promise<void>;
+  /** Undo a comp line: it goes back to a paid line (merged into its twin when there is one) */
+  removeComp: (index: number) => void;
   handleCheckoutProcess: (paymentData: any) => Promise<void>;
   holdPOSBill: () => Promise<void>;
+  /** Print a kitchen ticket (silent to the KOT printer when available). full = reprint every item. */
+  printKOT: (orderId: number, full?: boolean) => Promise<void>;
+  /** false for order-taking roles (stewards): they hold & send KOTs but can't take payment */
+  canCheckout: boolean;
+  /** permissions loaded (steward vs cashier known) */
+  permsReady: boolean;
   loadPOSBill: (id: number) => Promise<void>;
   reloadData: () => Promise<void>;
   
   // Totals
-  totals: {
-    subtotal: number;
-    lineDiscountTotal: number;
-    taxableAmount: number;
-    taxSum: number;
-    appliedTaxes: any[];
-    grandTotal: number;
-  };
+  totals: PosTotals;
+  /** true when the location sells at menu prices (taxes included, breakdown hidden). */
+  isMenuPricing: boolean;
+
+  // Screen layout: "mobile" = tabbed, "compact" = small/square POS screens, "full" = wide screens
+  posLayout: PosLayout;
+  layoutPref: PosLayoutPref;
+  setLayoutPref: (val: PosLayoutPref) => void;
+  /** Cart panel width in px for side-by-side layouts. */
+  cartWidth: number;
 
   // UI States (Shared)
   theme: 'light' | 'dark';
   toggleTheme: () => void;
+  appTheme: AppTheme;
+  setAppTheme: (t: AppTheme) => void;
   searchQuery: string;
   setSearchQuery: (val: string) => void;
   
@@ -216,6 +260,26 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
   const [selectedBankId, setSelectedBankId] = useState<string | null>(null);
   const [selectedCardCategory, setSelectedCardCategory] = useState<string>("Credit");
+
+  // ---- Screen layout (auto-detects small square POS screens) ----
+  const [layoutPref, setLayoutPrefState] = useState<PosLayoutPref>('auto');
+  const [viewport, setViewport] = useState({ w: 1920, h: 1080 });
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('pos_layout_pref');
+      if (saved === 'auto' || saved === 'compact' || saved === 'full') setLayoutPrefState(saved);
+    } catch {}
+    const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const setLayoutPref = (val: PosLayoutPref) => {
+    setLayoutPrefState(val);
+    try { window.localStorage.setItem('pos_layout_pref', val); } catch {}
+  };
+  const posLayout = resolvePosLayout(viewport.w, viewport.h, layoutPref);
+  const cartWidth = posLayout === 'full' ? 450 : viewport.w < 900 ? 300 : 340;
 
   // Data Context
   const [inventory, setInventory] = useState<any[]>([]);
@@ -593,63 +657,27 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const loc = locations.find(l => String(l.id) === String(selectedLocation));
     if (!loc) return;
 
-    let allowedIds: number[] = [];
-    let isExplicitlySet = false;
-    try {
-      if (loc.allowed_taxes_json) {
-        allowedIds = JSON.parse(loc.allowed_taxes_json);
-        isExplicitlySet = Array.isArray(allowedIds);
-      }
-    } catch (e) {
-      allowedIds = [];
-    }
-
-    let filtered: any[] = [];
-    if (!isExplicitlySet && loc.allowed_taxes_json === null) {
-       // Legacy fallback: use company taxes if location has no explicit config
-       let companyEnabledIds = new Set<number>();
-       if (company?.tax_ids_json) {
-         try {
-           const ids = JSON.parse(company.tax_ids_json);
-           if (Array.isArray(ids)) companyEnabledIds = new Set(ids);
-         } catch {}
-       }
-       filtered = allTaxes.filter(t => t.is_active && companyEnabledIds.has(t.id));
-    } else {
-       // Location has explicit tax config (even if it's an empty array)
-       const allowedSet = new Set(allowedIds);
-       filtered = allTaxes.filter(t => t.is_active && allowedSet.has(t.id));
-    }
-    
-    setSystemTaxes(filtered);
+    // Location's allowed taxes (falls back to company taxes when not configured)
+    setSystemTaxes(resolveLocationTaxes(loc, allTaxes, company));
   }, [selectedLocation, locations, allTaxes, company]);
 
+  // Theme is app-wide (lib/theme): Light / Dark / Dim. `theme` stays light|dark for components
+  // that only need "is it dark?"; `appTheme` is the exact palette.
+  const [appTheme, setAppThemeState] = useState<AppTheme>('light');
   useEffect(() => {
-    const savedTheme = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null;
-    if (savedTheme === 'dark' || (!savedTheme && document.documentElement.classList.contains('dark'))) {
-      document.documentElement.classList.add('dark');
-      setTheme('dark');
-    } else if (savedTheme === 'light') {
-      document.documentElement.classList.remove('dark');
-      setTheme('light');
-    } else {
-      const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-      setTheme(current);
-    }
+    const sync = () => {
+      const t = getTheme();
+      setAppThemeState(t);
+      setTheme(t === 'light' ? 'light' : 'dark');
+    };
+    sync();
+    window.addEventListener(THEME_EVENT, sync);
+    return () => window.removeEventListener(THEME_EVENT, sync);
   }, []);
 
-  const toggleTheme = () => {
-    const isDark = document.documentElement.classList.contains('dark');
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'light');
-      setTheme('light');
-    } else {
-      document.documentElement.classList.add('dark');
-      if (typeof window !== 'undefined') window.localStorage.setItem('theme', 'dark');
-      setTheme('dark');
-    }
-  };
+  const setAppTheme = (t: AppTheme) => applyTheme(t);
+  // Light -> Dark -> Dim -> Light
+  const toggleTheme = () => applyTheme(nextTheme(getTheme()));
 
   // Automatically enforce the Order Type Selector if no order type is selected 
   // and no other management/action modals are currently blocking the view.
@@ -764,7 +792,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }];
       }
 
-      const existingLine = prev.find(item => item.id === product.id && item.unit_price === (product.price || product.cost_price || 0) && item.discount === discountAmt && !item.selected_batches);
+      const existingLine = prev.find(item => item.id === product.id && item.unit_price === (product.price || product.cost_price || 0) && item.discount === discountAmt && !item.is_comp && !item.is_reward && !item.selected_batches && !item.item_notes && !(item.modifiers && item.modifiers.length));
       if (existingLine) {
         return prev.map(item => item === existingLine ? { ...item, quantity: item.quantity + qty } : item);
       }
@@ -779,7 +807,21 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  // ---- Items already sent to the kitchen (held bill, KOT printed) ----
+  // Reducing or removing them needs an approver's PIN; the removal is recorded and
+  // a KOT prints it as CANCELLED with the approver's name.
+  const [voidRequest, setVoidRequest] = useState<{ index: number; newQty: number } | null>(null);
+  const sentQty = (line: any) => (heldOrderId && line?.held_item_id ? Number(line.kot_qty || 0) : 0);
+
   const updateCartLine = (index: number, field: string, value: any) => {
+    if (field === 'quantity') {
+      const line = cart[index];
+      const sent = sentQty(line);
+      if (sent > 0 && Number(value) < sent) {
+        setVoidRequest({ index, newQty: Math.max(0, Number(value)) });
+        return;
+      }
+    }
     setCart(prev => {
       const newCart = [...prev];
       if (field === 'quantity' && value <= 0) return prev;
@@ -789,7 +831,98 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const removeCartLine = (index: number) => {
+    // A comp line goes back to being paid first; removing the item is then the normal flow
+    if (cart[index]?.is_comp) { removeComp(index); return; }
+    if (sentQty(cart[index]) > 0) {
+      setVoidRequest({ index, newQty: 0 });
+      return;
+    }
     setCart(prev => prev.filter((_, i) => i !== index));
+  };
+
+  /** Approver confirmed: record the removal on the server, update the cart, send the cancel slip. */
+  const approveVoid = async (approverId: number, pin: string, reason: string) => {
+    if (!voidRequest || !heldOrderId) return;
+    const line = cart[voidRequest.index];
+    const removeQty = Math.round((sentQty(line) - voidRequest.newQty) * 1000) / 1000;
+    if (!line || removeQty <= 0) { setVoidRequest(null); return; }
+
+    await voidHeldItem({ held_item_id: line.held_item_id, quantity: removeQty, reason, approver_id: approverId, approver_pin: pin });
+
+    const keep = voidRequest.newQty;
+    setCart(prev => keep <= 0
+      ? prev.filter((_, i) => i !== voidRequest.index)
+      : prev.map((l, i) => i === voidRequest.index ? { ...l, quantity: keep, kot_qty: keep } : l));
+    setVoidRequest(null);
+    toast({ title: "Item removed", description: `${removeQty} × ${line.description} cancelled. Sending to the kitchen…` });
+    void printKOT(heldOrderId);
+  };
+
+  // ---- Complimentary (comp) items ----
+  // The line keeps its full price with 100% off. A manager approves with their PIN; the server
+  // returns a one-time token that the invoice presents, and checks it when the bill is settled.
+  const [compRequest, setCompRequest] = useState<{ index: number | null } | null>(null);
+  const sameDish = (a: any, b: any) =>
+    a.id === b.id && Number(a.unit_price) === Number(b.unit_price) &&
+    (a.item_notes || '') === (b.item_notes || '') &&
+    JSON.stringify(a.modifiers || []) === JSON.stringify(b.modifiers || []);
+
+  const approveCompItems = async (approverId: number, pin: string, reason: string, qty?: number) => {
+    if (!compRequest) return;
+    const wholeBill = compRequest.index === null;
+    const targets = wholeBill
+      ? cart.map((l, i) => i).filter(i => !cart[i].is_comp && !cart[i].is_reward && Number(cart[i].unit_price) > 0)
+      : [compRequest.index as number];
+    if (targets.length === 0) { setCompRequest(null); return; }
+
+    const compQty = (i: number) => wholeBill
+      ? Number(cart[i].quantity)
+      : Math.min(Number(cart[i].quantity), Math.max(0, Number(qty ?? cart[i].quantity)));
+    const amount = Math.round(targets.reduce((s, i) => s + compQty(i) * Number(cart[i].unit_price), 0) * 100) / 100;
+    if (amount <= 0) { setCompRequest(null); return; }
+
+    const ok = await approveComp({ approver_id: approverId, approver_pin: pin, reason, amount, held_order_id: heldOrderId });
+    const compFields = { is_comp: true, comp_token: ok.token, comp_reason: ok.reason, comp_approver_name: ok.approver_name };
+
+    setCart(prev => {
+      const next: any[] = [];
+      prev.forEach((l, i) => {
+        if (!targets.includes(i)) { next.push(l); return; }
+        const q = compQty(i);
+        const rest = Math.round((Number(l.quantity) - q) * 1000) / 1000;
+        const sent = Number(l.kot_qty || 0);
+        if (rest > 0) {
+          // Split: the paid part keeps its kitchen record; the comp part takes what's left of it
+          const restSent = Math.min(rest, sent);
+          next.push({ ...l, quantity: rest, kot_qty: restSent });
+          next.push({ ...l, ...compFields, quantity: q, discount: Number(l.unit_price), held_item_id: undefined, kot_qty: Math.max(0, sent - restSent) });
+        } else {
+          next.push({ ...l, ...compFields, discount: Number(l.unit_price) });
+        }
+      });
+      return next;
+    });
+    setCompRequest(null);
+    toast({ title: "Complimentary approved", description: `LKR ${amount.toFixed(2)} by ${ok.approver_name}: ${ok.reason}` });
+  };
+
+  const removeComp = (index: number) => {
+    setCart(prev => {
+      const line = prev[index];
+      if (!line?.is_comp) return prev;
+      const twin = prev.findIndex((l, i) => i !== index && !l.is_comp && !l.is_reward && sameDish(l, line));
+      const { is_comp, comp_token, comp_reason, comp_approver_name, ...plain } = line;
+      if (twin >= 0) {
+        return prev
+          .map((l, i) => i === twin ? {
+            ...l,
+            quantity: Math.round((Number(l.quantity) + Number(line.quantity)) * 1000) / 1000,
+            kot_qty: Number(l.kot_qty || 0) + Number(line.kot_qty || 0),
+          } : l)
+          .filter((_, i) => i !== index);
+      }
+      return prev.map((l, i) => i === index ? { ...plain, discount: 0 } : l);
+    });
   };
 
   const handleQuickAddCustomer = async (e: React.FormEvent) => {
@@ -811,6 +944,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const openCheckoutDialog = async () => {
     if (cart.length === 0) return;
+    if (!canCheckout) {
+      toast({ title: "Payments are taken by the cashier", description: "Use Send to kitchen. The bill will appear in the cashier's Held list." });
+      return;
+    }
     if (!selectedLocation) { toast({ title: "Missing Data", description: "Select a location.", variant: "destructive" }); return; }
     
     setCheckoutIntentActive(true);
@@ -844,57 +981,55 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCheckoutOpen(true);
   };
 
+  // Steward (order-taking) or cashier? Decided before the POS renders, so stewards never
+  // see cashier tools flash on screen.
+  const [canCheckout, setCanCheckout] = useState(true);
+  const [permsReady, setPermsReady] = useState(false);
+  useEffect(() => {
+    apiHelper('/api/auth/permissions')
+      .then(r => r.json())
+      .then(d => {
+        if (d.status !== 'success' || !Array.isArray(d.data)) return;
+        const can = d.data.includes('*') || d.data.includes('pos.checkout');
+        setCanCheckout(can);
+        // Steward device: send kitchen tickets to the kitchen PC unless this terminal chose otherwise
+        try { if (!can && window.localStorage.getItem('pos_kot_route') === null) window.localStorage.setItem('pos_kot_route', 'queue'); } catch {}
+      })
+      .catch(() => {})
+      .finally(() => setPermsReady(true));
+  }, []);
+
+  // New orders from steward tablets appear in the Held list without a manual refresh
+  useEffect(() => {
+    if (!selectedLocation) return;
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void refreshHeldOrders(); }, 15000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLocation]);
+
+  const currentLocationRow = useMemo(
+    () => locations.find(l => String(l.id) === String(selectedLocation)),
+    [locations, selectedLocation]
+  );
+  const isMenuPricing = currentLocationRow?.tax_mode === 'inclusive';
+
   const totals = useMemo(() => {
-    let subtotal = 0;
-    let lineDiscountTotal = 0;
-    cart.forEach(item => {
-      const gross = item.quantity * item.unit_price;
-      const discount = item.quantity * item.discount;
-      subtotal += gross;
-      lineDiscountTotal += discount;
-    });
-    const billDiscountAmt = billDiscountType === 'percentage' 
-      ? (subtotal - lineDiscountTotal) * (billDiscountValue / 100)
-      : billDiscountValue;
-      
-    // Promotions are exclusive (Best Offer Rule)
-    const promoDiscountAmt = appliedPromotion ? Number(appliedPromotion.discount_value) : 0;
-      
-    const taxableAmount = Math.max(0, subtotal - lineDiscountTotal - billDiscountAmt - promoDiscountAmt);
-    let currentBase = taxableAmount;
-    let taxSum = 0;
-    const appliedTaxes: any[] = [];
-    const sortedTaxes = [...systemTaxes].sort((a, b) => a.sort_order - b.sort_order);
-    sortedTaxes.forEach(tax => {
-      const applyTo = tax.apply_on === 'base_plus_previous' ? currentBase : taxableAmount;
-      const taxAmt = applyTo * (Number(tax.rate_percent) / 100);
-      taxSum += taxAmt;
-      appliedTaxes.push({ name: tax.name, code: tax.code, rate_percent: tax.rate_percent, amount: taxAmt });
-      currentBase += taxAmt;
-    });
+    // Service charge from location settings: dine-in only
+    const scRate = (orderType === 'dine_in' && currentLocationRow?.allow_service_charge)
+      ? Number(currentLocationRow.service_charge_rate || 0)
+      : 0;
 
-    // Service Charge from Location Settings (Decoupled from Taxes)
-    let serviceChargeAmt = 0;
-    const currentLocation = locations.find(l => String(l.id) === String(selectedLocation));
-    
-    if (orderType === 'dine_in' && currentLocation?.allow_service_charge) {
-        const rate = Number(currentLocation.service_charge_rate || 0);
-        if (rate > 0) {
-            serviceChargeAmt = taxableAmount * (rate / 100);
-            appliedTaxes.push({ 
-                name: "Service Charge", 
-                code: "SC", 
-                rate_percent: rate, 
-                amount: serviceChargeAmt,
-                is_sc: true 
-            });
-            taxSum += serviceChargeAmt;
-        }
-    }
-
-    const grandTotal = taxableAmount + taxSum;
-    return { subtotal, lineDiscountTotal, billDiscountAmt, promoDiscountAmt, taxableAmount, taxSum, appliedTaxes, grandTotal };
-  }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion]);
+    return computePosTotals({
+      mode: isMenuPricing ? 'inclusive' : 'exclusive',
+      cart: cart.map(i => ({ quantity: Number(i.quantity), unit_price: Number(i.unit_price), discount: Number(i.discount || 0) })),
+      taxes: systemTaxes,
+      billDiscountType,
+      billDiscountValue,
+      // Promotions are exclusive (Best Offer Rule)
+      promoDiscount: appliedPromotion ? Number(appliedPromotion.discount_value) : 0,
+      serviceChargeRate: scRate,
+    });
+  }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion, currentLocationRow, isMenuPricing]);
 
   const claimPromotionRewards = (promo: any) => {
     if (!promo || !promo.missing_rewards) return;
@@ -942,28 +1077,43 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         shipping_address: currentCust?.address || "",
         issue_date: new Date().toISOString().split('T')[0],
         due_date: new Date().toISOString().split('T')[0],
-        subtotal: totals.subtotal,
+        // Booked (internal) values. In menu-pricing mode these are the
+        // back-calculated base + full tax breakdown; the display_* fields
+        // carry what the customer sees on the bill.
+        subtotal: totals.internalSubtotal,
         tax_total: totals.taxSum,
-        discount_total: totals.lineDiscountTotal + totals.billDiscountAmt + totals.promoDiscountAmt,
+        discount_total: totals.internalDiscountTotal,
         grand_total: totals.grandTotal,
+        price_display_mode: totals.mode === 'inclusive' ? 'menu' : 'standard',
+        display_subtotal: totals.subtotal,
+        display_discount_total: totals.lineDiscountTotal + totals.billDiscountAmt + totals.promoDiscountAmt,
+        display_service_charge: totals.serviceChargeAmt,
         order_type: orderType || 'retail',
         table_id: selectedTable ? Number(selectedTable) : null,
         steward_id: selectedSteward ? Number(selectedSteward) : null,
         applied_taxes: totals.appliedTaxes,
         notes: paymentData.notes || "POS Retail Sale",
+        source: 'pos',
         applied_promotion_id: appliedPromotion ? appliedPromotion.promotion_id : null,
         applied_promotion_name: appliedPromotion ? appliedPromotion.name : null,
         bank_id: selectedBankId,
         card_category: selectedCardCategory,
-        items: cart.map(item => ({
+        items: cart.map((item, idx) => ({
           description: item.description,
           item_type: item.item_type,
           item_id: item.id,
           quantity: item.quantity,
-          unit_price: item.unit_price,
-          discount: item.discount,
-          tax_amount: 0, 
-          line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount)
+          unit_price: totals.internalLines[idx].unit_price,
+          discount: totals.internalLines[idx].discount,
+          tax_amount: 0,
+          line_total: totals.internalLines[idx].line_total,
+          display_unit_price: item.unit_price,
+          display_discount: item.discount,
+          display_line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount),
+          item_notes: item.item_notes || null,
+          modifiers: item.modifiers || [],
+          is_complimentary: item.is_comp ? 1 : 0,
+          comp_token: item.is_comp ? item.comp_token : null
         })),
         payments: paymentData.isSplit ? paymentData.splitPayments.map((p: any) => ({
           method: p.method,
@@ -1027,6 +1177,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast({ title: "Empty Cart", description: "Add items before holding.", variant: "destructive" });
       return;
     }
+    // Stewards resuming a held bill: nothing new to send means no KOT (and no re-hold)
+    if (!canCheckout && heldOrderId && !cart.some(l => Number(l.quantity) > Number(l.kot_qty || 0))) {
+      toast({ title: "Nothing new to send", description: "Add items to send a new KOT." });
+      return;
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -1036,9 +1191,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         order_type: orderType || 'retail',
         table_id: selectedTable ? Number(selectedTable) : null,
         steward_id: selectedSteward ? Number(selectedSteward) : null,
+        // Held bills keep the prices the cashier sees (menu prices in menu-pricing mode).
         subtotal: totals.subtotal,
-        tax_total: totals.taxSum,
-        discount_total: totals.lineDiscountTotal + (billDiscountType === 'percentage' ? (totals.subtotal - totals.lineDiscountTotal) * (billDiscountValue / 100) : billDiscountValue),
+        tax_total: totals.grandTotal - totals.taxableAmount,
+        discount_total: totals.lineDiscountTotal + totals.billDiscountAmt,
         grand_total: totals.grandTotal,
         notes: "",
         items: cart.map(item => ({
@@ -1048,7 +1204,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           quantity: item.quantity,
           unit_price: item.unit_price,
           discount: item.discount,
-          line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount)
+          line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount),
+          item_notes: item.item_notes || null,
+          modifiers: item.modifiers || [],
+          is_complimentary: item.is_comp ? 1 : 0,
+          comp_token: item.is_comp ? item.comp_token : null,
+          comp_reason: item.is_comp ? item.comp_reason : null
         }))
       };
 
@@ -1069,7 +1230,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         refreshHeldOrders();
 
         // Print KOT Automatically
-        window.open(`/cms/pos/kot/${newId}?autoprint=1`, '_blank');
+        void printKOT(newId);
       }
     } catch (err: any) {
       toast({ title: "Hold Failed", description: err.message, variant: "destructive" });
@@ -1096,7 +1257,14 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           quantity: Number(it.quantity),
           unit_price: Number(it.unit_price),
           discount: Number(it.discount),
-          held_item_id: it.id // Track this if needed
+          item_notes: it.item_notes || undefined,
+          modifiers: (() => { try { return it.modifiers_json ? JSON.parse(it.modifiers_json) : []; } catch { return []; } })(),
+          held_item_id: it.id,
+          ...(Number(it.is_complimentary) === 1 && it.comp_token
+            ? { is_comp: true, comp_token: it.comp_token, comp_reason: it.comp_reason || '', discount: Number(it.unit_price) }
+            : {}),
+          // qty the kitchen already has (needs approval to reduce)
+          kot_qty: it.kot_printed_qty != null ? Math.min(Number(it.quantity), Number(it.kot_printed_qty)) : (Number(it.is_kot_printed) === 1 ? Number(it.quantity) : 0)
         }));
         setCart(restoredCart);
         
@@ -1110,6 +1278,73 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       toast({ title: "Load Failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const printKOT = async (orderId: number, full = false) => {
+    if (getKotRoute() === 'queue') {
+      try {
+        const res = await enqueueKot(orderId, full);
+        if (!res.queued) {
+          toast({ title: "No new items for the kitchen", description: "Everything on this bill was already sent." });
+          return;
+        }
+        const tickets = Number((res as any).tickets || 1);
+        toast({ title: "Sent to kitchen", description: tickets > 1 ? `KOT #${orderId} split into ${tickets} tickets (kitchen, bar…).` : `KOT #${orderId} is on its way to the kitchen printer.` });
+        // Confirm it actually printed; warn if the kitchen PC isn't collecting
+        const jobIds: number[] = (res as any).job_ids || (res.job_id ? [res.job_id] : []);
+        if (jobIds.length) {
+          setTimeout(async () => {
+            try {
+              const sts = await fetchJobStatus(jobIds);
+              const st = sts.find(x => x.status === 'failed') || sts.find(x => x.status !== 'done');
+              if (st && st.status === 'failed') {
+                toast({ title: "Kitchen printer error", description: st.error || `KOT #${orderId} could not be printed.`, variant: "destructive" });
+              } else if (st && st.status !== 'done') {
+                toast({ title: "Queued – kitchen printer offline?", description: `KOT #${orderId} hasn't printed yet. It will print when the kitchen PC is back.`, variant: "destructive" });
+              }
+            } catch {}
+          }, 10000);
+        }
+      } catch (e: any) {
+        toast({ title: "Couldn't send to kitchen", description: e?.message || "Check the connection and try again.", variant: "destructive" });
+      }
+      return;
+    }
+    try {
+      // Nothing new for the kitchen? Don't waste paper (or open an empty print window)
+      const kot = await fetchKOTDetails(orderId, full);
+      if (!kot || ((Array.isArray(kot.items) ? kot.items.length : 0) + (Array.isArray(kot.voids) ? kot.voids.length : 0)) === 0) {
+        toast({ title: "No new items for the kitchen", description: "Everything on this bill was already sent." });
+        return;
+      }
+      const { printPage } = await import("@/lib/api/silent-print");
+      const parts: any[] = (Array.isArray(kot.stations) ? kot.stations : []).filter((p: any) => p.id && (Number(p.items) + Number(p.voids)) > 0);
+      if (parts.length === 0) {
+        // No print stations: one KOT on the KOT printer, like before
+        const url = `/cms/pos/kot/${orderId}${full ? '?full=1' : ''}`;
+        const result = await printPage(url, 'KOT', `KOT #${orderId}`, '.kot');
+        // Browser fallback marks items itself after window.print(); silent path marks here
+        if (result.mode === 'silent' && !full) {
+          await markKOTPrinted(orderId).catch(e => console.error("Failed to mark KOT as printed", e));
+        }
+        if (result.error) toast({ title: "KOT opened in browser", description: result.error, variant: "destructive" });
+        return;
+      }
+      // Print stations: one ticket per station (KOT -> kitchen printer, BOT -> bar printer ...)
+      const errors: string[] = [];
+      for (const p of parts) {
+        const url = `/cms/pos/kot/${orderId}?station=${p.id}${full ? '&full=1' : ''}`;
+        const label = `${p.ticket_label || 'KOT'} #${orderId}`;
+        const result = await printPage(url, 'KOT', label, '.kot', { printer: p.printer_name, width: p.paper_width });
+        if (result.error) errors.push(`${p.name}: ${result.error}`);
+      }
+      // Ticket parts don't mark themselves; the bill counts as sent once every part went out
+      if (!full) await markKOTPrinted(orderId).catch(e => console.error("Failed to mark KOT as printed", e));
+      if (errors.length) toast({ title: "Some tickets opened in browser", description: errors.join(' · '), variant: "destructive" });
+      else if (parts.length > 1) toast({ title: "Sent to kitchen", description: `${parts.map(p => p.ticket_label).join(' + ')} printed for #${orderId}.` });
+    } catch (e: any) {
+      toast({ title: "KOT print failed", description: e?.message || "Could not print the kitchen ticket.", variant: "destructive" });
     }
   };
 
@@ -1144,8 +1379,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selectedTable, setSelectedTable, selectedSteward, setSelectedSteward,
       tables, setTables, stewards, setStewards,
       heldOrderId, setHeldOrderId, heldOrders, refreshHeldOrders,
-      addToCartWithQty, updateCartLine, removeCartLine, handleCheckoutProcess, holdPOSBill, loadPOSBill, reloadData,
-      totals, theme, toggleTheme, searchQuery, setSearchQuery,
+      addToCartWithQty, updateCartLine, removeCartLine, voidRequest, setVoidRequest, approveVoid,
+      compRequest, setCompRequest, approveCompItems, removeComp, handleCheckoutProcess, holdPOSBill, printKOT, canCheckout, permsReady, loadPOSBill, reloadData,
+      totals, isMenuPricing, posLayout, layoutPref, setLayoutPref, cartWidth,
+      theme, toggleTheme, appTheme, setAppTheme, searchQuery, setSearchQuery,
       returnDialogOpen, setReturnDialogOpen, refundDialogOpen, setRefundDialogOpen, ledgerDialogOpen, setLedgerDialogOpen,
       pendingInvoicesDialogOpen, setPendingInvoicesDialogOpen,
       activeMobileTab, setActiveMobileTab,

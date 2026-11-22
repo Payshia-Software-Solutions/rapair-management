@@ -500,7 +500,7 @@ export default function SmsMarketingPage() {
 
       {/* AI Helper Modal */}
       <Dialog open={isAiModalOpen} onOpenChange={setIsAiModalOpen}>
-        <DialogContent className="rounded-3xl sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-primary" /> AI Campaign Assistant

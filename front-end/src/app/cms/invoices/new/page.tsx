@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { fetchOrders } from "@/lib/api";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { PageHeader, SectionCard, LoadingState, EmptyState } from "@/components/page-shell";
 
 export default function NewInvoiceSelectionPage() {
   const router = useRouter();
@@ -63,261 +64,122 @@ export default function NewInvoiceSelectionPage() {
   const priorityBadge = (p: string) => {
     if (p === "High" || p === "Urgent") return "bg-red-100 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/30";
     if (p === "Medium") return "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-500/30";
-    return "bg-slate-100 text-slate-600 border-slate-200 dark:bg-white/10 dark:text-white/70 dark:border-white/10";
+    return "bg-muted text-muted-foreground border-transparent";
   };
+
+  const row = (label: string, value: React.ReactNode) => (
+    <div className="flex justify-between gap-4 py-2 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-medium">{value}</span>
+    </div>
+  );
 
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6 w-full">
+      <div className="space-y-5 w-full">
+        <Button variant="ghost" size="sm" className="-ml-2 text-muted-foreground" onClick={() => router.push("/cms/invoices")}>
+          <ChevronRight className="w-4 h-4 mr-1 rotate-180" /> Invoices
+        </Button>
 
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <span>CMS</span>
-          <ChevronRight className="w-4 h-4" />
-          <span>Invoices</span>
-          <ChevronRight className="w-4 h-4" />
-          <span className="font-medium text-foreground">Select Order</span>
-        </div>
-
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <FileText className="w-5 h-5 text-amber-500" />
-              <span className="text-amber-600 text-sm font-semibold tracking-widest uppercase">Invoice Selection</span>
-            </div>
-            <h2 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight">Create Invoice</h2>
-            <p className="text-slate-500 dark:text-slate-400 mt-1 text-sm">Select a completed repair order to generate an invoice.</p>
-          </div>
-          <div className="flex gap-3">
-            <Button
-              variant="outline"
-              onClick={() => router.push('/cms/invoices/create/standalone')}
-              className="h-12 px-6 rounded-xl border-amber-200 dark:border-amber-400/30 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10 font-bold transition-all"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Direct Invoice
+        <PageHeader
+          title="New invoice"
+          description="Pick a finished repair order to bill, or make a direct invoice for walk-in sales."
+          actions={
+            <Button variant="outline" onClick={() => router.push("/cms/invoices/create/standalone")}>
+              <Plus className="w-4 h-4 mr-2" /> Direct invoice (no order)
             </Button>
-          </div>
-        </div>
+          }
+        />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4">
-
-          {/* ── Order List ── */}
-          <Card className="shadow-md border-0 bg-card flex flex-col h-[600px]">
-            <CardHeader className="pb-4">
-              <CardTitle>Completed Orders</CardTitle>
-              <CardDescription>Only orders marked as 'Completed' are eligible for invoicing.</CardDescription>
-              <div className="relative mt-2">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+          <SectionCard
+            className="lg:col-span-3"
+            title="Completed repair orders"
+            description="Only orders marked Completed can be invoiced."
+            bodyClassName="p-0"
+          >
+            <div className="p-3 border-b">
+              <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by ID, Customer, or Vehicle..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                />
+                <Input placeholder="Search order no., customer, vehicle no. or VIN" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9" autoFocus />
               </div>
-            </CardHeader>
-            <CardContent className="flex-1 p-0 overflow-hidden flex flex-col">
-              <ScrollArea className="flex-1 px-6 pb-6">
-                <div className="space-y-3">
-                  {loading ? (
-                    <div className="flex items-center justify-center py-12 text-muted-foreground">
-                      <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                      <span>Loading orders...</span>
-                    </div>
-                  ) : filteredOrders.length === 0 ? (
-                    <div className="text-center py-12 text-muted-foreground bg-muted/20 rounded-lg border border-dashed">
-                      <FileText className="w-8 h-8 opacity-20 mx-auto mb-3" />
-                      <p>No completed orders found.</p>
-                      <p className="text-xs mt-1 opacity-70">Complete an active job to invoice it.</p>
-                    </div>
-                  ) : (
-                    filteredOrders.map((order) => {
-                      const displayCustomerName = order.customer_real_name || order.customer_name || "—";
-                      const displayVehicleModel = order.vehicle_model_v || order.vehicle_model || "Unknown Vehicle";
-                      
-                      return (
-                        <div
-                          key={order.id}
-                          onClick={() => setSelectedOrderId(order.id)}
-                          className={`p-4 rounded-xl border cursor-pointer transition-all ${
-                            selectedOrderId === order.id
-                              ? "bg-primary/5 border-primary/40 ring-1 ring-primary/20"
-                              : "hover:bg-muted/40 hover:border-border"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 rounded-lg bg-muted shrink-0 mt-0.5">
-                                <Car className="w-4 h-4 text-muted-foreground" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="font-semibold text-foreground truncate">
-                                  {displayCustomerName}
-                                </div>
-                                <div className="text-sm text-muted-foreground mt-0.5 truncate">
-                                  {displayVehicleModel}
-                                  {order.vehicle_identifier && (
-                                    <span className="ml-2 font-mono text-xs opacity-70">
-                                      · {order.vehicle_identifier}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex flex-wrap items-center gap-2 mt-2">
-                                  <span className="text-xs text-muted-foreground font-mono">ORDER #{order.id}</span>
-                                  {order.priority && (
-                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${priorityBadge(order.priority)}`}>
-                                      {order.priority}
-                                    </span>
-                                  )}
-                                  {order.department_name && (
-                                    <span className="text-[10px] bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20 px-1.5 py-0.5 rounded border flex items-center gap-1">
-                                      <Building2 className="w-2.5 h-2.5" /> {order.department_name}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            {selectedOrderId === order.id && (
-                              <CheckCircle2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                            )}
+            </div>
+            <ScrollArea className="h-[520px]">
+              {loading ? (
+                <LoadingState label="Loading orders…" />
+              ) : filteredOrders.length === 0 ? (
+                <div className="p-4">
+                  <EmptyState title={orders.length ? "No orders match" : "No completed orders"} description={orders.length ? "Try another search." : "Finish a job first, or use Direct invoice."} />
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {filteredOrders.map((order) => {
+                    const active = selectedOrderId === order.id;
+                    return (
+                      <button
+                        type="button"
+                        key={order.id}
+                        onClick={() => setSelectedOrderId(order.id)}
+                        onDoubleClick={() => router.push(`/cms/invoices/create/${order.id}`)}
+                        className={`w-full text-left px-4 py-3 flex items-start gap-3 transition-colors ${active ? "bg-primary/10" : "hover:bg-muted/40"}`}
+                      >
+                        <div className="p-2 rounded-md bg-muted shrink-0"><Car className="w-4 h-4 text-muted-foreground" /></div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium truncate">{order.customer_real_name || order.customer_name || "—"}</span>
+                            <span className="text-xs text-muted-foreground shrink-0">Order #{order.id}</span>
                           </div>
+                          <div className="text-sm text-muted-foreground truncate">
+                            {order.vehicle_model_v || order.vehicle_model || "Vehicle"}
+                            {order.vehicle_identifier && <span className="font-mono"> · {order.vehicle_identifier}</span>}
+                          </div>
+                          {(order.priority || order.department_name) && (
+                            <div className="flex flex-wrap gap-1.5 mt-1.5">
+                              {order.priority && <span className={`text-xs px-1.5 py-0.5 rounded border ${priorityBadge(order.priority)}`}>{order.priority}</span>}
+                              {order.department_name && <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">{order.department_name}</span>}
+                            </div>
+                          )}
                         </div>
-                      );
-                    })
+                        {active && <CheckCircle2 className="w-5 h-5 text-primary shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </ScrollArea>
+          </SectionCard>
+
+          <div className="lg:col-span-2 lg:sticky lg:top-4">
+            <SectionCard title="Selected order">
+              {selectedOrder ? (
+                <div className="space-y-4">
+                  <div>
+                    <div className="text-lg font-semibold">{selectedOrder.customer_real_name || selectedOrder.customer_name || "—"}</div>
+                    {(selectedOrder.customer_real_phone || selectedOrder.customer_phone) && (
+                      <div className="text-sm text-muted-foreground flex items-center gap-1.5 mt-0.5"><Phone className="w-3.5 h-3.5" />{selectedOrder.customer_real_phone || selectedOrder.customer_phone}</div>
+                    )}
+                  </div>
+                  <div className="divide-y border-t">
+                    {row("Order", `#${selectedOrder.id}`)}
+                    {row("Vehicle", `${selectedOrder.vehicle_model_v || selectedOrder.vehicle_model || "—"}${selectedOrder.vehicle_make ? ` (${selectedOrder.vehicle_make})` : ""}`)}
+                    {row("Vehicle no.", <span className="font-mono">{selectedOrder.vehicle_identifier || "—"}</span>)}
+                    {selectedOrder.vehicle_vin && selectedOrder.vehicle_vin !== selectedOrder.vehicle_identifier && row("VIN", <span className="font-mono">{selectedOrder.vehicle_vin}</span>)}
+                    {!!selectedOrder.mileage && row("Mileage", `${Number(selectedOrder.mileage).toLocaleString()} km`)}
+                    {selectedOrder.department_name && row("Department", selectedOrder.department_name)}
+                    {selectedOrder.completed_at && row("Completed", new Date(selectedOrder.completed_at).toLocaleDateString())}
+                  </div>
+                  {selectedOrder.problem_description && (
+                    <p className="text-sm text-muted-foreground line-clamp-3"><span className="font-medium text-foreground">Job notes: </span>{selectedOrder.problem_description}</p>
                   )}
                 </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-
-          {/* ── Selection Summary ── */}
-          <div className="flex flex-col gap-6">
-            <Card className="shadow-md border-0 bg-primary text-white flex-1 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-                <FileText className="w-64 h-64" />
-              </div>
-              <CardHeader>
-                <CardTitle className="text-white text-2xl">Selection Summary</CardTitle>
-                <CardDescription className="text-white/70">
-                  Review the order details before proceeding to the invoice builder.
-                </CardDescription>
-              </CardHeader>
-
-              <CardContent className="space-y-4 relative z-10 pt-2">
-                {selectedOrder ? (
-                  <>
-                    {/* Customer block */}
-                    <div className="rounded-xl bg-white/10 border border-white/10 p-4">
-                      <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <User className="w-3 h-3" /> Customer
-                      </div>
-                      <div className="text-xl font-bold text-white leading-tight">
-                        {selectedOrder.customer_real_name || selectedOrder.customer_name || "—"}
-                      </div>
-                      {(selectedOrder.customer_real_phone || selectedOrder.customer_phone) && (
-                        <div className="flex items-center gap-1.5 text-white/70 text-sm mt-1.5">
-                          <Phone className="w-3.5 h-3.5" />
-                          {selectedOrder.customer_real_phone || selectedOrder.customer_phone}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Vehicle block */}
-                    <div className="rounded-xl bg-white/10 border border-white/10 p-4">
-                      <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Car className="w-3 h-3" /> Vehicle Information
-                      </div>
-                      <div className="text-lg font-semibold text-white leading-tight">
-                        {selectedOrder.vehicle_model_v || selectedOrder.vehicle_model || "Unknown Vehicle"}
-                        {selectedOrder.vehicle_make && <span className="text-white/60 font-normal ml-2 text-sm">{selectedOrder.vehicle_make}</span>}
-                      </div>
-                      <div className="flex flex-wrap gap-4 mt-2">
-                        <div className="flex items-center gap-1.5 text-white/70 text-sm">
-                          <Hash className="w-3.5 h-3.5" />
-                          <span className="font-mono">
-                            Vehicle Number: {selectedOrder.vehicle_identifier || "—"}
-                          </span>
-                        </div>
-                        {selectedOrder.vehicle_vin && selectedOrder.vehicle_vin !== selectedOrder.vehicle_identifier && (
-                          <div className="flex items-center gap-1.5 text-white/70 text-sm">
-                            <Fingerprint className="w-3.5 h-3.5" />
-                            <span className="font-mono">VIN: {selectedOrder.vehicle_vin}</span>
-                          </div>
-                        )}
-                        {!!selectedOrder.mileage && (
-                          <div className="flex items-center gap-1.5 text-white/70 text-sm">
-                            <Gauge className="w-3.5 h-3.5" />
-                            {Number(selectedOrder.mileage).toLocaleString()} km
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Department block */}
-                    <div className="rounded-xl bg-white/10 border border-white/10 p-4">
-                      <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                        <Building2 className="w-3 h-3" /> Department
-                      </div>
-                      <div className="text-lg font-semibold text-white leading-tight">
-                        {selectedOrder.department_name || "—"}
-                      </div>
-                    </div>
-
-                    {/* Order meta block */}
-                    <div className="rounded-xl bg-white/10 border border-white/10 p-4 space-y-2.5">
-                      <div className="flex justify-between items-center">
-                        <div className="text-white/60 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                          <Tag className="w-3 h-3" /> Order Info
-                        </div>
-                        <Badge className="bg-green-500/20 text-green-100 hover:bg-green-500/20 border-green-500/30">
-                          {selectedOrder.status}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white/60 text-xs">Order</span>
-                        <span className="text-white font-mono font-bold text-sm">#{selectedOrder.id}</span>
-                        {selectedOrder.priority && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ml-1 ${priorityBadge(selectedOrder.priority)}`}>
-                            {selectedOrder.priority}
-                          </span>
-                        )}
-                      </div>
-                      {selectedOrder.completed_at && (
-                        <div className="flex items-center gap-1.5 text-white/60 text-xs">
-                          <CalendarDays className="w-3.5 h-3.5" />
-                          Completed: {new Date(selectedOrder.completed_at).toLocaleDateString()}
-                        </div>
-                      )}
-                      {selectedOrder.problem_description && (
-                        <div className="text-sm text-white/60 leading-relaxed line-clamp-2 pt-2 border-t border-white/10">
-                          <span className="font-semibold text-white/80">Notes: </span>
-                          {selectedOrder.problem_description}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-48 text-center text-white/50 gap-3">
-                    <FileText className="w-10 h-10 opacity-30" />
-                    <p>Select an order from the list to preview its details.</p>
-                  </div>
-                )}
-              </CardContent>
-
-              <CardFooter className="relative z-10">
-                <Button
-                  onClick={handleProceed}
-                  disabled={!selectedOrderId}
-                  className="w-full h-14 text-lg font-bold bg-white text-primary hover:bg-white/90 shadow-xl transition-all disabled:opacity-50 disabled:shadow-none"
-                >
-                  Proceed to Invoicing
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Button>
-              </CardFooter>
-            </Card>
+              ) : (
+                <p className="text-sm text-muted-foreground py-6 text-center">Pick an order on the left. Double-click to go straight to the invoice.</p>
+              )}
+              <Button onClick={handleProceed} disabled={!selectedOrderId} className="w-full mt-4">
+                Continue to invoice <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </SectionCard>
           </div>
-
         </div>
       </div>
     </DashboardLayout>

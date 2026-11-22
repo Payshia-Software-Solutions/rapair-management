@@ -524,6 +524,24 @@ class ReportController extends Controller {
         $this->success($this->db->resultSet());
     }
 
+    /** [CODE, Name] for an invoice_taxes row; old rows may hold the name in either field. */
+    private function taxCodeOf($code, $name) {
+        static $byCode = null, $byName = null;
+        if ($byCode === null) {
+            $byCode = []; $byName = [];
+            try {
+                $db = new Database();
+                $db->query("SELECT code, name FROM taxes");
+                foreach ($db->resultSet() ?: [] as $t) { $byCode[strtoupper($t->code)] = $t->name; $byName[strtoupper(trim($t->name))] = strtoupper($t->code); }
+            } catch (Exception $e) {}
+            $byCode['SC'] = 'Service Charge';
+        }
+        $c = strtoupper(trim((string)$code)); $n = trim((string)$name);
+        if ($c !== '' && isset($byCode[$c])) return [$c, $byCode[$c]];
+        foreach ([$n, $c] as $try) { $u = strtoupper(trim($try)); if ($u !== '' && isset($byName[$u])) return [$byName[$u], $byCode[$byName[$u]] ?? $n]; }
+        return [$c !== '' ? $c : strtoupper($n), $n !== '' ? $n : $c];
+    }
+
     // GET /api/report/invoice_report?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD&status=
     public function invoice_report() {
         $u = $this->requirePermission('reports.read');
@@ -949,22 +967,247 @@ class ReportController extends Controller {
         $from = $_GET['from'] ?? date('Y-m-01');
         $to = $_GET['to'] ?? date('Y-m-d');
 
+        // invoice_taxes stores `amount` per invoice; taxable = invoice base (subtotal - discount).
         $this->db->query("
-            SELECT 
+            SELECT
                 it.tax_name,
-                SUM(it.tax_amount) as total_tax,
-                SUM(it.taxable_amount) as total_taxable
+                it.tax_code,
+                it.rate_percent,
+                SUM(it.amount) as total_tax,
+                -- taxable = amount / rate: right for every tax (VAT is charged on base + SC + earlier
+                -- taxes; using subtotal minus discount understated it)
+                SUM(CASE WHEN it.rate_percent > 0 THEN it.amount * 100 / it.rate_percent ELSE (i.subtotal - i.discount_total) END) as total_taxable,
+                COUNT(DISTINCT i.id) as invoice_count
             FROM invoice_taxes it
             JOIN invoices i ON it.invoice_id = i.id
             WHERE i.status NOT IN ('Cancelled', 'CANCELLED')
             AND i.location_id IN ($inLoc)
             AND i.issue_date BETWEEN :from AND :to
-            GROUP BY it.tax_name
+            GROUP BY it.tax_name, it.tax_code, it.rate_percent
+            ORDER BY it.tax_name
         ");
         $this->bindInList('loc', $locIds);
         $this->db->bind(':from', $from);
         $this->db->bind(':to', $to);
-        $this->success($this->db->resultSet());
+        // Older rows stored the tax name instead of the code: merge them under one code
+        $merged = [];
+        foreach ($this->db->resultSet() ?: [] as $r) {
+            [$code, $name] = $this->taxCodeOf($r->tax_code, $r->tax_name);
+            $k = $code . '|' . (float)$r->rate_percent;
+            if (!isset($merged[$k])) $merged[$k] = (object)['tax_code' => $code, 'tax_name' => $name, 'rate_percent' => $r->rate_percent, 'total_tax' => 0, 'total_taxable' => 0, 'invoice_count' => 0];
+            $merged[$k]->total_tax = round($merged[$k]->total_tax + (float)$r->total_tax, 2);
+            $merged[$k]->total_taxable = round($merged[$k]->total_taxable + (float)$r->total_taxable, 2);
+            $merged[$k]->invoice_count += (int)$r->invoice_count;
+        }
+        $out = array_values($merged);
+        usort($out, function ($a, $b) { return [($b->tax_code === 'SC'), $a->tax_name] <=> [($a->tax_code === 'SC'), $b->tax_name]; });
+        $this->success($out);
+    }
+
+    // GET /api/report/tax_invoice_register?location_id=all|1&from=&to=&mode=all|menu|standard&vat_only=1&status=active|cancelled|all
+    // One row per invoice: net (base), service charge, each tax, total; plus a per-tax summary
+    // (taxable = amount / rate) and a list of menu-price invoices that booked no taxes.
+    public function tax_invoice_register() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $mode = (string)($_GET['mode'] ?? 'all');
+        $status = (string)($_GET['status'] ?? 'active');
+        $vatOnly = !empty($_GET['vat_only']);
+
+        $where = ["i.location_id IN ($inLoc)", "i.issue_date BETWEEN :from AND :to"];
+        if ($status === 'cancelled') $where[] = "i.status IN ('Cancelled','CANCELLED')";
+        elseif ($status !== 'all') $where[] = "i.status NOT IN ('Cancelled','CANCELLED')";
+        if ($mode === 'menu') $where[] = "i.price_display_mode = 'menu'";
+        elseif ($mode === 'standard') $where[] = "COALESCE(i.price_display_mode, 'standard') <> 'menu'";
+        if ($vatOnly) $where[] = "(COALESCE(TRIM(i.purchaser_tin), '') <> '' OR COALESCE(TRIM(c.tax_number), '') <> '')";
+
+        $this->db->query("
+            SELECT i.id, i.invoice_no, i.issue_date, i.created_at, i.status, i.location_id,
+                   sl.name AS location_name, i.customer_id,
+                   c.name AS customer_name, NULLIF(TRIM(COALESCE(NULLIF(TRIM(i.purchaser_tin), ''), c.tax_number)), '') AS customer_tax_no, i.tax_invoice_no,
+                   i.subtotal, i.discount_total, i.tax_total, i.grand_total,
+                   COALESCE(i.price_display_mode, 'standard') AS price_display_mode
+            FROM invoices i
+            LEFT JOIN customers c ON c.id = i.customer_id
+            LEFT JOIN service_locations sl ON sl.id = i.location_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY i.issue_date ASC, i.id ASC
+            LIMIT 5000
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $invoices = $this->db->resultSet() ?: [];
+
+        $byInv = [];
+        if ($invoices) {
+            $ids = implode(',', array_map(function ($r) { return (int)$r->id; }, $invoices));
+            $this->db->query("SELECT invoice_id, tax_code, tax_name, rate_percent, amount FROM invoice_taxes WHERE invoice_id IN ($ids) ORDER BY id ASC");
+            foreach ($this->db->resultSet() ?: [] as $t) $byInv[(int)$t->invoice_id][] = $t;
+        }
+
+        $cols = [];      // tax code => [name, rate] in first-seen order (SC kept apart)
+        $summary = [];   // code => taxable, amount, invoices
+        $rows = []; $missing = [];
+        $tot = ['net' => 0, 'sc' => 0, 'tax' => 0, 'total' => 0, 'taxes' => []];
+        foreach ($invoices as $inv) {
+            $net = round((float)$inv->subtotal - (float)$inv->discount_total, 2);
+            $sc = 0; $taxes = []; $realTaxes = 0;
+            foreach ($byInv[(int)$inv->id] ?? [] as $t) {
+                [$code, $tname] = $this->taxCodeOf($t->tax_code, $t->tax_name);
+                $amt = (float)$t->amount;
+                $rate = (float)$t->rate_percent;
+                $taxable = $rate > 0 ? $amt * 100 / $rate : $net;
+                if (!isset($summary[$code])) $summary[$code] = ['code' => $code, 'name' => $tname, 'rate' => $rate, 'taxable' => 0, 'amount' => 0, 'invoices' => 0];
+                $summary[$code]['taxable'] += $taxable; $summary[$code]['amount'] += $amt; $summary[$code]['invoices']++;
+                if ($code === 'SC') { $sc += $amt; continue; }
+                if (!isset($cols[$code])) $cols[$code] = ['code' => $code, 'name' => $tname, 'rate' => $rate];
+                $taxes[$code] = ($taxes[$code] ?? 0) + $amt;
+                $realTaxes++;
+            }
+            $taxSum = array_sum($taxes);
+            if ($inv->price_display_mode === 'menu' && $realTaxes === 0 && !in_array($inv->status, ['Cancelled', 'CANCELLED'], true)) {
+                $missing[] = ['id' => (int)$inv->id, 'invoice_no' => $inv->invoice_no, 'tax_invoice_no' => $inv->tax_invoice_no, 'issue_date' => $inv->issue_date, 'grand_total' => (float)$inv->grand_total];
+            }
+            $rows[] = [
+                'id' => (int)$inv->id, 'invoice_no' => $inv->invoice_no, 'issue_date' => $inv->issue_date,
+                'status' => $inv->status, 'location_name' => $inv->location_name,
+                'customer_name' => $inv->customer_name, 'customer_tax_no' => $inv->customer_tax_no,
+                'mode' => $inv->price_display_mode === 'menu' ? 'menu' : 'standard',
+                'net' => $net, 'sc' => round($sc, 2), 'taxes' => array_map(function ($v) { return round($v, 2); }, $taxes),
+                'tax_total' => round($taxSum, 2), 'total' => round((float)$inv->grand_total, 2),
+            ];
+            $tot['net'] += $net; $tot['sc'] += $sc; $tot['tax'] += $taxSum; $tot['total'] += (float)$inv->grand_total;
+            foreach ($taxes as $k => $v) $tot['taxes'][$k] = ($tot['taxes'][$k] ?? 0) + $v;
+        }
+        foreach ($summary as &$s) { $s['taxable'] = round($s['taxable'], 2); $s['amount'] = round($s['amount'], 2); } unset($s);
+        foreach (['net', 'sc', 'tax', 'total'] as $k) $tot[$k] = round($tot[$k], 2);
+        foreach ($tot['taxes'] as $k => $v) $tot['taxes'][$k] = round($v, 2);
+        // SC first, then taxes in the order they appear
+        $sum = array_values($summary);
+        usort($sum, function ($a, $b) { return ($b['code'] === 'SC') <=> ($a['code'] === 'SC'); });
+
+        $this->success([
+            'tax_columns' => array_values($cols),
+            'rows' => $rows,
+            'totals' => $tot,
+            'summary' => $sum,
+            'missing_tax' => $missing,
+            'truncated' => count($invoices) >= 5000,
+        ]);
+    }
+
+    // GET /api/report/menu_tax_breakdown?location_id=all|1&from=YYYY-MM-DD&to=YYYY-MM-DD
+    // Item-wise internal breakdown for menu-pricing (tax-inclusive) sales:
+    // what the customer paid vs base price, service charge and each tax.
+    // Invoice-level taxes are allocated to lines by their share of the invoice base.
+    public function menu_tax_breakdown() {
+        $u = $this->requirePermission('reports.read');
+        $locIds = $this->resolveLocationIds($u, $_GET['location_id'] ?? null);
+        $inLoc = $this->inList('loc', $locIds);
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        $byInvoice = ($_GET['group_by'] ?? 'item') === 'invoice';
+
+        $this->db->query("
+            SELECT i.id, i.invoice_no, i.issue_date, i.subtotal, i.discount_total, i.grand_total,
+                   COALESCE(c.name, 'Walk-in') AS customer_name,
+                   COALESCE(i.display_service_charge, 0) AS display_service_charge
+            FROM invoices i
+            LEFT JOIN customers c ON c.id = i.customer_id
+            WHERE i.price_display_mode = 'menu'
+            AND i.status NOT IN ('Cancelled', 'CANCELLED')
+            AND i.location_id IN ($inLoc)
+            AND i.issue_date BETWEEN :from AND :to
+        ");
+        $this->bindInList('loc', $locIds);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        $invoices = $this->db->resultSet();
+
+        $taxCodes = [];   // ordered list of tax codes seen (excluding SC)
+        $items = [];      // key => aggregated row
+        $totals = ['qty' => 0, 'display_net' => 0, 'display_sc' => 0, 'display_total' => 0, 'base' => 0, 'sc' => 0, 'taxes' => [], 'net' => 0];
+
+        foreach ($invoices as $inv) {
+            $this->db->query("SELECT tax_code, tax_name, rate_percent, amount FROM invoice_taxes WHERE invoice_id = :id ORDER BY id ASC");
+            $this->db->bind(':id', $inv->id);
+            $taxes = $this->db->resultSet();
+
+            $this->db->query("SELECT item_id, description, quantity, line_total, COALESCE(display_line_total, line_total) AS display_line_total FROM invoice_items WHERE invoice_id = :id");
+            $this->db->bind(':id', $inv->id);
+            $lines = $this->db->resultSet();
+
+            $base = max(0.0, (float)$inv->subtotal - (float)$inv->discount_total);
+            $lineSum = 0.0;
+            $displaySum = 0.0;
+            foreach ($lines as $ln) { $lineSum += (float)$ln->line_total; $displaySum += (float)$ln->display_line_total; }
+            if ($lineSum <= 0) continue;
+
+            foreach ($lines as $ln) {
+                $share = (float)$ln->line_total / $lineSum;
+                $displayShare = $displaySum > 0 ? (float)$ln->display_line_total / $displaySum : $share;
+                $key = $byInvoice ? 'inv' . $inv->id : (($ln->item_id ?: 0) . '|' . $ln->description);
+                if (!isset($items[$key])) {
+                    $items[$key] = $byInvoice
+                        ? ['invoice_id' => (int)$inv->id, 'item_id' => null, 'description' => $inv->invoice_no, 'issue_date' => $inv->issue_date, 'customer_name' => $inv->customer_name, 'qty' => 0, 'display_net' => 0, 'display_sc' => 0, 'display_total' => 0, 'base' => 0, 'sc' => 0, 'taxes' => [], 'net' => 0]
+                        : ['item_id' => $ln->item_id, 'description' => $ln->description, 'qty' => 0, 'display_net' => 0, 'display_sc' => 0, 'display_total' => 0, 'base' => 0, 'sc' => 0, 'taxes' => [], 'net' => 0];
+                }
+                $row = &$items[$key];
+                $lineBase = $base * $share;
+                $dispSc = (float)$inv->display_service_charge * $displayShare;
+                $row['qty'] += (float)$ln->quantity;
+                $row['base'] += $lineBase;
+                $row['display_sc'] += $dispSc;
+                $lineNet = $lineBase;
+                foreach ($taxes as $t) {
+                    $amt = (float)$t->amount * $share;
+                    $lineNet += $amt;
+                    if (strtoupper((string)$t->tax_code) === 'SC') {
+                        $row['sc'] += $amt;
+                        continue;
+                    }
+                    $code = (string)($t->tax_code ?: $t->tax_name);
+                    if (!in_array($code, $taxCodes, true)) $taxCodes[] = $code;
+                    $row['taxes'][$code] = ($row['taxes'][$code] ?? 0) + $amt;
+                }
+                $row['net'] += $lineNet;
+                $row['display_total'] += $lineNet; // customer paid == booked net
+                $row['display_net'] += $lineNet - $dispSc;
+                unset($row);
+            }
+        }
+
+        $out = [];
+        foreach ($items as $row) {
+            foreach (['qty', 'display_net', 'display_sc', 'display_total', 'base', 'sc', 'net'] as $k) {
+                $totals[$k] += $row[$k];
+                $row[$k] = round($row[$k], 2);
+            }
+            $row['subtotal'] = round($row['base'] + $row['sc'], 2);
+            foreach ($taxCodes as $code) {
+                $v = $row['taxes'][$code] ?? 0;
+                $totals['taxes'][$code] = ($totals['taxes'][$code] ?? 0) + $v;
+                $row['taxes'][$code] = round($v, 2);
+            }
+            $out[] = $row;
+        }
+        if ($byInvoice) usort($out, function ($a, $b) { return [$a['issue_date'], $a['invoice_id']] <=> [$b['issue_date'], $b['invoice_id']]; });
+        else usort($out, function ($a, $b) { return $b['display_total'] <=> $a['display_total']; });
+
+        foreach (['qty', 'display_net', 'display_sc', 'display_total', 'base', 'sc', 'net'] as $k) $totals[$k] = round($totals[$k], 2);
+        $totals['subtotal'] = round($totals['base'] + $totals['sc'], 2);
+        foreach ($totals['taxes'] as $c => $v) $totals['taxes'][$c] = round($v, 2);
+
+        $this->success([
+            'tax_codes' => $taxCodes,
+            'invoice_count' => count($invoices),
+            'rows' => $out,
+            'totals' => $totals,
+        ]);
     }
 
     // GET /api/report/database_audit

@@ -9,13 +9,15 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { fetchSystemSettings, updateSystemSettings, testSms, fetchApiClients, createApiClient, deleteApiClient, regenerateApiClientKey, toggleApiClientStatus, ApiClientRow, fetchLocations, ServiceLocation, syncMorningMileage, checkDatabaseTables, runDatabaseMigrations, TableCheckRow, fetchMigrationLogs, MigrationLog } from "@/lib/api";
-import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin, Filter } from "lucide-react";
+import { Settings, Mail, MessageSquare, Save, Loader2, Link2, ShieldCheck, UserCheck, Smartphone, Globe, Copy, RotateCw, CheckCircle2, AlertCircle, Plus, Trash2, ExternalLink, Eye, EyeOff, CreditCard, Factory, Building2, Banknote, ShoppingCart, Code2, Terminal, Truck, MapPin, Filter, Bot } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { WebsiteRefreshDialog } from "@/components/website-refresh-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { AiModelSettings } from "@/components/admin/ai-model-settings";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +31,12 @@ import {
 } from "@/components/ui/alert-dialog";
 
 export default function SystemSettingsPage() {
+  // ?tab=ai (etc.) opens that tab directly, e.g. from E-commerce > Settings > AI.
+  const [tab, setTab] = useState("mail");
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t) setTab(t);
+  }, []);
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -37,6 +45,7 @@ export default function SystemSettingsPage() {
   const [copied, setCopied] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const [apiClients, setApiClients] = useState<ApiClientRow[]>([]);
+  const [refreshClient, setRefreshClient] = useState<ApiClientRow | null>(null);
   const [locations, setLocations] = useState<ServiceLocation[]>([]);
   const [showKeyId, setShowKeyId] = useState<number | null>(null);
   const [newClient, setNewClient] = useState<{ client_name: string; domain: string; location_id: number | null }>({ client_name: "", domain: "", location_id: null });
@@ -158,7 +167,9 @@ export default function SystemSettingsPage() {
   const save = async () => {
     setSaving(true);
     try {
-      await updateSystemSettings(settings);
+      // AI settings save from their own tab; leave them out so a stale copy can't overwrite them.
+      const rest = Object.fromEntries(Object.entries(settings).filter(([k]) => !k.startsWith("ai_")));
+      await updateSystemSettings(rest);
       toast({ title: "Success", description: "System settings updated successfully." });
     } catch (err) {
       toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
@@ -269,8 +280,8 @@ export default function SystemSettingsPage() {
         <p className="text-muted-foreground mt-1">Configure global communication gateways and server infrastructure</p>
       </div>
 
-      <Tabs defaultValue="mail" className="space-y-6">
-        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 w-full bg-muted/50 p-1 rounded-xl h-auto md:h-14 gap-1">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-8 w-full bg-muted/50 p-1 rounded-xl h-auto md:h-14 gap-1">
           <TabsTrigger value="mail" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
             <Mail className="w-4 h-4" /> Email
           </TabsTrigger>
@@ -292,7 +303,14 @@ export default function SystemSettingsPage() {
           <TabsTrigger value="pos" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
             <ShoppingCart className="w-4 h-4" /> POS
           </TabsTrigger>
+          <TabsTrigger value="ai" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all flex items-center gap-2">
+            <Bot className="w-4 h-4" /> AI
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="ai">
+          <AiModelSettings />
+        </TabsContent>
 
         <TabsContent value="pos">
           <Card className="border-none shadow-lg overflow-hidden">
@@ -644,6 +662,10 @@ export default function SystemSettingsPage() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary"
+                                title="Website refresh" aria-label={`Website refresh for ${client.client_name}`} onClick={() => setRefreshClient(client)}>
+                                <Link2 className={`w-4 h-4 ${client.revalidate_url ? "text-green-600" : ""}`} />
+                              </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-primary">
@@ -1328,6 +1350,16 @@ export default function SystemSettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {refreshClient && (
+        <WebsiteRefreshDialog
+          key={`${refreshClient.id}-${apiClients.find(c => c.id === refreshClient.id)?.revalidate_url ?? ''}`}
+          client={apiClients.find(c => c.id === refreshClient.id) ?? refreshClient}
+          open
+          onOpenChange={(o) => { if (!o) setRefreshClient(null); }}
+          onSaved={loadApiClients}
+        />
+      )}
     </DashboardLayout>
   );
 }

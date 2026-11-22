@@ -1,0 +1,6 @@
+# Uploaded files are data only: never execute anything stored here (applies to every subfolder).
+<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh|asp|aspx|jsp)$">
+    Require all denied
+</FilesMatch>
+Options -ExecCGI -Indexes
+RemoveHandler .php .phtml .phar

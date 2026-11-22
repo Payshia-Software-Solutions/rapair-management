@@ -12,6 +12,10 @@ import { OrderTypeSelector } from "./components/OrderTypeSelector";
 import { PromotionPromptDialog } from "./components/Dialogs/PromotionPromptDialog";
 import { VirtualKeyboard } from "./components/VirtualKeyboard";
 import { MobilePosNav } from "./components/MobilePosNav";
+import { PosStatusBar } from "./components/PosStatusBar";
+import { PosLockScreen } from "./components/PosLockScreen";
+import { VoidApprovalDialog } from "./components/Dialogs/VoidApprovalDialog";
+import { CompApprovalDialog } from "./components/Dialogs/CompApprovalDialog";
 import { PrintSelectionDialog } from "./components/Dialogs/PrintSelectionDialog";
 import { PrintGuestSelectionDialog } from "./components/Dialogs/PrintGuestSelectionDialog";
 import { Loader2 } from "lucide-react";
@@ -51,13 +55,18 @@ function POSContent() {
     vKeyboardEnabled,
     activeMobileTab,
     setActiveMobileTab,
-    cart
+    cart,
+    posLayout,
+    cartWidth,
+    permsReady,
+    totals
   } = usePOS();
 
   const cartItemCount = cart.reduce((acc, it) => acc + Number(it.quantity), 0);
 
   // 1. Full-screen Loading State
-  if (loading) {
+  // Wait for permissions too, so stewards never see cashier tools flash on screen
+  if (loading || !permsReady) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
@@ -71,13 +80,13 @@ function POSContent() {
   }
 
   return (
-    <div className={`flex flex-col lg:flex-row h-screen overflow-hidden gap-0 w-full bg-slate-100 dark:bg-background transition-all duration-300 ${vKeyboardActiveInput && vKeyboardEnabled ? 'pb-[400px] sm:pb-[350px]' : ''}`}>
+    <div className={`flex flex-col h-[100dvh] overflow-hidden gap-0 w-full bg-slate-100 dark:bg-background transition-all duration-300 ${vKeyboardActiveInput && vKeyboardEnabled ? 'pb-[400px] sm:pb-[350px]' : ''}`}>
       
       {/* Location Enforcement Modal (If no location is set) */}
       <Dialog open={!selectedLocation} onOpenChange={() => {}}>
-        <DialogContent className="sm:max-w-md [&>button]:hidden rounded-3xl p-8 border-none shadow-2xl">
+        <DialogContent size="sm" className="[&>button]:hidden rounded-lg p-8">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black uppercase tracking-tight">Set Assigned Location</DialogTitle>
+            <DialogTitle>Set Assigned Location</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <p className="text-sm text-muted-foreground font-medium">Please select your service location to synchronize inventory and sales tracking.</p>
@@ -87,10 +96,10 @@ function POSContent() {
                 setSelectedLocation(val);
               }}
             >
-              <SelectTrigger className="h-14 text-lg font-bold rounded-xl border-2 focus:ring-primary">
+              <SelectTrigger className="h-14 text-lg font-bold rounded-md border-2 focus:ring-primary">
                 <SelectValue placeholder="Identify Terminal Location..." />
               </SelectTrigger>
-              <SelectContent className="rounded-xl shadow-xl border-none">
+              <SelectContent className="rounded-md shadow-xl border-none">
                 {locations
                   .filter(loc => Boolean(loc.is_pos_active))
                   .map(loc => (
@@ -104,26 +113,33 @@ function POSContent() {
         </DialogContent>
       </Dialog>
 
-      {/* Mobile Tabbed View */}
-      <div className="flex lg:hidden flex-1 flex-col overflow-hidden">
+      {/* Mobile Tabbed View (phones) */}
+      {posLayout === 'mobile' && (
+      <div className="flex flex-1 flex-col overflow-hidden">
         <Tabs 
           value={activeMobileTab} 
           onValueChange={(val: any) => setActiveMobileTab(val)} 
           className="flex-1 flex flex-col overflow-hidden"
         >
-          <div className="bg-white dark:bg-slate-950 border-b border-border p-2">
-            <TabsList className="grid w-full grid-cols-2 h-12 rounded-xl bg-slate-100 dark:bg-slate-900">
-              <TabsTrigger value="shelf" className="rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
-                <LayoutGrid className="w-4 h-4" />
+          {/* Menu / Order switch: labelled, 48px touch targets, order shows count + total */}
+          <div className="bg-background border-b border-border px-3 py-2 shrink-0">
+            <TabsList className="grid w-full grid-cols-2 h-12 p-1 rounded-md bg-muted">
+              <TabsTrigger value="shelf" className="h-10 rounded-sm text-sm font-medium gap-2 data-[state=active]:shadow-sm">
+                <LayoutGrid className="w-4 h-4" aria-hidden="true" />
                 Menu
               </TabsTrigger>
-              <TabsTrigger value="bill" className="rounded-lg font-black text-[10px] uppercase tracking-widest gap-2">
-                <CartIcon className="w-4 h-4" />
+              <TabsTrigger value="bill" className="h-10 rounded-sm text-sm font-medium gap-2 data-[state=active]:shadow-sm">
+                <CartIcon className="w-4 h-4" aria-hidden="true" />
                 Order
                 {cartItemCount > 0 && (
-                  <span className="ml-1 px-1.5 py-0.5 bg-primary text-white text-[8px] rounded-full">
-                    {cartItemCount}
-                  </span>
+                  <>
+                    <span className="min-w-5 h-5 px-1.5 rounded-full bg-primary text-primary-foreground text-xs font-semibold inline-flex items-center justify-center tabular-nums">
+                      {cartItemCount}
+                    </span>
+                    <span className="text-muted-foreground tabular-nums hidden sm:inline">
+                      LKR {totals.grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </>
                 )}
               </TabsTrigger>
             </TabsList>
@@ -137,18 +153,26 @@ function POSContent() {
           </TabsContent>
         </Tabs>
       </div>
+      )}
 
-      {/* Desktop Side-by-Side View */}
-      <div className="hidden lg:flex flex-1 overflow-hidden">
-        <div className="flex-1 h-full overflow-hidden">
+      {/* Side-by-Side View: compact for small/square POS screens, full for wide screens */}
+      {posLayout !== 'mobile' && (
+      <div className="flex flex-1 overflow-hidden min-w-0">
+        <div className="flex-1 h-full overflow-hidden min-w-0">
           <InventoryGrid />
         </div>
-        <div className="w-[450px] h-full overflow-hidden border-l border-border">
+        <div className="h-full overflow-hidden border-l border-border shrink-0" style={{ width: cartWidth }}>
           <SidebarCart />
         </div>
       </div>
+      )}
 
-      <MobilePosNav />
+      {posLayout !== 'mobile' && <PosStatusBar />}
+      <VoidApprovalDialog />
+      <CompApprovalDialog />
+      <PosLockScreen />
+
+      {posLayout === 'mobile' && <MobilePosNav />}
       
       {/* Functional Dialogs & Modals */}
       <ProductSelectionDialog />

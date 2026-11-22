@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Search, CheckCircle2, XCircle, AlertCircle, Clock, Loader2, Building2, Layers } from "lucide-react";
+import { PageHeader, LoadingState, EmptyState } from "@/components/page-shell";
 import { DataTablePagination } from "@/components/data-table-pagination";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -107,32 +108,29 @@ export default function ChequesPage() {
 
   return (
     <DashboardLayout>
-      <div className="p-4 sm:p-6 space-y-4 w-full relative min-h-[calc(100vh-4rem)]">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black tracking-tight">Cheque Inventory</h1>
-            <p className="text-muted-foreground text-sm mt-1">Track and manage all received cheques</p>
-          </div>
-          <div className="flex gap-2">
-            <Badge variant="outline" className="px-4 py-1.5 font-bold text-amber-700 border-amber-300 bg-amber-50 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10">
-              Pending: LKR {pendingTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+      <div className="space-y-5 w-full relative min-h-[calc(100vh-4rem)]">
+        <PageHeader
+          title="Cheques received"
+          description="Cheques from customers. Tick them and mark Deposited, Cleared or Bounced as the bank processes them."
+          actions={
+            <Badge variant="outline" className="px-3 py-1.5 border-transparent bg-amber-500/15 text-amber-700 dark:text-amber-300 tabular-nums">
+              Not yet cleared: LKR {pendingTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </Badge>
-          </div>
-        </div>
+          }
+        />
 
         {/* Status Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {Object.entries(STATUS_CONFIG).map(([status, cfg]) => {
             const count = cheques.filter(c => (c.status || "Pending") === status).length;
             const total = cheques.filter(c => (c.status || "Pending") === status).reduce((s, c) => s + Number(c.amount || 0), 0);
             return (
-              <Card key={status} className={`cursor-pointer border-2 transition-all ${statusFilter === status ? 'border-primary' : 'border-transparent'}`} onClick={() => setStatusFilter(statusFilter === status ? '' : status)}>
+              <Card key={status} role="button" title={`Show ${cfg.label.toLowerCase()} only`} className={`cursor-pointer transition-all hover:bg-muted/40 ${statusFilter === status ? 'ring-2 ring-primary' : ''}`} onClick={() => setStatusFilter(statusFilter === status ? '' : status)}>
                 <CardContent className="pt-4 pb-4">
                   <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-bold mb-2 ${cfg.color}`}>
                     {cfg.icon} {cfg.label}
                   </div>
-                  <div className="text-2xl font-black">{count}</div>
+                  <div className="text-2xl font-bold tabular-nums">{count}</div>
                   <div className="text-xs text-muted-foreground mt-1 tabular-nums">LKR {total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                 </CardContent>
               </Card>
@@ -147,7 +145,7 @@ export default function ChequesPage() {
             <Input className="pl-9" placeholder="Search by cheque no, bank, customer..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
           {statusFilter && (
-            <Button variant="outline" onClick={() => setStatusFilter("")}>Clear Filter</Button>
+            <Button variant="outline" onClick={() => setStatusFilter("")}>Show all</Button>
           )}
         </div>
 
@@ -155,32 +153,27 @@ export default function ChequesPage() {
         <Card className="z-0">
           <CardContent className="p-0 overflow-auto">
             {loading ? (
-              <div className="flex items-center justify-center h-48">
-                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-              </div>
+              <LoadingState label="Loading cheques…" />
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-2">
-                <CheckCircle2 className="w-10 h-10 opacity-30" />
-                <p className="text-sm">No cheques found</p>
-              </div>
+              <div className="p-4"><EmptyState title="No cheques" description={statusFilter || search ? "Nothing matches. Clear the filter or search." : "Cheque payments you record appear here."} /></div>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/40">
+                  <tr className="border-b border-border bg-muted/50">
                     <th className="px-4 py-3 w-10">
                       <Checkbox 
                         checked={selectedIds.length === filtered.length && filtered.length > 0} 
                         onCheckedChange={toggleAll}
                       />
                     </th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Receipt No.</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Cheque (Last 6)</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Bank / Branch</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Customer</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Cheque Date</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Amount (LKR)</th>
-                    <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Status</th>
-                    <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Action</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Receipt No.</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cheque (Last 6)</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Bank / Branch</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Customer</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Cheque Date</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Amount (LKR)</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground">Status</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -189,15 +182,15 @@ export default function ChequesPage() {
                     const cfg = STATUS_CONFIG[currentStatus] || STATUS_CONFIG['Pending'];
                     const isSelected = selectedIds.includes(c.id);
                     return (
-                      <tr key={c.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${isSelected ? 'bg-primary/5' : (idx % 2 === 0 ? '' : 'bg-muted/10')}`}>
+                      <tr key={c.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${isSelected ? 'bg-primary/5' : ''}`}>
                         <td className="px-4 py-3">
                           <Checkbox 
                             checked={isSelected} 
                             onCheckedChange={() => toggleSelect(c.id)}
                           />
                         </td>
-                        <td className="px-4 py-3 font-mono text-xs text-primary">{c.receipt_no}</td>
-                        <td className="px-4 py-3 font-mono font-bold text-lg tracking-widest">{c.cheque_no_last6}</td>
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{c.receipt_no}</td>
+                        <td className="px-4 py-3 font-mono font-medium">{c.cheque_no_last6}</td>
                         <td className="px-4 py-3">
                           <div className="font-medium">{c.bank_name}</div>
                           <div className="text-xs text-muted-foreground">{c.branch_name}</div>
@@ -242,9 +235,9 @@ export default function ChequesPage() {
         {/* Multi-Selection Bulk Action Bar */}
         {selectedIds.length > 0 && (
           <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 duration-300">
-            <Card className="bg-slate-900 text-white shadow-2xl border-none p-4 flex items-center gap-6 min-w-[400px]">
+            <Card className="bg-slate-900 text-white shadow-sm border-none p-4 flex items-center gap-6 min-w-[400px]">
               <div className="flex items-center gap-3 bg-white/10 px-4 py-2 rounded-xl">
-                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center font-black text-white">
+                 <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center font-semibold text-white">
                    {selectedIds.length}
                  </div>
                  <span className="font-bold tracking-tight">Cheques Selected</span>
@@ -285,13 +278,13 @@ export default function ChequesPage() {
                     <Layers className="w-6 h-6" />
                  </div>
                  <div>
-                    <p className="font-black text-slate-900">Multi-Update Mode</p>
+                    <p className="font-semibold text-slate-900">Multi-Update Mode</p>
                     <p className="text-xs text-muted-foreground font-medium">Applying changes to {selectedIds.length} records</p>
                  </div>
               </div>
             ) : selected && (
               <div className="p-3 bg-muted/30 rounded-lg text-sm space-y-1">
-                <div className="font-bold font-mono text-lg tracking-widest">#{selected.cheque_no_last6}</div>
+                <div className="font-bold font-mono text-lg">#{selected.cheque_no_last6}</div>
                 <div className="text-muted-foreground">{selected.bank_name} — {selected.branch_name}</div>
                 <div className="font-bold">LKR {Number(selected.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
               </div>
@@ -318,7 +311,7 @@ export default function ChequesPage() {
             )}
             
             {selectedIds.length > 0 && (
-              <p className="text-[10px] text-muted-foreground italic px-1">
+              <p className="text-xs text-muted-foreground italic px-1">
                 * Note: The selected status and date will be applied to all {selectedIds.length} cheques.
               </p>
             )}

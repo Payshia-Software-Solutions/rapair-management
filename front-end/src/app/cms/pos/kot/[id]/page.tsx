@@ -11,6 +11,8 @@ function KOTContent() {
   const searchParams = useSearchParams();
   const autoPrint = searchParams.get('autoprint') === '1';
   const isFullKOT = searchParams.get('full') === '1';
+  // Split KOT (print stations): this window prints one station's part; the POS marks the KOT sent after all parts
+  const station = searchParams.get('station');
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -19,7 +21,7 @@ function KOTContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const data = await fetchKOTDetails(id, isFullKOT);
+        const data = await fetchKOTDetails(id, isFullKOT, station);
         setOrder(data);
       } catch (error) {
         console.error("Failed to load KOT data", error);
@@ -28,14 +30,15 @@ function KOTContent() {
       }
     };
     if (id) loadData();
-  }, [id, isFullKOT]);
+  }, [id, isFullKOT, station]);
 
   useEffect(() => {
-    if (autoPrint && !loading && order && (order.items?.length > 0) && !printedRef.current) {
+    if (autoPrint && !loading && order && ((order.items?.length || 0) + (order.voids?.length || 0) > 0) && !printedRef.current) {
       printedRef.current = true;
       const timer = setTimeout(async () => {
         window.print();
-        // After print dialog, mark as printed in background
+        // After print dialog, mark as printed in background (split parts are marked by the POS)
+        if (station) return;
         try {
           await markKOTPrinted(id);
         } catch (e) {
@@ -54,7 +57,7 @@ function KOTContent() {
     );
   }
 
-  if (!order || !order.items || order.items.length === 0) {
+  if (!order || ((order.items?.length || 0) + (order.voids?.length || 0)) === 0) {
     return (
       <div className="flex flex-col h-screen items-center justify-center p-8 text-center">
         <div className="mb-4 text-gray-400">
@@ -79,7 +82,7 @@ function KOTContent() {
       <style>{`
         @page {
           size: 80mm auto;
-          margin: 4mm 3mm;
+          margin: 1mm 2mm;
         }
         @media print {
           html, body {
@@ -95,14 +98,14 @@ function KOTContent() {
         }
         * { box-sizing: border-box; }
         html, body { margin: 0; padding: 0; background: white !important; background-color: white !important; font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #000000 !important; }
-        .kot { width: 100%; max-width: 80mm; margin: 0 auto; padding: 4px 0; color: #000; background: white; }
+        .kot { width: 100%; max-width: 80mm; margin: 0 auto; padding: 0; color: #000; background: white; }
         .center { text-align: center; }
         .bold { font-weight: 800; }
         .hr { border: none; border-top: 2px solid #000; margin: 8px 0; }
         .hr-dashed { border: none; border-top: 1px dashed #000; margin: 6px 0; }
         .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 14px; }
         .item-row { padding: 4px 0; border-bottom: 1px solid #eee; }
-        .item-name { font-size: 14px; font-weight: 700; line-height: 1.2; text-transform: uppercase; }
+        .item-name { font-size: 14px; font-weight: 700; line-height: 1.2; }
         .item-type { font-size: 9px; color: #666; text-transform: uppercase; margin-top: 2px; }
         .item-qty { font-size: 16px; font-weight: 900; text-align: right; }
         .kot-header { background: #000; color: #fff; padding: 10px; margin-bottom: 12px; border-radius: 4px; }
@@ -164,127 +167,80 @@ function KOTContent() {
   );
 }
 
+/**
+ * Compact kitchen ticket (internal, saves paper):
+ *  - 2-line header: KOT no / table / type, then time / steward
+ *  - items in large type, qty first; identical lines (same item + notes) merged
+ *  - no customer, no footer banner, minimal rules and spacing
+ */
 function KOTBody({ order, isFullKOT }: { order: any; isFullKOT?: boolean }) {
-  const totalQty = (order.items || []).reduce((acc: number, it: any) => acc + Number(it.quantity || 0), 0);
-  const itemCount = (order.items || []).length;
+  const parseMods = (it: any): string[] => {
+    try { const m = it.modifiers_json ? JSON.parse(it.modifiers_json) : []; return Array.isArray(m) ? m : []; } catch { return []; }
+  };
+  const merged: any[] = [];
+  for (const it of order.items || []) {
+    const notes = it.item_notes || it.notes || '';
+    const mods = parseMods(it);
+    const key = `${it.item_id ?? it.description}|${notes}|${mods.join(',')}`;
+    const hit = merged.find(m => m.key === key);
+    if (hit) hit.qty += Number(it.quantity || 0);
+    else merged.push({ key, name: it.description, qty: Number(it.quantity || 0), notes, mods });
+  }
+  const totalQty = merged.reduce((s, m) => s + m.qty, 0);
+  const time = new Date(order.created_at || Date.now()).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const type = (order.order_type || 'retail').replace('_', ' ').toUpperCase();
 
   return (
-    <>
-      <div className="center kot-header">
-        <div className="kot-title">{isFullKOT ? 'REPRINT - K.O.T' : 'K.O.T'}</div>
-        <div style={{ fontSize: '10px', marginTop: '2px', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase', opacity: 0.9 }}>
-          {isFullKOT ? 'Kitchen Order Ticket (Duplicate / Reprint)' : 'Kitchen Order Ticket'}
-        </div>
+    <div style={{ fontSize: '13px', lineHeight: 1.25 }}>
+      {/* Header: 2 lines */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: 900 }}>
+        <span style={{ fontSize: '15px' }}>{order.ticket_label || 'KOT'}{isFullKOT ? ' REPRINT' : ''} #{order.id}</span>
+        <span style={{ fontSize: '15px' }}>{order.table_name ? `T: ${order.table_name}` : type}</span>
       </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+        <span>{time}{order.table_name ? ` · ${type}` : ''}</span>
+        {order.steward_name && <span>{order.steward_name}</span>}
+      </div>
+      <div style={{ borderTop: '1px dashed #000', margin: '3px 0' }} />
 
-      {/* Outlet Location Header */}
-      {order.location_name && (
-        <div className="center bold" style={{ fontSize: '13px', textTransform: 'uppercase', marginBottom: '6px' }}>
-          {order.location_name}
-        </div>
-      )}
-
-      {/* Prominent Table & Order Type Box */}
-      <div style={{ border: '2px solid #000', padding: '6px 8px', borderRadius: '4px', marginBottom: '6px' }}>
-        <div className="row" style={{ alignItems: 'center' }}>
-          <div>
-            <span className="meta-label">TABLE: </span>
-            <span style={{ fontSize: '17px', fontWeight: 900 }}>{order.table_name || 'Counter / Take Away'}</span>
-          </div>
-          <div className="text-right">
-            <span style={{ fontSize: '12px', fontWeight: 900, textTransform: 'uppercase', background: '#000', color: '#fff', padding: '2px 6px', borderRadius: '3px' }}>
-              {order.order_type?.replace('_', ' ') || 'RETAIL'}
-            </span>
+      {/* Items */}
+      {merged.map((m, i) => (
+        <div key={i} style={{ display: 'flex', gap: '6px', padding: '2px 0' }}>
+          <span style={{ fontSize: '14px', fontWeight: 700, minWidth: '24px' }}>{m.qty}x</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: '14px', fontWeight: 700 }}>{m.name}</div>
+            {m.mods.map((x: string) => <div key={x} style={{ fontSize: '13px', fontWeight: 800 }}>&gt; {x}</div>)}
+            {m.notes && <div style={{ fontSize: '12px', fontStyle: 'italic', fontWeight: 700 }}>** {m.notes}</div>}
           </div>
         </div>
-      </div>
+      ))}
 
-      {/* Order Meta Info */}
-      <div className="row" style={{ fontSize: '12px' }}>
-        <div>
-           <span className="meta-label">KOT / Order #: </span>
-           <span className="bold">#{order.id}</span>
-        </div>
-        <div className="text-right">
-           <span className="meta-label">Date: </span>
-           <span>{new Date(order.created_at || Date.now()).toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })}</span>
-        </div>
-      </div>
-
-      {/* Steward & Customer Info */}
-      {(order.steward_name || order.customer_name) && (
-        <div className="row" style={{ fontSize: '11px', marginTop: '2px' }}>
-          {order.steward_name && (
-            <div>
-              <span className="meta-label">Steward: </span>
-              <span className="bold">{order.steward_name}</span>
+      {/* Items removed after they were sent: kitchen must stop/discard these */}
+      {Array.isArray(order.voids) && order.voids.length > 0 && (
+        <div style={{ marginTop: '4px', borderTop: '1px dashed #000', paddingTop: '3px' }}>
+          <div style={{ fontSize: '13px', fontWeight: 900, letterSpacing: '1px' }}>*** CANCELLED ***</div>
+          {order.voids.map((v: any) => (
+            <div key={v.id} style={{ padding: '2px 0' }}>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 700, minWidth: '24px', textDecoration: 'line-through' }}>{Number(v.quantity)}x</span>
+                <span style={{ fontSize: '14px', fontWeight: 700, textDecoration: 'line-through' }}>{v.description}</span>
+              </div>
+              <div style={{ fontSize: '11px', paddingLeft: '32px' }}>
+                {v.reason ? `${v.reason} · ` : ''}By {v.removed_by_name || '—'} · Appr: {v.approved_by_name || '—'}
+              </div>
             </div>
-          )}
-          {order.customer_name && (
-            <div className="text-right">
-              <span className="meta-label">Guest: </span>
-              <span>{order.customer_name}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="hr" />
-
-      {/* Items List */}
-      <table className="w-full text-left" style={{ width: '100%' }}>
-        <thead>
-          <tr className="meta-label" style={{ borderBottom: '1.5px solid #000' }}>
-            <th className="pb-1" style={{ width: '45px', textAlign: 'center' }}>QTY</th>
-            <th className="pb-1">ITEM DESCRIPTION</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(order.items || []).map((item: any, idx: number) => (
-            <tr key={idx} className="item-row" style={{ borderBottom: '1px dashed #ccc' }}>
-              <td className="py-2.5" style={{ verticalAlign: 'top', textAlign: 'center' }}>
-                <span style={{ fontSize: '17px', fontWeight: 900, border: '1.5px solid #000', padding: '1px 6px', borderRadius: '3px', display: 'inline-block' }}>
-                  {Number(item.quantity)}
-                </span>
-              </td>
-              <td className="py-2.5" style={{ paddingLeft: '8px', verticalAlign: 'top' }}>
-                <div className="item-name" style={{ fontSize: '14px', fontWeight: 800 }}>{item.description}</div>
-                {item.item_type && item.item_type !== 'Part' && (
-                  <div className="item-type">{item.item_type}</div>
-                )}
-                {item.notes && (
-                  <div style={{ fontSize: '10px', fontStyle: 'italic', fontWeight: 700, color: '#444', marginTop: '2px' }}>
-                    ** {item.notes}
-                  </div>
-                )}
-              </td>
-            </tr>
           ))}
-        </tbody>
-      </table>
-
-      <div className="hr" />
-
-      {/* Summary Row */}
-      <div className="row bold" style={{ fontSize: '12px', margin: '4px 0' }}>
-        <span>Total Items: {itemCount}</span>
-        <span>Total Qty: {totalQty}</span>
-      </div>
+        </div>
+      )}
 
       {order.notes && (
-        <div style={{ border: '1px dashed #000', padding: '4px 6px', marginTop: '6px', fontSize: '11px' }}>
-          <span className="bold">Special Instructions: </span>
-          <span>{order.notes}</span>
-        </div>
+        <div style={{ fontSize: '12px', fontWeight: 700, marginTop: '2px' }}>NOTE: {order.notes}</div>
       )}
-
-      <div className="center" style={{ marginTop: '10px', borderTop: '1px solid #000', paddingTop: '6px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '1px', textTransform: 'uppercase' }}>
-          {isFullKOT ? '*** REPRINT - KITCHEN COPY ***' : '*** KITCHEN COPY ***'}
-        </div>
-        <div style={{ fontSize: '9px', marginTop: '2px', color: '#555' }}>Printed: {new Date().toLocaleString()}</div>
+      <div style={{ borderTop: '1px dashed #000', margin: '3px 0 0', paddingTop: '2px', display: 'flex', justifyContent: 'space-between', fontSize: '11px' }}>
+        <span>{merged.length} items · {totalQty} qty</span>
+        <span>{[order.station_name, isFullKOT ? 'REPRINT' : ''].filter(Boolean).join(' · ')}</span>
       </div>
-    </>
+    </div>
   );
 }
 

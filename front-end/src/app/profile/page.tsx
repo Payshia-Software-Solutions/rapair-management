@@ -1,5 +1,6 @@
 "use client"
 
+import { clearUserSession } from "@/lib/session";
 import React, { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,7 +9,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
-import { LogOut, Mail, Shield, UserCircle, Briefcase } from "lucide-react";
+import { LogOut, Mail, Shield, UserCircle, Briefcase, KeyRound } from "lucide-react";
+import { fetchPinStatus } from "@/lib/api/pin";
+import { SetPinDialog } from "@/components/pin/set-pin-dialog";
 
 type Me = {
   id: number;
@@ -23,6 +26,10 @@ export default function ProfilePage() {
   const [me, setMe] = useState<Me | null>(null);
   const [perms, setPerms] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasPin, setHasPin] = useState<boolean | null>(null);
+  const [pinOpen, setPinOpen] = useState(false);
+  const loadPin = () => fetchPinStatus().then((d) => setHasPin(!!d.has_pin)).catch(() => setHasPin(null));
+  useEffect(() => { void loadPin(); }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -59,7 +66,7 @@ export default function ProfilePage() {
   }, [me?.name]);
 
   const logout = () => {
-    window.localStorage.removeItem("auth_token");
+    clearUserSession();
     window.location.href = "/login";
   };
 
@@ -143,6 +150,31 @@ export default function ProfilePage() {
             </Button>
           </CardFooter>
         </Card>
+
+        {/* POS PIN */}
+        <Card className="shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-primary" aria-hidden="true" />
+              POS PIN
+            </CardTitle>
+            <CardDescription>Unlocks the POS screen when it's locked. Keep it private.</CardDescription>
+          </CardHeader>
+          <CardContent className="flex items-center justify-between gap-4">
+            <p className="text-sm">
+              {hasPin === null ? "Checking…" : hasPin ? "A PIN is set for your account." : "No PIN yet. Set one to use the POS lock screen."}
+            </p>
+            <Button variant={hasPin ? "outline" : "default"} onClick={() => setPinOpen(true)} disabled={hasPin === null}>
+              {hasPin ? "Change PIN" : "Set PIN"}
+            </Button>
+          </CardContent>
+        </Card>
+        <SetPinDialog
+          open={pinOpen}
+          onOpenChange={setPinOpen}
+          hasPin={!!hasPin}
+          onSaved={() => { void loadPin(); toast({ title: "PIN saved", description: "You can now unlock the POS with it." }); }}
+        />
       </div>
     </DashboardLayout>
   );

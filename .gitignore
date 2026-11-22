@@ -1,6 +1,5 @@
 # Local secrets / environment-specific config
 /server/config/config.php
-/nexus-portal-server/app/core/Config.php
 /local-printer
 /local-printer-py
 bizzflow-printer-v9.exe
@@ -15,3 +14,13 @@ bizzflow-printer-v9.exe
 /desktop_pos/build_out.txt
 /server/config/ftp.php
 /server/config/database.php
+
+# Shared (multi-tenant) deployment: per-workspace caches and uploads
+/server/scratch/tenants/
+/server/scratch/tenancy/
+/server/public/uploads/t/
+
+# Nexus local mail outbox (emails saved instead of sent)
+/nexus-portal-server/scratch/mail_outbox/
+/nexus-portal-server/.env
+/server/.env

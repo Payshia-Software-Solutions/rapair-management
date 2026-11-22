@@ -1,16 +1,18 @@
 "use client";
-import { API_BASE } from '@/config';
+
+import { adminFetch } from '@/lib/adminApi';
 
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Loader2, Save, RefreshCcw, ShieldCheck, Layers, Plus, Trash2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
+import WorkspacePanel from '@/components/admin/WorkspacePanel';
 
 const inputCls = `
-  w-full rounded-lg border border-[#e4e4e7] bg-[#f4f4f5] py-2.5 px-3.5
-  text-[13px] text-[#09090b] placeholder:text-[#a1a1aa]
-  focus:border-[#6366f1] focus:outline-none focus:ring-2 focus:ring-[#6366f1]/20
-  dark:border-[#27272a] dark:bg-[#27272a] dark:text-white
-  dark:focus:border-[#818cf8] dark:focus:ring-[#818cf8]/20
+  w-full rounded-lg border border-nx-line bg-nx-surface-muted py-2.5 px-3.5
+  text-[13px] text-nx-ink placeholder:text-nx-text-subtle
+  focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20
+  dark:border-nx-line-dark dark:bg-nx-line-dark dark:text-white
+  dark:focus:border-nx-accent-light dark:focus:ring-nx-accent-light/20
   transition-all
 `;
 
@@ -55,12 +57,11 @@ export default function TenantEditPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = {};
 
         const [packagesRes, tenantRes] = await Promise.all([
-          fetch(`${API_BASE}/admin/packages`, { credentials: 'include', headers }),
-          fetch(`${API_BASE}/admin/tenants/${id}`, { credentials: 'include', headers })
+          adminFetch(`/admin/packages`, { headers }),
+          adminFetch(`/admin/tenants/${id}`, { headers })
         ]);
         
         const packagesData = await packagesRes.json();
@@ -91,23 +92,32 @@ export default function TenantEditPage() {
     fetchData();
   }, [id]);
 
+  /** Refreshes only the workspace fields (after "Create workspace"), keeping unsaved form edits. */
+  const reloadTenant = async () => {
+    try {
+      const res = await adminFetch(`/admin/tenants/${id}`, { headers: {} });
+      const d = await res.json();
+      if (d.status === 'success') {
+        const t = d.data;
+        setFormData(prev => ({ ...prev, deployment: t.deployment, provision_status: t.provision_status, provision_error: t.provision_error, workspace_url: t.workspace_url } as typeof prev));
+      }
+    } catch { /* panel shows the last known state */ }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       };
       const payload = {
         ...formData,
-        billing_cc_email: JSON.stringify(formData.billing_cc_email)
+        billing_cc_email: formData.billing_cc_email.map(e => e.trim()).filter(Boolean).join(',') || null
       };
-      const res = await fetch(`${API_BASE}/admin/tenants/update`, {
+      const res = await adminFetch(`/admin/tenants/update`, {
         method: 'POST',
         headers,
-        credentials: 'include',
         body: JSON.stringify(payload)
       });
       if (res.ok) {
@@ -134,8 +144,8 @@ export default function TenantEditPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="flex items-center gap-2 text-[13px] text-[#a1a1aa]">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#e4e4e7] border-t-[#6366f1]" /> Loading instance profile…
+        <div className="flex items-center gap-2 text-[13px] text-nx-text-subtle">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-nx-line border-t-nx-accent" /> Loading instance profile…
         </div>
       </div>
     );
@@ -148,7 +158,7 @@ export default function TenantEditPage() {
         <div>
           <button 
             onClick={() => router.push('/admin/tenants')}
-            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors mb-2"
+            className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-nx-accent dark:text-slate-400 dark:hover:text-nx-accent-light transition-colors mb-2"
           >
             <ChevronLeft size={16} /> Back to Tenants Directory
           </button>
@@ -158,10 +168,10 @@ export default function TenantEditPage() {
             </h1>
             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
               formData.status === 'Active'
-                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-400 dark:border-emerald-800/40'
-                : 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/50 dark:text-amber-400 dark:border-amber-800/40'
+                ? 'bg-nx-success-soft text-nx-success border border-nx-success/30 dark:bg-nx-success-soft dark:border-nx-success/30'
+                : 'bg-nx-warning-soft text-nx-warning border border-nx-warning/30 dark:bg-nx-warning-soft dark:border-nx-warning/30'
             }`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${formData.status === 'Active' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              <span className={`h-1.5 w-1.5 rounded-full ${formData.status === 'Active' ? 'bg-nx-success' : 'bg-nx-warning'}`} />
               {formData.status}
             </span>
           </div>
@@ -182,13 +192,25 @@ export default function TenantEditPage() {
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-bold text-white transition-all shadow-sm shadow-indigo-600/25 disabled:opacity-60"
+            className="flex items-center gap-2 rounded-xl bg-nx-accent-strong hover:bg-nx-accent-strong px-5 py-2.5 text-xs font-bold text-white transition-all shadow-sm shadow-indigo-600/25 disabled:opacity-60"
           >
             {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
             <span>{saving ? 'Saving…' : 'Save Changes'}</span>
           </button>
         </div>
       </div>
+
+      {/* Workspace on the product's shared deployment (automatic provisioning) */}
+      <WorkspacePanel
+        tenantId={String(id)}
+        deployment={(formData as any).deployment}
+        provisionStatus={(formData as any).provision_status}
+        provisionError={(formData as any).provision_error}
+        workspaceUrl={(formData as any).workspace_url}
+        adminEmail={formData.admin_email}
+        tenantName={formData.name}
+        onChanged={reloadTenant}
+      />
 
       {/* Main Full-Width Responsive Form Grid */}
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -199,7 +221,7 @@ export default function TenantEditPage() {
           {/* Card 1: Enterprise Profile & Contact */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-accent-soft text-nx-accent dark:text-nx-accent-light">
                 <Layers size={18} />
               </div>
               <div>
@@ -260,7 +282,7 @@ export default function TenantEditPage() {
           {/* Card 2: Subscription & Billing Parameters */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-success-soft text-nx-success">
                 <ShieldCheck size={18} />
               </div>
               <div>
@@ -277,7 +299,10 @@ export default function TenantEditPage() {
                   onChange={(e) => setFormData({...formData, package_id: e.target.value})}
                   className={`${inputCls} appearance-none cursor-pointer font-bold`}
                 >
-                  {packages.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {/* Free-trial packages are not assignable from here; only the current one stays listed. */}
+                  {packages
+                    .filter(p => p.package_key !== 'free_trial' || String(p.id) === String(formData.package_id))
+                    .map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
 
@@ -345,7 +370,7 @@ export default function TenantEditPage() {
               <button 
                 type="button"
                 onClick={() => setFormData({...formData, billing_cc_email: [...formData.billing_cc_email, '']})}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-nx-accent dark:text-nx-accent-light hover:bg-nx-accent-soft transition-colors"
               >
                 <Plus size={13} /> Add Recipient
               </button>
@@ -374,7 +399,7 @@ export default function TenantEditPage() {
                         const newCcs = formData.billing_cc_email.filter((_, i) => i !== idx);
                         setFormData({...formData, billing_cc_email: newCcs});
                       }}
-                      className="rounded-xl p-2.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30 transition-colors shrink-0"
+                      className="rounded-xl p-2.5 text-slate-400 hover:bg-nx-danger-soft hover:text-nx-danger transition-colors shrink-0"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -387,7 +412,7 @@ export default function TenantEditPage() {
           {/* Card 4: Keys & Security */}
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-warning-soft text-nx-warning">
                 <ShieldCheck size={18} />
               </div>
               <div>
@@ -441,7 +466,7 @@ export default function TenantEditPage() {
               <button 
                 type="submit"
                 disabled={saving}
-                className="w-full flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 py-3 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/25 disabled:opacity-60"
+                className="w-full flex items-center justify-center gap-2 rounded-xl bg-nx-accent-strong hover:bg-nx-accent-strong py-3 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/25 disabled:opacity-60"
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                 <span>Save All Changes</span>
@@ -465,8 +490,15 @@ export default function TenantEditPage() {
                 <span className="font-mono font-bold text-slate-900 dark:text-white">#{formData.id}</span>
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
-                <span className="text-slate-500">Subdomain</span>
-                <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formData.slug}.bizzflow.cloud</span>
+                <span className="text-slate-500">Workspace</span>
+                {(formData as any).workspace_url ? (
+                  <a href={(formData as any).workspace_url} target="_blank" rel="noreferrer"
+                    className="min-w-0 text-right font-mono font-bold text-nx-accent hover:underline dark:text-nx-accent-light [overflow-wrap:anywhere]">
+                    {String((formData as any).workspace_url).replace(/^https?:\/\//, '')}
+                  </a>
+                ) : (
+                  <span className="font-bold text-slate-500 dark:text-slate-400">Dedicated</span>
+                )}
               </div>
               <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-slate-800">
                 <span className="text-slate-500">Active Currency</span>

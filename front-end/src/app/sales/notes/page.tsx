@@ -14,14 +14,20 @@ import {
   CustomerNoteRow 
 } from "@/lib/api/customer-notes";
 import { fetchCustomers } from "@/lib/api/master-data";
-import { Loader2, Plus, RefreshCw } from "lucide-react";
+import { Loader2, Plus, RefreshCw, Search } from "lucide-react";
+
+const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 import { DashboardLayout } from "@/components/dashboard-layout";
+import { PageHeader, StatCard, LoadingState, EmptyState } from "@/components/page-shell";
 
 export default function CustomerNotesPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<CustomerNoteRow[]>([]);
   const [customers, setCustomers] = useState<Array<{ value: string; label: string }>>([]);
+
+  const [q, setQ] = useState("");
+  const shown = data.filter(r => !q || [r.note_no, r.customer_name, r.customer_phone, r.reason].some(v => String(v || "").toLowerCase().includes(q.toLowerCase())));
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -92,12 +98,11 @@ export default function CustomerNotesPage() {
 
   return (
     <DashboardLayout title="Customer Notes" fullWidth={true}>
-      <div className="p-4 md:p-6 lg:p-8 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Customer Notes</h1>
-            <p className="text-muted-foreground">Manage Credit and Debit notes for customer accounts.</p>
-          </div>
+      <div className="space-y-5">
+        <PageHeader
+          title="Credit & debit notes"
+          description="Credit note lowers what a customer owes you. Debit note raises it."
+          actions={
           <div className="flex gap-2">
             <Button variant="outline" onClick={loadData} disabled={loading}>
               <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -105,16 +110,28 @@ export default function CustomerNotesPage() {
             </Button>
             <Button onClick={() => setIsDialogOpen(true)} className="bg-primary">
               <Plus className="w-4 h-4 mr-2" />
-              New Note
+              New note
             </Button>
           </div>
+          }
+        />
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <StatCard label="Notes" value={data.length} />
+          <StatCard label="Credit notes (lower balance)" value={money(data.filter(d => d.type === "Credit Note").reduce((a, d) => a + Number(d.amount || 0), 0))} />
+          <StatCard label="Debit notes (raise balance)" value={money(data.filter(d => d.type === "Debit Note").reduce((a, d) => a + Number(d.amount || 0), 0))} />
+        </div>
+
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input className="pl-9" placeholder="Search note no., customer or reason" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
 
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left">
-              <thead className="bg-muted text-muted-foreground">
+              <thead className="bg-muted/50 text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-semibold">Note No</th>
                   <th className="px-4 py-3 font-semibold">Type</th>
@@ -126,24 +143,17 @@ export default function CustomerNotesPage() {
               </thead>
               <tbody className="divide-y">
                 {loading && data.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
-                      Loading...
-                    </td>
-                  </tr>
-                ) : data.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      No customer notes found.
-                    </td>
-                  </tr>
+                  <tr><td colSpan={6}><LoadingState label="Loading notes…" /></td></tr>
+                ) : shown.length === 0 ? (
+                  <tr><td colSpan={6} className="p-4">
+                    <EmptyState title={q ? "No notes match" : "No notes yet"} description={q ? "Try another search." : "Use New note to adjust a customer's balance."} />
+                  </td></tr>
                 ) : (
-                  data.map((row) => (
+                  shown.map((row) => (
                     <tr key={row.id} className="hover:bg-muted/30">
                       <td className="px-4 py-3 font-medium">{row.note_no}</td>
                       <td className="px-4 py-3">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.type === 'Credit Note' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.type === 'Credit Note' ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'}`}>
                           {row.type}
                         </span>
                       </td>
@@ -165,22 +175,21 @@ export default function CustomerNotesPage() {
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create Customer Note</DialogTitle>
-            <DialogDescription>
-              Create a Credit Note (to reduce customer balance) or a Debit Note (to increase balance).
-            </DialogDescription>
+            <DialogTitle>New credit / debit note</DialogTitle>
+            <DialogDescription>Pick the type, the customer and the amount.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Type</label>
-              <select 
-                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                value={form.type} 
-                onChange={(e) => setForm({ ...form, type: e.target.value as any })}
-              >
-                <option value="Credit Note">Credit Note (Reduce Debt)</option>
-                <option value="Debit Note">Debit Note (Increase Debt)</option>
-              </select>
+              <div className="grid grid-cols-2 gap-2">
+                {([["Credit Note", "Lowers balance", "Refund, discount, return"], ["Debit Note", "Raises balance", "Extra charge, correction"]] as const).map(([t, h, ex]) => (
+                  <button key={t} type="button" onClick={() => setForm({ ...form, type: t })}
+                    className={`rounded-md border p-3 text-left transition-colors ${form.type === t ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-muted"}`}>
+                    <div className="font-medium text-sm">{t}</div>
+                    <div className="text-xs text-muted-foreground">{h} · {ex}</div>
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Customer</label>
@@ -188,7 +197,7 @@ export default function CustomerNotesPage() {
                 options={customers} 
                 value={form.customer_id} 
                 onValueChange={(val) => setForm({ ...form, customer_id: val })} 
-                placeholder="Select Customer..." 
+                placeholder="Search customer…" 
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

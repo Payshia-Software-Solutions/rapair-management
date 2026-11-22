@@ -56,9 +56,18 @@ class SaasHelper {
                 }
             }
 
+            // Shared deployment: Nexus unreachable -> the plan modules it last sent us (registry)
+            if (!self::$config && class_exists('Tenancy', false) && Tenancy::modules() !== null) {
+                self::$config = [
+                    'name' => (Tenancy::current()['plan_code'] ?? '') ?: 'Subscription',
+                    'modules' => Tenancy::modules(),
+                    'api_connected' => false
+                ];
+            }
+
             if (!self::$config) {
                 self::$config = [
-                    'name' => 'Restricted', 
+                    'name' => 'Restricted',
                     'modules' => ['serviceCenter', 'promotions', 'frontOffice'],
                     'api_connected' => false
                 ];
@@ -97,9 +106,83 @@ class SaasHelper {
     }
 
     private static function clearCache() {
-        $file = APPROOT . '/scratch/nexus_license.json';
+        $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('nexus_license.json') : APPROOT . '/scratch/nexus_license.json';
         if (file_exists($file)) @unlink($file);
         self::$config = null;
+    }
+
+    /**
+     * True when the workspace is on a trial whose end date has passed.
+     * The trial runs through the end of its expiry day (Asia/Colombo, as the rest of the app).
+     */
+    public static function trialEnded() {
+        $config = self::getConfig();
+        if (!is_array($config) || strtolower((string)($config['status'] ?? '')) !== 'trial') return false;
+        $expiry = trim((string)($config['trial_expiry'] ?? ''));
+        if ($expiry === '') return false;
+        $end = strtotime($expiry);
+        if ($end === false) return false;
+        return time() >= $end + 86400;
+    }
+
+    /**
+     * Plan limit for 'users' or 'locations'. null = unlimited (no limit set, 999+, or the plan is
+     * unknown because Nexus is unreachable, so a Nexus outage never blocks a paying customer).
+     */
+    public static function limit($what) {
+        $config = self::getConfig();
+        $key = $what === 'users' ? 'max_users' : 'max_locations';
+        if (!is_array($config) || !isset($config[$key])) return null;
+        $n = (int)$config[$key];
+        return ($n < 1 || $n >= 999) ? null : $n;
+    }
+
+    /** Current usage: active users and locations. */
+    public static function usage() {
+        $db = new Database();
+        $db->query("SELECT COUNT(*) AS c FROM users WHERE is_active = 1");
+        $users = (int)($db->single()->c ?? 0);
+        $db->query("SELECT COUNT(*) AS c FROM service_locations");
+        $locations = (int)($db->single()->c ?? 0);
+        return ['users' => $users, 'locations' => $locations];
+    }
+
+    /**
+     * Error message when adding one more of 'users' or 'locations' would pass the plan limit,
+     * otherwise null. $extra is how many are being added (default 1).
+     */
+    public static function limitError($what, $extra = 1) {
+        $max = self::limit($what);
+        if ($max === null) return null;
+        $used = self::usage()[$what];
+        if ($used + $extra <= $max) return null;
+        $label = $what === 'users' ? 'active users' : 'branches';
+        return "Your plan allows {$max} {$label} and you already have {$used}. Upgrade your plan to add more.";
+    }
+
+    /** Pushes current usage to Nexus so the client portal can show it. Never throws; short timeout. */
+    public static function reportUsage() {
+        try {
+            $key = self::getApiKey();
+            if ($key === '' || !defined('NEXUS_PORTAL_URL')) return;
+            $body = json_encode(self::usage());
+            $ctx = stream_context_create(['http' => [
+                'method' => 'POST', 'timeout' => 3, 'ignore_errors' => true,
+                'header' => "Content-Type: application/json\r\n", 'content' => $body,
+            ]]);
+            @file_get_contents(NEXUS_PORTAL_URL . '/api/saas/usage-report?key=' . urlencode($key), false, $ctx);
+        } catch (Throwable $e) {
+            error_log('Usage report failed: ' . $e->getMessage());
+        }
+    }
+
+    /** reportUsage() at most once per $seconds, so login and page loads keep Nexus current without a call every time. */
+    public static function reportUsageThrottled($seconds = 3600) {
+        $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('usage_reported_at') : APPROOT . '/scratch/usage_reported_at';
+        $last = file_exists($file) ? (int)@file_get_contents($file) : 0;
+        if (time() - $last < $seconds) return;
+        @file_put_contents($file, (string)time());
+        self::reportUsage();
     }
 
     public static function isModuleEnabled($module) {
@@ -145,7 +228,7 @@ class SaasHelper {
     }
 
     private static function getCache() {
-        $file = APPROOT . '/scratch/nexus_license.json';
+        $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('nexus_license.json') : APPROOT . '/scratch/nexus_license.json';
         if (file_exists($file)) {
             $content = @file_get_contents($file);
             if ($content === false) return null;
@@ -156,7 +239,7 @@ class SaasHelper {
     }
 
     private static function setCache($data) {
-        $file = APPROOT . '/scratch/nexus_license.json';
+        $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('nexus_license.json') : APPROOT . '/scratch/nexus_license.json';
         @file_put_contents($file, json_encode(['ts' => time(), 'data' => $data]));
     }
 }

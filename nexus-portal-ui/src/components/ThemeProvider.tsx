@@ -3,40 +3,15 @@
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
-// Global Fetch Interceptor for API Requests
+// Send the admin session cookie with every API call. Auth lives in the httpOnly cookie, so no
+// token is read from or written to browser storage.
 if (typeof window !== "undefined" && !window.__nexus_fetch_intercepted) {
   window.__nexus_fetch_intercepted = true;
   const originalFetch = window.fetch;
-  window.fetch = async function (input, init) {
-    let url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-
-    // Inject Bearer token to all BizzFlow API calls
-    if (url.includes("/api/")) {
-      const token = localStorage.getItem("nexus_token");
-      if (token) {
-        init = init || {};
-        init.headers = init.headers || {};
-        init.credentials = init.credentials || "include";
-
-        if (init.headers instanceof Headers) {
-          if (!init.headers.has("Authorization")) {
-            init.headers.append("Authorization", `Bearer ${token}`);
-          }
-        } else if (Array.isArray(init.headers)) {
-          const hasAuth = init.headers.some(([k]) => k.toLowerCase() === "authorization");
-          if (!hasAuth) {
-            init.headers.push(["Authorization", `Bearer ${token}`]);
-          }
-        } else {
-          const hasAuth = Object.keys(init.headers).some(k => k.toLowerCase() === "authorization");
-          if (!hasAuth) {
-            init.headers = {
-              ...init.headers,
-              "Authorization": `Bearer ${token}`
-            };
-          }
-        }
-      }
+  window.fetch = function (input, init) {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("/api/") && !(init && init.credentials)) {
+      init = { ...(init || {}), credentials: "include" };
     }
     return originalFetch.call(this, input, init);
   };

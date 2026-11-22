@@ -52,27 +52,14 @@ class StorefrontSettingsController extends Controller {
         if (array_key_exists('packaging_category_id', $data) || array_key_exists('packaging_complimentary_item_ids', $data)) {
             $tags[] = 'items';
         }
-        $this->notifyWebsite($tags);
+        $this->notifyWebsite($tags, $locationId);
         $this->success(null, 'Settings updated');
     }
 
-    /**
-     * Tell the Tea Jar website to drop its cached storefront settings, so payment options and bank
-     * details change right away instead of after the 1-hour cache. Best effort: a failure never blocks the save.
-     */
-    private function notifyWebsite(array $tags) {
-        if (!defined('WEBSITE_REVALIDATE_URL') || WEBSITE_REVALIDATE_URL === '' || WEBSITE_REVALIDATE_SECRET === '') return;
-        $ch = curl_init(WEBSITE_REVALIDATE_URL);
-        curl_setopt_array($ch, [
-            CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => json_encode(['tags' => $tags]),
-            CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Authorization: Bearer ' . WEBSITE_REVALIDATE_SECRET],
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT => 5,
-        ]);
-        $res = curl_exec($ch);
-        if ($res === false) error_log('Website revalidate failed: ' . curl_error($ch));
-        curl_close($ch);
+    /** Tells every connected website its cached storefront data changed (best effort, never blocks the save). */
+    private function notifyWebsite(array $tags, $locationId = null) {
+        require_once __DIR__ . '/../helpers/StorefrontNotifier.php';
+        StorefrontNotifier::revalidate($tags, $locationId);
     }
 
     // POST /api/storefront-settings/testSmtp

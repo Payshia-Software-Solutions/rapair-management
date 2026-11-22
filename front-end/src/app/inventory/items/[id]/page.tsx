@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ItemPrintStationField } from "../ItemPrintStationField";
+import { ItemBasePricePreview } from "../ItemBasePricePreview";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -668,6 +670,7 @@ export default function ItemDetailPage() {
                       <div className="space-y-2">
                         <Label className="text-primary font-bold">Selling Price</Label>
                         <Input className="border-primary/30 bg-primary/5 font-bold" type="number" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} required />
+                        <ItemBasePricePreview price={form.price} />
                       </div>
                       <div className="space-y-2">
                         <Label>Wholesale Price</Label>
@@ -811,6 +814,8 @@ export default function ItemDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <ItemPrintStationField itemId={Number(id)} current={part?.print_station_id ? Number(part.print_station_id) : null} />
               </div>
             </TabsContent>
 

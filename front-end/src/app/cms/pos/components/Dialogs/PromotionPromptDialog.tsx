@@ -67,14 +67,14 @@ export const PromotionPromptDialog: React.FC = () => {
       setIsPromotionPromptOpen(open);
       if (!open) handleDismiss(); 
     }}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl rounded-3xl bg-white dark:bg-slate-950">
+      <DialogContent size="sm" className="p-0 overflow-y-auto border rounded-lg">
         <div className="p-6 pb-2">
           <DialogHeader className="space-y-1">
             <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-semibold text-xs uppercase tracking-wider mb-1">
               <Sparkles className="w-3.5 h-3.5" />
               Available Offers
             </div>
-            <DialogTitle className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            <DialogTitle>
               Great news!
             </DialogTitle>
             <DialogDescription className="text-slate-500 dark:text-slate-400 text-sm">
@@ -91,7 +91,7 @@ export const PromotionPromptDialog: React.FC = () => {
                return (
                 <div 
                     key={promo.promotion_id}
-                    className={`group relative rounded-2xl p-4 border transition-all duration-200 cursor-pointer ${
+                    className={`group relative rounded-lg p-4 border transition-all duration-200 cursor-pointer ${
                         isPotential 
                         ? 'bg-amber-50/30 dark:bg-amber-500/5 border-amber-100 dark:border-amber-900/30 hover:shadow-md hover:border-amber-200' 
                         : 'bg-emerald-50/30 dark:bg-emerald-500/5 border-emerald-100 dark:border-emerald-900/30 hover:shadow-md hover:border-emerald-200'
@@ -122,7 +122,7 @@ export const PromotionPromptDialog: React.FC = () => {
                         </div>
                     </div>
                     
-                    <div className={`flex items-center justify-between gap-4 p-3 rounded-xl ${
+                    <div className={`flex items-center justify-between gap-4 p-3 rounded-md ${
                         isPotential 
                         ? 'bg-amber-500/10 text-amber-800 dark:text-amber-200' 
                         : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-200'

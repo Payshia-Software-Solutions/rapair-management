@@ -517,7 +517,7 @@ class Part extends Model {
             $this->db->beginTransaction();
 
             // lock row
-            $this->db->query("SELECT stock_quantity, is_fifo FROM {$this->table} WHERE id = :id FOR UPDATE");
+            $this->db->query("SELECT stock_quantity, is_fifo, cost_price FROM {$this->table} WHERE id = :id FOR UPDATE");
             $this->db->bind(':id', $pid);
             $row = $this->db->single();
             if (!$row) {
@@ -540,8 +540,8 @@ class Part extends Model {
 
             // movement
             $this->db->query("
-                INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, notes, created_by)
-                VALUES (:loc, :part_id, :batch_id, :qty_change, :type, :ref_table, :ref_id, :notes, :created_by)
+                INSERT INTO stock_movements (location_id, part_id, batch_id, qty_change, movement_type, ref_table, ref_id, unit_cost, notes, created_by)
+                VALUES (:loc, :part_id, :batch_id, :qty_change, :type, :ref_table, :ref_id, :unit_cost, :notes, :created_by)
             ");
             $this->db->bind(':loc', $loc);
             $this->db->bind(':part_id', $pid);
@@ -550,9 +550,17 @@ class Part extends Model {
             $this->db->bind(':type', $movementType);
             $this->db->bind(':ref_table', 'parts');
             $this->db->bind(':ref_id', $pid);
+            $this->db->bind(':unit_cost', (float)($row->cost_price ?? 0));
             $this->db->bind(':notes', $notes);
             $this->db->bind(':created_by', $userId);
             $this->db->execute();
+            $movementId = (int)$this->db->lastInsertId();
+
+            // Book the value change (stock gain / loss) in the accounts
+            if ($movementType === 'ADJUSTMENT') {
+                require_once __DIR__ . '/../helpers/AccountingHelper.php';
+                AccountingHelper::postStockMovement($movementId);
+            }
 
             $this->db->commit();
             return true;

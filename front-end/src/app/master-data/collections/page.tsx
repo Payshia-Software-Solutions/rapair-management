@@ -207,7 +207,7 @@ export default function CollectionsPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden">
           <form onSubmit={submit}>
             <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-6 text-white text-center relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />

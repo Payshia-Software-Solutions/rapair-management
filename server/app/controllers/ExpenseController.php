@@ -35,9 +35,23 @@ class ExpenseController extends Controller {
         }
 
         $input['userId'] = $u['sub'];
+
+        // Approval workflow: if a level applies to this amount, the voucher waits (not posted) until approved.
+        require_once '../app/helpers/Approval.php';
+        $loc = isset($input['location_id']) ? (int)$input['location_id'] : null;
+        $needsApproval = Approval::isEnabled('expense') && Approval::levelsFor('expense', (float)$input['amount'], $loc);
+        $input['status'] = $needsApproval ? 'Pending' : 'Paid';
+
         $id = $this->expenseModel->create($input);
-        
-        if ($id) {
+
+        if ($id && $needsApproval) {
+            $exp = $this->expenseModel->getById($id);
+            $r = Approval::submit('expense', (int)$id, [
+                'doc_no' => $exp->voucher_no ?? null, 'amount' => (float)$input['amount'], 'location_id' => $loc,
+                'summary' => 'Payment to ' . ($input['payee_name'] ?? 'payee') . (!empty($input['notes']) ? ': ' . $input['notes'] : ''),
+            ], (int)$u['sub']);
+            $this->json(['status' => 'success', 'message' => 'Voucher saved and sent for approval (' . $r['level'] . ')', 'id' => $id, 'approval' => 'Pending']);
+        } elseif ($id) {
             $this->json(['status' => 'success', 'message' => 'Payment voucher recorded', 'id' => $id]);
         } else {
             $this->json(['status' => 'error', 'message' => 'Failed to record expense'], 500);
@@ -52,6 +66,29 @@ class ExpenseController extends Controller {
             return;
         }
         $this->json(['status' => 'success', 'data' => $expense]);
+    }
+
+    /** Paid expenses grouped by expense account for a date range (report + compare). */
+    public function by_category() {
+        $this->requirePermission('accounting.read');
+        $from = $_GET['from'] ?? date('Y-m-01');
+        $to = $_GET['to'] ?? date('Y-m-d');
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) {
+            $this->error('Dates must be YYYY-MM-DD', 400);
+        }
+        $db = new Database();
+        $db->query("
+            SELECT a.id AS account_id, a.code, a.name AS category,
+                   COUNT(e.id) AS vouchers, SUM(e.amount) AS total
+            FROM acc_expenses e
+            JOIN acc_accounts a ON e.expense_account_id = a.id
+            WHERE e.status = 'Paid' AND e.payment_date BETWEEN :f AND :t
+            GROUP BY a.id, a.code, a.name
+            ORDER BY total DESC
+        ");
+        $db->bind(':f', $from);
+        $db->bind(':t', $to);
+        $this->json(['status' => 'success', 'data' => $db->resultSet()]);
     }
 
     public function summary() {
@@ -240,6 +277,13 @@ class ExpenseController extends Controller {
         }
 
         $input = json_decode(file_get_contents('php://input'), true);
+        $data = $input ?: [];
+        // Cancelling needs a second person: raise a request that another user approves (Approvals & Control -> Cancellation Requests)
+        require_once '../app/helpers/CancellationRequestHelper.php';
+        [$ok, $msg, $rid] = CancellationRequestHelper::create(new Database(), 'Expense', (int)$id, $data['reason'] ?? '', (int)$u['sub']);
+        if (!$ok) { $this->error($msg, 422); return; }
+        $this->success(['request_id' => $rid, 'status' => 'pending'], $msg);
+        return;
         $reason = $input['reason'] ?? 'Cancelled by user';
 
         if ($this->expenseModel->cancel($id, $reason, $u['sub'])) {

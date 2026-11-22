@@ -1,104 +1,135 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CalendarDays, ChevronRight, ClipboardList, LayoutGrid, Plus, RefreshCcw, Wallet } from "lucide-react";
+import { addMonths, format, startOfMonth } from "date-fns";
 import { DashboardLayout } from "@/components/dashboard-layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { PageHeader, StatCard, SectionCard, EmptyState, LoadingState } from "@/components/page-shell";
+import { SERIES, axisTick, compact, gridStroke, lkr, tooltipItemStyle, tooltipLabelStyle, tooltipStyle } from "@/components/dashboard/chart-theme";
 import { api } from "@/lib/api";
-import { LayoutDashboard, Calendar, ClipboardList, LayoutGrid, TrendingUp, Users } from "lucide-react";
+
+type Booking = {
+  id: number; booking_no: string; booking_date: string; session?: string; status: string;
+  total_amount: number | string; advance_paid?: number | string; pax_count?: number;
+  customer_name?: string; hall_name?: string;
+};
+
+const ACTIVE = (s: string) => s !== "Cancelled";
 
 export default function BanquetDashboard() {
-  const [stats, setStats] = useState({
-    totalHalls: 0,
-    activeBookings: 0,
-    upcomingEvents: 0,
-    monthlyRevenue: 0
-  });
+  const [halls, setHalls] = useState<number | null>(null);
+  const [bookings, setBookings] = useState<Booking[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // In a real app, you'd have a specific stats endpoint
-    void (async () => {
-       const [hRes, bRes] = await Promise.all([
-         api("/api/banquet/halls"),
-         api("/api/banquet/bookings")
-       ]);
-       const hData = await hRes.json();
-       const bData = await bRes.json();
-       
-       const bookings = bData.data || [];
-       setStats({
-         totalHalls: (hData.data || []).length,
-         activeBookings: bookings.filter((b: any) => b.status === 'Confirmed').length,
-         upcomingEvents: bookings.filter((b: any) => new Date(b.booking_date) >= new Date()).length,
-         monthlyRevenue: bookings.reduce((acc: number, b: any) => acc + Number(b.total_amount), 0)
-       });
-    })();
-  }, []);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [h, b] = await Promise.all([
+        api("/api/banquet/halls").then((r) => r.json()).catch(() => null),
+        api("/api/banquet/bookings").then((r) => r.json()).catch(() => null),
+      ]);
+      setHalls(Array.isArray(h?.data) ? h.data.length : 0);
+      setBookings(Array.isArray(b?.data) ? b.data : []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void load(); }, []);
+
+  const today = new Date(new Date().toDateString());
+  const in30 = new Date(today.getTime() + 30 * 86400000);
+  const list = bookings || [];
+  const upcoming = list
+    .filter((b) => ACTIVE(b.status) && new Date(b.booking_date) >= today)
+    .sort((a, b) => +new Date(a.booking_date) - +new Date(b.booking_date));
+  const next30 = upcoming.filter((b) => new Date(b.booking_date) <= in30);
+  const confirmed = list.filter((b) => b.status === "Confirmed").length;
+  const thisMonth = startOfMonth(today);
+  const monthValue = list
+    .filter((b) => ACTIVE(b.status) && startOfMonth(new Date(b.booking_date)).getTime() === thisMonth.getTime())
+    .reduce((s, b) => s + Number(b.total_amount || 0), 0);
+
+  // Booked value per month: this month and the next five.
+  const byMonth = useMemo(() => {
+    const months = Array.from({ length: 6 }, (_, i) => startOfMonth(addMonths(thisMonth, i)));
+    return months.map((m) => ({
+      month: format(m, "MMM"),
+      value: list
+        .filter((b) => ACTIVE(b.status) && startOfMonth(new Date(b.booking_date)).getTime() === m.getTime())
+        .reduce((s, b) => s + Number(b.total_amount || 0), 0),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookings]);
 
   return (
     <DashboardLayout title="Banquet Dashboard">
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Banquet Overview</h1>
-          <p className="text-muted-foreground">Key performance metrics for events and venues</p>
-        </div>
+      <div className="space-y-5">
+        <PageHeader
+          title="Banquet Dashboard"
+          description="Events, venues and booked value."
+          actions={<>
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              <RefreshCcw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} aria-hidden="true" /> Refresh
+            </Button>
+            <Button variant="outline" asChild><Link href="/banquet/calendar"><CalendarDays className="h-4 w-4 mr-2" aria-hidden="true" /> Calendar</Link></Button>
+            <Button asChild><Link href="/banquet/bookings/new"><Plus className="h-4 w-4 mr-2" aria-hidden="true" /> New booking</Link></Button>
+          </>}
+        />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="border-none shadow-sm bg-blue-50 dark:bg-blue-950/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Halls</CardTitle>
-              <LayoutGrid className="w-4 h-4 text-blue-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalHalls}</div>
-              <p className="text-xs text-muted-foreground">Configured venues</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-emerald-50 dark:bg-emerald-950/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Bookings</CardTitle>
-              <ClipboardList className="w-4 h-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.activeBookings}</div>
-              <p className="text-xs text-muted-foreground">Pending execution</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-amber-50 dark:bg-amber-950/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Upcoming Events</CardTitle>
-              <Calendar className="w-4 h-4 text-amber-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.upcomingEvents}</div>
-              <p className="text-xs text-muted-foreground">Next 30 days</p>
-            </CardContent>
-          </Card>
-          <Card className="border-none shadow-sm bg-purple-50 dark:bg-purple-950/20">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Volume</CardTitle>
-              <TrendingUp className="w-4 h-4 text-purple-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">LKR {stats.monthlyRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Projected revenue</p>
-            </CardContent>
-          </Card>
-        </div>
+        {!bookings ? <Card><LoadingState /></Card> : (
+          <>
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <StatCard label="Halls" value={halls ?? 0} hint="Configured venues" icon={<LayoutGrid />} />
+              <StatCard label="Confirmed bookings" value={confirmed} hint="Not yet held or cancelled" icon={<ClipboardList />} />
+              <StatCard label="Events, next 30 days" value={next30.length} hint={next30[0] ? `Next: ${format(new Date(next30[0].booking_date), "MMM d")}` : "None scheduled"} icon={<CalendarDays />} />
+              <StatCard label="Booked this month" value={lkr(monthValue)} hint="Excludes cancelled" icon={<Wallet />} />
+            </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
-           <Card className="border-none shadow-sm min-h-[300px] flex items-center justify-center">
-              <div className="text-center space-y-2">
-                 <Calendar className="w-12 h-12 text-muted-foreground/20 mx-auto" />
-                 <p className="text-muted-foreground">Event occupancy chart placeholder</p>
-              </div>
-           </Card>
-           <Card className="border-none shadow-sm min-h-[300px] flex items-center justify-center">
-              <div className="text-center space-y-2">
-                 <TrendingUp className="w-12 h-12 text-muted-foreground/20 mx-auto" />
-                 <p className="text-muted-foreground">Revenue breakdown placeholder</p>
-              </div>
-           </Card>
-        </div>
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+              <SectionCard className="lg:col-span-2" title="Booked value by month" description="This month and the next five, excluding cancelled" bodyClassName="h-[260px] p-3">
+                {byMonth.some((m) => m.value > 0) ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={byMonth} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid vertical={false} stroke={gridStroke} />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={axisTick} />
+                      <YAxis axisLine={false} tickLine={false} tick={axisTick} tickFormatter={compact} width={44} />
+                      <Tooltip contentStyle={tooltipStyle} labelStyle={tooltipLabelStyle} itemStyle={tooltipItemStyle}
+                        formatter={(v) => [lkr(Number(v)), "Booked"]} cursor={{ fill: "hsl(var(--muted))" }} />
+                      <Bar dataKey="value" fill={SERIES[0]} radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : <EmptyState title="No upcoming bookings" description="Booked value appears here as events are booked." />}
+              </SectionCard>
+
+              <SectionCard title="Upcoming events"
+                action={<Button variant="ghost" size="sm" asChild><Link href="/banquet/bookings">All <ChevronRight className="h-4 w-4" /></Link></Button>}>
+                {upcoming.length === 0 ? <EmptyState title="Nothing scheduled" /> : (
+                  <ul className="divide-y">
+                    {upcoming.slice(0, 6).map((b) => (
+                      <li key={b.id}>
+                        <Link href={`/banquet/bookings/${b.id}`} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-muted/40">
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{b.customer_name || b.booking_no}</span>
+                            <span className="block text-xs text-muted-foreground">
+                              {format(new Date(b.booking_date), "EEE, MMM d")}{b.session ? ` · ${b.session}` : ""}{b.hall_name ? ` · ${b.hall_name}` : ""}
+                            </span>
+                          </span>
+                          <Badge variant={b.status === "Confirmed" ? "secondary" : "outline"} className="font-normal">{b.status}</Badge>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </SectionCard>
+            </div>
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

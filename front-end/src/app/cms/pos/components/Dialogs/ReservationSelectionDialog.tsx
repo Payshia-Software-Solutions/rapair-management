@@ -92,7 +92,7 @@ export const ReservationSelectionDialog: React.FC = () => {
 
     return (
         <Dialog open={reservationDialogOpen} onOpenChange={setReservationDialogOpen}>
-            <DialogContent className="w-full sm:max-w-4xl h-[100dvh] sm:h-[90vh] rounded-none sm:rounded-3xl p-0 border-none overflow-hidden shadow-2xl bg-background flex flex-col">
+            <DialogContent size="lg" className="sm:h-[min(760px,calc(100dvh-2rem))] sm:rounded-lg p-0 overflow-hidden bg-background flex flex-col">
                 <DialogHeader className="p-6 pb-2 border-b">
                     <div className="flex items-center gap-4">
                         {step === 'items' && (
@@ -100,7 +100,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                 <ChevronLeft className="w-6 h-6" />
                             </Button>
                         )}
-                        <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                        <DialogTitle className="flex items-center gap-3">
                             <Home className="w-6 h-6 text-primary" />
                             {step === 'guest' ? "Select Guest Reservation" : `Adding Items for ${selectedRes?.customer_name}`}
                         </DialogTitle>
@@ -114,7 +114,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                 <Input 
                                     placeholder="Search by name or room..." 
-                                    className="pl-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900 border-none"
+                                    className="pl-10 h-12 rounded-md bg-slate-50 dark:bg-slate-900 border-none"
                                     value={searchQuery}
                                     onChange={e => setSearchQuery(e.target.value)}
                                 />
@@ -140,10 +140,10 @@ export const ReservationSelectionDialog: React.FC = () => {
                                                 setSelectedRes(res);
                                                 setStep('items');
                                             }}
-                                            className="w-full p-4 rounded-2xl border border-border bg-slate-50 dark:bg-slate-900 hover:border-primary hover:bg-primary/5 transition-all flex items-center justify-between group"
+                                            className="w-full p-4 rounded-lg border border-border bg-slate-50 dark:bg-slate-900 hover:border-primary hover:bg-primary/5 transition-all flex items-center justify-between group"
                                         >
                                             <div className="flex items-center gap-4 text-left">
-                                                <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                                <div className="w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center text-primary">
                                                     <User className="w-6 h-6" />
                                                 </div>
                                                 <div>
@@ -171,7 +171,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                                     <Input 
                                         placeholder="Search products..." 
-                                        className="pl-10 h-10 rounded-xl bg-slate-50 dark:bg-slate-900 border-none"
+                                        className="pl-10 h-10 rounded-md bg-slate-50 dark:bg-slate-900 border-none"
                                         value={itemSearchQuery}
                                         onChange={e => setItemSearchQuery(e.target.value)}
                                     />
@@ -183,7 +183,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                         <button
                                             key={item.id}
                                             onClick={() => addToLocalCart(item)}
-                                            className="p-3 rounded-xl border border-border bg-white dark:bg-slate-950 hover:border-primary transition-all text-left flex flex-col h-full group"
+                                            className="p-3 rounded-md border border-border bg-white dark:bg-slate-950 hover:border-primary transition-all text-left flex flex-col h-full group"
                                         >
                                             <div className="flex-1">
                                                 <p className="font-bold text-xs line-clamp-2 mb-1 group-hover:text-primary transition-colors">{item.part_name}</p>
@@ -217,7 +217,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                     </div>
                                 ) : (
                                     localCart.map(item => (
-                                        <div key={item.id} className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-border shadow-sm">
+                                        <div key={item.id} className="p-3 bg-white dark:bg-slate-950 rounded-md border border-border shadow-sm">
                                             <div className="flex justify-between items-start mb-2">
                                                 <p className="text-xs font-bold flex-1 pr-2 line-clamp-2">{item.description}</p>
                                                 <button onClick={() => removeFromLocalCart(item.id)} className="text-muted-foreground hover:text-rose-500">
@@ -247,7 +247,7 @@ export const ReservationSelectionDialog: React.FC = () => {
                                     <span className="text-xl font-black tracking-tighter">LKR {cartTotal.toLocaleString()}</span>
                                 </div>
                                 <Button 
-                                    className="w-full h-14 rounded-xl font-black uppercase tracking-widest text-xs" 
+                                    className="w-full h-14 rounded-md font-black uppercase tracking-widest text-xs" 
                                     disabled={localCart.length === 0 || submitting}
                                     onClick={() => handleAddToReservation(selectedRes.id, localCart)}
                                 >

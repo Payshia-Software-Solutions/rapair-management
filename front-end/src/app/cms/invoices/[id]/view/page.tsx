@@ -5,12 +5,13 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { api, fetchInvoiceDetails, createPaymentReceipt, fetchCompany, contentUrl, type CompanyRow } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import {
+import { MoreHorizontal,
   Printer,
   ChevronLeft,
   DollarSign,
@@ -246,26 +247,20 @@ function InvoiceContent() {
   };
 
   return (
-    <div className="w-full max-w-5xl mx-auto space-y-8 animate-in fade-in duration-500">
+    <div className="w-full max-w-5xl mx-auto space-y-5">
       {/* Top Action Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <Button variant="ghost" size="sm" onClick={() => router.push("/cms/invoices")} className="hover:bg-slate-100 dark:hover:bg-slate-800">
-          <ChevronLeft className="w-4 h-4 mr-2" />
-          Back to List
+        <Button variant="ghost" size="sm" onClick={() => router.push("/cms/invoices")} className="-ml-2 text-muted-foreground">
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Invoices
         </Button>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           {!isPaid && (
             <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50/50 hover:bg-emerald-100 dark:text-emerald-400 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 transition-all">
-                  <DollarSign className="w-4 h-4 mr-2" />
-                  Record Payment
-                </Button>
-              </DialogTrigger>
               <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
-                  <DialogTitle>Record Payment</DialogTitle>
+                  <DialogTitle>Record payment</DialogTitle>
                   <DialogDescription>
                     Remaining balance: <span className="font-bold text-foreground">{formatCurrency(balance)}</span>
                   </DialogDescription>
@@ -304,7 +299,7 @@ function InvoiceContent() {
                   {/* Cheque fields */}
                   {paymentMethod === 'Cheque' && (
                     <div className="p-4 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl space-y-3">
-                      <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest">Cheque Details</p>
+                      <p className="text-xs font-bold text-amber-700 dark:text-amber-400">Cheque Details</p>
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <Label className="text-xs">Cheque Number (last 6 digits)</Label>
@@ -333,24 +328,18 @@ function InvoiceContent() {
                 <DialogFooter>
                   <Button onClick={handleRecordPayment} disabled={paymentSubmitting} className="w-full font-bold">
                     {paymentSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                    Confirm & Generate Receipt
+                    Save payment & make receipt
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           )}
           <Dialog open={recurringDialogOpen} onOpenChange={setRecurringDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="text-amber-600 border-amber-200 bg-amber-50/50 hover:bg-amber-100 dark:text-amber-400 dark:border-amber-500/30 dark:bg-amber-500/10 dark:hover:bg-amber-500/20 transition-all">
-                <History className="w-4 h-4 mr-2" />
-                Make Recurring
-              </Button>
-            </DialogTrigger>
             <DialogContent className="sm:max-w-md">
               <DialogHeader>
-                <DialogTitle>Create Recurring Template</DialogTitle>
+                <DialogTitle>Repeat this invoice</DialogTitle>
                 <DialogDescription>
-                  Convert this invoice into a template for automated generation.
+                  A copy of this invoice will be created automatically on this schedule.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -379,39 +368,47 @@ function InvoiceContent() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleConvertToRecurring} disabled={recurringSubmitting} className="w-full bg-amber-500 hover:bg-amber-600 text-slate-900 font-bold">
+                <Button onClick={handleConvertToRecurring} disabled={recurringSubmitting} className="w-full">
                   {recurringSubmitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RotateCw className="w-4 h-4 mr-2" />}
-                  Save Recurring Template
+                  Start repeating
                 </Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
 
-          <Button variant="outline" onClick={handleResendEmail} disabled={emailSubmitting} className="text-slate-600 border-slate-200 hover:bg-slate-50 transition-all">
-            {emailSubmitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-            Resend Email
-          </Button>
-
-          <Button 
-            variant="outline"
-            onClick={() => window.open(`/cms/invoices/${id}/tax-invoice?autoprint=1`, '_blank')} 
-            className="text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:text-amber-800 shadow-sm font-semibold"
-          >
-            <FileText className="w-4 h-4 mr-2 text-amber-600" />
-            Print Tax Invoice (Gazette)
-          </Button>
-
-          <Button onClick={() => window.open(`/cms/invoices/${id}/print?autoprint=1${taxInclusive ? '&tax_inclusive=1' : ''}`, '_blank')} className="bg-primary hover:bg-primary/90 shadow-sm">
+          <Button variant="outline" onClick={() => window.open(`/cms/invoices/${id}/print?autoprint=1${taxInclusive ? '&tax_inclusive=1' : ''}`, '_blank')}>
             <Printer className="w-4 h-4 mr-2" />
-            Print Invoice
+            Print
           </Button>
+          {!isPaid && (
+            <Button onClick={() => setPaymentDialogOpen(true)}>
+              <DollarSign className="w-4 h-4 mr-2" />
+              Record payment
+            </Button>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon" aria-label="More actions"><MoreHorizontal className="w-4 h-4" /></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={() => window.open(`/cms/invoices/${id}/tax-invoice?autoprint=1`, '_blank')}>
+                <FileText className="w-4 h-4 mr-2" /> Print tax invoice (Gazette format)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleResendEmail} disabled={emailSubmitting}>
+                <Mail className="w-4 h-4 mr-2" /> {emailSubmitting ? "Sending…" : "Email to customer"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRecurringDialogOpen(true)}>
+                <History className="w-4 h-4 mr-2" /> Repeat this invoice (recurring)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* Invoice Document Card */}
-      <Card className="border-none shadow-2xl overflow-hidden">
+      <Card className="overflow-hidden">
         <CardContent className="p-0">
-          <div className="p-10 md:p-16 space-y-12 bg-card">
+          <div className="p-6 md:p-10 space-y-8 bg-card">
             
             {/* 1. Header Section */}
             <div className="flex flex-col md:flex-row justify-between gap-8 border-b pb-12 border-border/60">
@@ -425,16 +422,16 @@ function InvoiceContent() {
                     </div>
                   )}
                   <div>
-                    <h1 className="text-3xl font-black tracking-tighter text-foreground border-l-4 border-primary pl-4 uppercase">
+                    <h1 className="text-2xl font-semibold text-foreground border-l-4 border-primary pl-4">
                       Invoice
                     </h1>
-                    <p className="pl-4 text-muted-foreground font-mono text-sm uppercase tracking-tighter">NO: {invoice.invoice_no}</p>
+                    <p className="pl-4 text-muted-foreground font-mono text-sm">NO: {invoice.invoice_no}</p>
                   </div>
                 </div>
               </div>
               
               <div className="text-right space-y-1">
-                <p className="text-xl font-black text-foreground uppercase tracking-tight">
+                <p className="text-xl font-semibold text-foreground tracking-tight">
                   {company?.name || "ServiceBay Solutions"}
                 </p>
                 {invoice.location_name && (
@@ -445,7 +442,7 @@ function InvoiceContent() {
                 <div className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">
                   {invoice.location_address || company?.address || "Main Distribution Hub, Colombo"}
                   {(invoice.location_tax_no || company?.tax_no) && (
-                    <div className="font-bold text-foreground uppercase text-[10px] mt-2 bg-muted/50 px-3 py-1 rounded-full inline-block border border-border/50">
+                    <div className="font-bold text-foreground text-xs mt-2 bg-muted/50 px-3 py-1 rounded-full inline-block border border-border/50">
                       {invoice.location_tax_label || company?.tax_label || "TAX ID"}: {invoice.location_tax_no || company?.tax_no}
                     </div>
                   )}
@@ -460,12 +457,12 @@ function InvoiceContent() {
             {/* 2. Billing Info Section */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
               <div className="space-y-3">
-                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Billed To</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground/60">Billed To</h4>
                 <div className="space-y-1">
                   <p className="text-lg font-bold text-foreground">{invoice.customer_name}</p>
                   <p className="text-sm text-muted-foreground font-medium">{invoice.customer_phone}</p>
                   {invoice.customer_tax_no && (
-                    <p className="text-[10px] text-muted-foreground mt-2 uppercase font-black tracking-widest bg-muted px-2.5 py-1 rounded-full inline-block border border-border/50">
+                    <p className="text-xs text-muted-foreground mt-2 font-semibold bg-muted px-2.5 py-1 rounded-full inline-block border border-border/50">
                       TAX ID: {invoice.customer_tax_no}
                     </p>
                   )}
@@ -475,8 +472,8 @@ function InvoiceContent() {
                   {invoice.is_international === 1 && (
                     <div className="mt-4 pt-4 border-t border-border/40 bg-blue-50/30 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-100 dark:border-blue-900/30">
                       <div className="flex items-center justify-between mb-2">
-                        <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600/60 dark:text-blue-400/60">International Delivery</h5>
-                        <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 text-[9px] h-4">
+                        <h5 className="text-xs font-semibold text-blue-600/60 dark:text-blue-400/60">International Delivery</h5>
+                        <Badge variant="outline" className="bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800 text-xs h-4">
                           <Globe className="w-3 h-3 mr-1" /> {invoice.shipping_country || 'Global'}
                         </Badge>
                       </div>
@@ -488,7 +485,7 @@ function InvoiceContent() {
                   )}
                   {invoice.shipping_address && invoice.shipping_address !== invoice.billing_address && invoice.is_international !== 1 && (
                     <div className="mt-4 pt-4 border-t border-border/40 bg-muted/20 p-3 rounded-lg">
-                      <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 mb-2">Shipping Address</h5>
+                      <h5 className="text-xs font-semibold text-muted-foreground/60 mb-2">Shipping Address</h5>
                       <p className="text-sm text-muted-foreground/80 whitespace-pre-line leading-relaxed">{invoice.shipping_address}</p>
                     </div>
                   )}
@@ -496,13 +493,13 @@ function InvoiceContent() {
               </div>
 
               <div className="space-y-3">
-                <h4 className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Payment Status</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground/60">Payment Status</h4>
                 <div className="flex items-center gap-3">
-                  <Badge variant="outline" className={`px-4 py-1 text-xs font-bold uppercase tracking-wider rounded-full shadow-sm
-                    ${invoice.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : ''}
-                    ${invoice.status === 'Partial' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}
-                    ${invoice.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' : ''}
-                  `}>
+                  <Badge variant="outline" className={`px-4 py-1 text-xs font-bold rounded-full shadow-sm
+ ${invoice.status === 'Paid' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : ''}
+ ${invoice.status === 'Partial' ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' : ''}
+ ${invoice.status === 'Unpaid' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20' : ''}
+ `}>
                     {invoice.status}
                   </Badge>
                   {isPaid && <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-emerald-500/20 shadow-lg shrink-0">
@@ -517,7 +514,7 @@ function InvoiceContent() {
                     <span className="text-muted-foreground/70 font-medium">Fleet Management</span>
                     <div className="text-right">
                       <span className="font-bold text-foreground/90 block">{invoice.location_name}</span>
-                      {invoice.location_phone && <span className="text-[10px] text-muted-foreground tabular-nums">{invoice.location_phone}</span>}
+                      {invoice.location_phone && <span className="text-xs text-muted-foreground tabular-nums">{invoice.location_phone}</span>}
                     </div>
                   </div>
                 )}
@@ -532,7 +529,7 @@ function InvoiceContent() {
                 {invoice.order_id && (
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-muted-foreground/70 font-medium">Repair Reference</span>
-                    <span className="font-black text-primary dark:text-primary-foreground/90 hover:underline cursor-pointer">#{invoice.order_id}</span>
+                    <span className="font-semibold text-primary dark:text-primary-foreground/90 hover:underline cursor-pointer">#{invoice.order_id}</span>
                   </div>
                 )}
               </div>
@@ -543,11 +540,11 @@ function InvoiceContent() {
               <table className="w-full text-left text-sm">
                 <thead>
                   <tr className="bg-muted/30 border-b border-border">
-                    <th className="py-4 px-6 font-black uppercase tracking-widest text-muted-foreground/60 text-[10px]">Description & Type</th>
-                    <th className="py-4 px-6 font-black uppercase tracking-widest text-muted-foreground/60 text-[10px] text-right">Qty</th>
-                    <th className="py-4 px-6 font-black uppercase tracking-widest text-muted-foreground/60 text-[10px] text-right">Unit Price</th>
-                    <th className="py-4 px-6 font-black uppercase tracking-widest text-muted-foreground/60 text-[10px] text-right">Discount</th>
-                    <th className="py-4 px-6 font-black uppercase tracking-widest text-muted-foreground/60 text-[10px] text-right">Line Total</th>
+                    <th className="py-4 px-6 font-semibold text-muted-foreground/60 text-xs">Description & Type</th>
+                    <th className="py-4 px-6 font-semibold text-muted-foreground/60 text-xs text-right">Qty</th>
+                    <th className="py-4 px-6 font-semibold text-muted-foreground/60 text-xs text-right">Unit Price</th>
+                    <th className="py-4 px-6 font-semibold text-muted-foreground/60 text-xs text-right">Discount</th>
+                    <th className="py-4 px-6 font-semibold text-muted-foreground/60 text-xs text-right">Line Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -568,11 +565,16 @@ function InvoiceContent() {
                         <td className="py-5 px-6">
                           <div className="font-bold text-foreground text-base group-hover:text-primary transition-colors">{item.description}</div>
                           <div className="flex items-center gap-2 mt-1.5">
-                            <span className={`text-[10px] font-black uppercase tracking-tighter px-2.5 py-0.5 rounded-md border
-                              ${item.item_type === 'Service' ? 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' : 'text-muted-foreground bg-muted border-border'}
-                            `}>
+                            <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-md border
+ ${item.item_type === 'Service' ? 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' : 'text-muted-foreground bg-muted border-border'}
+ `}>
                               {item.item_type}
                             </span>
+                            {Number(item.is_complimentary) === 1 && (
+                              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md border text-violet-700 bg-violet-500/10 border-violet-500/20 dark:text-violet-300">
+                                Complimentary{item.comp_reason ? `: ${item.comp_reason}` : ""}
+                              </span>
+                            )}
                           </div>
                           {/* Sold Batch Details */}
                           {invoice.batch_movements?.filter((bm: any) => Number(bm.part_id) === Number(item.item_id))?.length > 0 && (
@@ -580,13 +582,13 @@ function InvoiceContent() {
                               {invoice.batch_movements
                                 .filter((bm: any) => Number(bm.part_id) === Number(item.item_id))
                                 .map((bm: any, bIdx: number) => (
-                                  <div key={bIdx} className="text-[11px] flex items-center gap-2">
-                                    <span className="font-black text-primary/70 uppercase tracking-widest text-[9px]">Batch</span>
+                                  <div key={bIdx} className="text-xs flex items-center gap-2">
+                                    <span className="font-semibold text-primary/70 text-xs">Batch</span>
                                     <span className="font-bold text-foreground/80">{bm.batch_number || 'UNBATCHED'}</span>
                                     {bm.expiry_date && (
                                       <>
                                         <span className="text-muted-foreground/40 text-[8px]">/</span>
-                                        <span className="text-muted-foreground uppercase text-[9px]">Exp: {bm.expiry_date}</span>
+                                        <span className="text-muted-foreground text-xs">Exp: {bm.expiry_date}</span>
                                       </>
                                     )}
                                     <span className="ml-auto tabular-nums font-bold text-muted-foreground bg-muted/30 px-1.5 py-0.5 rounded">
@@ -599,10 +601,10 @@ function InvoiceContent() {
                         </td>
                         <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{item.quantity}</td>
                         <td className="py-5 px-6 text-right font-medium text-muted-foreground tabular-nums">{formatCurrency(displayUnitPrice)}</td>
-                        <td className="py-5 px-6 text-right font-bold text-rose-500 tabular-nums uppercase tracking-tighter">
+                        <td className="py-5 px-6 text-right font-bold text-rose-500 tabular-nums">
                           {displayDiscount > 0 ? `-${formatCurrency(displayDiscount)}` : "-"}
                         </td>
-                        <td className="py-5 px-6 text-right font-black text-foreground tabular-nums tracking-tighter shadow-sm">
+                        <td className="py-5 px-6 text-right font-semibold text-foreground tabular-nums shadow-sm">
                           {formatCurrency(displayLineTotal)}
                         </td>
                       </tr>
@@ -617,7 +619,7 @@ function InvoiceContent() {
               <div className="flex-1 space-y-8">
                 {invoice.notes && (
                   <div className="space-y-3">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Important Notes</h5>
+                    <h5 className="text-xs font-semibold text-muted-foreground/60 ml-1">Important Notes</h5>
                     <div className="bg-muted/40 p-5 rounded-2xl text-sm text-muted-foreground italic leading-relaxed border-l-4 border-primary/30">
                       {invoice.notes}
                     </div>
@@ -627,18 +629,18 @@ function InvoiceContent() {
                 {/* Payment History */}
                 {invoice.payments && invoice.payments.length > 0 && (
                   <div className="space-y-4">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Payment Reconciliation</h5>
+                    <h5 className="text-xs font-semibold text-muted-foreground/60 ml-1">Payment Reconciliation</h5>
                     <div className="divide-y border-y border-border/40">
                       {invoice.payments.map((p: any) => (
                         <div key={p.id} className="py-3 group space-y-1">
                           <div className="flex justify-between items-center text-xs">
                             <span className="text-muted-foreground font-medium">
-                              {p.payment_date} — <span className="uppercase opacity-70 italic font-bold">{p.payment_method}</span>
+                              {p.payment_date} — <span className="opacity-70 italic font-bold">{p.payment_method}</span>
                             </span>
-                            <span className="text-emerald-500 dark:text-emerald-400 font-black tabular-nums">+{formatCurrency(p.amount)}</span>
+                            <span className="text-emerald-500 dark:text-emerald-400 font-semibold tabular-nums">+{formatCurrency(p.amount)}</span>
                           </div>
                           {p.payment_method === 'Card' && (
-                            <div className="flex flex-wrap gap-2 items-center text-[9px] font-bold uppercase tracking-tight">
+                            <div className="flex flex-wrap gap-2 items-center text-xs font-bold tracking-tight">
                               {p.card_type && <span className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-500">{p.card_type}</span>}
                               {p.card_bank_name && <span className="px-1.5 py-0.5 bg-indigo-50 dark:bg-indigo-900/20 rounded text-indigo-600 dark:text-indigo-400">{p.card_bank_name}</span>}
                               {p.card_category && <span className="px-1.5 py-0.5 bg-blue-50 dark:bg-blue-900/20 rounded text-blue-600 dark:text-blue-400">{p.card_category}</span>}
@@ -647,7 +649,7 @@ function InvoiceContent() {
                             </div>
                           )}
                           {p.payment_method === 'Cheque' && p.cheque_no_last6 && (
-                            <div className="flex flex-wrap gap-2 items-center text-[9px] font-bold uppercase tracking-tight text-amber-600">
+                            <div className="flex flex-wrap gap-2 items-center text-xs font-bold tracking-tight text-amber-600">
                               <span>Cheque #{p.cheque_no_last6}</span>
                               {p.cheque_date && <span>• Date: {p.cheque_date}</span>}
                               {p.cheque_bank_name && <span>• {p.cheque_bank_name}</span>}
@@ -661,7 +663,7 @@ function InvoiceContent() {
                 )}
               </div>
 
-              <div className="w-full md:w-80 space-y-4 bg-muted/20 p-6 rounded-3xl border border-border/50">
+              <div className="w-full md:w-80 space-y-4 bg-muted/20 p-6 rounded-xl border border-border/50">
                 <div className="space-y-3 pb-5 border-b border-border">
                   {taxInclusive ? (
                     <div className="space-y-3">
@@ -684,7 +686,7 @@ function InvoiceContent() {
                         <span>Total (Tax Inclusive)</span>
                         <span className="tabular-nums">LKR {Number(invoice.grand_total).toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between items-center text-[10px] text-muted-foreground italic">
+                      <div className="flex justify-between items-center text-xs text-muted-foreground italic">
                         <span>Includes Taxes</span>
                         <span className="tabular-nums">LKR {(invoice.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0).toFixed(2)}</span>
                       </div>
@@ -738,10 +740,10 @@ function InvoiceContent() {
                   )}
 
                   <div className="pt-4 border-t border-border flex justify-between items-baseline">
-                    <span className="text-sm font-black uppercase tracking-widest text-foreground/60">Grand Total</span>
+                    <span className="text-sm font-semibold text-foreground/60">Grand Total</span>
                     <div className="text-right">
-                      <span className="text-3xl font-black text-amber-500 tabular-nums tracking-tighter">
-                        <span className="text-sm mr-1 uppercase">LKR</span>
+                      <span className="text-2xl font-bold text-foreground tabular-nums">
+                        <span className="text-sm mr-1">LKR</span>
                         {Number(invoice.grand_total).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -749,16 +751,16 @@ function InvoiceContent() {
                 </div>
 
                 <div className={`p-5 rounded-2xl space-y-3 mt-4 transition-all shadow-inner border border-border/30
-                  ${isPaid ? 'bg-emerald-500/5' : 'bg-rose-500/5'}
-                `}>
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+ ${isPaid ? 'bg-emerald-500/5' : 'bg-rose-500/5'}
+ `}>
+                  <div className="flex justify-between text-xs font-semibold tracking-[0.2em] opacity-40">
                     <span>Paid to Date</span>
                     <span className="text-emerald-500">{formatCurrency(invoice.paid_amount)}</span>
                   </div>
-                  <div className={`flex justify-between text-lg font-black tracking-tighter
-                    ${isPaid ? 'text-emerald-500' : 'text-rose-500 underline decoration-rose-500/30 underline-offset-8'}
-                  `}>
-                    <span className="uppercase font-bold tracking-widest text-xs opacity-80 pt-1.5">Balance Due</span>
+                  <div className={`flex justify-between text-lg font-semibold 
+ ${isPaid ? 'text-emerald-500' : 'text-rose-500 underline decoration-rose-500/30 underline-offset-8'}
+ `}>
+                    <span className="font-bold text-xs opacity-80 pt-1.5">Balance Due</span>
                     <span className="tabular-nums">{formatCurrency(balance)}</span>
                   </div>
                 </div>
@@ -769,11 +771,11 @@ function InvoiceContent() {
             <div className="flex flex-col items-center justify-center pt-16 text-center space-y-4">
               <div className="flex items-center gap-2 opacity-50">
                 <MapPin className="w-4 h-4 text-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <span className="text-xs font-semibold text-muted-foreground">
                   {company?.name || "ServiceBay"} • Automotive Excellence
                 </span>
               </div>
-              <p className="text-[10px] text-muted-foreground/40 font-medium px-20 leading-loose max-w-2xl mx-auto italic">
+              <p className="text-xs text-muted-foreground/40 font-medium px-20 leading-loose max-w-2xl mx-auto italic">
                 Thank you for choosing us for your vehicle maintenance. Please ensure payment is made by the due date to avoid service interruptions. 
                 This document is electronically generated and verified for authenticity.
               </p>

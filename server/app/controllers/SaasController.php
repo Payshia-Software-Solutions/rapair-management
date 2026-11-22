@@ -14,6 +14,19 @@ class SaasController extends Controller {
         $this->success($config);
     }
 
+    // GET /api/saas/usage  Active users and branches against the plan limits (null = unlimited).
+    public function usage() {
+        $this->requireAuth();
+        SaasHelper::reportUsageThrottled(300);
+        $u = SaasHelper::usage();
+        $this->success([
+            'users' => $u['users'],
+            'locations' => $u['locations'],
+            'max_users' => SaasHelper::limit('users'),
+            'max_locations' => SaasHelper::limit('locations'),
+        ]);
+    }
+
     public function packages() {
         $packages = SaasHelper::getPackages();
         if (is_array($packages)) {

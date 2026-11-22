@@ -1,5 +1,6 @@
 "use client";
 
+import { assetUrl } from '@/lib/asset-url';
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { 
@@ -536,14 +537,14 @@ export default function OnlineOrdersPage() {
       </div>
 
       <Dialog open={showSlipModal} onOpenChange={setShowSlipModal}>
-        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden bg-white border-gray-200 shadow-2xl">
+        <DialogContent className="sm:max-w-[600px] p-0 overflow-hidden">
           <DialogHeader className="p-4 border-b border-gray-100 bg-gray-50">
             <DialogTitle className="text-sm font-bold uppercase tracking-widest text-gray-500">Payment Proof (Slip)</DialogTitle>
           </DialogHeader>
           <div className="p-2 bg-gray-100 flex items-center justify-center min-h-[400px]">
              {selectedSlip ? (
                 <img 
-                  src={`${API_BASE_URL}/${selectedSlip}`} 
+                  src={assetUrl(selectedSlip, API_BASE_URL)} 
                   alt="Payment Slip" 
                   className="max-w-full max-h-[80vh] object-contain shadow-xl rounded-md"
                 />
@@ -567,7 +568,7 @@ export default function OnlineOrdersPage() {
       </Dialog>
 
       <Dialog open={showOrderModal} onOpenChange={setShowOrderModal}>
-        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0 border-none shadow-2xl bg-white">
+        <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto p-0">
           <DialogHeader className="p-6 border-b bg-gray-50/50 sticky top-0 z-10 backdrop-blur-md">
             <div className="flex items-center justify-between">
               <div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { assetUrl } from '@/lib/asset-url';
 import React, { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { 
@@ -344,9 +345,9 @@ export default function OrderViewPage() {
                         {order.payment_method?.toLowerCase() === 'bank' && order.payment_slip && (
                             <div className="space-y-4">
                                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block mb-1">Payment Proof (Slip)</label>
-                                <div className="relative group rounded-xl overflow-hidden border border-muted/50 cursor-pointer" onClick={() => window.open(`${API_BASE_URL}/${order.payment_slip}`, '_blank')}>
+                                <div className="relative group rounded-xl overflow-hidden border border-muted/50 cursor-pointer" onClick={() => window.open(assetUrl(order.payment_slip, API_BASE_URL), '_blank')}>
                                     <img 
-                                        src={`${API_BASE_URL}/${order.payment_slip}`} 
+                                        src={assetUrl(order.payment_slip, API_BASE_URL)} 
                                         alt="Slip" 
                                         className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-500"
                                     />

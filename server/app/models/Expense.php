@@ -132,9 +132,11 @@ class Expense extends Model {
 
             $this->db->commit();
 
-            // Accounting integration
-            require_once __DIR__ . '/../helpers/AccountingHelper.php';
-            AccountingHelper::postExpenseVoucher($expenseId, $data);
+            // Accounting integration. A voucher waiting for approval is posted when it's approved.
+            if (($data['status'] ?? 'Paid') !== 'Pending') {
+                require_once __DIR__ . '/../helpers/AccountingHelper.php';
+                AccountingHelper::postExpenseVoucher($expenseId, $data);
+            }
 
             return $expenseId;
         } catch (Exception $e) {

@@ -77,7 +77,7 @@ function DayEndPrintContent() {
                 </body>
               </html>
             `;
-            const success = await silentPrint(html);
+            const success = (await silentPrint(html, "Receipt")).success;
             if (success) {
               window.close();
               return;
@@ -158,13 +158,13 @@ function DayEndPrintContent() {
            <div className="flex gap-3">
              <button
                onClick={() => window.print()}
-               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all"
+               className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-md font-black uppercase tracking-widest text-xs shadow-lg transition-all"
              >
                🖨 Print Summary
              </button>
              <button
                onClick={() => window.close()}
-               className="bg-white border-2 border-slate-200 text-slate-900 px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition-all"
+               className="bg-white border-2 border-slate-200 text-slate-900 px-8 py-3 rounded-md font-black uppercase tracking-widest text-xs hover:bg-slate-50 transition-all"
              >
                Close
              </button>

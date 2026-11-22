@@ -72,7 +72,7 @@ export default function StockTransferReportPage() {
     setLoading(true);
     try {
       const data = await fetchReportStockTransfers({
-        locationId: locationId === "all" ? "all" : Number(locationId),
+        location_id: String(locationId),
         from: fromDate || undefined,
         to: toDate || undefined,
         status: status || undefined,
@@ -135,12 +135,11 @@ export default function StockTransferReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Stock Transfer Report"
       subtitle="Transfers by date/status, All or location-wise (from/to)."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

@@ -276,7 +276,7 @@ class PurchaseOrder extends Model {
         // // // // // // $this->ensureSchema();
         $poId = (int)$id;
         // "Cancelled" status marking is intentionally disabled in the UI and API.
-        $allowed = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received'];
+        $allowed = ['Draft', 'Pending Approval', 'Approved', 'Sent', 'Partially Received', 'Received'];
         if ($poId <= 0 || !in_array($status, $allowed, true)) return false;
 
         $this->db->query("UPDATE {$this->table} SET status = :s, updated_by = :u WHERE id = :id");

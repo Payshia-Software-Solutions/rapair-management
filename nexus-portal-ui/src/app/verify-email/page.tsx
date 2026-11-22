@@ -77,7 +77,7 @@ function VerifyEmailContent() {
         </p>
 
         {status === 'success' && (
-          <Link href="/admin" className="w-full btn-premium py-4 flex items-center justify-center gap-2 group">
+          <Link href="/admin/login" className="w-full btn-premium py-4 flex items-center justify-center gap-2 group">
             Continue to Login
             <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
           </Link>

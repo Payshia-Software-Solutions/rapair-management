@@ -166,9 +166,9 @@ export default function NewPaymentPage() {
         </div>
 
         {step === 1 && (
-          <Card className="border-none shadow-xl">
+          <Card className="border-none shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+              <CardTitle className="text-xl font-semibold tracking-tight flex items-center gap-2">
                 <User className="w-5 h-5 text-primary" />
                 Select Customer
               </CardTitle>
@@ -201,17 +201,17 @@ export default function NewPaymentPage() {
               <ArrowLeft className="w-4 h-4" /> Change Customer
             </Button>
             
-            <Card className="border-none shadow-xl">
+            <Card className="border-none shadow-sm">
               <CardHeader className="pb-2 flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2 text-primary">
+                  <CardTitle className="text-xl font-semibold tracking-tight flex items-center gap-2 text-primary">
                     <FileText className="w-5 h-5" />
                     Select Pending Invoices
                   </CardTitle>
                   <p className="text-xs text-muted-foreground font-medium">Showing unpaid balances for <span className="text-foreground font-bold">{selectedCustomer?.name}</span></p>
                 </div>
                 {invoices.length > 0 && (
-                  <Button variant="outline" size="sm" onClick={toggleSelectAll} className="text-xs font-bold uppercase">
+                  <Button variant="outline" size="sm" onClick={toggleSelectAll} className="text-xs font-bold">
                     {selectedInvoices.length === invoices.length ? "Deselect All" : "Select All"}
                   </Button>
                 )}
@@ -234,25 +234,25 @@ export default function NewPaymentPage() {
                             key={inv.id}
                             onClick={() => toggleInvoiceSelect(inv)}
                             className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all text-left ${
-                              isSelected 
-                                ? 'border-primary bg-primary/5 shadow-md shadow-primary/5' 
-                                : 'border-border/50 hover:border-primary hover:bg-primary/5'
-                            }`}
+ isSelected 
+ ? 'border-primary bg-primary/5 shadow-md shadow-primary/5' 
+ : 'border-border/50 hover:border-primary hover:bg-primary/5'
+ }`}
                           >
                             <div className="flex items-center gap-3">
                               <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                                isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'
-                              }`}>
+ isSelected ? 'bg-primary border-primary text-white' : 'border-slate-300 bg-white'
+ }`}>
                                 {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                               </div>
                               <div className="space-y-0.5">
                                 <span className="font-mono font-bold text-sm">INV-{inv.invoice_no}</span>
-                                <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">{inv.issue_date}</div>
+                                <div className="text-xs text-muted-foreground font-semibold">{inv.issue_date}</div>
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="font-black text-lg">LKR {(Number(inv.grand_total) - Number(inv.paid_amount)).toLocaleString()}</div>
-                              <div className="text-[10px] text-rose-500 font-bold uppercase tracking-tighter">Balance Due</div>
+                              <div className="font-semibold text-lg">LKR {(Number(inv.grand_total) - Number(inv.paid_amount)).toLocaleString()}</div>
+                              <div className="text-xs text-rose-500 font-bold">Balance Due</div>
                             </div>
                           </button>
                         );
@@ -263,7 +263,7 @@ export default function NewPaymentPage() {
                       <Button 
                         disabled={selectedInvoices.length === 0} 
                         onClick={handleProceedToPayment}
-                        className="h-12 px-6 rounded-xl font-black uppercase tracking-tight text-sm shadow-md"
+                        className="h-12 px-6 rounded-xl font-semibold tracking-tight text-sm shadow-md"
                       >
                         Proceed to Pay ({selectedInvoices.length} Selected)
                       </Button>
@@ -282,15 +282,15 @@ export default function NewPaymentPage() {
             </Button>
 
             <form onSubmit={handleSubmit}>
-              <Card className="border-none shadow-xl overflow-hidden">
+              <Card className="border-none shadow-sm overflow-hidden">
                 <CardHeader className="bg-primary/5 pb-4">
                   <div className="flex justify-between items-start">
-                    <CardTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+                    <CardTitle className="text-xl font-semibold tracking-tight flex items-center gap-2">
                       <Banknote className="w-5 h-5 text-primary" />
                       Bulk Payment Settlement
                     </CardTitle>
                     <div className="text-right">
-                      <div className="text-[10px] font-black uppercase tracking-widest opacity-40">Selected Invoices</div>
+                      <div className="text-xs font-semibold opacity-40">Selected Invoices</div>
                       <div className="font-mono font-bold text-primary">{selectedInvoices.length} Invoices</div>
                     </div>
                   </div>
@@ -298,7 +298,7 @@ export default function NewPaymentPage() {
                 <CardContent className="pt-6 space-y-6">
                   {/* Allocation Fields */}
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Allocation per Invoice</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Allocation per Invoice</label>
                     <div className="border border-border/60 rounded-2xl p-4 bg-slate-50/50 dark:bg-slate-900/30 space-y-3 max-h-[300px] overflow-y-auto">
                       {selectedInvoices.map(inv => {
                         const maxBalance = Number(inv.grand_total) - Number(inv.paid_amount);
@@ -306,12 +306,12 @@ export default function NewPaymentPage() {
                           <div key={inv.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/40 pb-3 last:border-0 last:pb-0">
                             <div>
                               <div className="font-mono font-bold text-sm">INV-{inv.invoice_no}</div>
-                              <div className="text-[10px] text-muted-foreground">
+                              <div className="text-xs text-muted-foreground">
                                 Balance: <span className="font-bold text-slate-800 dark:text-slate-200">LKR {maxBalance.toLocaleString()}</span>
                               </div>
                             </div>
                             <div className="relative w-full sm:w-48">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400 uppercase">LKR</span>
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">LKR</span>
                               <Input 
                                 type="number"
                                 step="0.01"
@@ -341,18 +341,18 @@ export default function NewPaymentPage() {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total Payment Amount (LKR)</label>
+                      <label className="text-xs font-semibold text-muted-foreground">Total Payment Amount (LKR)</label>
                       <Input 
                         type="number" 
                         step="0.01" 
                         readOnly 
-                        className="h-12 text-lg font-black rounded-xl border-2 bg-muted cursor-not-allowed text-primary"
+                        className="h-12 text-lg font-semibold rounded-xl border-2 bg-muted cursor-not-allowed text-primary"
                         value={formData.amount}
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment Method</label>
+                      <label className="text-xs font-semibold text-muted-foreground">Payment Method</label>
                       <select
                         className="w-full h-12 rounded-xl border-2 border-input bg-background px-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary"
                         value={formData.payment_method}
@@ -366,7 +366,7 @@ export default function NewPaymentPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment Date</label>
+                      <label className="text-xs font-semibold text-muted-foreground">Payment Date</label>
                       <Input 
                         type="date" 
                         required 
@@ -377,7 +377,7 @@ export default function NewPaymentPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Reference / Trx ID</label>
+                      <label className="text-xs font-semibold text-muted-foreground">Reference / Trx ID</label>
                       <Input 
                         placeholder="Cheque No, Txn ID, etc." 
                         className="h-12 rounded-xl font-bold"
@@ -388,7 +388,7 @@ export default function NewPaymentPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Notes (Optional)</label>
+                    <label className="text-xs font-semibold text-muted-foreground">Notes (Optional)</label>
                     <Input 
                       placeholder="e.g. Settlement of multiple pending invoices" 
                       className="h-12 rounded-xl font-medium"
@@ -400,7 +400,7 @@ export default function NewPaymentPage() {
                   <Button 
                     type="submit" 
                     disabled={loading || !formData.amount || Number(formData.amount) <= 0} 
-                    className="w-full h-14 rounded-2xl text-lg font-black uppercase tracking-tight shadow-lg shadow-primary/20"
+                    className="w-full h-14 rounded-2xl text-lg font-semibold tracking-tight shadow-lg shadow-primary/20"
                   >
                     {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : "Complete Settlement"}
                   </Button>

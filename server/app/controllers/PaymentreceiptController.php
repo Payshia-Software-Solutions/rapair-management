@@ -117,13 +117,11 @@ class PaymentreceiptController extends Controller {
         }
         if (!$id) { $this->json(['status' => 'error', 'message' => 'Missing ID'], 422); return; }
 
-        $input = json_decode(file_get_contents('php://input'), true);
-        $reason = $input['reason'] ?? 'Cancelled by user';
-
-        if ($this->model->cancel($id, $reason, $u['sub'])) {
-            $this->json(['status' => 'success', 'message' => 'Payment cancelled successfully']);
-        } else {
-            $this->json(['status' => 'error', 'message' => 'Failed to cancel payment'], 500);
-        }
+        // Cancelling needs a second person: this raises a request that another user approves
+        $input = json_decode(file_get_contents('php://input'), true) ?: [];
+        require_once '../app/helpers/CancellationRequestHelper.php';
+        [$ok, $msg, $rid] = CancellationRequestHelper::create(new Database(), 'PaymentReceipt', (int)$id, $input['reason'] ?? '', (int)$u['sub']);
+        if (!$ok) { $this->json(['status' => 'error', 'message' => $msg], 422); return; }
+        $this->json(['status' => 'success', 'message' => $msg, 'data' => ['request_id' => $rid, 'status' => 'pending']]);
     }
 }

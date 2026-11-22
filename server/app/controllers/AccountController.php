@@ -50,6 +50,7 @@ class AccountController extends Controller {
 
         $filters = [];
         if ($type) $filters['type'] = strtoupper($type);
+        if (!empty($_GET['include_groups'])) $filters['include_groups'] = true;
         
         if ($as_of) {
             $accounts = $this->accountModel->getBalancesAsOf($as_of);
@@ -98,7 +99,7 @@ class AccountController extends Controller {
         }
 
         $input = json_decode(file_get_contents('php://input'), true);
-        if (!$input || empty($input['code']) || empty($input['name']) || empty($input['type'])) {
+        if (!$input || empty($input['code']) || empty($input['name']) || (empty($input['type']) && empty($input['parent_id']))) {
             $this->json(['status' => 'error', 'message' => 'Missing required fields'], 400);
             return;
         }
@@ -108,11 +109,12 @@ class AccountController extends Controller {
         if ($id) {
             $this->json(['status' => 'success', 'message' => 'Account created', 'id' => $id]);
         } else {
-            $this->json(['status' => 'error', 'message' => 'Failed to create account'], 500);
+            $this->json(['status' => 'error', 'message' => $this->accountModel->lastError ?: 'Failed to create account'], 422);
         }
     }
 
     public function update_mapping() {
+        $this->requirePermission('accounting.setup');
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->json(['status' => 'error', 'message' => 'Method not allowed'], 405);
             return;

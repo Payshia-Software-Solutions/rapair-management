@@ -16,6 +16,7 @@ import {
   rbacFetchRolePermissions,
   rbacFetchRoles,
   rbacSetRolePermissions,
+  rbacSetRoleCompLimit,
 } from "@/lib/api";
 import { Loader2, Plus, Shield, Trash2 } from "lucide-react";
 import {
@@ -33,7 +34,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-type RoleRow = { id: number; name: string; created_at: string };
+type RoleRow = { id: number; name: string; created_at: string; comp_limit?: string | number | null };
 type PermRow = { id: number; perm_key: string; description: string | null };
 
 type PermMatrixRow = { module: string; page: string; read: string; write?: string };
@@ -45,6 +46,7 @@ const basePagePermissionMatrix: PermMatrixRow[] = [
   { module: "Core Features", page: "AI Business Intelligence", read: "reports.read" },
   { module: "Core Features", page: "Sales Dashboard", read: "reports.read" },
   { module: "Core Features", page: "POS Quick Sale", read: "pos.read", write: "pos.write" },
+  { module: "Core Features", page: "POS: Approve complimentary items (PIN)", read: "pos.comp" },
   { module: "Core Features", page: "Reports", read: "reports.read" },
 
   // Fleet Management
@@ -205,11 +207,38 @@ export default function RbacPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [filter, setFilter] = useState("");
+  const [compLimit, setCompLimit] = useState("");
+  const [savingLimit, setSavingLimit] = useState(false);
 
   const selectedRole = useMemo(
     () => roles.find((r) => r.id === selectedRoleId) ?? null,
     [roles, selectedRoleId]
   );
+
+  useEffect(() => {
+    const v = selectedRole?.comp_limit;
+    setCompLimit(v === null || v === undefined || v === "" ? "" : String(Number(v)));
+  }, [selectedRole]);
+
+  const saveCompLimit = async () => {
+    if (!selectedRoleId) return;
+    const trimmed = compLimit.trim();
+    const value = trimmed === "" ? null : Number(trimmed);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      toast({ title: "Invalid limit", description: "Enter an amount, or leave it empty for no limit.", variant: "destructive" });
+      return;
+    }
+    setSavingLimit(true);
+    try {
+      await rbacSetRoleCompLimit(selectedRoleId, value);
+      setRoles((prev) => prev.map((r) => (r.id === selectedRoleId ? { ...r, comp_limit: value } : r)));
+      toast({ title: "Saved", description: value === null ? "No complimentary limit for this role" : `Complimentary limit set to LKR ${value.toFixed(2)}` });
+    } catch (err) {
+      toast({ title: "Error", description: (err as Error).message, variant: "destructive" });
+    } finally {
+      setSavingLimit(false);
+    }
+  };
 
   const matrixKeys = useMemo(() => {
     const s = new Set<string>();
@@ -487,6 +516,30 @@ export default function RbacPage() {
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              {selectedRole && selectedRole.name !== "Admin" && roleKeys.has("pos.comp") && (
+                <div className="rounded-lg border p-3 flex flex-col sm:flex-row sm:items-end gap-3">
+                  <div className="flex-1 min-w-0">
+                    <Label htmlFor="comp-limit">POS complimentary limit (LKR)</Label>
+                    <p className="text-xs text-muted-foreground mt-0.5">Most this role can approve as complimentary in one go. Leave empty for no limit.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      id="comp-limit"
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      placeholder="No limit"
+                      value={compLimit}
+                      onChange={(e) => setCompLimit(e.target.value)}
+                      className="w-full sm:w-36"
+                    />
+                    <Button variant="outline" onClick={() => void saveCompLimit()} disabled={savingLimit}>
+                      {savingLimit && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save limit
+                    </Button>
+                  </div>
+                </div>
+              )}
               <Accordion type="multiple" defaultValue={Object.keys(groupedMatrix)} className="w-full border rounded-lg overflow-hidden divide-y">
                 {Object.entries(groupedMatrix).map(([moduleName, rows]) => {
                   const moduleSelected = isModuleSelected(moduleName);

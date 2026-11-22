@@ -47,6 +47,9 @@ class AdminController extends Controller {
 
     // GET /api/admin/users
     public function users() {
+        // phone column (for approval SMS) is added by the approval schema on older installs.
+        require_once '../app/helpers/ApprovalSchema.php';
+        ApprovalSchema::ensure();
         $this->requireAdmin();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
@@ -76,6 +79,8 @@ class AdminController extends Controller {
                 u.location_id,
                 sl.name AS location_name,
                 u.is_active,
+                u.phone,
+                (u.pin_hash IS NOT NULL) AS has_pin,
                 GROUP_CONCAT(DISTINCT sl2.name ORDER BY sl2.name SEPARATOR ', ') AS allowed_locations,
                 GROUP_CONCAT(DISTINCT ul.location_id ORDER BY ul.location_id SEPARATOR ',') AS allowed_location_ids,
                 u.created_at
@@ -84,11 +89,28 @@ class AdminController extends Controller {
             INNER JOIN service_locations sl ON sl.id = u.location_id
             LEFT JOIN user_locations ul ON ul.user_id = u.id
             LEFT JOIN service_locations sl2 ON sl2.id = ul.location_id
-            GROUP BY u.id, u.name, u.email, u.role_id, r.name, u.location_id, sl.name, u.is_active, u.created_at
+            GROUP BY u.id, u.name, u.email, u.role_id, r.name, u.location_id, sl.name, u.is_active, u.phone, u.created_at
             ORDER BY u.id ASC
         ");
         $rows = $this->db->resultSet();
         $this->success($rows);
+    }
+
+    // POST /api/admin/set_user_phone/{id} { phone }  -> mobile number for approval SMS alerts
+    public function set_user_phone($id = null) {
+        $u = $this->requireAuth();
+        if (!$this->isAdmin($u)) { $this->error('Forbidden', 403); return; }
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        $in = json_decode(file_get_contents('php://input'), true) ?: [];
+        $phone = trim((string)($in['phone'] ?? ''));
+        if ($phone !== '' && !preg_match('/^\+?[0-9 ()-]{7,20}$/', $phone)) { $this->error('Enter a valid phone number, e.g. 0771234567 or +94771234567.', 422); return; }
+        require_once '../app/helpers/ApprovalSchema.php';
+        ApprovalSchema::ensure();
+        $this->db->query("UPDATE users SET phone = :p WHERE id = :id");
+        $this->db->bind(':p', $phone !== '' ? $phone : null);
+        $this->db->bind(':id', (int)$id);
+        $this->db->execute();
+        $this->success(null, $phone !== '' ? 'Phone saved' : 'Phone removed');
     }
 
     // POST /api/admin/set_user_role/{id}
@@ -316,6 +338,54 @@ class AdminController extends Controller {
         $this->success(null, 'User locations updated');
     }
 
+    // POST /api/admin/reset_user_password/{id} { new_password }
+    // Admin sets a new password for a user (forgotten password). Recorded in the audit log.
+    public function reset_user_password($id = null) {
+        $admin = $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        if (!$id) { $this->error('User ID required', 400); return; }
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $pwd = (string)($data['new_password'] ?? '');
+
+        if (strlen($pwd) < 8) { $this->error('Password must be at least 8 characters.', 422); return; }
+        if (!preg_match('/[A-Za-z]/', $pwd) || !preg_match('/\d/', $pwd)) {
+            $this->error('Password must contain letters and numbers.', 422); return;
+        }
+
+        $this->db->query("SELECT id, email FROM users WHERE id = :id LIMIT 1");
+        $this->db->bind(':id', (int)$id);
+        $user = $this->db->single();
+        if (!$user) { $this->error('User not found', 404); return; }
+
+        $this->db->query("UPDATE users SET password_hash = :h WHERE id = :id");
+        $this->db->bind(':h', password_hash($pwd, PASSWORD_BCRYPT));
+        $this->db->bind(':id', (int)$id);
+        $this->db->execute();
+
+        try {
+            require_once '../app/models/AuditLog.php';
+            (new AuditLog())->write([
+                'user_id' => (int)($admin['sub'] ?? 0), 'action' => 'password_reset_by_admin', 'entity' => 'user', 'entity_id' => (int)$id,
+                'method' => 'POST', 'path' => $_SERVER['REQUEST_URI'] ?? '', 'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+            ]);
+        } catch (Exception $e) { /* never block the reset on audit */ }
+
+        $this->success(null, 'Password reset');
+    }
+
+    // POST /api/admin/clear_user_pin/{id}
+    // Admin removes a user's POS PIN (forgotten PIN); the user then sets a new one.
+    public function clear_user_pin($id = null) {
+        $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        if (!$id) { $this->error('User ID required', 400); return; }
+        $this->db->query("UPDATE users SET pin_hash = NULL, pin_failed_count = 0, pin_locked_until = NULL WHERE id = :id");
+        $this->db->bind(':id', (int)$id);
+        $this->db->execute();
+        $this->success(null, 'PIN cleared');
+    }
+
     // POST /api/admin/set_user_active/{id}
     public function set_user_active($id = null) {
         $u = $this->requireAdmin();
@@ -356,6 +426,20 @@ class AdminController extends Controller {
             // ignore (exists)
         }
 
+        // Plan limit: activating a user must not pass the package's active-user allowance
+        if ($isActive === 1) {
+            $this->db->query("SELECT is_active FROM users WHERE id = :id");
+            $this->db->bind(':id', (int)$id);
+            $cur = $this->db->single();
+            if ($cur && (int)$cur->is_active !== 1) {
+                $limitError = SaasHelper::limitError('users');
+                if ($limitError) {
+                    $this->error($limitError, 403);
+                    return;
+                }
+            }
+        }
+
         $this->db->query("UPDATE users SET is_active = :is_active WHERE id = :id");
         $this->db->bind(':is_active', $isActive);
         $this->db->bind(':id', (int)$id);
@@ -364,6 +448,7 @@ class AdminController extends Controller {
             $this->error('Failed to update user status');
             return;
         }
+        SaasHelper::reportUsage();
 
         $this->auditModel->write([
             'user_id' => (int)$u['sub'],

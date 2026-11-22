@@ -20,18 +20,18 @@ export default function Pagination({
   const endItem   = Math.min(currentPage * itemsPerPage, totalItems);
 
   const btnBase = `
-    flex items-center justify-center rounded-md border border-[#e4e4e7] bg-white p-1.5
-    text-[#71717a] transition-colors
-    hover:bg-[#f4f4f5] hover:text-[#09090b]
+    flex items-center justify-center rounded-md border border-nx-line bg-white p-1.5
+    text-nx-text-muted transition-colors
+    hover:bg-nx-surface-muted hover:text-nx-ink
     disabled:cursor-not-allowed disabled:opacity-30
-    dark:border-[#27272a] dark:bg-[#18181b] dark:hover:bg-[#27272a] dark:hover:text-white
+    dark:border-nx-line-dark dark:bg-nx-surface-dark dark:hover:bg-nx-line-dark dark:hover:text-white
   `;
 
   return (
-    <div className="flex flex-col items-center justify-between gap-3 border-t border-[#f4f4f5] px-5 py-3 dark:border-[#27272a] sm:flex-row">
-      <p className="text-[12px] text-[#71717a] dark:text-[#a1a1aa]">
-        Showing <span className="font-medium text-[#09090b] dark:text-white">{startItem}–{endItem}</span>{' '}
-        of <span className="font-medium text-[#09090b] dark:text-white">{totalItems}</span> records
+    <div className="flex flex-col items-center justify-between gap-3 border-t border-nx-surface-muted px-5 py-3 dark:border-nx-line-dark sm:flex-row">
+      <p className="text-[12px] text-nx-text-muted dark:text-nx-text-subtle">
+        Showing <span className="font-medium text-nx-ink dark:text-white">{startItem}–{endItem}</span>{' '}
+        of <span className="font-medium text-nx-ink dark:text-white">{totalItems}</span> records
       </p>
 
       <div className="flex items-center gap-1">
@@ -56,8 +56,8 @@ export default function Pagination({
                 onClick={() => onPageChange(pageNum)}
                 className={`flex h-7 w-7 items-center justify-center rounded-md text-[12px] font-medium transition-colors ${
                   currentPage === pageNum
-                    ? 'bg-[#6366f1] text-white'
-                    : 'text-[#71717a] hover:bg-[#f4f4f5] hover:text-[#09090b] dark:text-[#a1a1aa] dark:hover:bg-[#27272a] dark:hover:text-white'
+                    ? 'bg-nx-accent text-white'
+                    : 'text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:bg-nx-line-dark dark:hover:text-white'
                 }`}
               >
                 {pageNum}

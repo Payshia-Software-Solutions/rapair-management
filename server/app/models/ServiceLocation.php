@@ -37,6 +37,11 @@ class ServiceLocation extends Model {
         } catch (Exception $e) { }
     }
 
+    /** POS receipt after checkout: ask the cashier, always print one format, or don't print. */
+    private static function cleanReceiptFormat($v) {
+        return in_array($v, ['ask', 'standard', 'inclusive', 'none'], true) ? $v : null;
+    }
+
     public function getAll() {
         // // // // // // $this->ensureSchema();
         $this->db->query("SELECT * FROM {$this->table} ORDER BY name ASC");
@@ -59,7 +64,7 @@ class ServiceLocation extends Model {
                 allow_dine_in, allow_take_away, allow_retail, is_pos_active, allow_production, allow_online,
                 allowed_taxes_json,
                 google_analytics_code, facebook_pixel_code,
-                default_customer_id,
+                default_customer_id, tax_mode, receipt_format,
                 created_by, updated_by
             ) VALUES (
                 :name, :location_type, :address, :phone, :tax_no, :tax_label, 
@@ -67,7 +72,7 @@ class ServiceLocation extends Model {
                 :allow_dine_in, :allow_take_away, :allow_retail, :is_pos_active, :allow_production, :allow_online,
                 :allowed_taxes_json,
                 :google_analytics_code, :facebook_pixel_code,
-                :default_customer_id,
+                :default_customer_id, :tax_mode, :receipt_format,
                 :created_by, :updated_by
             )
         ");
@@ -89,9 +94,20 @@ class ServiceLocation extends Model {
         $this->db->bind(':google_analytics_code', $data['google_analytics_code'] ?? null);
         $this->db->bind(':facebook_pixel_code', $data['facebook_pixel_code'] ?? null);
         $this->db->bind(':default_customer_id', $data['default_customer_id'] ?? null);
+        $this->db->bind(':tax_mode', ($data['tax_mode'] ?? 'exclusive') === 'inclusive' ? 'inclusive' : 'exclusive');
+        $this->db->bind(':receipt_format', self::cleanReceiptFormat($data['receipt_format'] ?? null) ?? 'ask');
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
-        return $this->db->execute();
+        $ok = $this->db->execute();
+        // Selling price list for the new location (null = Standard)
+        if ($ok && (int)($data['price_list_id'] ?? 0) > 0) {
+            $newId = (int)$this->db->lastInsertId();
+            $this->db->query("UPDATE {$this->table} SET price_list_id = :pl WHERE id = :id");
+            $this->db->bind(':pl', (int)$data['price_list_id']);
+            $this->db->bind(':id', $newId);
+            $this->db->execute();
+        }
+        return $ok;
     }
 
     public function update($id, $data, $userId = null) {
@@ -105,7 +121,9 @@ class ServiceLocation extends Model {
                 is_pos_active = :is_pos_active, allow_production = :allow_production, allow_online = :allow_online,
                 allowed_taxes_json = :allowed_taxes_json,
                 google_analytics_code = :google_analytics_code, facebook_pixel_code = :facebook_pixel_code,
-                default_customer_id = :default_customer_id,
+                default_customer_id = :default_customer_id, tax_mode = COALESCE(:tax_mode, tax_mode),
+                receipt_format = COALESCE(:receipt_format, receipt_format),
+                price_list_id = IF(:pl_set = 1, :pl, price_list_id),
                 updated_by = :updated_by
             WHERE id = :id
         ");
@@ -128,6 +146,11 @@ class ServiceLocation extends Model {
         $this->db->bind(':google_analytics_code', $data['google_analytics_code'] ?? null);
         $this->db->bind(':facebook_pixel_code', $data['facebook_pixel_code'] ?? null);
         $this->db->bind(':default_customer_id', $data['default_customer_id'] ?? null);
+        $this->db->bind(':tax_mode', isset($data['tax_mode']) ? (($data['tax_mode'] === 'inclusive') ? 'inclusive' : 'exclusive') : null);
+        $this->db->bind(':receipt_format', self::cleanReceiptFormat($data['receipt_format'] ?? null));
+        // Selling price list (null = Standard). Only changed when the form sends it.
+        $this->db->bind(':pl_set', array_key_exists('price_list_id', $data) ? 1 : 0);
+        $this->db->bind(':pl', (int)($data['price_list_id'] ?? 0) ?: null);
         $this->db->bind(':updated_by', $userId);
         return $this->db->execute();
     }

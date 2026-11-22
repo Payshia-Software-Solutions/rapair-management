@@ -586,7 +586,7 @@ export default function EcommerceProductsPage() {
             if (!selectedLocationId && !open) return;
             setShowLocationDialog(open);
         }}>
-            <DialogContent className="sm:max-w-md border-none shadow-2xl overflow-hidden p-0">
+            <DialogContent className="sm:max-w-md overflow-hidden p-0">
                 <div className="bg-primary/5 p-6 pb-4 border-b border-primary/10">
                     <DialogHeader>
                         <div className="flex items-center gap-3 mb-2">

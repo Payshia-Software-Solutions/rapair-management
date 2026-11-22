@@ -36,7 +36,7 @@ export default function VehicleHistoryReportPage() {
     try {
       const [v, h] = await Promise.all([
         fetchVehicle(String(id)).catch(() => null),
-        fetchReportVehicleHistory({ vehicleId: id, from: fromDate || undefined, to: toDate || undefined }),
+        fetchReportVehicleHistory({ vehicle_id: Number(id), from: fromDate || undefined, to: toDate || undefined }),
       ]);
       setVehicle((v as any) ?? null);
       setRows(Array.isArray(h) ? h : []);
@@ -71,12 +71,11 @@ export default function VehicleHistoryReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Vehicle Maintenance History"
       subtitle={vehicle ? `${vehicle.make} ${vehicle.model} • VIN: ${vehicle.vin}` : `Vehicle ID #${id}`}
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

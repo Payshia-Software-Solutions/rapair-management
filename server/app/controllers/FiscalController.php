@@ -64,10 +64,10 @@ class FiscalController extends Controller {
             $val = (float)$r->period_balance;
             if ($r->type === 'INCOME') {
                 $income[] = $r;
-                $totalIncome += abs($val);
+                $totalIncome += -$val; // credit balance = income; debits (discounts, returns) reduce it
             } else {
                 $expenses[] = $r;
-                $totalExpense += abs($val);
+                $totalExpense += $val; // credits (e.g. stock gains) reduce expenses
             }
         }
 

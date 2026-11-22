@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { usePOS } from "../../context/POSContext";
 import { fetchPartBatches } from "@/lib/api";
-import { Loader2, Calendar, Archive, Layers, ArrowRight, Check, Banknote } from "lucide-react";
+import { Loader2, Calendar, Archive, Layers, ArrowRight, Check, Banknote, Minus, Plus, Delete, AlertCircle, Tag } from "lucide-react";
 
 export const ProductSelectionDialog: React.FC = () => {
   const {
@@ -23,10 +23,17 @@ export const ProductSelectionDialog: React.FC = () => {
     setSelectedProduct,
     addToCartWithQty,
     selectedLocation,
-    systemTaxes
+    systemTaxes,
+    posLayout,
+    isMenuPricing
   } = usePOS();
+  // Small / square POS screens: tighter spacing so everything fits without scrolling
+  const c = posLayout === 'compact';
 
   const [modalQty, setModalQty] = useState<string>("1");
+  // The pre-filled "1" is a default, not typed input: the first digit REPLACES it
+  // (typing 1 gives 1, not 11; typing 5 gives 5). Later digits append as normal.
+  const [qtyFresh, setQtyFresh] = useState(true);
   const [modalDiscount, setModalDiscount] = useState<string>("0");
   const [showDiscount, setShowDiscount] = useState(false);
   
@@ -40,6 +47,7 @@ export const ProductSelectionDialog: React.FC = () => {
   useEffect(() => {
     if (productModalOpen) {
       setModalQty("1");
+      setQtyFresh(true);
       setModalDiscount("0");
       setShowDiscount(false);
       setBatches([]);
@@ -72,10 +80,19 @@ export const ProductSelectionDialog: React.FC = () => {
   const handleNumpadClick = (val: string) => {
     // When using numpad, we reset manual selections to let FIFO take over again
     setManualSelections({});
-    if (val === 'C') setModalQty("1");
-    else if (val === 'DEL') setModalQty(prev => prev.length > 1 ? prev.slice(0, -1) : "0");
-    else if (val === '.') setModalQty(prev => prev.includes('.') ? prev : prev + '.');
-    else setModalQty(prev => (prev === "0" && val !== '.') ? val : prev + val);
+    if (val === 'C') { setModalQty("1"); setQtyFresh(true); return; }
+    if (val === 'DEL') {
+      setModalQty(prev => (qtyFresh || prev.length <= 1) ? "1" : prev.slice(0, -1));
+      setQtyFresh(prev => prev || modalQty.length <= 1);
+      return;
+    }
+    if (val === '.') {
+      setModalQty(prev => qtyFresh ? "0." : (prev.includes('.') ? prev : prev + '.'));
+      setQtyFresh(false);
+      return;
+    }
+    setModalQty(prev => (qtyFresh || prev === "0") ? val : prev + val);
+    setQtyFresh(false);
   };
 
   const handleManualBatchChange = (batchId: number, newQty: number, onHand: number) => {
@@ -164,6 +181,31 @@ export const ProductSelectionDialog: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [productModalOpen, isAdjustmentOpen, isDiscountDialogOpen, modalQty, modalDiscount, confirmAddToCart]);
 
+  // ---- Derived values for the view ----
+  const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const unitPrice = Number(selectedProduct?.price || selectedProduct?.cost_price || 0);
+  // Menu pricing: the price already includes taxes, so no "incl. tax" line
+  const taxIncPrice = isMenuPricing ? unitPrice : getTaxInclusivePrice(unitPrice);
+  const tracksStock = !!selectedProduct && selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte';
+  // For FIFO/expiry items the batch sum is the source of truth (the product card can be stale)
+  const batchTotal = batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0);
+  const availableQty = !selectedProduct ? 0
+    : (selectedProduct.is_fifo || selectedProduct.is_expiry)
+      ? ((batches.length > 0 || !loadingBatches) ? batchTotal : Number(selectedProduct.stock_quantity || 0))
+      : Number(selectedProduct.stock_quantity || 0);
+  const qtyNum = parseFloat(modalQty) || 0;
+  const exceedsStock = tracksStock && qtyNum > availableQty;
+  const lineTotal = Math.max(0, qtyNum * (unitPrice - (parseFloat(modalDiscount) || 0)));
+
+  const stepQty = (delta: number) => {
+    setManualSelections({});
+    setQtyFresh(false);
+    setModalQty(prev => {
+      const next = Math.max(1, Math.round(((parseFloat(prev) || 0) + delta) * 1000) / 1000);
+      return String(next);
+    });
+  };
+
   return (
     <Dialog open={productModalOpen} onOpenChange={(open) => {
       if (!open) { 
@@ -172,107 +214,77 @@ export const ProductSelectionDialog: React.FC = () => {
         setShowDiscount(false); 
       }
     }}>
-      <DialogContent className="w-full sm:max-w-4xl h-[100dvh] sm:h-auto rounded-none sm:rounded-[2.5rem] p-0 flex flex-col overflow-hidden bg-background border-none shadow-2xl">
-        <div className="flex-1 flex flex-col md:flex-row overflow-y-auto custom-scrollbar">
+      <DialogContent size="lg" className={`${c ?'':''} sm:rounded-lg p-0 flex flex-col gap-0 overflow-hidden bg-background`}>
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto custom-scrollbar">
           {/* Left: Product Info */}
-          <div className="w-full md:w-[45%] bg-slate-50 dark:bg-slate-900/50 p-4 md:p-6 flex flex-col border-b md:border-b-0 md:border-r border-border relative">
+          <div className={`w-full md:w-[45%] bg-muted/30 ${c ? 'p-4' : 'p-4 md:p-6'} flex flex-col border-b md:border-b-0 md:border-r border-border relative`}>
             {selectedProduct && (
-              <div className="space-y-6 md:mt-4">
-                <DialogHeader className="text-left p-0">
-                  <div className="flex gap-2">
-                    <Badge variant={selectedProduct.item_type === 'Service' ? 'secondary' : 'outline'} className="mb-2 w-fit text-[9px] font-black tracking-widest uppercase py-0 px-2 h-5 text-foreground bg-white border-2">
+              <div className={c ? 'space-y-3' : 'space-y-4'}>
+                <DialogHeader className="text-left p-0 space-y-1 pr-8">
+                  <div className="flex flex-wrap gap-1.5">
+                    <Badge variant={selectedProduct.item_type === 'Service' ? 'secondary' : 'outline'} className="text-xs font-medium">
                       {selectedProduct.item_type}
                     </Badge>
                     {selectedProduct.recipe_type && selectedProduct.recipe_type !== 'Standard' && (
-                      <Badge variant="outline" className={`mb-2 w-fit text-[9px] font-black tracking-widest uppercase py-0 px-2 h-5 border-none shadow-sm ${selectedProduct.recipe_type === 'A La Carte' ? 'bg-amber-500 text-white' : 'bg-blue-600 text-white'}`}>
-                        {selectedProduct.recipe_type}
-                      </Badge>
+                      <Badge variant="secondary" className="text-xs font-medium">{selectedProduct.recipe_type}</Badge>
                     )}
                   </div>
-                  <DialogTitle className="text-xl font-black leading-tight text-foreground">{selectedProduct.part_name}</DialogTitle>
-                  <p className="text-[11px] text-muted-foreground mt-1 font-bold uppercase tracking-tight">{selectedProduct.sku}</p>
+                  <DialogTitle className="leading-snug">{selectedProduct.part_name}</DialogTitle>
+                  {selectedProduct.sku && <p className="text-xs text-muted-foreground font-mono">{selectedProduct.sku}</p>}
                 </DialogHeader>
-                
-                <div className="space-y-4">
-                  {/* Item Details */}
-                  <div className="grid grid-cols-2 gap-3">
-                     <div className="flex flex-col p-3 bg-white dark:bg-slate-900 rounded-xl border border-border shadow-sm">
-                       <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Price</span>
-                       {(() => {
-                         const basePrice = Number(selectedProduct.price || selectedProduct.cost_price || 0);
-                         const taxIncPrice = getTaxInclusivePrice(basePrice);
-                         return (
-                           <>
-                             <span className="text-sm font-black text-foreground">LKR {basePrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                             {taxIncPrice > basePrice && (
-                               <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                 Incl. Tax: LKR {taxIncPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                               </span>
-                             )}
-                           </>
-                         );
-                       })()}
-                     </div>
-                     {(selectedProduct.brand_name || selectedProduct.brand) && (
-                     <div className="flex flex-col p-3 bg-white dark:bg-slate-900 rounded-xl border border-border shadow-sm">
-                       <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Brand</span>
-                       <span className="text-sm font-bold text-foreground">{selectedProduct.brand_name || selectedProduct.brand}</span>
-                     </div>
-                     )}
-                     {(selectedProduct.category_name || selectedProduct.category) && (
-                     <div className="flex flex-col p-3 bg-white dark:bg-slate-900 rounded-xl border border-border shadow-sm">
-                       <span className="text-[10px] text-muted-foreground font-black uppercase tracking-wider">Category</span>
-                       <span className="text-sm font-bold text-foreground">{selectedProduct.category_name || selectedProduct.category}</span>
-                     </div>
-                     )}
-                  </div>
 
-                  {selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && (
-                    <div className="pt-4 border-t border-border">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-black mb-3">Inventory Status</p>
-                      {(() => {
-                        // Safety: If we've loaded batches and they show a different total than the product card,
-                        // the product card is likely stale. Use the batch sum as the source of truth.
-                        const batchTotal = batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0);
-                        const displayQty = (selectedProduct.is_fifo || selectedProduct.is_expiry)
-                          ? ((batches.length > 0 || !loadingBatches) ? batchTotal : (selectedProduct.stock_quantity || 0))
-                          : (selectedProduct.stock_quantity || 0);
-                        const isOutOfStock = displayQty <= 0;
-
-                        return (
-                          <div className="flex items-center gap-3 bg-white dark:bg-slate-900 px-3 py-2.5 rounded-xl border border-border shadow-sm">
-                            <div className={`w-2.5 h-2.5 rounded-full ${!isOutOfStock ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`} />
-                            <div className="flex flex-col">
-                              <span className={`text-base font-black tracking-tight leading-none ${!isOutOfStock ? 'text-foreground' : 'text-rose-600'}`}>
-                                {Number(displayQty).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} {selectedProduct.unit}
+                <div className={c ? 'space-y-3' : 'space-y-4'}>
+                  {/* Item details: one card, label/value rows (same pattern as ERP detail views) */}
+                  <dl className="rounded-lg border border-border bg-background divide-y divide-border text-sm">
+                    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                      <dt className="text-muted-foreground">Price</dt>
+                      <dd className="text-right">
+                        <div className="font-semibold tabular-nums">LKR {money(unitPrice)}</div>
+                        {taxIncPrice > unitPrice && (
+                          <div className="text-xs text-muted-foreground tabular-nums">Incl. tax LKR {money(taxIncPrice)}</div>
+                        )}
+                      </dd>
+                    </div>
+                    {(selectedProduct.brand_name || selectedProduct.brand) && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <dt className="text-muted-foreground">Brand</dt>
+                        <dd className="font-medium text-right truncate">{selectedProduct.brand_name || selectedProduct.brand}</dd>
+                      </div>
+                    )}
+                    {(selectedProduct.category_name || selectedProduct.category) && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <dt className="text-muted-foreground">Category</dt>
+                        <dd className="font-medium text-right truncate">{selectedProduct.category_name || selectedProduct.category}</dd>
+                      </div>
+                    )}
+                    {tracksStock && (
+                      <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <dt className="text-muted-foreground">In stock</dt>
+                        <dd className="flex items-center gap-2 font-medium tabular-nums">
+                          {loadingBatches ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                            <>
+                              <span className={`w-2 h-2 rounded-full ${availableQty > 0 ? 'bg-emerald-500' : 'bg-destructive'}`} aria-hidden="true" />
+                              <span className={availableQty > 0 ? '' : 'text-destructive'}>
+                                {Number(availableQty).toLocaleString(undefined, { maximumFractionDigits: 3 })} {selectedProduct.unit}
                               </span>
-                              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-1">Available at this location</span>
-                            </div>
-                          </div>
-                        );
-                      })()}
+                            </>
+                          )}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
 
-                      {(() => {
-                        const batchTotal = batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0);
-                        const displayQty = (selectedProduct.is_fifo || selectedProduct.is_expiry)
-                          ? ((batches.length > 0 || !loadingBatches) ? batchTotal : (selectedProduct.stock_quantity || 0))
-                          : (selectedProduct.stock_quantity || 0);
-                        if (displayQty <= 0 && selectedProduct.item_type === 'Part') {
-                          return (
-                            <div className="mt-4 p-4 bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/30 rounded-2xl flex items-center gap-3">
-                              <Loader2 className="w-5 h-5 text-rose-500 shrink-0" />
-                              <p className="text-[11px] leading-tight text-rose-700 dark:text-rose-300 font-black uppercase tracking-tight">
-                                Item out of stock. Please check another location.
-                              </p>
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
+                  {tracksStock && !loadingBatches && availableQty <= 0 && (
+                    <div role="alert" className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                      <span>Out of stock at this location. Check another location or transfer stock.</span>
                     </div>
                   )}
 
-                  {selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && (selectedProduct.is_fifo || selectedProduct.is_expiry) && (
+                  {/* Boolean(): is_fifo/is_expiry come back as 0/1 and a bare 0 would render as "0" */}
+                  {selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && Boolean(Number(selectedProduct.is_fifo) || Number(selectedProduct.is_expiry)) && (
                     <div className="pt-4 mt-2">
                       <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-col">
@@ -284,7 +296,7 @@ export const ProductSelectionDialog: React.FC = () => {
                         {loadingBatches && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
                       </div>
 
-                      <div className={`p-4 rounded-[1.5rem] border-2 transition-all ${Object.keys(manualSelections).length > 0 ? 'bg-amber-50/50 border-amber-200 dark:bg-amber-500/5 dark:border-amber-500/20' : 'bg-white dark:bg-slate-900 border-dashed border-slate-200 dark:border-slate-800'}`}>
+                      <div className={`p-4 rounded-lg border-2 transition-all ${Object.keys(manualSelections).length > 0 ? 'bg-amber-50/50 border-amber-200 dark:bg-amber-500/5 dark:border-amber-500/20' : 'bg-white dark:bg-slate-900 border-dashed border-slate-200 dark:border-slate-800'}`}>
                         <div className="flex justify-between items-start mb-3">
                           <div className="flex flex-col">
                             <span className="text-sm font-black tracking-tight text-slate-800 dark:text-slate-100">
@@ -359,93 +371,114 @@ export const ProductSelectionDialog: React.FC = () => {
           </div>
           
           {/* Right: Numpad */}
-          <div className="w-full md:w-[55%] p-4 md:p-6 flex flex-col bg-white dark:bg-card border-t md:border-t-0 border-border">
-            {/* Quantity Display */}
-            <div className="mb-4">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em] ml-1">Quantity</label>
-              <div className="mt-1.5 h-12 sm:h-14 bg-muted/30 border-2 border-border rounded-xl flex items-center justify-end px-4 shadow-inner focus-within:border-primary transition-colors">
-                <span className="text-2xl sm:text-3xl font-black tabular-nums tracking-tighter text-foreground">{modalQty}</span>
+          <div className={`w-full md:w-[55%] ${c ? 'p-4' : 'p-4 md:p-6'} flex flex-col bg-background border-t md:border-t-0 border-border`}>
+            {/* Quantity: stepper for the common +1/-1, keypad for typed amounts */}
+            <div className={c ? 'mb-3' : 'mb-4'}>
+              <label id="pos-qty-label" className="text-sm font-medium">Quantity</label>
+              <div className="mt-1.5 flex items-stretch gap-2">
+                <Button type="button" variant="outline" className={`${c ? 'h-11 w-11' : 'h-12 w-12'} shrink-0 rounded-md`} onClick={() => stepQty(-1)} aria-label="Decrease quantity" disabled={qtyNum <= 1}>
+                  <Minus className="w-4 h-4" />
+                </Button>
+                <div
+                  aria-labelledby="pos-qty-label"
+                  aria-live="polite"
+                  className={`flex-1 ${c ? 'h-11' : 'h-12'} rounded-md border border-input bg-muted/40 flex items-center justify-center text-2xl font-semibold tabular-nums ${exceedsStock ? 'border-destructive text-destructive' : ''}`}
+                >
+                  {/* highlighted while it's still the default: the next digit replaces it */}
+                  <span className={qtyFresh ? 'px-1.5 rounded bg-primary/15 text-primary' : ''}>{modalQty}</span>
+                </div>
+                <Button type="button" variant="outline" className={`${c ? 'h-11 w-11' : 'h-12 w-12'} shrink-0 rounded-md`} onClick={() => stepQty(1)} aria-label="Increase quantity">
+                  <Plus className="w-4 h-4" />
+                </Button>
               </div>
+              {exceedsStock && (
+                <p role="alert" className="mt-1.5 text-xs text-destructive">
+                  Only {Number(availableQty).toLocaleString(undefined, { maximumFractionDigits: 3 })} {selectedProduct?.unit} available.
+                </p>
+              )}
             </div>
 
-            {/* Numpad Grid */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
+            {/* Keypad */}
+            <div className={`grid grid-cols-3 ${c ? 'gap-2 mb-3' : 'gap-2.5 mb-5'}`}>
               {['1','2','3','4','5','6','7','8','9','.','0','DEL'].map(val => (
                 <Button
                   key={val}
-                  variant={val === 'C' || val === 'DEL' ? 'secondary' : 'outline'}
-                  className={`h-16 sm:h-20 text-xl sm:text-2xl font-black rounded-2xl shadow-sm ${val !== 'C' && val !== 'DEL' ? 'bg-white hover:bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 hover:border-primary transition-all' : 'bg-rose-50 hover:bg-rose-100 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400 border-none'}`}
+                  type="button"
+                  variant="outline"
+                  aria-label={val === 'DEL' ? 'Delete last digit' : undefined}
+                  className={`${c ? 'h-12' : 'h-14'} rounded-md text-lg font-semibold tabular-nums active:bg-muted ${val === 'DEL' ? 'text-muted-foreground' : ''}`}
                   onClick={() => handleNumpadClick(val)}
                 >
-                  {val}
+                  {val === 'DEL' ? <Delete className="w-5 h-5" /> : val}
                 </Button>
               ))}
             </div>
 
-            {/* Discount Summary Button */}
-            <div className="mt-auto pt-4 border-t border-slate-100 dark:border-slate-800/50">
+            {/* Line discount */}
+            <div className="mt-auto">
               <button
+                type="button"
                 onClick={() => setIsDiscountDialogOpen(true)}
-                className={`w-full p-4 rounded-2xl flex items-center justify-between transition-all ${Number(modalDiscount) > 0 ? 'bg-rose-50 border-2 border-rose-200 dark:bg-rose-500/5 dark:border-rose-500/20' : 'bg-slate-50 border-2 border-transparent hover:bg-slate-100 dark:bg-slate-900'}`}
+                className={`w-full rounded-md border px-3 py-2.5 flex items-center justify-between gap-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${Number(modalDiscount) > 0 ? 'border-primary/40 bg-primary/5' : 'border-border'}`}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${Number(modalDiscount) > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-200 text-slate-500'}`}>
-                    <Banknote className="w-4 h-4" />
-                  </div>
-                  <div className="flex flex-col text-left">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${Number(modalDiscount) > 0 ? 'text-rose-600' : 'text-slate-400'}`}>Line Discount</span>
-                    <span className="text-sm font-black tracking-tight text-slate-800 dark:text-slate-100">
-                        {Number(modalDiscount) > 0 ? `LKR ${Number(modalDiscount).toFixed(2)} Off` : 'None applied'}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-1 px-2 bg-white dark:bg-slate-800 rounded-lg text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    {Number(modalDiscount) > 0 ? 'Change' : 'Add'}
-                </div>
+                <span className="flex items-center gap-2.5 min-w-0">
+                  <Tag className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
+                  <span className="text-sm">
+                    <span className="font-medium">Line discount</span>
+                    <span className="text-muted-foreground"> · {Number(modalDiscount) > 0 ? `LKR ${money(Number(modalDiscount))} per unit` : 'None'}</span>
+                  </span>
+                </span>
+                <span className="text-sm font-medium text-primary shrink-0">{Number(modalDiscount) > 0 ? 'Change' : 'Add'}</span>
               </button>
             </div>
           </div>
         </div>
 
-        {/* Sticky Footer */}
-        <div className="p-4 md:p-6 bg-white dark:bg-card border-t border-border shadow-[0_-10px_40px_-20px_rgba(0,0,0,0.1)] shrink-0">
-          <Button 
-            size="lg" 
-            className="w-full h-16 sm:h-20 rounded-2xl text-lg sm:text-xl font-black tracking-[0.1em] uppercase shadow-2xl bg-primary hover:bg-primary/90 text-white"
-            onClick={confirmAddToCart}
-            disabled={!selectedProduct || parseFloat(modalQty) <= 0 || (selectedProduct?.item_type !== 'Service' && selectedProduct?.recipe_type !== 'A La Carte' && parseFloat(modalQty) > ((selectedProduct?.is_fifo || selectedProduct?.is_expiry) ? ((batches.length > 0 || !loadingBatches) ? batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0) : (selectedProduct?.stock_quantity || 0)) : (selectedProduct?.stock_quantity || 0)))}
-          >
-            <ShoppingCart className="w-6 h-6 mr-4" /> Add to Shopping Cart
-          </Button>
-          {selectedProduct && selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && parseFloat(modalQty) > ((selectedProduct?.is_fifo || selectedProduct?.is_expiry) ? ((batches.length > 0 || !loadingBatches) ? batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0) : (selectedProduct?.stock_quantity || 0)) : (selectedProduct?.stock_quantity || 0)) && (
-            <p className="text-center text-[10px] font-bold text-rose-500 uppercase tracking-widest mt-2 px-4">Cannot exceed available stock</p>
-          )}
+        {/* Footer: line total + actions */}
+        <div className={`${c ? 'px-4 py-3' : 'px-6 py-4'} bg-background border-t border-border flex items-center justify-between gap-4 shrink-0`}>
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">Line total</div>
+            <div className="text-lg font-semibold tabular-nums">LKR {money(lineTotal)}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-11 px-4"
+              onClick={() => { setProductModalOpen(false); setSelectedProduct(null); }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="h-11 px-5 gap-2"
+              onClick={confirmAddToCart}
+              disabled={!selectedProduct || qtyNum <= 0 || exceedsStock}
+            >
+              <ShoppingCart className="w-4 h-4" aria-hidden="true" />
+              Add to cart
+              <kbd className="hidden sm:inline-flex ml-1 rounded border border-primary-foreground/30 px-1.5 text-[10px] font-medium opacity-80">Enter</kbd>
+            </Button>
+          </div>
         </div>
       </DialogContent>
 
       {/* Batch Adjustment Sub-Dialog */}
       <Dialog open={isAdjustmentOpen} onOpenChange={setIsAdjustmentOpen}>
-        <DialogContent className="w-full sm:max-w-2xl h-[100dvh] sm:h-[90vh] p-0 flex flex-col overflow-hidden bg-white dark:bg-slate-950 border-none shadow-2xl rounded-none sm:rounded-[2.5rem]">
-          <div className="bg-slate-900 p-8 text-white relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12">
-              <Layers className="w-24 h-24" />
-            </div>
-            <div className="relative z-10">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black tracking-tight leading-none mb-2">Adjust Selection</DialogTitle>
-                <p className="text-slate-400 text-xs font-semibold tracking-widest pl-1 uppercase">Modify quantities and batch assignments</p>
-              </DialogHeader>
-            </div>
-          </div>
+        <DialogContent size="lg" className="sm:h-[min(760px,calc(100dvh-2rem))] p-0 flex flex-col overflow-hidden sm:rounded-lg">
+          <DialogHeader className="px-5 pt-5 pb-3 text-left border-b border-border shrink-0">
+            <DialogTitle>Adjust batch selection</DialogTitle>
+            <p className="text-sm text-muted-foreground">Choose how many units to take from each batch.</p>
+          </DialogHeader>
 
           <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
             {/* Master Quantity Control */}
-            <div className="mb-8 p-6 bg-slate-50 dark:bg-slate-900 rounded-[2rem] border-2 border-slate-100 dark:border-slate-800 flex items-center justify-between shadow-sm">
+            <div className="mb-8 p-6 bg-slate-50 dark:bg-slate-900 rounded-lg border-2 border-slate-100 dark:border-slate-800 flex items-center justify-between shadow-sm">
                 <div className="flex flex-col">
                     <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Total Quantity</span>
                     <span className="text-3xl font-black tabular-nums text-slate-900 dark:text-white">{modalQty} <span className="text-sm font-bold text-slate-400">{selectedProduct?.unit}</span></span>
                 </div>
-                <div className="flex items-center bg-white dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm h-14">
+                <div className="flex items-center bg-white dark:bg-slate-950 border-2 border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden shadow-sm h-14">
                   <button 
                     className="w-14 h-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-colors text-2xl font-black"
                     onClick={() => {
@@ -507,10 +540,10 @@ export const ProductSelectionDialog: React.FC = () => {
                 const isUnbatched = b.batch_number === 'UNBATCHED';
                 
                 return (
-                  <div key={b.id || idx} className={`p-5 rounded-[1.5rem] border-2 transition-all duration-300 ${picked > 0 ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/40' : 'bg-slate-50 dark:bg-slate-900/50 border-transparent opacity-60 hover:opacity-100'}`}>
+                  <div key={b.id || idx} className={`p-5 rounded-lg border-2 transition-all duration-300 ${picked > 0 ? 'bg-emerald-50 border-emerald-200 dark:bg-emerald-500/10 dark:border-emerald-500/40' : 'bg-slate-50 dark:bg-slate-900/50 border-transparent opacity-60 hover:opacity-100'}`}>
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-xl ${picked > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
+                        <div className={`p-3 rounded-md ${picked > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-400'}`}>
                           <Archive className="w-5 h-5" />
                         </div>
                         <div className="flex flex-col">
@@ -521,7 +554,7 @@ export const ProductSelectionDialog: React.FC = () => {
                         </div>
                       </div>
                       
-                      <div className="flex items-center bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm h-10">
+                      <div className="flex items-center bg-white dark:bg-black border border-slate-200 dark:border-slate-800 rounded-md overflow-hidden shadow-sm h-10">
                         <button 
                           className="w-10 h-full flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-900 border-r border-slate-100 dark:border-slate-800 transition-colors"
                           onClick={() => handleManualBatchChange(b.id, picked - 1, onHand)}
@@ -560,7 +593,7 @@ export const ProductSelectionDialog: React.FC = () => {
           <div className="p-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
              <Button 
                 onClick={() => setIsAdjustmentOpen(false)}
-                className="w-full h-14 rounded-2xl text-lg font-black tracking-widest uppercase shadow-xl bg-slate-900 hover:bg-black text-white"
+                className="w-full h-14 rounded-lg text-lg font-black tracking-widest uppercase shadow-xl bg-slate-900 hover:bg-black text-white"
              >
                 <Check className="w-5 h-5 mr-3" /> Confirm Selection
              </Button>
@@ -570,59 +603,59 @@ export const ProductSelectionDialog: React.FC = () => {
 
       {/* Discount Adjustment Sub-Dialog */}
       <Dialog open={isDiscountDialogOpen} onOpenChange={setIsDiscountDialogOpen}>
-        <DialogContent className="w-full sm:max-w-md p-0 flex flex-col overflow-hidden bg-white dark:bg-slate-950 border-none shadow-2xl rounded-none sm:rounded-[2rem]">
-          <div className="bg-rose-600 p-8 text-white relative overflow-hidden shrink-0">
-            <div className="absolute top-0 right-0 p-8 opacity-10 rotate-12">
-              <Banknote className="w-24 h-24" />
-            </div>
-            <div className="relative z-10">
-              <DialogHeader>
-                <DialogTitle className="text-2xl font-black tracking-tight leading-none mb-2 text-white">Line Discount</DialogTitle>
-                <p className="text-rose-100 text-xs font-semibold tracking-widest pl-1 uppercase opacity-80">Reduce unit price for this item</p>
-              </DialogHeader>
-            </div>
-          </div>
+        <DialogContent size="sm" className="p-0 flex flex-col gap-0 overflow-y-auto sm:rounded-lg">
+          {/* Standard modal layout: header / body / footer (same as ERP dialogs) */}
+          <DialogHeader className="px-5 pt-5 pb-3 text-left border-b border-border">
+            <DialogTitle>Line discount</DialogTitle>
+            <p className="text-sm text-muted-foreground">Amount taken off each unit of {selectedProduct?.part_name || 'this item'}.</p>
+          </DialogHeader>
 
-          <div className="p-8 flex flex-col items-center">
-            <div className="w-full mb-8">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2 block">Discount Amount (LKR)</label>
-              <div className="mt-1.5 h-16 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 rounded-2xl flex items-center justify-end px-6 shadow-inner">
-                <span className="text-3xl font-black tabular-nums text-rose-600 tracking-tighter">{modalDiscount}</span>
+          <div className="px-5 py-4 space-y-3">
+            <div>
+              <label id="line-disc-label" className="text-sm font-medium">Discount per unit (LKR)</label>
+              <div aria-labelledby="line-disc-label" aria-live="polite"
+                className={`mt-1.5 h-12 rounded-md border bg-muted/40 flex items-center justify-end px-4 text-2xl font-semibold tabular-nums ${Number(modalDiscount) >= unitPrice && unitPrice > 0 ? 'border-destructive text-destructive' : 'border-input'}`}>
+                {modalDiscount}
               </div>
+              {unitPrice > 0 && (
+                <p className={`mt-1.5 text-xs ${Number(modalDiscount) >= unitPrice ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {Number(modalDiscount) >= unitPrice
+                    ? `Discount can't be more than the unit price (LKR ${money(unitPrice)}).`
+                    : `New unit price: LKR ${money(unitPrice - (Number(modalDiscount) || 0))}`}
+                </p>
+              )}
             </div>
 
-            <div className="grid grid-cols-3 gap-3 w-full mb-8">
+            <div className="grid grid-cols-3 gap-2">
               {['1','2','3','4','5','6','7','8','9','C','0','DEL'].map(val => (
                 <Button
                   key={val}
+                  type="button"
                   variant="outline"
-                  className={`h-14 text-xl font-black rounded-xl ${val === 'C' || val === 'DEL' ? 'bg-rose-50 text-rose-600 border-none hover:bg-rose-100' : 'bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800'}`}
+                  aria-label={val === 'DEL' ? 'Delete last digit' : val === 'C' ? 'Clear amount' : undefined}
+                  className={`h-12 rounded-md text-lg font-semibold tabular-nums ${val === 'C' || val === 'DEL' ? 'text-muted-foreground' : ''}`}
                   onClick={() => {
                     if (val === 'C') setModalDiscount("0");
                     else if (val === 'DEL') setModalDiscount(prev => prev.length > 1 ? prev.slice(0, -1) : "0");
                     else setModalDiscount(prev => prev === "0" ? val : prev + val);
                   }}
                 >
-                  {val}
+                  {val === 'DEL' ? <Delete className="w-5 h-5" /> : val}
                 </Button>
               ))}
             </div>
+          </div>
 
-            <div className="flex gap-3 w-full">
-                <Button 
-                    variant="ghost"
-                    onClick={() => { setModalDiscount("0"); setIsDiscountDialogOpen(false); }}
-                    className="flex-1 h-14 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-400"
-                >
-                    Clear
-                </Button>
-                <Button 
-                    onClick={() => setIsDiscountDialogOpen(false)}
-                    className="flex-[2] h-14 rounded-2xl text-sm font-black uppercase tracking-widest shadow-xl bg-slate-900 text-white"
-                >
-                    Apply Discount
-                </Button>
-            </div>
+          <div className="px-5 py-3 border-t border-border flex justify-end gap-2 sticky bottom-0 bg-background">
+            <Button type="button" variant="outline" className="h-11"
+              onClick={() => { setModalDiscount("0"); setIsDiscountDialogOpen(false); }}>
+              Remove discount
+            </Button>
+            <Button type="button" className="h-11 px-5"
+              disabled={unitPrice > 0 && Number(modalDiscount) >= unitPrice}
+              onClick={() => setIsDiscountDialogOpen(false)}>
+              Apply
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

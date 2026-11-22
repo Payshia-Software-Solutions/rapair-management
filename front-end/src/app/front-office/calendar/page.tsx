@@ -315,7 +315,7 @@ export default function HotelCalendarPage() {
 
         {/* Detail Dialog */}
         <Dialog open={!!selectedRes} onOpenChange={(o) => !o && setSelectedRes(null)}>
-          <DialogContent className="max-w-md p-0 overflow-hidden rounded-2xl">
+          <DialogContent className="max-w-md p-0 overflow-hidden">
             {selectedRes && (
               <>
                 <div className={cn(

@@ -247,7 +247,7 @@ export default function SetupPage() {
           {installStatus === 'success' && (
             <Button 
               className="w-full h-12 text-lg font-bold bg-green-600 hover:bg-green-700" 
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/')}
             >
               Go to Dashboard
             </Button>

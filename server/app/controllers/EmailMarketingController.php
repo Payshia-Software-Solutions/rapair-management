@@ -87,7 +87,14 @@ class EmailMarketingController extends Controller {
         $campaignId = $db->lastInsertId();
 
         // 2. Fetch Recipients (Exclude Unsubscribed)
-        if ($segment === 'all') {
+        $recipients = [];
+        if ($segment === 'subscribers') {
+            // E-commerce newsletter subscribers: each email gets its own one-click unsubscribe link.
+            require_once '../app/helpers/SubscriberSchema.php';
+            SubscriberSchema::ensure();
+            $db->query("SELECT COALESCE(name, '') AS name, email, customer_id AS id, unsubscribe_token FROM newsletter_subscribers WHERE status = 'Subscribed'");
+            $recipients = $db->resultSet();
+        } else if ($segment === 'all') {
             $db->query("SELECT name, email, id FROM customers WHERE email IS NOT NULL AND email != '' AND is_unsubscribed = 0");
             $recipients = $db->resultSet();
         } else if (is_numeric($segment)) {
@@ -104,7 +111,17 @@ class EmailMarketingController extends Controller {
             $db->bind(':email', $r->email);
             $db->bind(':name', $r->name);
             $db->bind(':sub', $subject);
-            $db->bind(':content', $content);
+            $body = $content;
+            if (!empty($r->unsubscribe_token)) {
+                $link = URLROOT . '/api/publicsubscriber/unsubscribe/' . $r->unsubscribe_token;
+                $footer = '<p style="font-size:12px;color:#888;text-align:center;margin-top:24px">'
+                        . 'You are receiving this because you subscribed to our newsletter. '
+                        . '<a href="' . htmlspecialchars($link) . '" style="color:#888">Unsubscribe</a></p>';
+                $body = stripos($content, '</body>') !== false
+                    ? str_ireplace('</body>', $footer . '</body>', $content)
+                    : $content . $footer;
+            }
+            $db->bind(':content', $body);
             $db->execute();
         }
 

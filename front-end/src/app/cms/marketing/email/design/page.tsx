@@ -138,7 +138,7 @@ export default function DesignHubPage() {
 
       {/* AI Modal */}
       <Dialog open={isAiModalOpen} onOpenChange={setIsAiModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
+        <DialogContent className="max-w-md p-8">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black tracking-tight flex items-center gap-2">
                <Sparkles className="w-6 h-6 text-primary" /> AI Newsletter Craft

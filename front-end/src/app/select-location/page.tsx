@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useState } from "react";
+import { homeRouteForUser } from "@/lib/home-route";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,9 +89,10 @@ export default function SelectLocationPage() {
     if (!loading && locations.length === 1 && selectedId) {
       window.localStorage.setItem("location_id", String(locations[0].id));
       window.localStorage.setItem("location_name", String(locations[0].name));
-      const ret = searchParams?.get("return") ?? "/dashboard/overall";
       // Full reload so all modules re-initialize with X-Location-Id context.
-      window.location.href = ret;
+      const back = searchParams?.get("return");
+      if (back) window.location.href = back;
+      else void homeRouteForUser().then((home) => { window.location.href = home; });
     }
   }, [loading, locations, selectedId, router, searchParams]);
 
@@ -105,8 +107,10 @@ export default function SelectLocationPage() {
     const loc = locations.find((l) => l.id === id);
     window.localStorage.setItem("location_id", String(selectedId));
     if (loc?.name) window.localStorage.setItem("location_name", String(loc.name));
-    const ret = searchParams?.get("return") ?? "/dashboard/overall";
-    window.location.href = ret;
+    const back = searchParams?.get("return");
+    if (back) { window.location.href = back; return; }
+    // Stewards (POS without checkout) go straight to the POS
+    void homeRouteForUser().then((home) => { window.location.href = home; });
   };
 
   const filteredLocations = useMemo(() => {

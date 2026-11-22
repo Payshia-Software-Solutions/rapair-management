@@ -3,6 +3,7 @@ import { API_BASE } from '@/config';
 
 import React, { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminTopBar from '@/components/AdminTopBar';
 
@@ -13,16 +14,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [currentUser,     setCurrentUser]     = useState('');
   const [userRole,        setUserRole]        = useState('');
   const [loading,         setLoading]         = useState(true);
-  const [theme,           setTheme]           = useState<'light' | 'dark'>('light');
+  // Theme lives in next-themes (root ThemeProvider): one source for the html class and the stored choice.
+  const { resolvedTheme, setTheme } = useTheme();
+  const theme: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light';
   const [isSidebarOpen,   setIsSidebarOpen]   = useState(false);
 
   useEffect(() => {
-    // Restore saved theme
-    const saved = localStorage.getItem('nexus-theme') as 'light' | 'dark' | null;
-    const resolved = saved ?? 'light';
-    setTheme(resolved);
-    document.documentElement.classList.toggle('dark', resolved === 'dark');
-
     const isLoginPage = pathname === '/admin' || pathname === '/admin/login';
     if (isLoginPage) { setLoading(false); return; }
 
@@ -33,8 +30,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     const checkAuth = async (attempt = 1) => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = {};
         const res = await fetch(`${API_BASE}/auth/check`, { credentials: 'include', headers });
         if (!res.ok) {
           if (attempt < 3) {
@@ -60,29 +56,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth();
   }, [pathname, router, currentUser]);
 
-  const toggleTheme = () => {
-    const next = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    localStorage.setItem('nexus-theme', next);
-    document.documentElement.classList.toggle('dark', next === 'dark');
-  };
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark');
 
   const isLoginPage = pathname === '/admin' || pathname === '/admin/login';
   if (isLoginPage) return <>{children}</>;
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f7f7f8] dark:bg-[#09090b]">
+      <div className="flex min-h-screen items-center justify-center bg-nx-canvas dark:bg-nx-ink">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-[#e4e4e7] border-t-[#6366f1]" />
-          <span className="text-xs text-[#a1a1aa] font-medium">Loading workspace…</span>
+          <div className="h-7 w-7 animate-spin rounded-full border-[3px] border-nx-line border-t-nx-accent" />
+          <span className="text-xs text-nx-text-subtle font-medium">Loading workspace…</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#f7f7f8] text-[#09090b] dark:bg-[#09090b] dark:text-white transition-colors duration-200">
+    <div className="flex h-screen overflow-hidden bg-nx-canvas text-nx-ink dark:bg-nx-ink dark:text-white transition-colors duration-200">
       <AdminSidebar
         currentUser={currentUser}
         role={userRole}

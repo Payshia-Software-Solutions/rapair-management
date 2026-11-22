@@ -1,6 +1,8 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import { clearUserSession, readPermsCache, writePermsCache } from "@/lib/session";
+import { applyTheme, getTheme, nextTheme, THEME_EVENT, type AppTheme } from "@/lib/theme";
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -46,9 +48,20 @@ import {
   Building2,
   ShoppingCart,
   Ticket,
-  Sparkles
+  Sparkles,
+  MonitorSmartphone,
+  ShieldCheck,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+
+/** Whole days from now until an ISO date, or null when the date is missing or unreadable. */
+function daysUntil(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const t = new Date(dateStr).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.ceil((t - Date.now()) / 86_400_000);
+}
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -86,6 +99,8 @@ import { DockMenu } from './dock-menu';
 import { PromotionsDialog } from './promotions-dialog';
 import { SaasInfoDialog } from './saas-info-dialog';
 import { AppLauncher } from './odoo-app-launcher';
+import { REPORT_GROUPS } from '@/lib/reports-catalog';
+import { fetchApprovalCount } from '@/lib/api/approvals';
 import { 
   mainNavItems, 
   masterDataItems, 
@@ -102,7 +117,8 @@ import {
   banquetItems,
   marketingItems,
   ecommerceItems,
-  kioskItems
+  kioskItems,
+  approvalItems
 } from "@/lib/nav-items";
 
 export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
@@ -111,8 +127,9 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [userRole, setUserRole] = useState<string>('');
   const [permissionKeys, setPermissionKeys] = useState<string[] | null>(() => {
     if (typeof window !== 'undefined') {
-      const p = window.localStorage.getItem('perms_cache');
-      if (p) { try { return JSON.parse(p); } catch {} }
+      // only if cached for THIS user (never another user's admin rights)
+      const p = readPermsCache();
+      if (p) return p;
     }
     return null;
   });
@@ -143,16 +160,29 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isCrmOpen, setIsCrmOpen] = useSidebarState('CRM', false);
   const [isSalesOpen, setIsSalesOpen] = useSidebarState('Sales', false);
   const [isAccountingOpen, setIsAccountingOpen] = useSidebarState('Accounting', false);
+  const [isReportsOpen, setIsReportsOpen] = useSidebarState('Reports', false);
+
+  // Header bell: approvals waiting for this user. Refreshes every minute and when an approvals screen changes something.
+  const [approvalCount, setApprovalCount] = useState(0);
+  useEffect(() => {
+    let live = true;
+    const refresh = () => { void fetchApprovalCount().then((n) => { if (live) setApprovalCount(n); }).catch(() => {}); };
+    refresh();
+    const t = window.setInterval(refresh, 60000);
+    window.addEventListener('approvals:changed', refresh);
+    return () => { live = false; window.clearInterval(t); window.removeEventListener('approvals:changed', refresh); };
+  }, []);
   const [isProductionOpen, setIsProductionOpen] = useSidebarState('Production', false);
   const [isMarketingOpen, setIsMarketingOpen] = useSidebarState('Marketing', false);
   const [isHrmOpen, setIsHrmOpen] = useSidebarState('HRM', false);
+  const [isApprovalsOpen, setIsApprovalsOpen] = useSidebarState('Approvals', false);
   const [isFrontOfficeOpen, setIsFrontOfficeOpen] = useSidebarState('FrontOffice', false);
   const [isBanquetOpen, setIsBanquetOpen] = useSidebarState('Banquet', false);
   const [isEcommerceOpen, setIsEcommerceOpen] = useSidebarState('Ecommerce', false);
   const [isKioskOpen, setIsKioskOpen] = useSidebarState('Kiosk', false);
   const [isAdminOpen, setIsAdminOpen] = useSidebarState('Admin', false);
   
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<AppTheme>('light');
   const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
   const [currentLocationId, setCurrentLocationId] = useState<number | null>(null);
   const [currentLocationName, setCurrentLocationName] = useState<string>('');
@@ -171,23 +201,53 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [saasLicenseKey, setSaasLicenseKey] = useState<string>('');
   const [saasTenantName, setSaasTenantName] = useState<string>('');
   const [saasRenewalDate, setSaasRenewalDate] = useState<string>('');
+  const [saasStatus, setSaasStatus] = useState<string>('');
+  const [saasTrialExpiry, setSaasTrialExpiry] = useState<string>('');
   const [saasInvoices, setSaasInvoices] = useState<any[]>([]);
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Set when the server refuses a write because the trial has ended (HTTP 402 from api()).
+  const [trialLocked, setTrialLocked] = useState(false);
+  useEffect(() => {
+    const onEnded = () => setTrialLocked(true);
+    window.addEventListener('trial:ended', onEnded);
+    return () => window.removeEventListener('trial:ended', onEnded);
+  }, []);
+
+  // Trial over: send the user to the package page instead of the app. They can still read, sign out or upgrade there.
+  useEffect(() => {
+    if (pathname === '/trial-ended') return;
+    const days = daysUntil(saasTrialExpiry || saasRenewalDate);
+    const expired = saasStatus.toLowerCase() === 'trial' && (trialLocked || (days !== null && days < 0));
+    if (expired) router.replace('/trial-ended');
+  }, [saasStatus, saasTrialExpiry, saasRenewalDate, trialLocked, pathname, router]);
+  const [isMacPlatform, setIsMacPlatform] = useState(false);
+
+  // Ctrl+K / Cmd+K jumps to the top bar search from anywhere in the app.
+  useEffect(() => {
+    setIsMacPlatform(/Mac|iPhone|iPad/.test(navigator.platform));
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [isSaasDialogOpen, setIsSaasDialogOpen] = useState(false);
   // Location switching uses the /select-location page (card UI) for a consistent UX.
 
   const loadPerms = async () => {
     try {
-      const cached = window.localStorage.getItem('perms_cache');
-      const time = window.localStorage.getItem('perms_cache_time');
-      if (cached && time && Date.now() - parseInt(time) < 86400000) {
-        setPermissionKeys(JSON.parse(cached));
+      const cached = readPermsCache();
+      if (cached) {
+        setPermissionKeys(cached);
         return;
       }
       const res = await api('/api/auth/permissions');
       const data = await res.json();
       if (data.status === 'success' && Array.isArray(data.data)) {
-        window.localStorage.setItem('perms_cache', JSON.stringify(data.data));
-        window.localStorage.setItem('perms_cache_time', Date.now().toString());
+        writePermsCache(data.data);
         setPermissionKeys(data.data);
       } else {
         setPermissionKeys([]);
@@ -256,6 +316,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
               setSaasLicenseKey(data.license_key || '');
               setSaasTenantName(data.tenant_name || '');
               setSaasRenewalDate(data.renewal_date || '');
+              setSaasStatus(data.status || '');
+              setSaasTrialExpiry(data.trial_expiry || '');
               setSaasInvoices(data.invoices || []);
               return;
             } catch (e) {
@@ -275,6 +337,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
         setSaasLicenseKey(data.data.license_key || '');
         setSaasTenantName(data.data.tenant_name || '');
         setSaasRenewalDate(data.data.renewal_date || '');
+        setSaasStatus(data.data.status || '');
+        setSaasTrialExpiry(data.data.trial_expiry || '');
         setSaasInvoices(data.data.invoices || []);
       }
     } catch (err) {
@@ -346,16 +410,17 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
   useEffect(() => {
     // Reflect the current theme (class on <html>) so both toggles stay in sync.
-    const current = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-    setTheme(current);
-
+    setTheme(getTheme());
+    const sync = () => setTheme(getTheme());
     const onStorage = (e: StorageEvent) => {
       if (e.key !== 'theme') return;
-      const next = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-      setTheme(next);
+      const t = e.newValue;
+      applyTheme(t === 'dark' || t === 'dim' ? t : 'light');
+      sync();
     };
     window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    window.addEventListener(THEME_EVENT, sync);
+    return () => { window.removeEventListener('storage', onStorage); window.removeEventListener(THEME_EVENT, sync); };
   }, []);
 
   useEffect(() => {
@@ -380,25 +445,26 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return () => window.removeEventListener('rbac:updated', onPermsUpdated);
   }, []);
 
+  // Subscription page's "Sync now" fires this; reload modules so the sidebar hides/shows sections live
+  useEffect(() => {
+    const onSaasUpdated = () => void loadSaas(true);
+    window.addEventListener('saas:updated', onSaasUpdated);
+    return () => window.removeEventListener('saas:updated', onSaasUpdated);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLogout = () => {
-    window.localStorage.removeItem('auth_token');
-    window.localStorage.removeItem('location_id');
-    window.localStorage.removeItem('location_name');
+    clearUserSession();
     router.push('/login');
   };
 
+  // Light -> Dark -> Dim -> Light
   const toggleTheme = () => {
-    const isDark = document.documentElement.classList.contains('dark');
-    if (isDark) {
-      document.documentElement.classList.remove('dark');
-      window.localStorage.setItem('theme', 'light');
-      setTheme('light');
-    } else {
-      document.documentElement.classList.add('dark');
-      window.localStorage.setItem('theme', 'dark');
-      setTheme('dark');
-    }
+    const next = nextTheme(getTheme());
+    applyTheme(next);
+    setTheme(next);
   };
+  const themeLabel = theme === 'light' ? 'Dark mode' : theme === 'dark' ? 'Dim mode' : 'Light mode';
 
   const setLocationContext = (id: number) => {
     const loc = availableLocations.find((l) => l.id === id);
@@ -478,6 +544,9 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
   const visibleAccountingItems = accountingItems.filter((it) => hasPerm((it as any).perm));
   const canSeeAccounting = isModuleAllowed('accounting') && visibleAccountingItems.length > 0;
+  // Reports: its own section; one entry per report group the company is licensed for.
+  const visibleReportGroups = hasPerm('reports.read') ? REPORT_GROUPS.filter((g) => !g.module || isModuleAllowed(g.module)) : [];
+  const canSeeReports = visibleReportGroups.length > 0;
 
   const visibleProductionItems = productionItems.filter((it) => hasPerm((it as any).perm));
   const canSeeProduction = isModuleAllowed('production') && visibleProductionItems.length > 0;
@@ -497,6 +566,9 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const visibleKioskItems = kioskItems.filter((it) => hasPerm((it as any).perm));
   const canSeeKiosk = isModuleAllowed('kiosk') && visibleKioskItems.length > 0;
 
+  const visibleApprovalItems = approvalItems.filter((it) => hasPerm((it as any).perm));
+  const canSeeApprovals = permissionKeys != null && visibleApprovalItems.length > 0;
+
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
 
@@ -504,7 +576,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...adminItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...approvalItems, ...adminItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -535,6 +607,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
     if (pathname.startsWith('/accounting')) setIsAccountingOpen(true);
     if (pathname.startsWith('/production')) setIsProductionOpen(true);
     if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
+    if (pathname.startsWith('/approvals')) setIsApprovalsOpen(true);
     if (pathname.startsWith('/front-office')) setIsFrontOfficeOpen(true);
     if (pathname.startsWith('/banquet')) setIsBanquetOpen(true);
     if (pathname.startsWith('/ecommerce')) setIsEcommerceOpen(true);
@@ -988,6 +1061,48 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
             </SidebarGroup>
             )}
 
+            {!canSeeReports ? null : (
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsReportsOpen((v) => !v)}
+                        isActive={pathname.startsWith('/reports')}
+                        tooltip="Reports"
+                        className={cn(
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/reports') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        )}
+                      >
+                        <BarChart3 className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Reports</span>
+                        <ChevronRight className={cn("ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden", isReportsOpen ? "rotate-90" : "rotate-0")} />
+                      </SidebarMenuButton>
+
+                      {isReportsOpen ? (
+                        <SidebarMenuSub>
+                          <SidebarMenuSubItem>
+                            <SidebarMenuSubButton asChild isActive={pathname === '/reports'}>
+                              <Link href="/reports"><BarChart3 className="w-4 h-4" /><span>All reports</span></Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                          {visibleReportGroups.map((g) => (
+                            <SidebarMenuSubItem key={g.id}>
+                              <SidebarMenuSubButton asChild isActive={g.items.some((r) => pathname === r.href)}>
+                                <Link href={`/reports?group=${g.id}`}><g.icon className="w-4 h-4" /><span>{g.label}</span></Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            )}
+
             {!canSeeAccounting ? null : (
             <SidebarGroup className="p-0">
               <SidebarGroupContent>
@@ -1261,6 +1376,51 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
             </SidebarGroup>
             )}
 
+            {!canSeeApprovals ? null : (
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsApprovalsOpen((v) => !v)}
+                        isActive={pathname.startsWith('/approvals')}
+                        tooltip="Approvals & Control"
+                        className={cn(
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          pathname.startsWith('/approvals') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        )}
+                      >
+                        <ShieldCheck className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Approvals &amp; Control</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            isApprovalsOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {isApprovalsOpen ? (
+                        <SidebarMenuSub>
+                          {visibleApprovalItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            )}
+
             <SidebarGroup className="mt-auto p-0">
               <SidebarMenu>
                 {!canSeeAdmin ? null : (
@@ -1307,7 +1467,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     isActive={pathname === '/profile'}
                     tooltip="Profile"
                     className={cn(
-                      "transition-all duration-200 py-6 sm:py-2 text-white/80 hover:text-white",
+                      "transition-all duration-200 py-6 sm:py-2 text-slate-700 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white",
                       pathname === '/profile' ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                     )}
                   >
@@ -1324,13 +1484,13 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
             <SidebarMenu>
               <SidebarMenuItem>
                 <SidebarMenuButton
-                  tooltip={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                  tooltip={`Switch to ${themeLabel}`}
                   className="py-2 px-3 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors"
                   onClick={toggleTheme}
                 >
-                  {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                  {theme === 'light' ? <Moon className="w-4 h-4 text-slate-600" /> : theme === 'dark' ? <Moon className="w-4 h-4 text-slate-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
                   <span className="text-xs font-semibold">
-                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                    {themeLabel}
                   </span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -1349,6 +1509,43 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
         </Sidebar>
 
         <SidebarInset className="flex-1 flex flex-col min-w-0">
+          {/* Global trial banner: on every page while the workspace is on a trial. Locks once the trial has ended. */}
+          {(saasStatus.toLowerCase() === 'trial' || trialLocked) && (() => {
+            const days = daysUntil(saasTrialExpiry || saasRenewalDate);
+            const ended = trialLocked || (days !== null && days < 0);
+            const when = ended
+              ? 'your trial has ended, so changes are disabled'
+              : days === null
+                ? 'your trial is active'
+                : days === 0
+                  ? 'your trial ends today'
+                  : `${days} day${days === 1 ? '' : 's'} left in your trial`;
+            return (
+              <div
+                role="status"
+                className={cn(
+                  'flex flex-wrap items-center justify-between gap-2 border-b px-4 py-2 text-sm sm:px-6',
+                  ended
+                    ? 'border-red-200 bg-red-50 text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200'
+                    : 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-200',
+                )}
+              >
+                <span className="flex items-center gap-2">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>
+                    <strong className="font-semibold">{ended ? 'Trial ended' : 'Trial'}</strong> · {when}
+                    {ended && <span className="hidden sm:inline"> · Upgrade your package or contact your administrator to continue.</span>}
+                  </span>
+                </span>
+                <Link
+                  href="/admin/subscription"
+                  className="font-semibold underline underline-offset-2 hover:opacity-80"
+                >
+                  {ended ? 'Upgrade package' : 'Choose a plan'}
+                </Link>
+              </div>
+            );
+          })()}
           <header className="h-16 border-b border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
             {/* Left: 9-Dot App Matrix Switcher & Breadcrumbs / Title */}
             <div className="flex items-center gap-3">
@@ -1366,7 +1563,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
               {/* Breadcrumbs / Page Title */}
               <div className="hidden md:flex items-center gap-2 text-xs font-semibold text-slate-500 dark:text-slate-400">
-                <Link href="/dashboard" className="hover:text-slate-900 dark:hover:text-white transition-colors">
+                <Link href="/" className="hover:text-slate-900 dark:hover:text-white transition-colors">
                   BizzFlow
                 </Link>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
@@ -1377,16 +1574,23 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
             </div>
 
             {/* Center: Global Search Bar */}
-            <div className="relative w-48 md:w-80 lg:w-96 hidden sm:block">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <Input 
-                placeholder="Search orders, invoices, items... (Ctrl + K)" 
-                className="pl-9.5 pr-12 rounded-xl bg-slate-100/80 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 text-xs text-slate-900 dark:text-white placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-900 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+            <form
+              role="search"
+              onSubmit={(e) => e.preventDefault()}
+              className="group relative hidden w-48 sm:block md:w-80 lg:w-96"
+            >
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-indigo-500" />
+              <Input
+                ref={searchRef}
+                type="search"
+                aria-label="Search"
+                placeholder="Search orders, invoices, items…"
+                className="h-9 rounded-xl border-slate-200 bg-slate-100/70 pl-10 pr-16 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 dark:border-slate-800 dark:bg-slate-800/60 dark:text-white dark:focus:bg-slate-900"
               />
-              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 hidden md:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded shadow-xs">
-                ⌘K
+              <kbd className="pointer-events-none absolute right-2.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-400 shadow-xs md:inline-flex dark:border-slate-700 dark:bg-slate-800">
+                {isMacPlatform ? '⌘' : 'Ctrl'} K
               </kbd>
-            </div>
+            </form>
 
             {/* Right: Actions, Branch, Plan, Notifications & Profile */}
             <div className="flex items-center gap-2 sm:gap-3">
@@ -1428,21 +1632,38 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                 <span>Promos</span>
               </Button>
 
+              {/* Straight into the POS (only for users who can use it) */}
+              {hasPerm('pos.read') && (
+                <Button asChild size="sm" className="h-9 rounded-xl gap-1.5 text-xs font-semibold">
+                  <Link href="/cms/pos" title="Open POS">
+                    <MonitorSmartphone className="w-4 h-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Open POS</span>
+                    <span className="sm:hidden sr-only">Open POS</span>
+                  </Link>
+                </Button>
+              )}
+
               {/* Theme Switcher Toggle */}
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-9 w-9 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                 onClick={toggleTheme}
-                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                title={`Switch to ${themeLabel}`}
               >
-                {theme === 'dark' ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-slate-600" />}
+                {theme === 'light' ? <Moon className="w-4 h-4 text-slate-600" /> : theme === 'dark' ? <Moon className="w-4 h-4 text-slate-400" /> : <Sun className="w-4 h-4 text-amber-500" />}
               </Button>
 
               {/* Notification Bell */}
-              <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
-                <Bell className="w-4 h-4" />
-                <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full ring-2 ring-white dark:ring-slate-950" />
+              <Button asChild variant="ghost" size="icon" className="relative h-9 w-9 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800">
+                <Link href="/approvals/inbox" aria-label={approvalCount ? `${approvalCount} approvals waiting for you` : "My approvals"} title={approvalCount ? `${approvalCount} waiting for your approval` : "No approvals waiting"}>
+                  <Bell className="w-4 h-4" />
+                  {approvalCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground ring-2 ring-background tabular-nums">
+                      {approvalCount > 99 ? "99+" : approvalCount}
+                    </span>
+                  )}
+                </Link>
               </Button>
 
               {/* User Profile Avatar Dropdown */}

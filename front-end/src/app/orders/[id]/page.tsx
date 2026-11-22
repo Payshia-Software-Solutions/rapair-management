@@ -1190,7 +1190,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
-        <DialogContent className="w-full max-w-none md:max-w-5xl h-full md:h-[80vh] left-0 top-0 translate-x-0 translate-y-0 md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] flex flex-col p-0 overflow-hidden bg-background border-0 md:border shadow-2xl rounded-none md:rounded-2xl">
+        <DialogContent className="w-full max-w-none md:max-w-5xl h-full md:h-[80vh] left-0 top-0 translate-x-0 translate-y-0 md:left-[50%] md:top-[50%] md:translate-x-[-50%] md:translate-y-[-50%] flex flex-col p-0 overflow-hidden bg-background md:border rounded-none">
           <div className="flex items-center justify-between px-6 py-4 border-b">
             <div>
               <DialogTitle className="text-xl font-bold flex items-center gap-2">

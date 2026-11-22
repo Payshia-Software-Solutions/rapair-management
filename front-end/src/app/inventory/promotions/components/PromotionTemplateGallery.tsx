@@ -87,7 +87,7 @@ export const PromotionTemplateGallery: React.FC<PromotionTemplateGalleryProps> =
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl p-0 overflow-hidden border-none shadow-2xl rounded-[2.5rem] bg-slate-50 dark:bg-slate-950">
+      <DialogContent className="max-w-4xl p-0 overflow-hidden bg-slate-50">
         <div className="p-10 space-y-8">
           <div className="space-y-2 text-center">
             <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">What are you planning?</h2>

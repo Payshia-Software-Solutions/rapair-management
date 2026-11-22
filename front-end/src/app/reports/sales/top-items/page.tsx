@@ -119,12 +119,11 @@ export default function TopItemsReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Top Selling Items Report"
       subtitle="Identify your most popular products and services"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

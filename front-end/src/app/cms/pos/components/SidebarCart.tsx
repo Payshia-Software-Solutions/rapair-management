@@ -21,8 +21,11 @@ import {
   RefreshCw,
   Gift,
   Home,
-  Printer
+  Printer,
+  MessageSquarePlus,
+  X
 } from "lucide-react";
+import { LineNoteDialog } from "./Dialogs/LineNoteDialog";
 import { 
   Select, 
   SelectContent, 
@@ -86,49 +89,98 @@ export const SidebarCart: React.FC = () => {
     setIsPromotionPromptOpen,
     setReservationDialogOpen,
     setGuestPrintSelectionOpen,
-    setGuestPrintOrderId
+    setGuestPrintOrderId,
+    isMenuPricing,
+    posLayout,
+    canCheckout,
+    printKOT,
+    setCompRequest,
+    removeComp
   } = usePOS();
+  const compTotal = cart.reduce((s: number, l: any) => s + (l.is_comp ? Number(l.quantity) * Number(l.unit_price) : 0), 0);
+  const canCompBill = cart.some((l: any) => !l.is_comp && !l.is_reward && Number(l.unit_price) > 0);
+  const isCompact = posLayout === 'compact';
+  // Tab mode (phones / portrait tablets): touch-sized lines
+  const tab = posLayout === 'mobile';
 
   const [heldOrdersOpen, setHeldOrdersOpen] = React.useState(false);
   const [isPromotionsOpen, setIsPromotionsOpen] = React.useState(false);
+  const [noteLineIndex, setNoteLineIndex] = React.useState<number | null>(null);
+  const noteLine = noteLineIndex !== null ? cart[noteLineIndex] : null;
+  const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const currentLocationName = locations.find(l => String(l.id) === String(selectedLocation))?.name || "Selected Location";
 
   return (
-    <div className="w-full lg:w-[450px] shrink-0 flex flex-col bg-white dark:bg-card h-full lg:rounded-2xl border-t lg:border border-border lg:shadow-xl overflow-hidden relative">
-      
-      {/* POS Header: Customer & Location */}
-      <div className="p-2 lg:p-4 bg-muted/20 border-b border-border space-y-2 lg:space-y-3 shrink-0">
+    <div className={`w-full shrink-0 flex flex-col bg-white dark:bg-card h-full overflow-hidden relative ${posLayout === 'full' ? 'lg:rounded-lg border-t lg:border border-border lg:shadow-xl' : ''}`}>
+
+      {/* POS Header: customer + held bills + promotions (one row) */}
+      <div className="p-2 bg-muted/20 border-b border-border shrink-0">
         <div className="flex gap-2 items-center">
-          <div className="flex-1 flex items-center gap-1.5 lg:gap-2">
-            <MapPin className="w-3.5 h-3.5 text-muted-foreground shrink-0 hidden sm:block" />
-            <div className="flex-1">
-              <Select value={selectedLocation} onValueChange={setSelectedLocation}>
-                <SelectTrigger className="h-8 lg:h-9 border-0 bg-white dark:bg-slate-900 shadow-sm font-semibold text-xs lg:text-sm">
-                  <SelectValue placeholder="Location..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations
-                    .filter(loc => Boolean(loc.is_pos_active))
-                    .map(loc => <SelectItem key={loc.id} value={String(loc.id)}>{loc.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {/* Customer (location is shown in the bottom status bar). Stewards don't pick customers. */}
+        {!canCheckout ? (
+          <div className="flex-1 min-w-0 px-1 text-sm font-medium">Current order</div>
+        ) : (<>
+        <User className="w-3.5 h-3.5 text-muted-foreground shrink-0 hidden sm:block" />
+        <div className="flex-1 min-w-0">
+          <SearchableSelect
+            triggerClassName="h-9 px-2.5 text-sm"
+            value={selectedCustomer}
+            onValueChange={setSelectedCustomer}
+            placeholder="Search Customer..."
+            options={customers.map(c => ({
+              value: String(c.id),
+              label: c.phone ? `${c.name} (${c.phone})` : c.name,
+              keywords: `${c.name} ${c.phone}`
+            }))}
+          />
+        </div>
+        
+        <Dialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
+          <DialogTrigger asChild>
+            <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" title="Add customer" aria-label="Add customer"><Plus className="w-4 h-4" /></Button>
+          </DialogTrigger>
+          <DialogContent size="sm" className="overflow-y-auto sm:rounded-lg p-6 bg-background">
+            <DialogHeader><DialogTitle>Add Walk-In</DialogTitle></DialogHeader>
+            <form onSubmit={handleQuickAddCustomer} className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <label className="text-sm font-bold">Name</label>
+                <Input 
+                  value={newCustomer.name} 
+                  onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} 
+                  autoFocus 
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-bold">Phone</label>
+                <Input 
+                  value={newCustomer.phone} 
+                  onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})} 
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={addingCustomer} className="w-full">
+                {addingCustomer ? <Loader2 className="w-4 h-4 animate-spin"/> : "Save & Select"}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+        </>)}
 
           <Dialog open={heldOrdersOpen} onOpenChange={(open) => {
             setHeldOrdersOpen(open);
             if (open) refreshHeldOrders();
           }}>
               <DialogTrigger asChild>
-                  <Button variant="outline" className="h-8 lg:h-9 gap-1 lg:gap-2 px-2 lg:px-3 border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:bg-orange-500/10 dark:border-orange-500/20 dark:text-orange-400 shrink-0">
+                  <Button variant="outline" className="h-9 gap-1.5 px-2.5 shrink-0" title="Held bills">
                       <Clock className="w-3.5 h-3.5" />
-                      <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-tighter">Held ({heldOrders.length})</span>
+                      <span className="text-xs font-medium">{isCompact ? heldOrders.length : `Held (${heldOrders.length})`}</span>
                   </Button>
               </DialogTrigger>
-              <DialogContent className="w-full sm:max-w-lg h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl p-0 border-none overflow-hidden shadow-2xl bg-background">
+              <DialogContent size="lg" className="sm:rounded-lg p-0 overflow-y-auto bg-background">
                   <DialogHeader className="p-6 pb-2">
-                      <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-3">
+                      <DialogTitle className="flex items-center gap-3">
                           <Clock className="w-6 h-6 text-orange-500" />
                           Held Bills List
                       </DialogTitle>
@@ -144,7 +196,7 @@ export const SidebarCart: React.FC = () => {
                               {Array.isArray(heldOrders) && heldOrders.map((order) => (
                                   <div 
                                     key={order.id} 
-                                    className="p-4 rounded-2xl border border-border bg-slate-50 dark:bg-slate-900 hover:border-orange-500 transition-all cursor-pointer group flex justify-between items-center"
+                                    className="p-4 rounded-lg border border-border bg-slate-50 dark:bg-slate-900 hover:border-orange-500 transition-all cursor-pointer group flex justify-between items-center"
                                     onClick={() => {
                                         loadPOSBill(order.id);
                                         setHeldOrdersOpen(false);
@@ -162,10 +214,7 @@ export const SidebarCart: React.FC = () => {
                                                variant="outline"
                                                onClick={(e) => { 
                                                    e.stopPropagation(); 
-                                                   const w = 400; const h = 600;
-                                                   const left = (window.screen.width / 2) - (w / 2);
-                                                   const top = (window.screen.height / 2) - (h / 2);
-                                                   window.open(`/cms/pos/kot/${order.id}?full=1&autoprint=1`, 'KOTPrint', `width=${w},height=${h},top=${top},left=${left}`);
+                                                   void printKOT(order.id, true);
                                                }}
                                                className="h-8 px-2.5 text-[10px] font-black uppercase tracking-tight gap-1 bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-700/40 dark:text-amber-400 z-10"
                                                title="Reprint Full KOT"
@@ -198,130 +247,56 @@ export const SidebarCart: React.FC = () => {
               </DialogContent>
           </Dialog>
 
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setIsPromotionsOpen(true)}
-            className="h-8 w-8 lg:h-9 lg:w-9 border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800 dark:bg-indigo-500/10 dark:border-indigo-500/20 dark:text-indigo-400 shrink-0"
-            title="View Active Promotions"
-          >
-            <Percent className="w-3.5 h-3.5 lg:w-4 lg:h-4" />
-          </Button>
-        </div>
-
-        <div className="flex gap-2 items-center text-sm">
-          <User className="w-3.5 h-3.5 text-muted-foreground shrink-0 hidden sm:block" />
-          <div className="flex-1">
-            <SearchableSelect
-              value={selectedCustomer}
-              onValueChange={setSelectedCustomer}
-              placeholder="Search Customer..."
-              options={customers.map(c => ({
-                value: String(c.id),
-                label: c.phone ? `${c.name} (${c.phone})` : c.name,
-                keywords: `${c.name} ${c.phone}`
-              }))}
-            />
-          </div>
-          
-          <Dialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
-            <DialogTrigger asChild>
-              <Button size="icon" variant="outline" className="h-8 w-8 lg:h-9 lg:w-9 shrink-0 shadow-sm"><Plus className="w-3.5 h-3.5 lg:w-4 lg:h-4" /></Button>
-            </DialogTrigger>
-            <DialogContent className="w-full sm:max-w-md h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl p-6 bg-background">
-              <DialogHeader><DialogTitle>Add Walk-In</DialogTitle></DialogHeader>
-              <form onSubmit={handleQuickAddCustomer} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-bold">Name</label>
-                  <Input 
-                    value={newCustomer.name} 
-                    onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} 
-                    autoFocus 
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-bold">Phone</label>
-                  <Input 
-                    value={newCustomer.phone} 
-                    onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})} 
-                    required
-                  />
-                </div>
-                <Button type="submit" disabled={addingCustomer} className="w-full">
-                  {addingCustomer ? <Loader2 className="w-4 h-4 animate-spin"/> : "Save & Select"}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          {canCheckout && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsPromotionsOpen(true)}
+              className="h-9 w-9 shrink-0"
+              title="View Active Promotions"
+            >
+              <Percent className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Order Type Badge (Clickable to change) */}
+
+      {/* Order context: one line (mode · table · steward) */}
       {orderType && (
-        <>
-            <div className="px-4 py-1.5 lg:py-2 flex items-center justify-between bg-indigo-50 dark:bg-indigo-500/5 border-b border-indigo-100 dark:border-indigo-500/10">
-                <div className="flex items-center gap-2">
-                    <div className={`p-1 lg:p-1.5 rounded-lg bg-indigo-600 text-white shadow-sm shadow-indigo-200 dark:shadow-none`}>
-                        {orderType === 'dine_in' ? <Utensils className="w-3 h-3 lg:w-3.5 lg:h-3.5" /> : 
-                         orderType === 'take_away' ? <ShoppingBag className="w-3 h-3 lg:w-3.5 lg:h-3.5" /> : 
-                         <Store className="w-3 h-3 lg:w-3.5 lg:h-3.5" />}
-                    </div>
-                    <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-[0.15em] text-indigo-700 dark:text-indigo-400">
-                        {orderType?.replace('_', ' ')}
-                    </span>
-                </div>
-                <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => setOrderTypeDialogOpen(true)}
-                    className="h-6 lg:h-7 px-2 lg:px-3 rounded-full text-[8px] lg:text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 tracking-tighter"
-                >
-                    Change
-                </Button>
-            </div>
-            {/* Dine-In Details Row */}
-            {orderType === 'dine_in' && (selectedTable || selectedSteward) && (
-                <div className="flex px-4 py-1.5 gap-4 bg-indigo-50/50 dark:bg-indigo-500/5 items-center border-b border-indigo-100 dark:border-indigo-500/20 animate-in slide-in-from-top duration-300">
-                    {selectedTable && (
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                            <LayoutGrid className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-indigo-500 shrink-0" />
-                            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-indigo-800 dark:text-indigo-300 truncate">
-                                {tables.find(t => String(t.id) === selectedTable)?.name || 'Table'}
-                            </span>
-                        </div>
-                    )}
-                    <div className="w-1 h-1 rounded-full bg-indigo-200 dark:bg-indigo-800 shrink-0" />
-                    {selectedSteward && (
-                        <div className="flex items-center gap-1.5 overflow-hidden">
-                            <User className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-indigo-500 shrink-0" />
-                            <span className="text-[9px] lg:text-[10px] font-black uppercase tracking-widest text-indigo-800 dark:text-indigo-300 truncate">
-                                {stewards.find(s => String(s.id) === selectedSteward)?.name || 'Steward'}
-                            </span>
-                        </div>
-                    )}
-                </div>
-            )}
-        </>
+        <div className="px-3 py-2 flex items-center gap-2 border-b border-border bg-muted/40 text-sm min-w-0">
+          {orderType === "dine_in" ? <Utensils className="w-4 h-4 text-primary shrink-0" aria-hidden="true" /> :
+           orderType === "take_away" ? <ShoppingBag className="w-4 h-4 text-primary shrink-0" aria-hidden="true" /> :
+           <Store className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />}
+          <span className="font-medium shrink-0">{orderType === "dine_in" ? "Dine in" : orderType === "take_away" ? "Take away" : "Retail"}</span>
+          {orderType === "dine_in" && selectedTable && (
+            <span className="text-muted-foreground truncate">· {tables.find(t => String(t.id) === selectedTable)?.name || "Table"}</span>
+          )}
+          {orderType === "dine_in" && selectedSteward && (
+            <span className="text-muted-foreground truncate">· {stewards.find(s => String(s.id) === selectedSteward)?.name || "Steward"}</span>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => setOrderTypeDialogOpen(true)} className="ml-auto h-7 px-2 text-xs text-primary shrink-0">
+            Change
+          </Button>
+        </div>
       )}
 
       {/* Cart List */}
       <div className="flex-1 overflow-y-auto bg-slate-50 dark:bg-slate-900 p-2 custom-scrollbar relative">
         {cart.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center bg-white dark:bg-card rounded-xl border border-dashed border-border m-2">
-            <ShoppingCart className="w-12 h-12 lg:w-16 lg:h-16 mb-4 opacity-20" />
-            <h3 className="font-bold text-foreground italic text-sm lg:text-base">Order Started...</h3>
-            <p className="text-[10px] lg:text-sm mt-1">Mode: <span className="uppercase font-black text-indigo-600">{orderType?.replace('_', ' ') || 'None'}</span></p>
-            <p className="text-[9px] lg:text-xs mt-4 opacity-70">Search for products on the Menu tab to add them to this bill.</p>
+          <div className="h-full flex flex-col items-center justify-center text-center gap-1 px-6 text-muted-foreground">
+            <ShoppingCart className="w-8 h-8 opacity-30 mb-1" aria-hidden="true" />
+            <p className="text-sm font-medium text-foreground">No items yet</p>
+            <p className="text-xs">Tap an item on the left, or scan a barcode.</p>
           </div>
         ) : (
-          <div className="space-y-1.5 lg:space-y-2">
+          <div className={tab ? "space-y-2" : "space-y-1.5 lg:space-y-2"}>
             {cart.map((item, index) => {
               const isReward = !!item.is_reward;
               
               if (isReward) {
                 return (
-                  <div key={index} className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 p-2 lg:p-3 rounded-xl shadow-sm relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
+                  <div key={index} className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 p-2 lg:p-3 rounded-md shadow-sm relative overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                     <div className="absolute top-0 right-0 p-1 opacity-10">
                        <Gift className="w-8 h-8 lg:w-12 lg:h-12 -rotate-12" />
                     </div>
@@ -352,18 +327,93 @@ export const SidebarCart: React.FC = () => {
                 );
               }
 
+              if (item.is_comp) {
+                return (
+                  <div key={index} className={`bg-violet-50 dark:bg-violet-950/20 border border-violet-200 dark:border-violet-800 ${tab ? "p-3" : "p-2 lg:p-3"} rounded-md shadow-sm`}>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0">
+                        <div className={`${tab ? "text-base font-semibold leading-snug" : "font-bold text-xs lg:text-sm leading-tight"} text-foreground line-clamp-2`}>{item.description}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="px-1.5 py-0.5 rounded bg-violet-600 text-white text-[9px] lg:text-[10px] font-bold uppercase tracking-wider">Comp</span>
+                          <span className="text-[10px] lg:text-[11px] text-violet-800 dark:text-violet-300 truncate">
+                            {item.comp_reason}{item.comp_approver_name ? ` · ${item.comp_approver_name}` : ""}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeComp(index)}
+                        title="Remove complimentary (charge this item)"
+                        aria-label="Remove complimentary"
+                        className="w-6 h-6 lg:w-7 lg:h-7 -mt-1 -mr-1 shrink-0 text-violet-700 hover:text-red-500 hover:bg-red-50"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                    <div className="flex justify-between items-center mt-2">
+                      <span className="text-[10px] lg:text-xs font-semibold text-muted-foreground tabular-nums">Qty {item.quantity}</span>
+                      <div className="text-right">
+                        <div className="text-[8px] lg:text-[10px] line-through text-muted-foreground tabular-nums">LKR {money(item.quantity * item.unit_price)}</div>
+                        <div className={`${tab ? "text-base font-semibold" : "text-xs lg:text-sm font-black"} text-violet-700 dark:text-violet-300 tabular-nums`}>LKR 0.00</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                <div key={index} className="bg-white dark:bg-card border border-border p-2 lg:p-3 rounded-xl hover:border-primary/30 transition-colors shadow-sm">
+                <div key={index} className={`bg-white dark:bg-card border border-border ${tab ? "p-3" : "p-2 lg:p-3"} rounded-md hover:border-primary/30 transition-colors shadow-sm`}>
                   <div className="flex justify-between items-start mb-1 lg:mb-2">
-                    <div className="font-bold text-xs lg:text-sm leading-tight text-foreground pr-2 line-clamp-2">{item.description}</div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => removeCartLine(index)} 
-                      className="w-5 h-5 lg:w-6 lg:h-6 text-muted-foreground hover:text-red-500 hover:bg-red-50 -mt-1 -mr-1"
-                    >
-                      <Trash2 className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
-                    </Button>
+                    <div className="pr-2 min-w-0">
+                      <div className={`${tab ? "text-base font-semibold leading-snug" : "font-bold text-xs lg:text-sm leading-tight"} text-foreground line-clamp-2`}>{item.description}</div>
+                      {(item.modifiers?.length > 0 || item.item_notes) && (
+                        <button
+                          type="button"
+                          onClick={() => setNoteLineIndex(index)}
+                          className="mt-1 flex flex-wrap gap-1 text-left"
+                        >
+                          {(item.modifiers || []).map((m: string) => (
+                            <span key={m} className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300 text-[9px] lg:text-[10px] font-bold">{m}</span>
+                          ))}
+                          {item.item_notes && (
+                            <span className="text-[10px] lg:text-[11px] italic text-muted-foreground">“{item.item_notes}”</span>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex items-center -mt-1 -mr-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setNoteLineIndex(index)}
+                        title="Kitchen note / modifiers"
+                        className={`w-6 h-6 lg:w-7 lg:h-7 hover:bg-amber-50 ${item.item_notes || item.modifiers?.length ? 'text-amber-600' : 'text-muted-foreground hover:text-amber-600'}`}
+                      >
+                        <MessageSquarePlus className="w-3.5 h-3.5" />
+                      </Button>
+                      {Number(item.unit_price) > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setCompRequest({ index })}
+                          title="Make complimentary (manager PIN)"
+                          aria-label="Make complimentary"
+                          className="w-6 h-6 lg:w-7 lg:h-7 text-muted-foreground hover:text-violet-600 hover:bg-violet-50"
+                        >
+                          <Gift className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeCartLine(index)}
+                        title="Remove item"
+                        className="w-6 h-6 lg:w-7 lg:h-7 text-muted-foreground hover:text-red-500 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
+                      </Button>
+                    </div>
                   </div>
                   <div className="flex justify-between items-center mt-2 lg:mt-3">
                     {/* Qty Controls */}
@@ -371,7 +421,7 @@ export const SidebarCart: React.FC = () => {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="w-6 h-6 lg:w-7 lg:h-7 rounded-md" 
+                        className={tab ? "w-10 h-10 rounded-md" : "w-6 h-6 lg:w-7 lg:h-7 rounded-md"} 
                         onClick={() => updateCartLine(index, 'quantity', item.quantity - 1)} 
                         disabled={item.quantity <= 1}
                       >
@@ -395,7 +445,7 @@ export const SidebarCart: React.FC = () => {
                       <Button 
                         variant="ghost" 
                         size="icon" 
-                        className="w-6 h-6 lg:w-7 lg:h-7 rounded-md text-primary" 
+                        className={tab ? "w-10 h-10 rounded-md text-primary" : "w-6 h-6 lg:w-7 lg:h-7 rounded-md text-primary"} 
                         onClick={() => {
                           let val = Number(item.quantity) + 1;
                           const invItem = inventory.find(p => p.id === item.id);
@@ -410,9 +460,12 @@ export const SidebarCart: React.FC = () => {
                     </div>
                     <div className="text-right">
                       {item.discount > 0 && (
-                        <div className="text-[8px] lg:text-[10px] line-through text-muted-foreground opacity-50">LKR {(item.quantity * item.unit_price).toLocaleString()}</div>
+                        <div className="text-[8px] lg:text-[10px] line-through text-muted-foreground opacity-50">LKR {money(item.quantity * item.unit_price)}</div>
                       )}
-                      <div className="text-xs lg:text-sm font-black text-foreground">LKR {((item.quantity * item.unit_price) - (item.quantity * item.discount)).toLocaleString()}</div>
+                      <div className={`${tab ? "text-base font-semibold" : "text-xs lg:text-sm font-black"} text-foreground tabular-nums`}>LKR {money((item.quantity * item.unit_price) - (item.quantity * item.discount))}</div>
+                      {item.quantity > 1 && (
+                        <div className="text-[9px] lg:text-[10px] text-muted-foreground tabular-nums">{item.quantity} × {money(item.unit_price - (item.discount || 0))}</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -424,55 +477,82 @@ export const SidebarCart: React.FC = () => {
 
       {/* Totals & Actions */}
       <div className="bg-white dark:bg-card border-t border-border shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-10">
-        <div className="p-3 lg:p-4 space-y-1 lg:space-y-2 text-xs lg:text-sm border-b border-border bg-slate-50/50 dark:bg-slate-900/50">
+        <div className={`${isCompact ? 'px-3 py-2 space-y-1 text-xs' : 'p-3 lg:p-4 space-y-1 lg:space-y-2 text-xs lg:text-sm'} border-b border-border bg-slate-50/50 dark:bg-slate-900/50`}>
           <div className="flex justify-between text-muted-foreground">
-            <span>Subtotal :</span> 
-            <span className="font-bold text-foreground font-mono">LKR {totals.subtotal.toLocaleString()}</span>
+            <span className="flex items-center gap-2">
+              Subtotal
+              {isMenuPricing && (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300 text-[9px] font-black uppercase tracking-wider" title="Menu prices already include taxes">
+                  Taxes incl.
+                </span>
+              )}
+            </span>
+            <span className="font-bold text-foreground tabular-nums">LKR {money(totals.subtotal)}</span>
           </div>
 
-          {totals.lineDiscountTotal > 0 && (
+          {totals.lineDiscountTotal - compTotal > 0.005 && (
             <div className="flex justify-between text-rose-600 dark:text-rose-400 font-medium">
-              <span>Line Discounts :</span> 
-              <span className="font-bold">-LKR {totals.lineDiscountTotal.toLocaleString()}</span>
+              <span>Line discounts</span>
+              <span className="font-bold tabular-nums">-LKR {money(totals.lineDiscountTotal - compTotal)}</span>
             </div>
           )}
 
-          <button 
-             onClick={() => setBillDiscountDialogOpen(true)}
-             className={`w-full flex justify-between items-center py-2 lg:py-3 px-3 lg:px-4 rounded-xl border-2 transition-all group ${billDiscountValue > 0 ? 'bg-rose-50 border-rose-200 dark:bg-rose-500/10 dark:border-rose-500/20' : 'bg-slate-50 border-dashed border-slate-200 dark:bg-slate-950 dark:border-slate-800'}`}
-          >
-            <div className="flex items-center gap-1.5 lg:gap-2">
-                <div className={`p-1 lg:p-1.5 rounded-lg transition-colors ${billDiscountValue > 0 ? 'bg-rose-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 group-hover:bg-primary group-hover:text-white'}`}>
-                    <Percent className="w-3 h-3 lg:w-3.5 lg:h-3.5" />
-                </div>
-                <span className={`text-[9px] lg:text-[10px] font-black uppercase tracking-widest ${billDiscountValue > 0 ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500'}`}>
-                    {billDiscountValue > 0 ? `Discount (${billDiscountType === 'percentage' ? billDiscountValue + '%' : 'Fixed'})` : 'Apply Discount'}
-                </span>
+          {compTotal > 0 && (
+            <div className="flex justify-between text-violet-700 dark:text-violet-300 font-medium">
+              <span>Complimentary</span>
+              <span className="font-bold tabular-nums">-LKR {money(compTotal)}</span>
             </div>
-            {billDiscountValue > 0 ? (
-                <span className="font-black text-rose-600 dark:text-rose-400 tabular-nums">
-                    -LKR {(billDiscountType === 'percentage' ? (totals.subtotal - totals.lineDiscountTotal) * (billDiscountValue / 100) : billDiscountValue).toLocaleString()}
-                </span>
-            ) : (
-                <Plus className="w-3 h-3 lg:w-4 lg:h-4 text-slate-400 group-hover:text-primary" />
+          )}
+
+          {/* Bill discount: a plain row, like the other totals */}
+{canCheckout && (
+          <div className="flex justify-between items-center">
+            <button
+              type="button"
+              onClick={() => setBillDiscountDialogOpen(true)}
+              className="inline-flex items-center gap-1.5 text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            >
+              <Percent className="w-3.5 h-3.5" aria-hidden="true" />
+              {billDiscountValue > 0
+                ? `Bill discount (${billDiscountType === "percentage" ? billDiscountValue + "%" : "fixed"})`
+                : "Add bill discount"}
+              <kbd className="text-[10px] text-muted-foreground font-normal">F4</kbd>
+            </button>
+            {billDiscountValue > 0 && (
+              <span className="font-medium text-destructive tabular-nums">-LKR {money(totals.billDiscountAmt)}</span>
             )}
-          </button>
+          </div>
+)}
+{canCheckout && canCompBill && (
+          <div className="flex">
+            <button
+              type="button"
+              onClick={() => setCompRequest({ index: null })}
+              className="inline-flex items-center gap-1.5 text-violet-700 dark:text-violet-300 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
+            >
+              <Gift className="w-3.5 h-3.5" aria-hidden="true" />
+              Make whole bill complimentary
+            </button>
+          </div>
+)}
           
-          {totals.appliedTaxes.length > 0 && (
-            <div className="pt-1 flex flex-wrap gap-x-4 gap-y-1">
-                {totals.appliedTaxes.map((t, idx) => (
-                    <div key={idx} className="flex gap-2 text-[10px] lg:text-[11px] text-blue-600 dark:text-cyan-400">
-                        <span>{t.code}:</span> 
-                        <span className="font-bold">LKR {t.amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+          {/* Menu-pricing locations show only the service charge; the tax
+              breakdown is booked internally and appears in the tax reports. */}
+          {totals.displayTaxes.length > 0 && (
+            <div className="pt-1 space-y-0.5">
+                {totals.displayTaxes.map((t, idx) => (
+                    <div key={idx} className="flex justify-between text-[11px] lg:text-xs text-blue-600 dark:text-cyan-400">
+                        <span>{t.is_sc ? 'Service charge' : t.code}{Number(t.rate_percent) > 0 ? ` (${Number(t.rate_percent)}%)` : ''}</span>
+                        <span className="font-bold tabular-nums">LKR {money(t.amount)}</span>
                     </div>
                 ))}
             </div>
           )}
 
           {appliedPromotion && (
-            <div className="flex justify-between items-center py-2 px-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 animate-in fade-in slide-in-from-top-1 duration-300">
+            <div className="flex justify-between items-center py-2 px-3 bg-amber-50 dark:bg-amber-950/20 rounded-md border border-amber-200 dark:border-amber-800 animate-in fade-in slide-in-from-top-1 duration-300">
                <div className="flex flex-col">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-600">Promotion Applied</span>
+                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Promotion applied</span>
                   <span className="text-xs font-black text-slate-900 dark:text-white">{appliedPromotion.name}</span>
                </div>
                <div className="flex items-center gap-3">
@@ -498,38 +578,65 @@ export const SidebarCart: React.FC = () => {
           )}
         </div>
         
-        <div className="p-4 lg:p-5 flex flex-col gap-3 lg:gap-4 pb-20 lg:pb-5">
-          <div className="flex justify-between items-center text-base lg:text-xl">
-            <span className="font-black uppercase tracking-tight text-muted-foreground text-xs lg:text-sm">Total</span>
-            <span className="font-black text-2xl lg:text-3xl tabular-nums tracking-tighter text-emerald-600 dark:text-emerald-400">
-              LKR {totals.grandTotal.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
+        <div className={posLayout === 'mobile' ? `p-4 flex flex-col gap-3 ${canCheckout ? 'pb-24' : 'pb-4'}` : isCompact ? 'px-3 py-2.5 flex flex-col gap-2' : 'p-4 lg:p-5 flex flex-col gap-3 lg:gap-4'}>
+          <div className={`${tab && canCheckout ? "hidden" : "flex"} justify-between items-center text-base lg:text-xl`}>
+            <span className="text-sm font-medium text-muted-foreground">Total</span>
+            <span className={`font-black ${isCompact ? 'text-2xl' : 'text-2xl lg:text-3xl'} tabular-nums tracking-tighter text-emerald-600 dark:text-emerald-400`}>
+              LKR {money(totals.grandTotal)}
             </span>
           </div>
 
           
-          <div className="hidden lg:grid lg:grid-cols-2 gap-3">
-              <Button 
-                variant="outline" 
+          {!canCheckout ? (
+            /* Order-taking only (steward tablet): hold the bill and send the KOT */
+            <div className="space-y-1.5">
+              <Button
+                size="lg"
+                disabled={cart.length === 0 || !cart.some((l: any) => Number(l.quantity) > Number(l.kot_qty || 0))}
+                onClick={holdPOSBill}
+                className="w-full h-12 text-sm rounded-md font-semibold"
+              >
+                <Utensils className="w-4 h-4 mr-2" aria-hidden="true" /> Send to kitchen <kbd className="ml-1.5 text-[10px] font-normal opacity-70">F8</kbd>
+              </Button>
+              <p className="text-xs text-center text-muted-foreground">The cashier takes payment from the Held list.</p>
+            </div>
+          ) : (
+          <div className={posLayout === 'mobile' ? 'hidden' : `grid grid-cols-2 ${isCompact ? 'gap-2' : 'gap-3'}`}>
+              <Button
+                variant="outline"
                 size="lg"
                 disabled={cart.length === 0}
                 onClick={holdPOSBill}
-                className="h-14 lg:h-16 rounded-xl text-[10px] lg:text-[11px] font-black tracking-widest uppercase border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 hover:text-orange-800 dark:bg-orange-950/20 dark:border-orange-500/20 dark:text-orange-400"
+                className={`${isCompact ? 'h-11 px-2 text-sm' : 'h-12 text-sm'} rounded-md font-semibold`}
               >
-                Hold & Print Order <PauseCircle className="w-5 h-5 ml-2 opacity-60" />
+                {isCompact ? "Hold" : "Hold & send KOT"} <kbd className="ml-1.5 text-[10px] font-normal opacity-60">F8</kbd> <PauseCircle className={isCompact ? "w-4 h-4 ml-1 opacity-60" : "w-5 h-5 ml-2 opacity-60"} />
               </Button>
               <Button 
                 size="lg" 
                 disabled={cart.length === 0} 
                 onClick={openCheckoutDialog}
-                className="h-14 lg:h-16 rounded-xl text-[10px] lg:text-[11px] font-black tracking-widest uppercase bg-primary hover:bg-primary/90 shadow-xl shadow-primary/20"
+                className={`${isCompact ? 'h-11 px-2 text-sm' : 'h-12 text-sm'} rounded-md font-semibold bg-primary hover:bg-primary/90`}
               >
-                Checkout <ShoppingCart className="w-5 h-5 ml-2 opacity-50" />
+                {isCompact ? "Pay" : "Checkout"} <kbd className="ml-1.5 text-[10px] font-normal opacity-70">F9</kbd> <ShoppingCart className={isCompact ? "w-4 h-4 ml-1 opacity-50" : "w-5 h-5 ml-2 opacity-50"} />
               </Button>
           </div>
+          )}
         </div>
       </div>
-      <PromotionsDialog 
-        open={isPromotionsOpen} 
+      <LineNoteDialog
+        open={noteLine !== null}
+        onOpenChange={(open) => { if (!open) setNoteLineIndex(null); }}
+        itemName={noteLine?.description || ""}
+        notes={noteLine?.item_notes}
+        modifiers={noteLine?.modifiers}
+        onSave={(notes, modifiers) => {
+          if (noteLineIndex === null) return;
+          updateCartLine(noteLineIndex, 'item_notes', notes || undefined);
+          updateCartLine(noteLineIndex, 'modifiers', modifiers);
+        }}
+      />
+      <PromotionsDialog
+        open={isPromotionsOpen}
         onOpenChange={setIsPromotionsOpen} 
         locationId={selectedLocation ? Number(selectedLocation) : null}
         locationName={currentLocationName}

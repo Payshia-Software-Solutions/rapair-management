@@ -52,12 +52,11 @@ export default function MaintenanceHistoryLanding() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Vehicle Maintenance History"
       subtitle="Pick a vehicle to view its job and parts history."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
     >

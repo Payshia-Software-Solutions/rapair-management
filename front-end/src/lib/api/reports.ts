@@ -272,6 +272,43 @@ export const fetchTaxReport = async (params: { location_id?: string; from?: stri
   return data.status === 'success' ? data.data : data;
 };
 
+export interface MenuTaxBreakdownRow {
+  item_id: number | null;
+  invoice_id?: number;
+  issue_date?: string;
+  customer_name?: string;
+  description: string;
+  qty: number;
+  display_net: number;
+  display_sc: number;
+  display_total: number;
+  base: number;
+  sc: number;
+  subtotal: number;
+  taxes: Record<string, number>;
+  net: number;
+}
+
+export interface MenuTaxBreakdown {
+  tax_codes: string[];
+  invoice_count: number;
+  rows: MenuTaxBreakdownRow[];
+  totals: Omit<MenuTaxBreakdownRow, 'item_id' | 'description'>;
+}
+
+export const fetchMenuTaxBreakdown = async (params: { location_id?: string; from?: string; to?: string; group_by?: 'item' | 'invoice' } = {}): Promise<MenuTaxBreakdown> => {
+  const qs = new URLSearchParams();
+  if (params.location_id) qs.set('location_id', params.location_id);
+  if (params.from) qs.set('from', params.from);
+  if (params.to) qs.set('to', params.to);
+  if (params.group_by) qs.set('group_by', params.group_by);
+
+  const res = await api(`/api/report/menu_tax_breakdown?${qs.toString()}`);
+  if (!res.ok) throw new Error('Failed to load menu pricing tax breakdown');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
 export const fetchDatabaseAudit = async () => {
   const res = await api('/api/report/database_audit');
   if (!res.ok) throw new Error('Failed to load database audit');
@@ -385,3 +422,26 @@ export const fetchMaterialIssuesSummaryReport = async (params: { location_id?: s
 };
 
 
+
+// ---- Tax invoice register (one row per invoice, every tax in its own column)
+export type TaxRegisterRow = {
+  id: number; invoice_no: string; tax_invoice_no: string | null; issue_date: string; status: string;
+  location_name: string | null; customer_name: string | null; customer_tax_no: string | null;
+  mode: 'menu' | 'standard'; net: number; sc: number; taxes: Record<string, number>; tax_total: number; total: number;
+};
+export type TaxRegister = {
+  tax_columns: Array<{ code: string; name: string; rate: number }>;
+  rows: TaxRegisterRow[];
+  totals: { net: number; sc: number; tax: number; total: number; taxes: Record<string, number> };
+  summary: Array<{ code: string; name: string; rate: number; taxable: number; amount: number; invoices: number }>;
+  missing_tax: Array<{ id: number; invoice_no: string; issue_date: string; grand_total: number }>;
+  truncated: boolean;
+};
+export const fetchTaxInvoiceRegister = async (params: { location_id?: string; from?: string; to?: string; mode?: string; status?: string; vat_only?: boolean }): Promise<TaxRegister> => {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== '' && v !== false) qs.set(k, v === true ? '1' : String(v));
+  const res = await api(`/api/report/tax_invoice_register?${qs.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status === 'error') throw new Error(data.message || 'Failed to load tax register');
+  return data.data;
+};

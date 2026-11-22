@@ -1,7 +1,18 @@
+import { clearUserSession } from "@/lib/session";
+import { tenantHeaders } from "@/lib/tenant";
 /**
  * Core API fetch wrapper
  */
-export const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+const RAW_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
+/**
+ * When the API is configured as "localhost" but the app is opened from another device on the
+ * LAN (phone/tablet via http://192.168.x.x:9003), point the API at that same host instead.
+ */
+export const BASE_URL =
+  typeof window !== 'undefined' && /\/\/(localhost|127\.0\.0\.1)(?=[:/]|$)/.test(RAW_BASE_URL) &&
+  !['localhost', '127.0.0.1'].includes(window.location.hostname)
+    ? RAW_BASE_URL.replace(/\/\/(localhost|127\.0\.0\.1)/, `//${window.location.hostname}`)
+    : RAW_BASE_URL;
 
 export const api = async (path: string, options: RequestInit = {}): Promise<Response> => {
   const baseUrl = BASE_URL;
@@ -14,6 +25,7 @@ export const api = async (path: string, options: RequestInit = {}): Promise<Resp
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
+      ...tenantHeaders(),
     },
     credentials: 'omit',
   };
@@ -35,9 +47,13 @@ export const api = async (path: string, options: RequestInit = {}): Promise<Resp
   const response = await fetch(`${baseUrl}${path}`, merged);
   // Global 401 interceptor - token expired or invalid, force logout immediately.
   if (response.status === 401 && typeof window !== 'undefined') {
-    window.localStorage.removeItem('auth_token');
+    clearUserSession();
     window.localStorage.removeItem('location_id');
     window.location.href = '/login';
+  }
+  // Trial ended: the server refuses writes with 402. Tell the layout so it can lock the UI.
+  if (response.status === 402 && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('trial:ended'));
   }
   return response;
 };

@@ -121,12 +121,11 @@ export default function CancellationsReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Cancellations Report"
       subtitle="Detailed list of all cancelled documents"
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

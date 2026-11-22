@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { submitPurchaseOrderForApproval } from "@/lib/api/approvals";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -77,13 +78,16 @@ export default function PurchaseOrdersPage() {
     }
   }, []);
 
+  // Goes through the approval workflow: approved at once when approval is off or no level
+  // applies; otherwise Pending Approval until the approvers in My Approvals sign off.
   const onApprove = async (id: number) => {
     try {
-      await updatePurchaseOrderStatus(String(id), "Approved");
-      toast({ title: "Approved", description: "Purchase order has been approved." });
+      const r = await submitPurchaseOrderForApproval(id);
+      toast({ title: r.data?.status === "Approved" ? "Approved" : "Sent for approval", description: r.message });
       await load();
+      window.dispatchEvent(new Event("approvals:changed"));
     } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Approval failed", variant: "destructive" });
+      toast({ title: "Couldn't send for approval", description: e?.message, variant: "destructive" });
     }
   };
 
@@ -101,7 +105,7 @@ export default function PurchaseOrdersPage() {
       return;
     }
     try {
-      await setPurchaseOrderStatus(String(id), status);
+      await updatePurchaseOrderStatus(String(id), status);
       toast({ title: "Updated", description: `Status set to ${status}` });
       await load();
     } catch (e: any) {
@@ -191,6 +195,7 @@ export default function PurchaseOrdersPage() {
                           variant={po.status === 'Draft' ? 'secondary' : 'outline'}
                           className={`text-[10px] uppercase font-bold px-2 py-0.5 ${
                             po.status === 'Approved' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' :
+                            po.status === 'Pending Approval' ? 'bg-sky-100 text-sky-700 border-sky-200' :
                             po.status === 'Received' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                             po.status === 'Draft' ? 'bg-amber-100 text-amber-700 border-amber-200' :
                             po.status === 'Sent' ? 'bg-purple-100 text-purple-700 border-purple-200' :
@@ -238,13 +243,14 @@ export default function PurchaseOrdersPage() {
                             >
                               <PackageCheck className="w-4 h-4" />
                             </Button>
-                          ) : isAdmin && po.status === 'Draft' ? (
+                          ) : po.status === 'Draft' ? (
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
                               onClick={() => onApprove(po.id)}
-                              title="Quick Approve"
+                              title="Send for approval"
+                              aria-label="Send for approval"
                             >
                               <CheckCircle2 className="w-4 h-4" />
                             </Button>

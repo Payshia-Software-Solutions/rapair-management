@@ -292,7 +292,7 @@ export default function SegmentsPage() {
       </div>
 
       <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">Create New Segment</DialogTitle>
             <DialogDescription className="font-medium">Define a new audience for your marketing efforts.</DialogDescription>
@@ -326,7 +326,7 @@ export default function SegmentsPage() {
       </Dialog>
 
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">Edit Segment</DialogTitle>
             <DialogDescription className="font-medium">Update the name and description of this list.</DialogDescription>
@@ -360,7 +360,7 @@ export default function SegmentsPage() {
       </Dialog>
 
       <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-        <DialogContent className="rounded-3xl">
+        <DialogContent className="">
           <DialogHeader>
             <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mb-4">
               <AlertTriangle className="w-8 h-8 text-rose-500" />

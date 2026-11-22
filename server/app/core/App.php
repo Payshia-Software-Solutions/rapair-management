@@ -17,6 +17,8 @@ class App {
             array_shift($url);
         }
 
+        $this->enforceTrialWriteLock($url);
+
         // 1. Look for Controller
         if (!empty($url)) {
             // Try normalized CamelCase (e.g. production-order -> ProductionOrderController)
@@ -78,6 +80,30 @@ class App {
             ]);
             exit;
         }
+    }
+
+    /**
+     * Trial ended: the workspace stays readable and staff can still sign in, but every write
+     * is refused (402 trial_ended) until the package is upgraded. Login and the SaaS
+     * license/package endpoints stay open so the upgrade itself can be done.
+     */
+    private function enforceTrialWriteLock($url) {
+        $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+        if (!in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)) return;
+        $segment = strtolower((string)($url[0] ?? ''));
+        if (in_array($segment, ['auth', 'saas'], true)) return;
+
+        require_once __DIR__ . '/../helpers/SaasHelper.php';
+        if (!SaasHelper::trialEnded()) return;
+
+        http_response_code(402);
+        header('Content-Type: application/json');
+        echo json_encode([
+            'status' => 'error',
+            'code' => 'trial_ended',
+            'message' => 'Your free trial has ended, so changes are disabled. Upgrade your package or contact your administrator to continue.',
+        ]);
+        exit;
     }
 
     public function getUrl() {

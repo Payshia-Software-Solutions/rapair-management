@@ -231,7 +231,7 @@ export default function PaymentLogsPage() {
       </div>
 
       <Dialog open={!!selectedLog} onOpenChange={() => setSelectedLog(null)}>
-        <DialogContent className="max-w-2xl bg-white border-none rounded-3xl overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-2xl overflow-hidden">
           <DialogHeader className="p-6 pb-0">
             <DialogTitle className="text-xl font-bold tracking-tight">Raw Webhook Data</DialogTitle>
             <DialogDescription className="text-xs font-medium text-muted-foreground">

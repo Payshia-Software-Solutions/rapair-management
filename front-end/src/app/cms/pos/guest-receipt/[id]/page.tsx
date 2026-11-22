@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { loadHeldOrder, fetchCompany, fetchTaxes } from "@/lib/api";
+import { loadHeldOrder, fetchCompany, fetchTaxes, fetchLocations } from "@/lib/api";
 import { Loader2 } from "lucide-react";
 
 function GuestReceiptContent() {
@@ -20,11 +20,27 @@ function GuestReceiptContent() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [orderData, companyData, systemTaxesData] = await Promise.all([
+        const [orderData, companyData, systemTaxesData, locationsData] = await Promise.all([
           loadHeldOrder(id),
           fetchCompany().catch(() => null),
-          fetchTaxes('', { all: true }).catch(() => [])
+          fetchTaxes('', { all: true }).catch(() => []),
+          fetchLocations().catch(() => [])
         ]);
+
+        // Menu-pricing location: held prices already include taxes, so the
+        // guest bill shows only the service charge (same as the final receipt).
+        const loc = (Array.isArray(locationsData) ? locationsData : []).find((l: any) => String(l.id) === String(orderData.location_id));
+        if (loc?.tax_mode === 'inclusive') {
+          const scRate = (orderData.order_type === 'dine_in' && Number(loc.allow_service_charge)) ? Number(loc.service_charge_rate || 0) : 0;
+          const taxable = Math.max(0, Number(orderData.subtotal || 0) - Number(orderData.discount_total || 0));
+          const sc = Math.round(taxable * scRate) / 100;
+          orderData.is_menu = true;
+          orderData.applied_taxes = sc > 0 ? [{ tax_name: 'Service Charge', tax_code: 'Service Charge', rate_percent: scRate, amount: sc }] : [];
+          orderData.grand_total = Math.round((taxable + sc) * 100) / 100;
+          setOrder(orderData);
+          setCompany(companyData);
+          return;
+        }
 
         // Dynamically compute the tax breakdown based on system taxes
         const taxableAmount = Math.max(0, Number(orderData.subtotal || 0) - Number(orderData.discount_total || 0));
@@ -190,7 +206,8 @@ function GuestReceiptContent() {
   );
 }
 
-function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
+function ReceiptBody({ order, company, fmt, taxInclusive: taxInclusiveParam }: any) {
+  const taxInclusive = order.is_menu ? false : taxInclusiveParam;
   const taxSum = (order.applied_taxes || []).reduce((acc: number, t: any) => acc + Number(t.amount || 0), 0);
   const orderSubtotal = Number(order.subtotal || 0);
   const taxRatio = orderSubtotal > 0 ? (taxSum / orderSubtotal) : 0;
@@ -265,6 +282,17 @@ function ReceiptBody({ order, company, fmt, taxInclusive }: any) {
               <span>{item.quantity} × {unitDisplay}</span>
               <span className="bold">{isFree ? 'LKR 0.00' : `LKR ${fmt(displayLineTotal)}`}</span>
             </div>
+            {(() => {
+              let mods: string[] = [];
+              try { mods = item.modifiers_json ? JSON.parse(item.modifiers_json) : []; } catch {}
+              if (!(Array.isArray(mods) && mods.length) && !item.item_notes) return null;
+              return (
+                <div style={{ fontSize: '9px', fontStyle: 'italic', paddingLeft: '6px' }}>
+                  {Array.isArray(mods) && mods.length > 0 && <div>+ {mods.join(', ')}</div>}
+                  {item.item_notes && <div>* {item.item_notes}</div>}
+                </div>
+              );
+            })()}
           </div>
         );
       })}

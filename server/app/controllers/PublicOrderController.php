@@ -62,14 +62,6 @@ class PublicOrderController extends Controller {
             $this->error('No file uploaded or upload error code: ' . $errCode, 400);
         }
 
-        $uploadDir = '../public/uploads/slips/';
-        if (!is_dir($uploadDir)) {
-            if (!mkdir($uploadDir, 0777, true)) {
-                error_log("PublicOrder uploadSlip: Failed to create directory $uploadDir");
-                $this->error('Failed to create upload directory.', 500);
-            }
-        }
-
         // Accept only images and PDFs, judged by the file's real content (not its name), up to 5 MB.
         // The saved extension comes from that check, so a script can never be stored under public/uploads.
         $allowed = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp', 'application/pdf' => 'pdf'];
@@ -81,14 +73,15 @@ class PublicOrderController extends Controller {
             $this->error('Upload a photo (JPG, PNG, WEBP) or a PDF of the bank slip.', 400);
         }
         $filename = 'slip_' . time() . '_' . bin2hex(random_bytes(8)) . '.' . $allowed[$mime];
-        $targetFile = $uploadDir . $filename;
 
-        if (move_uploaded_file($_FILES['slip']['tmp_name'], $targetFile)) {
-            $this->success(['path' => 'uploads/slips/' . $filename], 'Slip uploaded successfully.');
-        } else {
-            error_log("PublicOrder uploadSlip: Failed to move file to $targetFile");
-            $this->error('Failed to save file.', 500);
+        require_once __DIR__ . '/../helpers/ContentStore.php';
+        try {
+            $path = ContentStore::save($_FILES['slip']['tmp_name'], 'slips', $filename);
+        } catch (Throwable $e) {
+            error_log('PublicOrder uploadSlip: ' . $e->getMessage());
+            $this->error($e->getMessage(), 500);
         }
+        $this->success(['path' => $path], 'Slip uploaded successfully.');
     }
 
     /**

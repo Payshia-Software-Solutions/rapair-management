@@ -163,7 +163,21 @@ class Payroll extends Model {
         $this->db->query($sql);
         $this->db->bind(':status', $status);
         $this->db->bind(':id', (int)$id);
-        
-        return $this->db->execute();
+
+        if (!$this->db->execute()) return false;
+
+        // Accounts: Approved accrues the cost, Paid settles it, back to Draft undoes both
+        try {
+            require_once __DIR__ . '/../helpers/AccountingHelper.php';
+            require_once __DIR__ . '/Journal.php';
+            if ($status === 'Approved') AccountingHelper::postPayrollAccrual((int)$id);
+            elseif ($status === 'Paid') AccountingHelper::postPayrollPayment((int)$id);
+            elseif ($status === 'Draft') {
+                $j = new Journal();
+                $j->reverseAllForRef('PayrollPayment', (int)$id, null);
+                $j->reverseAllForRef('PayrollAccrual', (int)$id, null);
+            }
+        } catch (Throwable $e) { error_log('Payroll journal failed: ' . $e->getMessage()); }
+        return true;
     }
 }

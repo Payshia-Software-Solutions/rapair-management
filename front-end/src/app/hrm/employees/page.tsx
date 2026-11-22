@@ -393,7 +393,7 @@ export default function EmployeesPage() {
       </div>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[750px] bg-card text-foreground border-muted/20 shadow-2xl overflow-hidden p-0">
+        <DialogContent className="sm:max-w-[750px] bg-card text-foreground border-muted/20 overflow-hidden p-0">
           <Tabs defaultValue="details" className="w-full">
             <div className="p-6 bg-muted/20 border-b flex items-center justify-between">
                 <div className="flex items-center gap-4">

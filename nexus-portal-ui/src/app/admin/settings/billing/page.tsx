@@ -1,5 +1,6 @@
 "use client";
-import { API_BASE } from '@/config';
+
+import { adminFetch } from '@/lib/adminApi';
 
 import React, { useState, useEffect } from 'react';
 import { Percent, Save, Loader2, CheckCircle2, AlertCircle, Sparkles, RefreshCw, Layers, ShieldCheck, ArrowRight } from 'lucide-react';
@@ -16,10 +17,9 @@ export default function BillingSettingsPage() {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-        const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const headers: Record<string, string> = {};
 
-        const res = await fetch(`${API_BASE}/admin/settings/billing`, { credentials: 'include', headers });
+        const res = await adminFetch(`/admin/settings/billing`, { headers });
         const json = await res.json();
         if (json.status === 'success' && json.data) {
           setDiscount(parseFloat(json.data.annual_discount_percentage || '20'));
@@ -39,16 +39,13 @@ export default function BillingSettingsPage() {
     setFeedback(null);
 
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       };
 
-      const res = await fetch(`${API_BASE}/admin/settings/billing/update`, {
+      const res = await adminFetch(`/admin/settings/billing/update`, {
         method: 'POST',
         headers,
-        credentials: 'include',
         body: JSON.stringify({
           annual_discount_percentage: discount,
           recalculate_packages: recalculate
@@ -92,7 +89,7 @@ export default function BillingSettingsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-nx-accent-soft text-nx-accent dark:text-nx-accent-light">
               <Percent size={18} />
             </div>
             <span>Annual Discount & Billing Rules</span>
@@ -107,8 +104,8 @@ export default function BillingSettingsPage() {
       {feedback && (
         <div className={`flex items-start gap-3 rounded-2xl border p-4 text-xs font-medium ${
           feedback.type === 'success'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/40 dark:bg-emerald-950/40 dark:text-emerald-400'
-            : 'border-red-200 bg-red-50 text-red-700 dark:border-red-800/40 dark:bg-red-950/40 dark:text-red-400'
+            ? 'border-nx-success/30 bg-nx-success-soft text-nx-success dark:border-nx-success/30 dark:text-nx-success'
+            : 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger dark:border-nx-danger/30 dark:text-nx-danger'
         }`}>
           {feedback.type === 'success' ? <CheckCircle2 size={16} className="mt-0.5 shrink-0" /> : <AlertCircle size={16} className="mt-0.5 shrink-0" />}
           <div>
@@ -146,7 +143,7 @@ export default function BillingSettingsPage() {
                     step="1"
                     value={discount}
                     onChange={(e) => setDiscount(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
-                    className="w-14 font-mono font-black text-right text-base text-indigo-600 dark:text-indigo-400 bg-transparent outline-none"
+                    className="w-14 font-mono font-black text-right text-base text-nx-accent dark:text-nx-accent-light bg-transparent outline-none"
                   />
                   <span className="font-black text-slate-400 text-sm">%</span>
                 </div>
@@ -173,7 +170,7 @@ export default function BillingSettingsPage() {
                     onClick={() => setDiscount(val)}
                     className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                       discount === val
-                        ? 'bg-indigo-600 text-white shadow-xs'
+                        ? 'bg-nx-accent-strong text-white shadow-xs'
                         : 'border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                     }`}
                   >
@@ -197,7 +194,7 @@ export default function BillingSettingsPage() {
                     Auto-recalculate all package yearly prices now
                   </span>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
-                    Automatically updates the <code className="font-mono text-indigo-600">yearly_price</code> in <code className="font-mono">saas_packages</code> for Starter, Pro, Enterprise, etc., using the formula: <span className="font-semibold">monthly_price × 12 × (100 - {discount})%</span>.
+                    Automatically updates the <code className="font-mono text-nx-accent">yearly_price</code> in <code className="font-mono">saas_packages</code> for Starter, Pro, Enterprise, etc., using the formula: <span className="font-semibold">monthly_price × 12 × (100 - {discount})%</span>.
                   </span>
                 </div>
               </label>
@@ -208,7 +205,7 @@ export default function BillingSettingsPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-6 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/25 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-xl bg-nx-accent-strong hover:bg-nx-accent-strong px-6 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-indigo-600/25 disabled:opacity-60"
               >
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />}
                 <span>Save Billing Settings</span>
@@ -222,7 +219,7 @@ export default function BillingSettingsPage() {
         <div className="lg:col-span-5 space-y-6">
           <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-7 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-5">
             <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-nx-success-soft text-nx-success">
                 <Sparkles size={15} />
               </div>
               <div>
@@ -234,10 +231,10 @@ export default function BillingSettingsPage() {
             <div className="space-y-4">
               
               {/* Pro Tier Example */}
-              <div className="p-4 rounded-xl border border-indigo-100 dark:border-indigo-900/40 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-2">
+              <div className="p-4 rounded-xl border border-nx-accent/30 bg-nx-accent-soft space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-900 dark:text-indigo-300">Professional Tier</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                  <span className="text-xs font-bold text-nx-accent dark:text-nx-accent-light">Professional Tier</span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-nx-success-soft text-nx-success">
                     Save ${sampleProSavings.toFixed(0)}/yr
                   </span>
                 </div>
@@ -247,7 +244,7 @@ export default function BillingSettingsPage() {
                     ${sampleProYearly.toFixed(2)} / yr
                   </span>
                 </div>
-                <p className="text-[11px] text-indigo-700 dark:text-indigo-400 font-semibold">
+                <p className="text-[11px] text-nx-accent dark:text-nx-accent-light font-semibold">
                   Equivalent to ${(sampleProYearly / 12).toFixed(2)}/month
                 </p>
               </div>
@@ -256,7 +253,7 @@ export default function BillingSettingsPage() {
               <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-slate-900 dark:text-white">Enterprise Tier</span>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-400">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-nx-success-soft text-nx-success">
                     Save ${sampleEntSavings.toFixed(0)}/yr
                   </span>
                 </div>
@@ -274,7 +271,7 @@ export default function BillingSettingsPage() {
             </div>
 
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-emerald-500 shrink-0" />
+              <ShieldCheck size={14} className="text-nx-success shrink-0" />
               <span>Applied instantly across pricing tables, order checkout, and invoices.</span>
             </div>
           </div>

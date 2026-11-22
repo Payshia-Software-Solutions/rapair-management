@@ -68,6 +68,14 @@ class PublicinquiryController extends Controller {
         if (!$id) $this->error('Could not send your message. Please try again.', 500);
         PublicFormGuard::record('contact');
 
+        if ($newsletter) {
+            try {
+                $this->model('Subscriber')->subscribe($email, $name, 'Contact form', $locationId, PublicFormGuard::ip());
+            } catch (Exception $e) {
+                error_log('[newsletter] contact opt-in failed: ' . $e->getMessage());
+            }
+        }
+
         $this->success(['id' => $id], 'Thank you. Our team will be in touch shortly.');
     }
 }

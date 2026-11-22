@@ -1,5 +1,6 @@
 "use client";
 
+import { clearUserSession } from "@/lib/session";
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +29,7 @@ import {
   hrmItems,
   frontOfficeItems,
   banquetItems,
+  approvalItems,
   type NavItem 
 } from "@/lib/nav-items";
 
@@ -160,6 +162,7 @@ export default function MenuPage() {
     const front = isModuleAllowed('frontOffice') ? frontOfficeItems.filter(it => hasPerm(it.perm)) : [];
     const banquet = isModuleAllowed('banquet') ? banquetItems.filter(it => hasPerm(it.perm)) : [];
     const master = isModuleAllowed('masterData') ? masterDataItems.filter((it) => hasPerm(it.perm)) : [];
+    const approvals = approvalItems.filter((it) => hasPerm(it.perm));
     const admin = userRole.toLowerCase() === "admin" ? adminNavItems : [];
 
     return [
@@ -178,6 +181,7 @@ export default function MenuPage() {
       { title: "Front Office", tone: "bg-violet-600", items: front, icon: Building2 },
       { title: "Banquet", tone: "bg-fuchsia-600", items: banquet, icon: LayoutGrid },
       { title: "Master Data", tone: "bg-zinc-600", items: master, icon: Grid },
+      { title: "Approvals & Control", tone: "bg-indigo-700", items: approvals, icon: Shield },
       { title: "Administration", tone: "bg-slate-700", items: admin, icon: Shield },
     ].filter((s) => s.items.length > 0);
   }, [permissionKeys, userRole, saasModules]);
@@ -185,7 +189,7 @@ export default function MenuPage() {
   const isLoading = permissionKeys === null || saasModules === null;
 
   const handleLogout = () => {
-    window.localStorage.removeItem("auth_token");
+    clearUserSession();
     window.localStorage.removeItem("location_id");
     window.localStorage.removeItem("location_name");
     window.location.href = "/login";

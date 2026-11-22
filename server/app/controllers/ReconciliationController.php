@@ -17,6 +17,7 @@ class ReconciliationController extends Controller {
 
         switch ($action) {
             case 'transactions':
+            case 'unreconciled':
                 $this->getTransactions();
                 break;
             case 'finalize':
@@ -30,6 +31,12 @@ class ReconciliationController extends Controller {
         }
     }
 
+    // The router maps /api/reconciliation/{segment} straight to a method of the same name,
+    // so these are the real entry points (index() above is only reached for a bare URL).
+    public function unreconciled() { $this->getTransactions(); }
+    public function transactions() { $this->getTransactions(); }
+    public function history() { $this->getHistory(); }
+
     public function getTransactions() {
         $u = $this->requirePermission('accounting.reconcile');
         $accountId = $_GET['account_id'] ?? null;
@@ -38,7 +45,9 @@ class ReconciliationController extends Controller {
             return;
         }
 
-        $items = $this->reconModel->getUnreconciledItems($accountId);
+        $asOf = $_GET['as_of_date'] ?? null;
+        if ($asOf && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $asOf)) $asOf = null;
+        $items = $this->reconModel->getUnreconciledItems($accountId, $asOf);
         $this->json(['status' => 'success', 'data' => $items]);
     }
 

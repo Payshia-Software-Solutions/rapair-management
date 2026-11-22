@@ -297,8 +297,9 @@ export const fetchAccounts = async (params?: any) => {
 
 export const createAccount = async (payload: any) => {
   const res = await api('/api/account/create', { method: 'POST', body: JSON.stringify(payload) });
-  if (!res.ok) throw new Error('Failed to create account');
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status === 'error') throw new Error(data.message || 'Failed to create account');
+  return data;
 };
 
 export const fetchJournalEntries = async (filters: any = {}) => {
@@ -349,8 +350,8 @@ export const fetchAccountMappings = async () => {
   return data.status === 'success' ? data.data : data;
 };
 
-export const updateAccountMapping = async (payload: any) => {
-  const res = await api('/api/account/mappings', { method: 'POST', body: JSON.stringify(payload) });
+export const updateAccountMapping = async (key: string, accountId: number) => {
+  const res = await api('/api/account/update_mapping', { method: 'POST', body: JSON.stringify({ key, account_id: accountId }) });
   if (!res.ok) throw new Error('Failed to update account mapping');
   return res.json();
 };
@@ -423,7 +424,7 @@ export const createFiscalYear = async (payload: any) => {
 };
 
 export const activateFiscalYear = async (id: number) => {
-  const res = await api(`/api/fiscal/activate/${id}`, { method: "POST" });
+  const res = await api('/api/fiscal/activate', { method: "POST", body: JSON.stringify({ id }) });
   if (!res.ok) throw new Error('Failed to activate fiscal year');
   return res.json();
 };
@@ -435,7 +436,7 @@ export const finalizeReconciliation = async (payload: any) => {
 };
 
 export const fetchFiscalSummary = async (id: number) => {
-  const res = await api(`/api/fiscal/summary/${id}`);
+  const res = await api(`/api/fiscal/summary?id=${id}`);
   if (!res.ok) throw new Error('Failed to load fiscal summary');
   const data = await res.json();
   return data.data || null;

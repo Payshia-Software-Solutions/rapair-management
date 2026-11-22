@@ -9,7 +9,7 @@ class Reconciliation extends Model {
         parent::__construct();
     }
 
-    public function getUnreconciledItems($accountId) {
+    public function getUnreconciledItems($accountId, $asOfDate = null) {
         $this->db->query("
             SELECT 
                 ji.id,
@@ -24,9 +24,11 @@ class Reconciliation extends Model {
             JOIN acc_journal_entries je ON ji.entry_id = je.id
             WHERE ji.account_id = :account_id
             AND ji.reconciled_at IS NULL
+            " . ($asOfDate ? "AND je.entry_date <= :as_of" : "") . "
             ORDER BY je.entry_date ASC, ji.id ASC
         ");
         $this->db->bind(':account_id', (int)$accountId);
+        if ($asOfDate) $this->db->bind(':as_of', $asOfDate);
         return $this->db->resultSet();
     }
 

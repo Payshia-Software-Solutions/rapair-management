@@ -144,6 +144,9 @@ class CheckController extends Controller {
             // Storefront settings (incl. Packaging add-ons and gift message rows).
             require_once '../app/helpers/StorefrontSchema.php';
             StorefrontSchema::ensure(true);
+            // Approval workflow tables (also created on first use).
+            require_once '../app/helpers/ApprovalSchema.php';
+            ApprovalSchema::ensure(true);
 
             // Log the migration action
             $db = new Database();

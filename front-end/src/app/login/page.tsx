@@ -1,28 +1,25 @@
 "use client"
 
+import { startUserSession } from "@/lib/session";
+import { homeRouteForUser } from "@/lib/home-route";
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Wrench, Mail, Lock, ArrowRight } from 'lucide-react';
+import { Mail, Lock, ArrowRight, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { AuthShell } from '@/components/auth/auth-shell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardFooter, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
 
 export default function LoginPage() {
   const router = useRouter();
   const { toast } = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const decodeJwtPayload = (token: string): any | null => {
     try {
@@ -35,6 +32,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setSubmitting(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -48,7 +46,8 @@ export default function LoginPage() {
       if (!res.ok || data.status !== 'success' || !data.data?.token) {
         throw new Error(data?.message || 'Login failed');
       }
-      window.localStorage.setItem('auth_token', data.data.token);
+      // Fresh session: drop the previous user's cached permissions/role/location first
+      startUserSession(data.data.token);
 
       // Pick default location based on allowed locations.
       const payload = decodeJwtPayload(data.data.token);
@@ -75,95 +74,102 @@ export default function LoginPage() {
       }
 
       toast({ title: 'Signed in', description: 'Welcome back.' });
-      router.replace('/dashboard/overall');
+      // Stewards (POS without checkout) go straight to the POS
+      router.replace(await homeRouteForUser());
     } catch (err) {
-      toast({
-        title: 'Login failed',
-        description: (err as Error).message,
-        variant: 'destructive',
-      });
+      setError((err as Error).message || 'Login failed');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-background">
-      <div className="w-full max-w-md space-y-8">
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-64 h-24 relative">
-            <img 
-              src="/bizzflow-logo.png" 
-              alt="BizzFlow Logo" 
-              className="w-full h-full object-contain"
-            />
-          </div>
-          <p className="text-muted-foreground text-sm font-medium">Unified Business Intelligence & ERP</p>
-        </div>
-
-        <Card className="border-none shadow-xl rounded-2xl overflow-hidden">
-          <CardHeader className="space-y-1 pb-6 text-center">
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>
-              Enter your credentials to access your workshop
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="email" 
-                    type="email" 
-                    placeholder="name@workshop.com" 
-                    className="pl-10"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required 
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                  <Link href="#" className="text-xs text-primary hover:underline font-medium">
-                    Forgot password?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    id="password" 
-                    type="password" 
-                    className="pl-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required 
-                  />
-                </div>
-              </div>
-              <Button type="submit" disabled={submitting} className="w-full bg-primary hover:bg-primary/90 py-6 text-lg rounded-xl font-bold mt-2">
-                Sign In
-                <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </form>
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4 border-t bg-muted/30 p-6 text-center">
-            <p className="text-sm text-muted-foreground">
-              Don't have an account?{' '}
-              <Link href="/register" className="text-primary hover:underline font-bold">
-                Create one now
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
-        
-        <p className="text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} BizFlow Systems. All rights reserved.
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in with your work email to continue."
+      footer={
+        <p className="text-center text-sm text-muted-foreground">
+          New here?{' '}
+          <Link href="/register" className="font-semibold text-primary hover:underline">
+            Create an account
+          </Link>
         </p>
-      </div>
-    </div>
+      }
+    >
+          {error && (
+            <div role="alert" className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email address</Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  autoFocus
+                  placeholder="name@workshop.com"
+                  className="h-12 pl-10 rounded-xl"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password">Password</Label>
+                <Link href="/forgot-password" className="text-xs font-medium text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  className="h-12 pl-10 pr-11 rounded-xl"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="h-12 w-full rounded-xl text-base font-semibold shadow-md shadow-primary/20"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                <>
+                  Sign in
+                  <ArrowRight className="ml-2 h-5 w-5" />
+                </>
+              )}
+            </Button>
+          </form>
+
+    </AuthShell>
   );
 }

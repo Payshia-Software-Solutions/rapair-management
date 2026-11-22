@@ -19,6 +19,7 @@ class RbacController extends Controller {
         try { UnitSchema::ensure(); } catch (Exception $e) {}
         try { TaxSchema::ensure(); } catch (Exception $e) {}
         try { BanquetSchema::ensure(); } catch (Exception $e) {}
+        try { require_once APPROOT . '/app/helpers/CompSchema.php'; CompSchema::ensure(); } catch (Exception $e) {}
         $this->db = new Database();
     }
 
@@ -37,9 +38,26 @@ class RbacController extends Controller {
             $this->error('Method Not Allowed', 405);
             return;
         }
-        $this->db->query("SELECT id, name, created_at FROM roles ORDER BY name ASC");
+        $this->db->query("SELECT id, name, comp_limit, created_at FROM roles ORDER BY name ASC");
         $rows = $this->db->resultSet();
         $this->success($rows);
+    }
+
+    // POST /api/rbac/set_role_comp_limit/{roleId}  { comp_limit: number|null }
+    // Most a member of this role can make complimentary in one approval (null = no limit).
+    public function set_role_comp_limit($roleId = null) {
+        $this->requireAdmin();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        if (!$roleId) { $this->error('Role ID required', 400); return; }
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $raw = $data['comp_limit'] ?? null;
+        $limit = ($raw === null || $raw === '') ? null : round((float)$raw, 2);
+        if ($limit !== null && $limit < 0) { $this->error('Limit can\'t be negative', 422); return; }
+        $this->db->query("UPDATE roles SET comp_limit = :l WHERE id = :id");
+        $this->db->bind(':l', $limit);
+        $this->db->bind(':id', (int)$roleId);
+        if ($this->db->execute()) $this->success(['comp_limit' => $limit], 'Complimentary limit saved');
+        else $this->error('Failed to save limit');
     }
 
     // POST /api/rbac/create_role

@@ -76,10 +76,10 @@ export default function StockBalanceReportPage() {
     setLoading(true);
     try {
       const data = await fetchReportStockBalance({
-        locationId: locationId === "all" ? "all" : Number(locationId),
+        location_id: String(locationId),
         group,
         q: query.trim() || undefined,
-        asOf: asOf || undefined,
+        as_of: asOf || undefined,
       });
       setRows(Array.isArray(data) ? data : []);
     } catch (e: any) {
@@ -106,10 +106,10 @@ export default function StockBalanceReportPage() {
       // Use init* values for the first load so Print/PDF uses the URL filter reliably.
       setLoading(true);
       return fetchReportStockBalance({
-        locationId: initLoc === "all" ? "all" : Number(initLoc),
+        location_id: String(initLoc),
         group: initGroup,
         q: initQ.trim() || undefined,
-        asOf: initAsOf || undefined,
+        as_of: initAsOf || undefined,
       })
         .then((data) => setRows(Array.isArray(data) ? data : []))
         .catch((e: any) => {
@@ -151,12 +151,11 @@ export default function StockBalanceReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Stock Balance Report"
       subtitle="All items (All or location-wise). Uses stock movements ledger."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

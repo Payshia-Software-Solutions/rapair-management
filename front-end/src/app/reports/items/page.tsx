@@ -54,8 +54,8 @@ export default function ItemReportPage() {
     try {
       const data = await fetchReportItems({
         q: query.trim() || undefined,
-        brandId: brandId ? Number(brandId) : undefined,
-        supplierId: supplierId ? Number(supplierId) : undefined,
+        brand_id: brandId ? Number(brandId) : undefined,
+        supplier_id: supplierId ? Number(supplierId) : undefined,
         active: active === "" ? -1 : (active === "1" ? 1 : 0),
       });
       setRows(Array.isArray(data) ? data : []);
@@ -94,12 +94,11 @@ export default function ItemReportPage() {
 
   return (
     <ReportShell
+      printHref={printHref}
       title="Item Report (Filters)"
       subtitle="Filter item master by brand, supplier and active status."
       actions={
         <>
-          <Button asChild variant="outline"><Link href={printHref} target="_blank">Print</Link></Button>
-          <Button asChild><Link href={printHref} target="_blank">Export PDF</Link></Button>
         </>
       }
       printMeta={

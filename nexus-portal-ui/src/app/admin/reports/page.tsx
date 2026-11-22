@@ -1,5 +1,6 @@
 "use client";
-import { API_BASE } from '@/config';
+
+import { adminFetch } from '@/lib/adminApi';
 
 import React, { useState, useEffect } from 'react';
 import { 
@@ -25,14 +26,13 @@ export default function ReportsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const headers: Record<string, string> = {};
 
       const [tenantsRes, packagesRes, paymentsRes, invoicesRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/tenants`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/packages`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/billing/payments/all`, { credentials: 'include', headers }),
-        fetch(`${API_BASE}/admin/billing/list`, { credentials: 'include', headers })
+        adminFetch(`/admin/tenants`, { headers }),
+        adminFetch(`/admin/packages`, { headers }),
+        adminFetch(`/admin/billing/payments/all`, { headers }),
+        adminFetch(`/admin/billing/list`, { headers })
       ]);
 
       const tenantsData  = await tenantsRes.json();
@@ -64,11 +64,9 @@ export default function ReportsPage() {
   const handleSendReminder = async (invoiceId: string) => {
     setRemindingStatus(prev => ({ ...prev, [invoiceId]: 'loading' }));
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('nexus_token') : null;
-      const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const headers: Record<string, string> = {};
       
-      const res = await fetch(`${API_BASE}/admin/billing/resend?id=${invoiceId}&type=invoice`, { 
-        credentials: 'include',
+      const res = await adminFetch(`/admin/billing/resend?id=${invoiceId}&type=invoice`, { 
         headers
       });
       
@@ -214,8 +212,8 @@ export default function ReportsPage() {
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="flex items-center gap-2 text-[13px] text-[#a1a1aa]">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-[#e4e4e7] border-t-[#6366f1]" /> Processing global directory…
+        <div className="flex items-center gap-2 text-[13px] text-nx-text-subtle">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-nx-line border-t-nx-accent" /> Processing global directory…
         </div>
       </div>
     );
@@ -227,42 +225,42 @@ export default function ReportsPage() {
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between print:hidden">
         <div>
-          <h1 className="text-lg font-semibold text-[#09090b] dark:text-white flex items-center gap-2">
-            <BarChart size={18} className="text-[#6366f1]" /> Global Platform Reports & Collections
+          <h1 className="text-lg font-semibold text-nx-ink dark:text-white flex items-center gap-2">
+            <BarChart size={18} className="text-nx-accent" /> Global Platform Reports & Collections
           </h1>
-          <p className="mt-0.5 text-[13px] text-[#71717a] dark:text-[#a1a1aa]">System-wide outstanding balances and credit days aging analysis</p>
+          <p className="mt-0.5 text-[13px] text-nx-text-muted dark:text-nx-text-subtle">System-wide outstanding balances and credit days aging analysis</p>
         </div>
         <div className="flex items-center gap-2">
           {/* Currency Switcher */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-[#e4e4e7] bg-white px-2.5 py-1.5 dark:border-[#27272a] dark:bg-[#18181b]">
-            <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa]">Reporting CCY:</span>
+          <div className="flex items-center gap-1.5 rounded-lg border border-nx-line bg-white px-2.5 py-1.5 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+            <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Reporting CCY:</span>
             <select 
               value={selectedCurrency} 
               onChange={e => setSelectedCurrency(e.target.value)}
-              className="bg-transparent text-[12px] font-semibold text-[#09090b] dark:text-white outline-none cursor-pointer"
+              className="bg-transparent text-[12px] font-semibold text-nx-ink dark:text-white outline-none cursor-pointer"
             >
               <option value="USD">USD ($)</option>
               <option value="LKR">LKR (Rs)</option>
               <option value="EUR">EUR (€)</option>
             </select>
           </div>
-          <button onClick={fetchData} className="rounded-lg border border-[#e4e4e7] bg-white p-2 text-[#71717a] hover:bg-[#f4f4f5] dark:border-[#27272a] dark:bg-[#18181b] dark:hover:bg-[#27272a] transition-colors">
+          <button onClick={fetchData} className="rounded-lg border border-nx-line bg-white p-2 text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:bg-nx-surface-dark dark:hover:bg-nx-line-dark transition-colors">
             <RefreshCcw size={15} />
           </button>
-          <button onClick={handlePrint} className="flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-[#4f46e5] transition-colors shadow-sm">
+          <button onClick={handlePrint} className="flex items-center gap-1.5 rounded-lg bg-nx-accent px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-nx-accent-strong transition-colors shadow-sm">
             <Download size={14} /> Export Report
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-[#e4e4e7] dark:border-[#27272a] print:hidden">
+      <div className="flex border-b border-nx-line dark:border-nx-line-dark print:hidden">
         <button 
           onClick={() => setActiveTab('financial')}
           className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${
             activeTab === 'financial' 
-              ? 'border-[#6366f1] text-[#6366f1] dark:border-[#818cf8] dark:text-[#818cf8]' 
-              : 'border-transparent text-[#71717a] hover:text-[#09090b] dark:text-[#a1a1aa] dark:hover:text-white'
+              ? 'border-nx-accent text-nx-accent dark:border-nx-accent-light dark:text-nx-accent-light' 
+              : 'border-transparent text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'
           }`}
         >
           Financial Overview
@@ -271,8 +269,8 @@ export default function ReportsPage() {
           onClick={() => setActiveTab('unpaid')}
           className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${
             activeTab === 'unpaid' 
-              ? 'border-[#6366f1] text-[#6366f1] dark:border-[#818cf8] dark:text-[#818cf8]' 
-              : 'border-transparent text-[#71717a] hover:text-[#09090b] dark:text-[#a1a1aa] dark:hover:text-white'
+              ? 'border-nx-accent text-nx-accent dark:border-nx-accent-light dark:text-nx-accent-light' 
+              : 'border-transparent text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'
           }`}
         >
           Unpaid Month & Credit Days
@@ -281,8 +279,8 @@ export default function ReportsPage() {
           onClick={() => setActiveTab('operational')}
           className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition-all ${
             activeTab === 'operational' 
-              ? 'border-[#6366f1] text-[#6366f1] dark:border-[#818cf8] dark:text-[#818cf8]' 
-              : 'border-transparent text-[#71717a] hover:text-[#09090b] dark:text-[#a1a1aa] dark:hover:text-white'
+              ? 'border-nx-accent text-nx-accent dark:border-nx-accent-light dark:text-nx-accent-light' 
+              : 'border-transparent text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'
           }`}
         >
           Operational & Tiers
@@ -293,47 +291,47 @@ export default function ReportsPage() {
       {activeTab === 'financial' && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-5 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">Projected MRR</span>
-              <p className="mt-2 text-2xl font-bold text-[#09090b] dark:text-white">
+            <div className="rounded-xl border border-nx-line bg-white p-5 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">Projected MRR</span>
+              <p className="mt-2 text-2xl font-bold text-nx-ink dark:text-white">
                 {selectedCurrency} {projectedMRR.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-green-600 font-medium">Active tenant subscription projection</span>
+              <span className="text-[10px] text-nx-success font-medium">Active tenant subscription projection</span>
             </div>
 
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-5 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">Total Received</span>
-              <p className="mt-2 text-2xl font-bold text-[#09090b] dark:text-white">
+            <div className="rounded-xl border border-nx-line bg-white p-5 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">Total Received</span>
+              <p className="mt-2 text-2xl font-bold text-nx-ink dark:text-white">
                 {selectedCurrency} {totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-[#71717a] dark:text-[#a1a1aa]">Accumulated solved payments</span>
+              <span className="text-[10px] text-nx-text-muted dark:text-nx-text-subtle">Accumulated solved payments</span>
             </div>
 
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-5 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">Outstanding Receivables</span>
-              <p className="mt-2 text-2xl font-bold text-[#09090b] dark:text-white">
+            <div className="rounded-xl border border-nx-line bg-white p-5 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">Outstanding Receivables</span>
+              <p className="mt-2 text-2xl font-bold text-nx-ink dark:text-white">
                 {selectedCurrency} {outstandingRevenue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-amber-600 font-medium">Pending & Overdue invoices</span>
+              <span className="text-[10px] text-nx-warning font-medium">Pending & Overdue invoices</span>
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
+          <div className="rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark space-y-4">
             <div>
-              <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Monthly Collections Timeline</h3>
-              <p className="text-[11px] text-[#71717a] dark:text-[#a1a1aa]">Rolling payment aggregates</p>
+              <h3 className="text-sm font-semibold text-nx-ink dark:text-white">Monthly Collections Timeline</h3>
+              <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Rolling payment aggregates</p>
             </div>
             {revenueByMonth.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[#a1a1aa]">No payments logged yet.</div>
+              <div className="py-12 text-center text-xs text-nx-text-subtle">No payments logged yet.</div>
             ) : (
               <div className="space-y-3">
                 {revenueByMonth.map((d, i) => {
                   const percent = (d.amount / maxMonthRev) * 100;
                   return (
                     <div key={i} className="flex items-center gap-3">
-                      <span className="w-12 text-[12px] font-medium text-[#71717a] dark:text-[#a1a1aa]">{d.month}</span>
-                      <div className="flex-1 bg-[#f4f4f5] dark:bg-[#27272a] h-6 rounded-md overflow-hidden relative">
-                        <div className="bg-[#6366f1]/80 h-full rounded-md" style={{ width: `${percent}%` }} />
+                      <span className="w-12 text-[12px] font-medium text-nx-text-muted dark:text-nx-text-subtle">{d.month}</span>
+                      <div className="flex-1 bg-nx-surface-muted dark:bg-nx-line-dark h-6 rounded-md overflow-hidden relative">
+                        <div className="bg-nx-accent/80 h-full rounded-md" style={{ width: `${percent}%` }} />
                         <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-white drop-shadow-sm font-mono">
                           {selectedCurrency} {d.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </span>
@@ -353,52 +351,52 @@ export default function ReportsPage() {
           
           {/* Aging buckets / Credit Days cards */}
           <div className="grid gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">Current (Within Term)</span>
-              <p className="mt-1.5 text-xl font-bold text-[#09090b] dark:text-white">
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">Current (Within Term)</span>
+              <p className="mt-1.5 text-xl font-bold text-nx-ink dark:text-white">
                 {selectedCurrency} {agingGroups.current.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-green-600">{agingGroups.current.count} invoices pending due</span>
+              <span className="text-[10px] text-nx-success">{agingGroups.current.count} invoices pending due</span>
             </div>
             
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">1–30 Days Overdue</span>
-              <p className="mt-1.5 text-xl font-bold text-amber-600">
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">1–30 Days Overdue</span>
+              <p className="mt-1.5 text-xl font-bold text-nx-warning">
                 {selectedCurrency} {agingGroups.overdue30.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-amber-500">{agingGroups.overdue30.count} invoices overdue</span>
+              <span className="text-[10px] text-nx-warning">{agingGroups.overdue30.count} invoices overdue</span>
             </div>
 
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b]">
-              <span className="text-[11px] font-medium text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block">31–60 Days Overdue</span>
-              <p className="mt-1.5 text-xl font-bold text-orange-600">
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+              <span className="text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block">31–60 Days Overdue</span>
+              <p className="mt-1.5 text-xl font-bold text-nx-warning">
                 {selectedCurrency} {agingGroups.overdue60.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-orange-500">{agingGroups.overdue60.count} invoices overdue</span>
+              <span className="text-[10px] text-nx-warning">{agingGroups.overdue60.count} invoices overdue</span>
             </div>
 
-            <div className="rounded-xl border border-red-200 bg-red-50/50 dark:border-red-900/30 dark:bg-red-950/10 p-4">
-              <span className="text-[11px] font-medium text-red-600 dark:text-red-400 uppercase tracking-wider block">60+ Days Overdue</span>
-              <p className="mt-1.5 text-xl font-bold text-red-600">
+            <div className="rounded-xl border border-nx-danger/30 bg-nx-danger-soft p-4">
+              <span className="text-[11px] font-medium text-nx-danger uppercase tracking-wider block">60+ Days Overdue</span>
+              <p className="mt-1.5 text-xl font-bold text-nx-danger">
                 {selectedCurrency} {agingGroups.overdue90.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
               </p>
-              <span className="text-[10px] text-red-500">{agingGroups.overdue90.count} invoices critical</span>
+              <span className="text-[10px] text-nx-danger">{agingGroups.overdue90.count} invoices critical</span>
             </div>
           </div>
 
           {/* Month Unpaid Directory */}
-          <div className="rounded-xl border border-[#e4e4e7] bg-white dark:border-[#27272a] dark:bg-[#18181b]">
-            <div className="p-5 border-b border-[#e4e4e7] dark:border-[#27272a] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="rounded-xl border border-nx-line bg-white dark:border-nx-line-dark dark:bg-nx-surface-dark">
+            <div className="p-5 border-b border-nx-line dark:border-nx-line-dark flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Unpaid Client Balances</h3>
-                <p className="text-[11px] text-[#71717a] dark:text-[#a1a1aa]">Filter unpaid invoices by billing month</p>
+                <h3 className="text-sm font-semibold text-nx-ink dark:text-white">Unpaid Client Balances</h3>
+                <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Filter unpaid invoices by billing month</p>
               </div>
               <div className="flex items-center gap-2">
-                <Calendar size={13} className="text-[#a1a1aa]" />
+                <Calendar size={13} className="text-nx-text-subtle" />
                 <select 
                   value={filterMonth}
                   onChange={e => setFilterMonth(e.target.value)}
-                  className="rounded-lg border border-[#e4e4e7] bg-white px-3 py-1.5 text-[12px] font-semibold text-[#09090b] dark:border-[#27272a] dark:bg-[#1c1c1f] dark:text-white outline-none cursor-pointer"
+                  className="rounded-lg border border-nx-line bg-white px-3 py-1.5 text-[12px] font-semibold text-nx-ink dark:border-nx-line-dark dark:bg-nx-surface-dark-2 dark:text-white outline-none cursor-pointer"
                 >
                   <option value="all">All Months</option>
                   {billingMonthsList.map(month => (
@@ -411,44 +409,44 @@ export default function ReportsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="border-b border-[#e4e4e7] dark:border-[#27272a] bg-[#fafafa] dark:bg-[#18181b]">
+                  <tr className="border-b border-nx-line dark:border-nx-line-dark bg-nx-surface-soft dark:bg-nx-surface-dark">
                     {['Tenant', 'Invoice Info', 'Billing Month', 'Amount Due', 'Credit / Overdue Status', 'Due Date', 'Action'].map((h, i) => (
-                      <th key={i} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-[#71717a] dark:text-[#a1a1aa]">{h}</th>
+                      <th key={i} className="px-5 py-3 text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted dark:text-nx-text-subtle">{h}</th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f4f4f5] dark:divide-[#27272a] text-[13px]">
+                <tbody className="divide-y divide-nx-surface-muted dark:divide-nx-line-dark text-[13px]">
                   {unpaidInvoices.length === 0 ? (
-                    <tr><td colSpan={7} className="px-5 py-12 text-center text-[#a1a1aa]">No unpaid invoices found for the selected month/criteria.</td></tr>
+                    <tr><td colSpan={7} className="px-5 py-12 text-center text-nx-text-subtle">No unpaid invoices found for the selected month/criteria.</td></tr>
                   ) : unpaidInvoices.map((inv) => {
                     const daysAnalysis = getCreditDaysAnalysis(inv.due_date);
                     const status = remindingStatus[inv.id] || 'idle';
                     return (
-                      <tr key={inv.id} className="hover:bg-[#fafafa] dark:hover:bg-[#1c1c1f]">
+                      <tr key={inv.id} className="hover:bg-nx-surface-soft dark:hover:bg-nx-surface-dark-2">
                         <td className="px-5 py-3.5">
                           <div className="flex items-center gap-2">
-                            <Building size={13} className="text-[#a1a1aa]" />
-                            <span className="font-medium text-[#09090b] dark:text-white">{inv.tenant_name}</span>
+                            <Building size={13} className="text-nx-text-subtle" />
+                            <span className="font-medium text-nx-ink dark:text-white">{inv.tenant_name}</span>
                           </div>
                         </td>
                         <td className="px-5 py-3.5">
-                          <code className="font-mono text-xs text-[#6366f1] dark:text-[#818cf8]">{inv.invoice_number}</code>
+                          <code className="font-mono text-xs text-nx-accent dark:text-nx-accent-light">{inv.invoice_number}</code>
                         </td>
-                        <td className="px-5 py-3.5 text-[#71717a] dark:text-[#a1a1aa]">{inv.billing_month}</td>
-                        <td className="px-5 py-3.5 font-semibold text-[#09090b] dark:text-white">
+                        <td className="px-5 py-3.5 text-nx-text-muted dark:text-nx-text-subtle">{inv.billing_month}</td>
+                        <td className="px-5 py-3.5 font-semibold text-nx-ink dark:text-white">
                           {inv.currency || 'USD'} {inv.amount}
                         </td>
                         <td className="px-5 py-3.5">
                           <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                             daysAnalysis.type === 'overdue' 
-                              ? 'bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/20 dark:text-red-400 dark:border-red-900/30'
-                              : 'bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/20 dark:text-green-400 dark:border-green-900/30'
+                              ? 'bg-nx-danger-soft text-nx-danger border border-nx-danger/30 dark:bg-nx-danger-soft dark:border-nx-danger/30'
+                              : 'bg-nx-success-soft text-nx-success border border-nx-success/30 dark:bg-nx-success-soft dark:border-nx-success/30'
                           }`}>
                             <Clock size={10} />
                             {daysAnalysis.text}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-[#71717a] dark:text-[#a1a1aa]">
+                        <td className="px-5 py-3.5 text-nx-text-muted dark:text-nx-text-subtle">
                           {inv.due_date ? new Date(inv.due_date).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-5 py-3.5">
@@ -460,10 +458,10 @@ export default function ReportsPage() {
                               status === 'loading'
                                 ? 'bg-slate-100 border-slate-200 text-slate-400 dark:bg-slate-800 dark:border-slate-700'
                                 : status === 'success'
-                                ? 'bg-green-50 border-green-200 text-green-700 dark:bg-green-950/20 dark:border-green-900/30'
+                                ? 'bg-nx-success-soft border-nx-success/30 text-nx-success dark:bg-nx-success-soft dark:border-nx-success/30'
                                 : status === 'error'
-                                ? 'bg-red-50 border-red-200 text-red-700 dark:bg-red-950/20 dark:border-red-900/30'
-                                : 'bg-[#6366f1] border-transparent text-white hover:bg-[#4f46e5] shadow-sm'
+                                ? 'bg-nx-danger-soft border-nx-danger/30 text-nx-danger dark:bg-nx-danger-soft dark:border-nx-danger/30'
+                                : 'bg-nx-accent border-transparent text-white hover:bg-nx-accent-strong shadow-sm'
                             }`}
                           >
                             {status === 'loading' ? (
@@ -498,33 +496,33 @@ export default function ReportsPage() {
       {activeTab === 'operational' && (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-4">
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b] text-center">
-              <span className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block font-medium">Total Directory</span>
-              <p className="mt-1 text-2xl font-bold text-[#09090b] dark:text-white">{totalTenants}</p>
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark text-center">
+              <span className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block font-medium">Total Directory</span>
+              <p className="mt-1 text-2xl font-bold text-nx-ink dark:text-white">{totalTenants}</p>
             </div>
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b] text-center">
-              <span className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block font-medium">Active Subscriptions</span>
-              <p className="mt-1 text-2xl font-bold text-green-600">{activeTenants}</p>
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark text-center">
+              <span className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block font-medium">Active Subscriptions</span>
+              <p className="mt-1 text-2xl font-bold text-nx-success">{activeTenants}</p>
             </div>
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b] text-center">
-              <span className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block font-medium">Trial Accounts</span>
-              <p className="mt-1 text-2xl font-bold text-[#6366f1]">{trialTenants}</p>
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark text-center">
+              <span className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block font-medium">Trial Accounts</span>
+              <p className="mt-1 text-2xl font-bold text-nx-accent">{trialTenants}</p>
             </div>
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-4 dark:border-[#27272a] dark:bg-[#18181b] text-center">
-              <span className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] uppercase tracking-wider block font-medium">Suspended Tiers</span>
-              <p className="mt-1 text-2xl font-bold text-red-500">{suspendedTenants}</p>
+            <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark text-center">
+              <span className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle uppercase tracking-wider block font-medium">Suspended Tiers</span>
+              <p className="mt-1 text-2xl font-bold text-nx-danger">{suspendedTenants}</p>
             </div>
           </div>
 
           <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
+            <div className="rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Tier Popularity Distribution</h3>
-                <p className="text-[11px] text-[#71717a] dark:text-[#a1a1aa]">Registration density mapped against product tiers</p>
+                <h3 className="text-sm font-semibold text-nx-ink dark:text-white">Tier Popularity Distribution</h3>
+                <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Registration density mapped against product tiers</p>
               </div>
 
               {tierDistribution.length === 0 ? (
-                <div className="py-12 text-center text-xs text-[#a1a1aa]">No active package allocations found.</div>
+                <div className="py-12 text-center text-xs text-nx-text-subtle">No active package allocations found.</div>
               ) : (
                 <div className="space-y-4">
                   {tierDistribution.map((t, idx) => {
@@ -532,11 +530,11 @@ export default function ReportsPage() {
                     return (
                       <div key={idx} className="space-y-1">
                         <div className="flex items-center justify-between text-[12px]">
-                          <span className="font-semibold text-[#09090b] dark:text-white">{t.name} Suite</span>
-                          <span className="text-[#a1a1aa]">{t.count} accounts ({pct.toFixed(0)}%)</span>
+                          <span className="font-semibold text-nx-ink dark:text-white">{t.name} Suite</span>
+                          <span className="text-nx-text-subtle">{t.count} accounts ({pct.toFixed(0)}%)</span>
                         </div>
-                        <div className="h-2 rounded-full bg-[#f4f4f5] dark:bg-[#27272a] overflow-hidden">
-                          <div className="bg-[#6366f1] h-full rounded-full" style={{ width: `${pct}%` }} />
+                        <div className="h-2 rounded-full bg-nx-surface-muted dark:bg-nx-line-dark overflow-hidden">
+                          <div className="bg-nx-accent h-full rounded-full" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     );
@@ -545,26 +543,26 @@ export default function ReportsPage() {
               )}
             </div>
 
-            <div className="rounded-xl border border-[#e4e4e7] bg-white p-6 dark:border-[#27272a] dark:bg-[#18181b] space-y-4">
+            <div className="rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark space-y-4">
               <div>
-                <h3 className="text-sm font-semibold text-[#09090b] dark:text-white">Operational Health Summary</h3>
-                <p className="text-[11px] text-[#71717a] dark:text-[#a1a1aa]">SaaS state representation</p>
+                <h3 className="text-sm font-semibold text-nx-ink dark:text-white">Operational Health Summary</h3>
+                <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">SaaS state representation</p>
               </div>
 
               <div className="space-y-3.5">
                 {[
-                  { name: 'Active Subscriptions', count: activeTenants, color: 'bg-green-500' },
-                  { name: 'Onboarding Trial Cycles', count: trialTenants, color: 'bg-[#6366f1]' },
-                  { name: 'Inactive / Suspended Accounts', count: suspendedTenants, color: 'bg-red-500' },
+                  { name: 'Active Subscriptions', count: activeTenants, color: 'bg-nx-success' },
+                  { name: 'Onboarding Trial Cycles', count: trialTenants, color: 'bg-nx-accent' },
+                  { name: 'Inactive / Suspended Accounts', count: suspendedTenants, color: 'bg-nx-danger' },
                 ].map((s, i) => {
                   const pct = totalTenants > 0 ? (s.count / totalTenants) * 100 : 0;
                   return (
-                    <div key={i} className="flex items-center justify-between border border-[#e4e4e7] dark:border-[#27272a] rounded-lg p-3">
+                    <div key={i} className="flex items-center justify-between border border-nx-line dark:border-nx-line-dark rounded-lg p-3">
                       <div className="flex items-center gap-2">
                         <span className={`h-2.5 w-2.5 rounded-full ${s.color}`} />
-                        <span className="text-[12px] font-medium text-[#09090b] dark:text-white">{s.name}</span>
+                        <span className="text-[12px] font-medium text-nx-ink dark:text-white">{s.name}</span>
                       </div>
-                      <span className="text-xs font-semibold text-[#09090b] dark:text-white">{s.count} ({pct.toFixed(0)}%)</span>
+                      <span className="text-xs font-semibold text-nx-ink dark:text-white">{s.count} ({pct.toFixed(0)}%)</span>
                     </div>
                   );
                 })}
@@ -575,7 +573,7 @@ export default function ReportsPage() {
       )}
 
       {/* Notice / Audit footer */}
-      <div className="rounded-xl border border-[#e4e4e7] bg-[#fafafa] dark:border-[#27272a] dark:bg-[#18181b] p-4 text-center text-xs text-[#a1a1aa]">
+      <div className="rounded-xl border border-nx-line bg-nx-surface-soft dark:border-nx-line-dark dark:bg-nx-surface-dark p-4 text-center text-xs text-nx-text-subtle">
         Nexus Portal Audit System · Reports compiled dynamically at {new Date().toLocaleTimeString()}
       </div>
 

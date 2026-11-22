@@ -1,5 +1,55 @@
 @import "tailwindcss";
 
+/* Semantic status palette. Values switch with the theme (light/dark), so components only use
+   the nx-* utilities (text-nx-success, bg-nx-success-soft, ...) and never raw colors. */
+:root {
+  --nx-success: #059669;  --nx-success-soft: #ecfdf5;
+  --nx-warning: #d97706;  --nx-warning-soft: #fffbeb;
+  --nx-danger:  #dc2626;  --nx-danger-soft:  #fef2f2;
+  --nx-info:    #0284c7;  --nx-info-soft:    #f0f9ff;
+  --nx-violet:  #7c3aed;  --nx-violet-soft:  #f5f3ff;
+  --nx-rose:    #e11d48;  --nx-rose-soft:    #fff1f2;
+}
+.dark {
+  --nx-success: #34d399;  --nx-success-soft: rgb(16 185 129 / 0.14);
+  --nx-warning: #fbbf24;  --nx-warning-soft: rgb(245 158 11 / 0.14);
+  --nx-danger:  #f87171;  --nx-danger-soft:  rgb(239 68 68 / 0.14);
+  --nx-info:    #38bdf8;  --nx-info-soft:    rgb(14 165 233 / 0.14);
+  --nx-violet:  #a78bfa;  --nx-violet-soft:  rgb(139 92 246 / 0.16);
+  --nx-rose:    #fb7185;  --nx-rose-soft:    rgb(244 63 94 / 0.14);
+}
+@theme inline {
+  --color-nx-success: var(--nx-success);   --color-nx-success-soft: var(--nx-success-soft);
+  --color-nx-warning: var(--nx-warning);   --color-nx-warning-soft: var(--nx-warning-soft);
+  --color-nx-danger:  var(--nx-danger);    --color-nx-danger-soft:  var(--nx-danger-soft);
+  --color-nx-info:    var(--nx-info);      --color-nx-info-soft:    var(--nx-info-soft);
+  --color-nx-violet:  var(--nx-violet);    --color-nx-violet-soft:  var(--nx-violet-soft);
+  --color-nx-rose:    var(--nx-rose);      --color-nx-rose-soft:    var(--nx-rose-soft);
+}
+
+/* Admin palette tokens (same values as before, now named) */
+@theme {
+  --color-nx-ink: #09090b;
+  --color-nx-surface-dark: #18181b;
+  --color-nx-surface-dark-2: #1c1c1f;
+  --color-nx-line-dark: #27272a;
+  --color-nx-line-dark-strong: #3f3f46;
+  --color-nx-text-strong: #52525b;
+  --color-nx-text-muted: #71717a;
+  --color-nx-text-subtle: #a1a1aa;
+  --color-nx-line-strong: #d4d4d8;
+  --color-nx-line: #e4e4e7;
+  --color-nx-surface-muted: #f4f4f5;
+  --color-nx-surface-soft: #fafafa;
+  --color-nx-canvas: #f7f7f8;
+  --color-nx-accent: #6366f1;
+  --color-nx-accent-light: #818cf8;
+  --color-nx-accent-strong: #4f46e5;
+  --color-nx-accent-soft: #eef2ff;
+  --color-nx-accent-tint: #e0e7ff;
+}
+
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ─── Design Tokens ──────────────────────────────────────────── */

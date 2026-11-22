@@ -692,7 +692,7 @@ export default function EmailEditorPage() {
 
       {/* Save Template Modal */}
       <Dialog open={isSaveModalOpen} onOpenChange={setIsSaveModalOpen}>
-        <DialogContent className="max-w-md rounded-3xl p-8">
+        <DialogContent className="max-w-md p-8">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black uppercase tracking-tight">{templateId ? 'Rename Template' : 'Save as Template'}</DialogTitle>
             <DialogDescription className="font-bold text-muted-foreground">{templateId ? 'Change the name of your existing design.' : 'Give your newsletter design a name to save it to your library.'}</DialogDescription>
@@ -711,7 +711,7 @@ export default function EmailEditorPage() {
 
       {/* Media Center Modal */}
       <Dialog open={isMediaModalOpen} onOpenChange={setIsMediaModalOpen}>
-        <DialogContent className="rounded-[2.5rem] sm:max-w-4xl p-0 overflow-hidden bg-slate-50 border-none">
+        <DialogContent className="sm:max-w-4xl p-0 overflow-hidden bg-slate-50">
            <div className="p-8 bg-white border-b flex justify-between items-center">
               <div>
                  <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">

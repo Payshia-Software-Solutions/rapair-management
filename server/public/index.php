@@ -37,6 +37,10 @@ if ($origin) {
         $isAllowed = true;
     } else {
         $host = parse_url($origin, PHP_URL_HOST);
+        // Devices on the local network (tablets/phones opening http://192.168.x.x:9003)
+        if ($host && preg_match('/^(192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})$/', $host)) {
+            $isAllowed = true;
+        }
         if ($host) {
             // Allow if the origin itself is nebulync.com
             if ($host === 'nebulync.com' || preg_match('/\.nebulync\.com$/', $host)) {
@@ -46,9 +50,15 @@ if ($origin) {
     }
 }
 
+// Shared (multi-tenant) deployment: a workspace's own registered domains (e.g. erp.client.lk)
+if (!$isAllowed && $origin && class_exists('Tenancy', false)) {
+    $isAllowed = Tenancy::isRegisteredDomain(parse_url($origin, PHP_URL_HOST));
+}
+
 // If the API server itself is hosted on a nebulync.com subdomain, allow all origins
+// (Single-client installs only. The shared deployment allows just its own and registered domains above.)
 $serverHost = $_SERVER['HTTP_HOST'] ?? '';
-if ($serverHost === 'nebulync.com' || preg_match('/\.nebulync\.com$/', $serverHost)) {
+if (!class_exists('Tenancy', false) && ($serverHost === 'nebulync.com' || preg_match('/\.nebulync\.com$/', $serverHost))) {
     $isAllowed = true;
 }
 

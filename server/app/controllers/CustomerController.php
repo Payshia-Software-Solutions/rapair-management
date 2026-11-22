@@ -42,14 +42,17 @@ class CustomerController extends Controller {
             $data = $_POST;
             // Handle file upload
             if (isset($_FILES['photo']) && $_FILES['photo']['error'] === UPLOAD_ERR_OK) {
-                $uploadDir = __DIR__ . '/../../public/uploads/customers/';
-                if (!is_dir($uploadDir)) {
-                    mkdir($uploadDir, 0777, true);
-                }
-                $fileName = time() . '_' . basename($_FILES['photo']['name']);
-                $targetFilePath = $uploadDir . $fileName;
-                if (move_uploaded_file($_FILES['photo']['tmp_name'], $targetFilePath)) {
-                    $data['photo_url'] = '/uploads/customers/' . $fileName;
+                // Images only, judged by their real content; the stored extension comes from that check.
+                $imageExt = [IMAGETYPE_JPEG => 'jpg', IMAGETYPE_PNG => 'png', IMAGETYPE_WEBP => 'webp'];
+                $info = @getimagesize($_FILES['photo']['tmp_name']);
+                if ($info && isset($imageExt[$info[2]]) && is_uploaded_file($_FILES['photo']['tmp_name']) && $_FILES['photo']['size'] <= 5 * 1024 * 1024) {
+                    require_once __DIR__ . '/../helpers/ContentStore.php';
+                    try {
+                        $stored = ContentStore::save($_FILES['photo']['tmp_name'], 'customers', 'cust_' . time() . '_' . bin2hex(random_bytes(6)) . '.' . $imageExt[$info[2]]);
+                        $data['photo_url'] = (strpos($stored, 'http') === 0) ? $stored : '/' . $stored;
+                    } catch (Throwable $e) {
+                        error_log('Customer photo: ' . $e->getMessage());
+                    }
                 }
             }
         } else {

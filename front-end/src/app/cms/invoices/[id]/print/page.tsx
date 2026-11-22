@@ -74,6 +74,9 @@ function PrintContent() {
   };
 
   const balance = Number(invoice.grand_total) - Number(invoice.paid_amount);
+  // Menu-pricing invoice: customer copy shows menu prices + service charge only.
+  // The full tax breakdown stays on the Tax Invoice page.
+  const isMenu = invoice.price_display_mode === 'menu';
 
   const getShortTaxName = (name: string) => {
     const upper = (name || "").toUpperCase();
@@ -241,7 +244,11 @@ function PrintContent() {
                   let displayDiscount = Number(item.discount || 0);
                   let displayLineTotal = Number(item.line_total);
 
-                  if (taxInclusive && totalTaxPercent > 0) {
+                  if (isMenu && item.display_unit_price != null) {
+                    displayPrice = Number(item.display_unit_price);
+                    displayDiscount = Number(item.display_discount || 0);
+                    displayLineTotal = Number(item.display_line_total ?? 0);
+                  } else if (taxInclusive && totalTaxPercent > 0) {
                     displayPrice = displayPrice * (1 + totalTaxPercent / 100);
                     displayDiscount = displayDiscount * (1 + totalTaxPercent / 100);
                     displayLineTotal = displayLineTotal * (1 + totalTaxPercent / 100);
@@ -253,6 +260,9 @@ function PrintContent() {
                         <div className="font-bold text-slate-800 uppercase leading-tight">{item.description}</div>
                         <div className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-tighter leading-none">
                           {item.item_type}
+                          {Number(item.is_complimentary) === 1 && (
+                            <span className="ml-1.5 font-bold text-slate-700">· Complimentary{item.comp_reason ? `: ${item.comp_reason}` : ""}</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-2.5 text-center font-medium">{item.quantity}</td>
@@ -271,6 +281,28 @@ function PrintContent() {
           {/* Totals Section */}
           <div className="mt-6 pt-6 border-t border-slate-200 flex justify-end">
             <div className="w-72 space-y-3">
+              {isMenu ? (
+              <div className="space-y-1 pb-3 border-b border-slate-100 text-xs">
+                <div className="flex justify-between items-center text-slate-600">
+                  <span className="text-[10px] font-bold uppercase tracking-widest">Subtotal</span>
+                  <span className="font-bold tabular-nums">LKR {Number(invoice.display_subtotal || 0).toFixed(2)}</span>
+                </div>
+                {Number(invoice.display_discount_total || 0) > 0 && (
+                  <div className="flex justify-between items-center text-rose-600">
+                    <span className="text-[10px] font-bold uppercase tracking-widest">
+                      Discount {invoice.applied_promotion_name ? `(${invoice.applied_promotion_name})` : ''}
+                    </span>
+                    <span className="font-bold tabular-nums">-LKR {Number(invoice.display_discount_total).toFixed(2)}</span>
+                  </div>
+                )}
+                {Number(invoice.display_service_charge || 0) > 0 && (
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Service Charge</span>
+                    <span className="font-bold tabular-nums">LKR {Number(invoice.display_service_charge).toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+              ) : (
               <div className="space-y-1 pb-3 border-b border-slate-100 text-xs">
                 <div className="flex justify-between items-center text-slate-600">
                   <span className="text-[10px] font-bold uppercase tracking-widest">Subtotal</span>
@@ -319,7 +351,8 @@ function PrintContent() {
                   </div>
                 )}
               </div>
-              
+              )}
+
               <div className="flex justify-between items-center py-1">
                 <span className="font-black text-slate-900 uppercase text-base tracking-tighter">Grand Total</span>
                 <span className="font-black text-slate-900 text-2xl tracking-tighter tabular-nums">{formatCurrency(invoice.grand_total)}</span>

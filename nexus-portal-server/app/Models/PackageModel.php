@@ -10,6 +10,12 @@ class PackageModel {
         $this->db = new Database();
     }
 
+    /** Positive whole number; anything else falls back to the default. 999+ means unlimited. */
+    private static function limit($v, int $default): int {
+        $n = (int)$v;
+        return $n >= 1 ? $n : $default;
+    }
+
     public function getAll() {
         $this->db->query("SELECT * FROM saas_packages");
         return $this->db->resultSet();
@@ -30,7 +36,7 @@ class PackageModel {
             ? floatval($data['yearly_price'])
             : round($monthly_price * 12 * 0.80, 2);
 
-        $this->db->query("INSERT INTO saas_packages (name, package_key, monthly_price, yearly_price, modules, services, server_info, is_public) VALUES (:name, :key, :price, :yearly_price, :modules, :services, :server, :is_public)");
+        $this->db->query("INSERT INTO saas_packages (name, package_key, monthly_price, yearly_price, modules, services, server_info, max_users, max_locations, custom_domain, is_public) VALUES (:name, :key, :price, :yearly_price, :modules, :services, :server, :max_users, :max_locations, :custom_domain, :is_public)");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':key', $data['package_key']);
         $this->db->bind(':price', $monthly_price);
@@ -38,6 +44,9 @@ class PackageModel {
         $this->db->bind(':modules', $modules);
         $this->db->bind(':services', $services);
         $this->db->bind(':server', $data['server_info'] ?? '');
+        $this->db->bind(':max_users', self::limit($data['max_users'] ?? null, 5));
+        $this->db->bind(':max_locations', self::limit($data['max_locations'] ?? null, 1));
+        $this->db->bind(':custom_domain', !empty($data['custom_domain']) ? 1 : 0);
         $this->db->bind(':is_public', $is_public);
         return $this->db->execute();
     }
@@ -51,13 +60,16 @@ class PackageModel {
             ? floatval($data['yearly_price'])
             : round($monthly_price * 12 * 0.80, 2);
 
-        $this->db->query("UPDATE saas_packages SET name = :name, monthly_price = :price, yearly_price = :yearly_price, modules = :modules, services = :services, server_info = :server, is_public = :is_public WHERE id = :id");
+        $this->db->query("UPDATE saas_packages SET name = :name, monthly_price = :price, yearly_price = :yearly_price, modules = :modules, services = :services, server_info = :server, max_users = :max_users, max_locations = :max_locations, custom_domain = :custom_domain, is_public = :is_public WHERE id = :id");
         $this->db->bind(':name', $data['name']);
         $this->db->bind(':price', $monthly_price);
         $this->db->bind(':yearly_price', $yearly_price);
         $this->db->bind(':modules', $modules);
         $this->db->bind(':services', $services);
         $this->db->bind(':server', $data['server_info'] ?? '');
+        $this->db->bind(':max_users', self::limit($data['max_users'] ?? null, 5));
+        $this->db->bind(':max_locations', self::limit($data['max_locations'] ?? null, 1));
+        $this->db->bind(':custom_domain', !empty($data['custom_domain']) ? 1 : 0);
         $this->db->bind(':is_public', $is_public);
         $this->db->bind(':id', $data['id']);
         return $this->db->execute();

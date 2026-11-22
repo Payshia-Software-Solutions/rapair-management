@@ -28,6 +28,19 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import { usePOS } from "../../context/POSContext";
 import { fetchBankBranches } from "@/lib/api";
 
+const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Likely cash amounts for a bill: next 100 / 500 / 1,000 / 5,000 note boundary. */
+function quickCashOptions(total: number): number[] {
+  if (!(total > 0)) return [];
+  const opts = new Set<number>();
+  for (const step of [100, 500, 1000, 5000]) {
+    opts.add(Math.ceil(total / step) * step);
+  }
+  opts.add(Math.ceil(total / 5000) * 5000 + 5000);
+  return [...opts].filter(v => v >= total).sort((a, b) => a - b).slice(0, 4);
+}
+
 export const CheckoutDialog: React.FC = () => {
   const {
     checkoutOpen,
@@ -132,13 +145,13 @@ export const CheckoutDialog: React.FC = () => {
   return (
     <>
       <Dialog open={checkoutOpen} onOpenChange={setCheckoutOpen}>
-        <DialogContent className={`transition-all duration-300 w-full ${isSplitPayment ? 'sm:max-w-[600px]' : (['Cheque', 'Card', 'Cash', 'Bank Transfer', 'Credit'].includes(paymentMethod)) ? 'sm:max-w-[780px]' : 'sm:max-w-md'} h-[100dvh] sm:h-auto rounded-none sm:rounded-3xl p-0 overflow-hidden border-none shadow-2xl`}>
-          <div className="flex flex-col md:flex-row h-full">
+        <DialogContent size="lg" className={`transition-all duration-300 flex flex-col sm:rounded-lg p-0 overflow-hidden`}>
+          <div className="flex flex-col md:flex-row flex-1 min-h-0">
             {/* Main Payment Section */}
-            <div className="flex-1 p-6 flex flex-col space-y-5 bg-background overflow-hidden">
-              <DialogHeader className="mb-2 relative pr-8">
+            <div className="flex-1 min-h-0 p-4 flex flex-col space-y-3 bg-background overflow-hidden">
+              <DialogHeader className="relative pr-12">
                 <div className="flex justify-between items-center w-full">
-                  <DialogTitle className="text-2xl font-black uppercase tracking-tight flex items-center gap-2">
+                  <DialogTitle className="flex items-center gap-2">
                     <Calculator className="w-6 h-6 text-primary"/> POS Checkout
                   </DialogTitle>
                   <Button 
@@ -154,9 +167,9 @@ export const CheckoutDialog: React.FC = () => {
               
               {/* Total and Balance */}
               <div className="space-y-3">
-                <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-xl flex justify-between items-center shadow-inner">
+                <div className="bg-muted px-4 py-2.5 rounded-md flex justify-between items-center">
                   <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Total Due</span>
-                  <span className="font-black text-2xl tabular-nums text-foreground">LKR {totals.grandTotal.toLocaleString()}</span>
+                  <span className="font-semibold text-xl tabular-nums text-foreground">LKR {money(totals.grandTotal)}</span>
                 </div>
                 
                 {isSplitPayment && (
@@ -177,7 +190,7 @@ export const CheckoutDialog: React.FC = () => {
                 {isSplitPayment ? (
                   <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
                     {splitPayments.map((payment, idx) => (
-                      <div key={payment.id} className="p-4 rounded-xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 space-y-4 relative group">
+                      <div key={payment.id} className="p-4 rounded-md border-2 border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 space-y-4 relative group">
                         <div className="flex justify-between items-center gap-3">
                           <div className="flex-1">
                             <div className="flex gap-1.5 overflow-x-auto pb-2 scrollbar-hide">
@@ -272,10 +285,10 @@ export const CheckoutDialog: React.FC = () => {
                   </div>
                 ) : (
                   /* Standard Single Payment View */
-                  <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="space-y-3">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Payment Method</label>
-                      <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Payment method</label>
+                      <div className="grid grid-cols-2 gap-2">
                         {(['Cash', 'Card', 'Cheque', 'Bank Transfer'] as const).map(m => {
                           const icons: Record<string, React.ReactNode> = {
                             Cash: <Banknote className="w-4 h-4 mr-2" />,
@@ -286,7 +299,7 @@ export const CheckoutDialog: React.FC = () => {
                           const active = paymentMethod === m;
                           return (
                             <Button key={m} type="button" variant={active ? 'default' : 'outline'}
-                              className={`h-12 border-2 text-xs font-bold transition-all ${active ? 'border-primary ring-2 ring-primary/20 bg-primary text-white scale-[1.02]' : 'hover:border-primary/50'}`}
+                              className={`h-10 text-sm font-medium transition-colors ${active ? '' : 'hover:border-primary/50'}`}
                               onClick={() => { setPaymentMethod(m); if (amountReceived === 0) setAmountReceived(totals.grandTotal); }}
                             >
                               {icons[m]} {m}
@@ -297,15 +310,15 @@ export const CheckoutDialog: React.FC = () => {
                       <Button
                         type="button"
                         variant={paymentMethod === 'Credit' ? 'destructive' : 'outline'}
-                        className={`w-full h-11 border-2 font-bold text-xs transition-all ${paymentMethod === 'Credit' ? 'ring-2 ring-rose-500/20 scale-[1.02]' : 'border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10'}`}
+                        className={`w-full h-9 text-sm font-medium transition-colors ${paymentMethod === 'Credit' ? '' : 'border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-500/40 dark:text-rose-400 dark:hover:bg-rose-500/10'}`}
                         onClick={() => { setPaymentMethod('Credit'); setAmountReceived(0); }}
                       >
-                        📋 Credit Close — Invoice later
+                        Credit sale (pay later)
                       </Button>
                     </div>
 
                     {(paymentMethod === 'Cheque' || paymentMethod === 'Card') && (
-                      <div className="md:hidden">
+                      <div className="lg:hidden">
                         <Button 
                           type="button" 
                           variant="outline" 
@@ -328,8 +341,8 @@ export const CheckoutDialog: React.FC = () => {
                     )}
 
                     {paymentMethod !== 'Credit' && (
-                      <div className="space-y-3">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Amount Tendered</label>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Amount received</label>
                         <Input 
                           type="number"
                           value={amountReceived || ''} 
@@ -344,12 +357,13 @@ export const CheckoutDialog: React.FC = () => {
                               });
                             }
                           }}
-                          className="text-center font-black text-3xl h-16 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 focus-visible:ring-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-inner rounded-xl"
+                          className="text-right font-semibold text-2xl h-12 tabular-nums rounded-md"
                         />
-                        <div className="flex justify-center gap-2">
-                          {[0, 500, 1000, 5000].map(bump => (
-                            <Button key={bump} variant="outline" size="sm" onClick={() => setAmountReceived(bump === 0 ? totals.grandTotal : amountReceived + bump)} className="font-bold tabular-nums h-9 px-4 rounded-lg">
-                              {bump === 0 ? 'Exact' : `+${bump}`}
+                        {/* Quick cash: the notes a customer is most likely to hand over */}
+                        <div className="grid grid-cols-4 gap-2">
+                          {quickCashOptions(totals.grandTotal).map(amt => (
+                            <Button key={amt} variant="secondary" size="sm" onClick={() => setAmountReceived(amt)} className={`font-medium tabular-nums h-9 rounded-md ${amountReceived === amt ? 'ring-2 ring-primary' : ''}`}>
+                              {amt.toLocaleString()}
                             </Button>
                           ))}
                         </div>
@@ -357,26 +371,26 @@ export const CheckoutDialog: React.FC = () => {
                     )}
 
                     {paymentMethod !== 'Credit' && amountReceived - totals.grandTotal > 0 && (
-                      <div className="flex items-center justify-between p-3 rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-500/10 dark:border-orange-500/30 text-orange-600 dark:text-orange-400 animate-in fade-in slide-in-from-top-2">
-                        <span className="font-bold text-xs uppercase tracking-wider">Change Due</span>
-                        <span className="font-black text-xl tabular-nums">LKR {(amountReceived - totals.grandTotal).toLocaleString()}</span>
+                      <div className="flex items-center justify-between px-3 py-2 rounded-md border border-primary/30 bg-primary/5 animate-in fade-in slide-in-from-top-2">
+                        <span className="text-sm font-medium">Change</span>
+                        <span className="font-semibold text-lg tabular-nums">LKR {money(amountReceived - totals.grandTotal)}</span>
                       </div>
                     )}
                   </div>
                 )}
               </div>
 
-              <DialogFooter className="mt-2 border-t pt-5 gap-3 shrink-0">
-                <Button variant="ghost" onClick={() => setCheckoutOpen(false)} className="font-bold">Cancel</Button>
+              <DialogFooter className="border-t pt-3 gap-2 shrink-0">
+                <Button variant="outline" onClick={() => setCheckoutOpen(false)} className="h-11">Cancel</Button>
                 <Button 
                     onClick={onConfirmCheckout} 
                     disabled={submitting || 
                         (isSplitPayment && totalPaid < totals.grandTotal) || 
                         (!isSplitPayment && ((paymentMethod === 'Cheque' && !chequeNo) || (paymentMethod === 'Card' && !cardLast4)))
                     } 
-                    className="font-bold flex-1 h-12 shadow-lg shadow-primary/20 rounded-xl"
+                    className="flex-1 h-11 rounded-md"
                 >
-                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Printer className="w-5 h-5 mr-2 opacity-50" />}
+                  {submitting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Printer className="w-4 h-4 mr-2" aria-hidden="true" />}
                   Process & Print Invoice
                 </Button>
               </DialogFooter>
@@ -384,17 +398,17 @@ export const CheckoutDialog: React.FC = () => {
 
             {/* Right Side Detail Panels (Desktop) */}
             {!isSplitPayment && (
-              <div className="hidden md:flex w-[400px] bg-slate-50 dark:bg-slate-950 p-7 border-l border-border flex-col space-y-7 overflow-y-auto custom-scrollbar">
+              <div className="hidden lg:flex w-[360px] bg-muted/30 p-4 border-l border-border flex-col space-y-4 overflow-y-auto custom-scrollbar">
                 
                 {/* 1. Balanced Customer Header (Persistent) */}
-                <div className="space-y-4">
-                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
-                    <User className="w-3 h-3" /> Billing Customer
+                <div className="space-y-2">
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    <User className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> Customer
                   </p>
                   {(() => {
                     const cust = customers.find(c => String(c.id) === String(selectedCustomer));
                     return (
-                      <div className="flex items-center gap-3 p-4 bg-white dark:bg-card border border-border rounded-xl shadow-sm">
+                      <div className="flex items-center gap-3 px-3 py-2.5 bg-background border border-border rounded-md">
                         <div className="p-2.5 bg-primary/10 rounded-full">
                           <User className="w-4 h-4 text-primary" />
                         </div>
@@ -427,12 +441,12 @@ export const CheckoutDialog: React.FC = () => {
                        const isOverLimit = remainingAfterSale < 0;
                        return (
                          <div className="space-y-4">
-                            <div className={`p-5 border-2 rounded-2xl shadow-md transition-all ${isOverLimit ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <div className={`p-5 border-2 rounded-lg shadow-md transition-all ${isOverLimit ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
                               <p className="text-[10px] font-bold uppercase tracking-wider mb-1 opacity-70">Remaining Trust Balance</p>
                               <p className={`text-3xl font-black tabular-nums ${isOverLimit ? 'text-rose-700' : 'text-emerald-700'}`}>LKR {available.toLocaleString()}</p>
                             </div>
                             {isOverLimit && (
-                              <div className="p-4 bg-rose-600 text-white rounded-xl flex items-start gap-3 shadow-lg shadow-rose-200 dark:shadow-none animate-pulse">
+                              <div className="p-4 bg-rose-600 text-white rounded-md flex items-start gap-3 shadow-lg shadow-rose-200 dark:shadow-none animate-pulse">
                                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
                                 <div className="space-y-1">
                                   <p className="text-[11px] font-black uppercase">Credit Warning</p>
@@ -447,19 +461,19 @@ export const CheckoutDialog: React.FC = () => {
                 )}
 
                 {paymentMethod === 'Cheque' && (
-                  <div className="space-y-5 animate-in fade-in slide-in-from-right-4">
-                    <p className="text-xs font-black text-amber-700 dark:text-amber-400 uppercase tracking-widest flex items-center gap-2"><Receipt className="w-4 h-4" /> Cheque Documentation</p>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2 col-span-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Cheque Serial Number</label>
-                        <Input maxLength={10} placeholder="XXXXXX" value={chequeNo} onChange={e => setChequeNo(e.target.value.replace(/\D/g,''))} className="font-mono text-center font-bold h-11 border-2" />
+                  <div className="space-y-3 animate-in fade-in slide-in-from-right-4">
+                    <p className="text-sm font-medium flex items-center gap-2"><Receipt className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> Cheque details</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1 col-span-2">
+                        <label className="text-xs text-muted-foreground">Cheque Serial Number</label>
+                        <Input maxLength={10} placeholder="XXXXXX" value={chequeNo} onChange={e => setChequeNo(e.target.value.replace(/\D/g,''))} className="font-mono text-center h-10" />
                       </div>
                       <div className="space-y-2 col-span-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Payment Date</label>
-                        <Input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} className="h-11 border-2 font-bold" />
+                        <label className="text-xs text-muted-foreground">Payment Date</label>
+                        <Input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} className="h-10" />
                       </div>
                       <div className="col-span-2 space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Issuing Bank</label>
+                        <label className="text-xs text-muted-foreground">Issuing Bank</label>
                         <SearchableSelect
                           options={banks.map(b => ({ value: String(b.id), label: b.name }))}
                           value={chequeBankName ? String(banks.find(b => b.name === chequeBankName)?.id || "") : ""}
@@ -471,7 +485,7 @@ export const CheckoutDialog: React.FC = () => {
                         />
                       </div>
                       <div className="col-span-2 space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Branch Name</label>
+                        <label className="text-xs text-muted-foreground">Branch Name</label>
                         <SearchableSelect
                           options={bankBranches.map(br => ({ value: String(br.id), label: br.branch_name }))}
                           value={chequeBranchName ? String(bankBranches.find(br => br.branch_name === chequeBranchName)?.id || "") : ""}
@@ -485,14 +499,14 @@ export const CheckoutDialog: React.FC = () => {
                 )}
 
                 {(paymentMethod === 'Cash' || paymentMethod === 'Bank Transfer') && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                    <p className="text-xs font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-2"><Calculator className="w-4 h-4" /> Quick Numpad</p>
-                    <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-2 animate-in fade-in slide-in-from-right-4">
+                    <p className="text-sm font-medium flex items-center gap-2"><Calculator className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> Keypad</p>
+                    <div className="grid grid-cols-3 gap-2">
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, '.'].map(val => (
                         <Button 
                           key={String(val)} 
                           variant="outline" 
-                          className={`h-14 text-2xl font-black rounded-xl border-2 hover:bg-white hover:border-primary hover:text-primary transition-all shadow-sm ${val === 'C' ? 'text-rose-500' : ''}`}
+                          className={`h-12 text-lg font-semibold tabular-nums rounded-md ${val === 'C' ? 'text-muted-foreground' : ''}`}
                           onClick={() => {
                             if (val === 'C') setAmountReceived(0);
                             else {
@@ -507,53 +521,56 @@ export const CheckoutDialog: React.FC = () => {
                         </Button>
                       ))}
                     </div>
-                    <Button variant="default" className="w-full h-14 font-black bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-200 dark:shadow-none rounded-xl text-lg" onClick={() => setAmountReceived(totals.grandTotal)}>EXACT AMOUNT</Button>
+                    <Button variant="default" className="w-full h-11 rounded-md" onClick={() => setAmountReceived(totals.grandTotal)}>Exact amount</Button>
                   </div>
                 )}
 
                 {paymentMethod === 'Card' && (
-                  <div className="space-y-6 animate-in fade-in slide-in-from-right-4">
-                    <p className="text-xs font-black text-indigo-700 dark:text-indigo-400 uppercase tracking-widest flex items-center gap-2"><CreditCard className="w-4 h-4" /> Gateway Info</p>
-                    <div className="space-y-5">
-                      <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-3 animate-in fade-in slide-in-from-right-4">
+                    <p className="text-sm font-medium flex items-center gap-2"><CreditCard className="w-4 h-4 text-muted-foreground" aria-hidden="true" /> Card details</p>
+
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Card type</div>
+                      <div role="radiogroup" aria-label="Card type" className="grid grid-cols-4 gap-0.5 p-0.5 rounded-md bg-muted">
                         {['Visa', 'Mastercard', 'AMEX', 'Other'].map(type => (
-                          <Button key={type} size="sm" variant={cardType === type ? 'default' : 'outline'} onClick={() => setCardType(type)} className={`text-[10px] h-10 font-black border-2 transition-all ${cardType === type ? 'scale-[1.05] ring-2 ring-primary/20' : ''}`}>{type}</Button>
+                          <button key={type} type="button" role="radio" aria-checked={cardType === type} onClick={() => setCardType(type)} className={`h-9 rounded-sm text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${cardType === type ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                            {type === 'Mastercard' ? 'Master' : type}
+                          </button>
                         ))}
                       </div>
+                    </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Provider / Bank</label>
-                        <SearchableSelect 
-                            options={banks.map(b => ({ value: String(b.id), label: b.name }))}
-                            value={selectedBankId}
-                            onValueChange={(val) => setSelectedBankId(val)}
-                            placeholder="Select Bank..."
-                        />
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Credit or debit</div>
+                      <div role="radiogroup" aria-label="Card category" className="grid grid-cols-2 gap-0.5 p-0.5 rounded-md bg-muted">
+                        {['Credit', 'Debit'].map(cat => (
+                          <button key={cat} type="button" role="radio" aria-checked={selectedCardCategory === cat} onClick={() => setSelectedCardCategory(cat)} className={`h-9 rounded-sm text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedCardCategory === cat ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                            {cat}
+                          </button>
+                        ))}
                       </div>
+                    </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Category</label>
-                        <div className="grid grid-cols-2 gap-2">
-                             {['Credit', 'Debit'].map(cat => (
-                                 <Button 
-                                    key={cat}
-                                    type="button"
-                                    variant={selectedCardCategory === cat ? 'default' : 'outline'}
-                                    onClick={() => setSelectedCardCategory(cat)}
-                                    className={`h-11 rounded-xl font-black text-xs transition-all ${selectedCardCategory === cat ? 'scale-[1.05] ring-2 ring-primary/20 shadow-lg' : ''}`}
-                                 >
-                                    {cat} Card
-                                 </Button>
-                             ))}
-                        </div>
-                      </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground mb-1">Issuing bank</div>
+                      <SearchableSelect
+                        options={banks.map(b => ({ value: String(b.id), label: b.name }))}
+                        value={selectedBankId}
+                        onValueChange={(val) => setSelectedBankId(val)}
+                        placeholder="Select bank"
+                        triggerClassName="h-10 text-sm"
+                      />
+                    </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Card Number (Last 4)</label>
-                        <Input 
-                          maxLength={4} placeholder="0000" 
-                          value={cardLast4} 
-                          onChange={e => setCardLast4(e.target.value.replace(/\D/g,''))} 
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor="card-last4" className="text-xs text-muted-foreground">Last 4 digits <span className="text-destructive">*</span></label>
+                        <Input
+                          id="card-last4"
+                          inputMode="numeric"
+                          maxLength={4} placeholder="0000"
+                          value={cardLast4}
+                          onChange={e => setCardLast4(e.target.value.replace(/\D/g,''))}
                           onFocus={() => {
                             if (vKeyboardEnabled) {
                               setVKeyboardActiveInput({
@@ -564,15 +581,16 @@ export const CheckoutDialog: React.FC = () => {
                               });
                             }
                           }}
-                          className="font-mono text-center text-2xl h-14 tracking-[0.4em] font-black border-2" 
+                          className="mt-1 h-10 font-mono text-center text-base tracking-[0.3em]"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase text-muted-foreground tracking-tight ml-1">Terminal Auth Code</label>
-                        <Input 
-                          placeholder="Verification Code" 
-                          value={cardAuthCode} 
-                          onChange={e => setCardAuthCode(e.target.value)} 
+                      <div>
+                        <label htmlFor="card-auth" className="text-xs text-muted-foreground">Auth code</label>
+                        <Input
+                          id="card-auth"
+                          placeholder="Optional"
+                          value={cardAuthCode}
+                          onChange={e => setCardAuthCode(e.target.value)}
                           onFocus={() => {
                             if (vKeyboardEnabled) {
                               setVKeyboardActiveInput({
@@ -582,10 +600,11 @@ export const CheckoutDialog: React.FC = () => {
                               });
                             }
                           }}
-                          className="h-12 border-2 font-bold" 
+                          className="mt-1 h-10"
                         />
                       </div>
                     </div>
+                    {!cardLast4 && <p className="text-xs text-muted-foreground">Enter the last 4 digits to finish the sale.</p>}
                   </div>
                 )}
 
@@ -597,9 +616,9 @@ export const CheckoutDialog: React.FC = () => {
 
       {/* Split Payment Detail Sub-Modals (Card/Cheque) */}
       <Dialog open={editingPaymentIndex !== null} onOpenChange={(o) => !o && setEditingPaymentIndex(null)}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md bg-white dark:bg-slate-950 rounded-[2rem] p-6 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+        <DialogContent size="sm" className="overflow-y-auto rounded-lg p-6 animate-in zoom-in-95 duration-200">
            <DialogHeader className="mb-4">
-             <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+             <DialogTitle className="flex items-center gap-2">
                {editingPaymentIndex !== null && splitPayments[editingPaymentIndex]?.method === 'Card' ? (
                  <><CreditCard className="w-5 h-5 text-indigo-500"/> Card Setup</>
                ) : (
@@ -620,7 +639,7 @@ export const CheckoutDialog: React.FC = () => {
                           onClick={() => {
                             const n = [...splitPayments]; n[editingPaymentIndex].cardType = type; setSplitPayments(n);
                           }} 
-                          className={`font-black text-[10px] uppercase h-10 transition-all rounded-xl ${splitPayments[editingPaymentIndex].cardType === type ? 'ring-2 ring-primary/20' : ''}`}
+                          className={`font-black text-[10px] uppercase h-10 transition-all rounded-md ${splitPayments[editingPaymentIndex].cardType === type ? 'ring-2 ring-primary/20' : ''}`}
                         >
                           {type}
                         </Button>
@@ -630,7 +649,7 @@ export const CheckoutDialog: React.FC = () => {
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Provider / Bank</label>
                         <select 
-                          className="w-full h-11 px-4 text-sm font-bold bg-slate-50 dark:bg-slate-900 border-none rounded-xl focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                          className="w-full h-11 px-4 text-sm font-bold bg-slate-50 dark:bg-slate-900 border-none rounded-md focus:ring-2 focus:ring-primary/20 cursor-pointer"
                           value={splitPayments[editingPaymentIndex].bankId || ""}
                           onChange={e => {
                             const n = [...splitPayments]; n[editingPaymentIndex].bankId = e.target.value; setSplitPayments(n);
@@ -645,7 +664,7 @@ export const CheckoutDialog: React.FC = () => {
 
                       <div className="space-y-2">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Card Category</label>
-                        <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-2xl">
+                        <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-1 rounded-lg">
                           {['Credit', 'Debit'].map(cat => (
                             <Button
                               key={cat}
@@ -654,7 +673,7 @@ export const CheckoutDialog: React.FC = () => {
                               onClick={() => {
                                 const n = [...splitPayments]; n[editingPaymentIndex].cardCategory = cat; setSplitPayments(n);
                               }}
-                              className={`h-9 font-black text-[10px] uppercase rounded-xl transition-all ${splitPayments[editingPaymentIndex].cardCategory === cat ? 'bg-white dark:bg-slate-800 shadow-sm text-primary' : 'text-muted-foreground'}`}
+                              className={`h-9 font-black text-[10px] uppercase rounded-md transition-all ${splitPayments[editingPaymentIndex].cardCategory === cat ? 'bg-white dark:bg-slate-800 shadow-sm text-primary' : 'text-muted-foreground'}`}
                             >
                               {cat} Card
                             </Button>
@@ -672,7 +691,7 @@ export const CheckoutDialog: React.FC = () => {
                             onChange={e => {
                               const n = [...splitPayments]; n[editingPaymentIndex].cardLast4 = e.target.value.replace(/\D/g,''); setSplitPayments(n);
                             }} 
-                            className="font-mono text-center text-2xl h-12 font-black tracking-[0.2em] bg-slate-50 dark:bg-slate-900 border-none rounded-xl" 
+                            className="font-mono text-center text-2xl h-12 font-black tracking-[0.2em] bg-slate-50 dark:bg-slate-900 border-none rounded-md" 
                           />
                         </div>
                         <div className="space-y-2">
@@ -683,7 +702,7 @@ export const CheckoutDialog: React.FC = () => {
                             onChange={e => {
                               const n = [...splitPayments]; n[editingPaymentIndex].cardAuthCode = e.target.value; setSplitPayments(n);
                             }} 
-                            className="text-center font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl placeholder:font-medium" 
+                            className="text-center font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-md placeholder:font-medium" 
                           />
                         </div>
                       </div>
@@ -700,7 +719,7 @@ export const CheckoutDialog: React.FC = () => {
                           onChange={e => {
                             const n = [...splitPayments]; n[editingPaymentIndex].chequeNo = e.target.value; setSplitPayments(n);
                           }} 
-                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-md"
                          />
                        </div>
                        <div className="space-y-1.5">
@@ -711,7 +730,7 @@ export const CheckoutDialog: React.FC = () => {
                           onChange={e => {
                             const n = [...splitPayments]; n[editingPaymentIndex].chequeDate = e.target.value; setSplitPayments(n);
                           }} 
-                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                          className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-md"
                          />
                        </div>
                     </div>
@@ -745,7 +764,7 @@ export const CheckoutDialog: React.FC = () => {
                     </div>
                   </div>
                 )}
-                <Button onClick={() => setEditingPaymentIndex(null)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-primary/20">
+                <Button onClick={() => setEditingPaymentIndex(null)} className="w-full h-14 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-primary/20">
                   Save Changes
                 </Button>
              </div>
@@ -755,9 +774,9 @@ export const CheckoutDialog: React.FC = () => {
 
       {/* Single Payment Detail Sub-Modals (Card) */}
       <Dialog open={cardDetailsOpen} onOpenChange={setCardDetailsOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md h-auto rounded-[2rem] p-6 bg-white dark:bg-slate-950 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+        <DialogContent size="sm" className="overflow-y-auto rounded-lg p-6 animate-in zoom-in-95 duration-200">
           <DialogHeader className="mb-2">
-            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2">
               <CreditCard className="w-5 h-5 text-indigo-500"/> Card Details
             </DialogTitle>
           </DialogHeader>
@@ -769,7 +788,7 @@ export const CheckoutDialog: React.FC = () => {
                   size="sm" 
                   variant={cardType === type ? 'default' : 'outline'} 
                   onClick={() => setCardType(type)} 
-                  className={`font-black text-[10px] uppercase h-10 transition-all rounded-xl ${cardType === type ? 'ring-2 ring-primary/20' : ''}`}
+                  className={`font-black text-[10px] uppercase h-10 transition-all rounded-md ${cardType === type ? 'ring-2 ring-primary/20' : ''}`}
                 >
                   {type}
                 </Button>
@@ -796,7 +815,7 @@ export const CheckoutDialog: React.FC = () => {
                               type="button"
                               variant={selectedCardCategory === cat ? 'default' : 'outline'}
                               onClick={() => setSelectedCardCategory(cat)}
-                              className={`h-11 rounded-xl font-black text-[10px] uppercase transition-all ${selectedCardCategory === cat ? 'ring-2 ring-primary/20 shadow-lg' : ''}`}
+                              className={`h-11 rounded-md font-black text-[10px] uppercase transition-all ${selectedCardCategory === cat ? 'ring-2 ring-primary/20 shadow-lg' : ''}`}
                            >
                               {cat} Card
                            </Button>
@@ -812,7 +831,7 @@ export const CheckoutDialog: React.FC = () => {
                 placeholder="0000" 
                 value={cardLast4} 
                 onChange={e => setCardLast4(e.target.value.replace(/\D/g,''))} 
-                className="font-mono text-center text-3xl h-16 font-black tracking-[0.4em] bg-slate-50 dark:bg-slate-900 border-none rounded-2xl shadow-inner" 
+                className="font-mono text-center text-3xl h-16 font-black tracking-[0.4em] bg-slate-50 dark:bg-slate-900 border-none rounded-lg shadow-inner" 
               />
             </div>
             <div className="space-y-2">
@@ -821,10 +840,10 @@ export const CheckoutDialog: React.FC = () => {
                 placeholder="Verification Code" 
                 value={cardAuthCode} 
                 onChange={e => setCardAuthCode(e.target.value)} 
-                className="h-12 border-none bg-slate-50 dark:bg-slate-900 rounded-xl font-bold px-4" 
+                className="h-12 border-none bg-slate-50 dark:bg-slate-900 rounded-md font-bold px-4" 
               />
             </div>
-            <Button onClick={() => setCardDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-indigo-500/20">
+            <Button onClick={() => setCardDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-indigo-500/20">
               Save & Continue
             </Button>
           </div>
@@ -833,9 +852,9 @@ export const CheckoutDialog: React.FC = () => {
 
       {/* Single Payment Detail Sub-Modals (Cheque) */}
       <Dialog open={chequeDetailsOpen} onOpenChange={setChequeDetailsOpen}>
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md h-auto rounded-[2rem] p-6 bg-white dark:bg-slate-950 border-none shadow-2xl animate-in zoom-in-95 duration-200">
+        <DialogContent size="sm" className="overflow-y-auto rounded-lg p-6 animate-in zoom-in-95 duration-200">
           <DialogHeader className="mb-2">
-            <DialogTitle className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-2">
               <Receipt className="w-5 h-5 text-amber-500"/> Cheque Details
             </DialogTitle>
           </DialogHeader>
@@ -847,7 +866,7 @@ export const CheckoutDialog: React.FC = () => {
                   placeholder="XXXXXX" 
                   value={chequeNo} 
                   onChange={e => setChequeNo(e.target.value)} 
-                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-md"
                 />
               </div>
               <div className="space-y-1.5">
@@ -856,7 +875,7 @@ export const CheckoutDialog: React.FC = () => {
                   type="date" 
                   value={chequeDate} 
                   onChange={e => setChequeDate(e.target.value)} 
-                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-xl"
+                  className="font-bold h-12 bg-slate-50 dark:bg-slate-900 border-none rounded-md"
                 />
               </div>
             </div>
@@ -882,7 +901,7 @@ export const CheckoutDialog: React.FC = () => {
                 disabled={!bankBranches.length}
               />
             </div>
-            <Button onClick={() => setChequeDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-2xl shadow-lg shadow-amber-500/20 mt-4">
+            <Button onClick={() => setChequeDetailsOpen(false)} className="w-full h-14 font-black uppercase tracking-widest rounded-lg shadow-lg shadow-amber-500/20 mt-4">
               Save & Continue
             </Button>
           </div>

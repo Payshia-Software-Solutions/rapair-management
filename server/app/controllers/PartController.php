@@ -25,6 +25,9 @@ class PartController extends Controller {
         $locId = $allLocations ? 0 : $this->currentLocationId($u);
         if ($locId > 0) {
             $rows = $this->partModel->listLocationBalances($locId, $q);
+            // Selling price of this location's price list (Standard when none); default_price keeps the master price
+            require_once '../app/helpers/PriceListHelper.php';
+            $rows = PriceListHelper::applyToRows(new Database(), $locId, $rows ?: []);
         } else {
             $rows = $this->partModel->list($q, $sid > 0 ? $sid : null);
         }
