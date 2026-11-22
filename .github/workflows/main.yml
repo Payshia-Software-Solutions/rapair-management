@@ -1,9 +1,9 @@
-name: 🚀 Deploy website on push QA API
+name: 🚀 Deploy ERP API (live-prod)
 on:
   push:
     branches:
-      - main  # Trigger deployment on push to the main branch
-      
+      - live-prod  # Production ERP API: deploys on push to live-prod
+
 jobs:
   web-deploy:
     name: 🎉 Deploy
@@ -14,8 +14,17 @@ jobs:
 
     - name: 📂 Sync files
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:        
+      with:
         server: ${{ secrets.FTP_SERVER }}
         username: ${{ secrets.FTP_USERNAME }}
         password: ${{ secrets.FTP_PASSWORD }}
-        local-dir: ./server/  # Tells the action to only upload the contents of the server folder
+        local-dir: ./server/
+        # Server-only files: never overwrite the production .env / config.php, and keep runtime data off git-deploy
+        exclude: |
+          **/.git*
+          **/.env*
+          config/config.php
+          scratch/**
+          logs/**
+          public/uploads/**
+          **/*.log

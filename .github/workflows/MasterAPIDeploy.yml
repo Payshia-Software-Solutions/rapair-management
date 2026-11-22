@@ -1,9 +1,9 @@
-name: 🚀 Deploy website on push QA API
+name: 🚀 Deploy Nexus API (nexus-server-api-live)
 on:
   push:
     branches:
-      - master-api  # Trigger deployment on push to the main branch
-      
+      - nexus-server-api-live  # Production Nexus API: deploys on push to nexus-server-api-live
+
 jobs:
   web-deploy:
     name: 🎉 Deploy
@@ -14,8 +14,16 @@ jobs:
 
     - name: 📂 Sync files
       uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-      with:        
-        server: ${{ secrets.MASTER_FTP_SERVER }}
-        username: ${{ secrets.MASTER_FTP_USERNAME }}
-        password: ${{ secrets.MASTER_FTP_PASSWORD }}
-        local-dir: ./nexus-portal-server/  # Tells the action to only upload the contents of the server folder
+      with:
+        server: ${{ secrets.NEXUS_FTP_SERVER }}
+        username: ${{ secrets.NEXUS_FTP_USERNAME }}
+        password: ${{ secrets.NEXUS_FTP_PASSWORD }}
+        local-dir: ./nexus-portal-server/
+        # vendor/ is deployed on purpose (cPanel has no composer). Keep the production .env and scratch data off the deploy.
+        exclude: |
+          **/.git*
+          **/.env*
+          config/config.php
+          scratch/**
+          logs/**
+          **/*.log
