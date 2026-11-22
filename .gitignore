@@ -7,7 +7,9 @@
 *.pem
 
 # ---- Dependencies and build output
-# server/vendor and nexus-portal-server/vendor stay tracked: cPanel deploys them (no composer there).
+# server/vendor is not tracked: run `composer install` on the server after deploy.
+# nexus-portal-server/vendor stays tracked: cPanel deploys it (no composer there).
+server/vendor/
 node_modules/
 .next/
 .next-shared/
