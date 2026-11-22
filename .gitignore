@@ -1,10 +1,35 @@
-# Local secrets / environment-specific config
+# ---- Secrets and per-machine config
+# Copy the *.example files and fill them in on each machine. Never commit the real ones.
+.env
+.env.*
+!.env.example
 /server/config/config.php
-/local-printer
-/local-printer-py
-bizzflow-printer-v9.exe
+*.pem
 
-# Desktop POS build and output artifacts
+# ---- Dependencies and build output
+# server/vendor and nexus-portal-server/vendor stay tracked: cPanel deploys them (no composer there).
+node_modules/
+.next/
+.next-shared/
+out/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- Logs and debug output
+*.log
+/server/logs/
+/server/debug_api.log
+
+# ---- Runtime data (files belong on the FTP content server, not in git)
+/server/public/uploads/
+/server/scratch/tenants/
+/server/scratch/tenancy/
+/server/scratch/*.json
+/nexus-portal-server/scratch/mail_outbox/
+
+# ---- Desktop POS build output
 /desktop_pos/bin/
 /desktop_pos/obj/
 /desktop_pos/.wix/
@@ -12,15 +37,15 @@ bizzflow-printer-v9.exe
 /desktop_pos/*.wixpdb
 /desktop_pos/*_log.txt
 /desktop_pos/build_out.txt
-/server/config/ftp.php
-/server/config/database.php
 
-# Shared (multi-tenant) deployment: per-workspace caches and uploads
-/server/scratch/tenants/
-/server/scratch/tenancy/
-/server/public/uploads/t/
+# ---- Local printer helper (see README in that folder)
+/local-printer
+/local-printer-py
+bizzflow-printer-v9.exe
 
-# Nexus local mail outbox (emails saved instead of sent)
-/nexus-portal-server/scratch/mail_outbox/
-/nexus-portal-server/.env
-/server/.env
+# ---- Tooling cache and IDE/OS files
+graphify-out/cache/
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
