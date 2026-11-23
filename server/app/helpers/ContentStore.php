@@ -30,16 +30,17 @@ class ContentStore {
             return rtrim(CONTENT_BASE_URL, '/') . '/' . trim($kind, '/') . '/' . $filename;
         }
 
-        if (class_exists('Tenancy', false) && Tenancy::enabled()) {
-            error_log('ContentStore: FTP is not configured for the shared deployment');
-            throw new Exception('File storage is not set up yet. Please contact support.');
-        }
-
+        // No content server: keep it on this server. On the shared deployment each workspace has its
+        // own folder (public/uploads/t/<slug>/...); deploys leave public/uploads alone.
         [$dir, $rel] = class_exists('Tenancy', false)
             ? Tenancy::uploadDir($kind)
             : [__DIR__ . '/../../public/uploads/' . $kind, 'uploads/' . $kind];
         if (!is_dir($dir) && !@mkdir($dir, 0775, true)) throw new Exception('Could not create the uploads folder.');
         if (!@move_uploaded_file($tmpPath, $dir . '/' . $filename)) throw new Exception('Could not save the file.');
-        return $rel . '/' . $filename;
+        // Full URL: the web app resolves bare names against the content server, which doesn't have this file
+        if (PHP_SAPI === 'cli' || empty($_SERVER['HTTP_HOST'])) return $rel . '/' . $filename;
+        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+        $base = rtrim(str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? '/')), '/');
+        return ($https ? 'https' : 'http') . '://' . $_SERVER['HTTP_HOST'] . $base . '/' . $rel . '/' . $filename;
     }
 }

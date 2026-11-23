@@ -2,6 +2,7 @@ import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { BizFlowAiAssistant } from "@/components/bizflow-ai-assistant";
+import { GettingStartedTour } from "@/components/getting-started-tour";
 
 export const metadata: Metadata = {
   title: 'BizzFlow | Business ERP System',
@@ -234,6 +235,7 @@ export default function RootLayout({
         {children}
         <Toaster />
         <BizFlowAiAssistant />
+        <GettingStartedTour />
       </body>
     </html>
   );

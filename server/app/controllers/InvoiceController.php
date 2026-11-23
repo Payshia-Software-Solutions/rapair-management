@@ -265,7 +265,16 @@ class InvoiceController extends Controller {
             }
 
             $db->commit();
-            
+
+            // Getting-started tour: remember the workspace's first POS sale (the tour's last step)
+            if (($data['source'] ?? '') === 'pos') {
+                try {
+                    $db->query("INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES ('tour_first_pos_invoice', :v)");
+                    $db->bind(':v', (string)$invoiceId);
+                    $db->execute();
+                } catch (Exception $e) { /* the tour is optional */ }
+            }
+
             $db->query("SELECT name FROM users WHERE id = :id");
             $db->bind(':id', $u['sub']);
             $userRow = $db->single();

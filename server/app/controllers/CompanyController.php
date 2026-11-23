@@ -95,8 +95,6 @@ class CompanyController extends Controller {
             $stored = $filename;
             $url = rtrim(CONTENT_BASE_URL, '/') . '/company/' . $filename;
         } else {
-            // The shared deployment keeps files off the app server: no FTP means no upload
-            if (class_exists('Tenancy', false) && Tenancy::enabled()) { $this->error('File storage is not set up yet. Please contact support.', 500); return; }
             // Per workspace on the shared deployment; public/uploads/company otherwise
             [$dir, $relDir] = class_exists('Tenancy', false) ? Tenancy::uploadDir('company') : [__DIR__ . '/../../public/uploads/company', 'uploads/company'];
             if (!is_dir($dir) && !@mkdir($dir, 0775, true)) { $this->error('Could not create the uploads folder', 500); return; }

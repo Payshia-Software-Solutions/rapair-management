@@ -217,7 +217,7 @@ export default function InventoryItemsListPage() {
               Import
             </Button>
             <Button asChild className="gap-2">
-              <Link href="/inventory/items/new">
+              <Link href="/inventory/items/new" data-tour="item-new">
                 <Plus className="w-4 h-4" />
                 New
               </Link>

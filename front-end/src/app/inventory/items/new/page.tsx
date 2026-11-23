@@ -294,7 +294,7 @@ export default function NewItemPage() {
             <Button variant="outline" onClick={() => router.push("/inventory/items")} disabled={saving}>
               Cancel
             </Button>
-            <Button className="gap-2" onClick={() => void save()} disabled={!canSave || saving}>
+            <Button className="gap-2" data-tour="item-save" onClick={() => void save()} disabled={!canSave || saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
               Create Product
             </Button>

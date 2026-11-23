@@ -614,6 +614,7 @@ export const SidebarCart: React.FC = () => {
               <Button 
                 size="lg" 
                 disabled={cart.length === 0} 
+                data-tour="pos-checkout"
                 onClick={openCheckoutDialog}
                 className={`${isCompact ? 'h-11 px-2 text-sm' : 'h-12 text-sm'} rounded-md font-semibold bg-primary hover:bg-primary/90`}
               >

@@ -262,6 +262,7 @@ class Provisioner {
         }
         TenantRegistry::pdo()->prepare("DELETE FROM tenants WHERE slug = ?")->execute([$slug]);
         self::removeDir(APPROOT . "/scratch/tenants/$slug");
+        self::removeDir(APPROOT . "/public/uploads/t/$slug"); // uploads kept on this server (no content server)
         Tenancy::forgetCache();
         $this->say("Workspace '$slug' and its database were deleted.");
     }

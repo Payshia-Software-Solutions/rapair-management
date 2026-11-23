@@ -109,6 +109,34 @@ class SetupController extends Controller {
         }
     }
 
+    /**
+     * GET /api/setup/tour  Getting-started checklist for a new workspace, ticked from real data:
+     * setup wizard -> first item -> first POS sale. Ends (and hides) after the first POS sale.
+     * POST /api/setup/tour {dismissed: true|false}  hides / shows it again.
+     */
+    public function tour() {
+        $this->admin();
+        $db = new Database();
+        if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+            $d = json_decode(file_get_contents('php://input'), true) ?: [];
+            $this->saveSetting($db, 'tour_dismissed', !empty($d['dismissed']) ? '1' : '');
+            $this->success(null, 'Saved');
+            return;
+        }
+        $s = $this->settings($db);
+        $sale = !empty($s['tour_first_pos_invoice']) || $this->count($db, "SELECT COUNT(*) n FROM invoices") > 0;
+        $steps = [
+            ['key' => 'setup', 'done' => !empty($s['setup_completed'])],
+            ['key' => 'item',  'done' => $this->count($db, "SELECT COUNT(*) n FROM parts") > 0],
+            ['key' => 'pos',   'done' => $sale],
+        ];
+        $this->success([
+            'steps' => $steps,
+            'finished' => $sale,
+            'dismissed' => !empty($s['tour_dismissed']),
+        ]);
+    }
+
     public function complete() {
         $this->admin();
         $this->saveSetting(new Database(), 'setup_completed', '1');

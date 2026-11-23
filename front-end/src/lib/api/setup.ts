@@ -22,3 +22,12 @@ export const markSetupStep = (key: 'setup_taxes_done' | 'setup_mail_skipped' | '
 export const sendTestMail = (to: string) => call<null>('/api/setup/test-mail', { to });
 export const completeSetup = () => call<null>('/api/setup/complete', {});
 export const reopenSetup = () => call<null>('/api/setup/reopen', {});
+
+/** Getting-started guide (until the first POS sale). Admins only. */
+export type TourStatus = {
+  steps: { key: 'setup' | 'item' | 'pos'; done: boolean }[];
+  finished: boolean;
+  dismissed: boolean;
+};
+export const fetchTour = () => call<TourStatus>('/api/setup/tour');
+export const setTourDismissed = (dismissed: boolean) => call<null>('/api/setup/tour', { dismissed });
