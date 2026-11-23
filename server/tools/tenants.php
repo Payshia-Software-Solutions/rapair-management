@@ -6,8 +6,8 @@
  *   php tools/tenants.php list
  *   php tools/tenants.php create <slug> "<Company>" <admin-email> [--plan=CODE] [--modules=pos,accounting] [--domain=erp.client.com]
  *   php tools/tenants.php migrate <slug>|--all                   schema sync (run after every deploy)
- *   php tools/tenants.php suspend|resume|delete <slug>
- *   php tools/tenants.php purge <slug>                           drop database + user (only after delete)
+ *   php tools/tenants.php suspend|resume <slug>
+ *   php tools/tenants.php delete <slug> --yes                    delete workspace + database + user (purge = same)
  *   php tools/tenants.php domain-add <slug> <domain>
  *   php tools/tenants.php domain-remove <domain>
  *   php tools/tenants.php run <slug>|--all <script.php> [args]   run a script (e.g. a cron job) for workspaces
@@ -104,12 +104,12 @@ try {
 
         case 'suspend': $p->suspend(need($pos[0] ?? null, 'slug')); $out('Suspended.'); break;
         case 'resume':  $p->resume(need($pos[0] ?? null, 'slug'));  $out('Resumed.'); break;
-        case 'delete':  $p->delete(need($pos[0] ?? null, 'slug'));  $out('Deleted (database kept). Use purge to remove it.'); break;
+        case 'delete':
         case 'purge':
             $slug = need($pos[0] ?? null, 'slug');
             if (empty($opts['yes'])) { fwrite(STDERR, "This permanently drops $slug's database. Re-run with --yes.\n"); exit(1); }
-            $p->purge($slug);
-            $out('Purged.');
+            $p->delete($slug);
+            $out('Deleted (database, user and registry entry removed).');
             break;
 
         case 'domain-add':    TenantRegistry::addDomain(need($pos[0] ?? null, 'slug'), need($pos[1] ?? null, 'domain'), 'custom'); $out('Added.'); break;

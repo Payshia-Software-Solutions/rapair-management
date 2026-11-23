@@ -45,7 +45,11 @@ class Provisioner {
             $this->say("Workspace '$slug' already exists and is active.");
             return ['slug' => $slug, 'url' => self::appUrl($slug), 'admin_email' => $row['admin_email'], 'admin_password' => null];
         }
-        if ($row && $row['status'] === 'deleted') throw new Exception("Workspace '$slug' was deleted. Purge it first or choose another name.");
+        if ($row && $row['status'] === 'deleted') {
+            // Left over from an older soft delete (or a delete that failed half way): clear it, start fresh
+            $this->delete($slug);
+            $row = null;
+        }
         if (!$row) {
             $t['slug'] = $slug;
             $t['db_host'] = defined('TENANCY_TENANT_DB_HOST') ? TENANCY_TENANT_DB_HOST : 'localhost';
@@ -219,18 +223,49 @@ class Provisioner {
         TenantRegistry::update($slug, ['status' => 'active']);
     }
 
-    /** Soft delete: the workspace stops working; the database stays until purge(). */
-    public function delete($slug) { self::requireTenant($slug); TenantRegistry::update($slug, ['status' => 'deleted']); }
-
-    /** Permanently drops the database and user. Only for workspaces already marked deleted. */
-    public function purge($slug) {
-        $t = self::requireTenant($slug);
-        if ($t['status'] !== 'deleted') throw new Exception("Delete '$slug' first; purge only removes deleted workspaces.");
+    /**
+     * Full delete: drops the workspace's database and DB user, removes its registry row and domains
+     * (domains cascade) and its local files. The name is free again, so a new workspace with the
+     * same name starts fresh. Already gone = success, so Nexus retries are safe.
+     */
+    public function delete($slug) {
+        $slug = strtolower(trim((string)$slug));
+        $t = TenantRegistry::findBySlug($slug);
+        if (!$t) { $this->say("Workspace '$slug' does not exist (already deleted)."); return; }
+        // Stop it working first, so nobody uses it while the database is dropped
+        TenantRegistry::update($slug, ['status' => 'deleted']);
         $host = DatabaseHostFactory::make();
-        if ($t['db_name']) $host->dropDatabase($t['db_name']);
-        if ($t['db_user']) $host->dropUser($t['db_user']);
+        try {
+            if ($t['db_name']) self::dropQuietly(function () use ($host, $t) { $host->dropDatabase($t['db_name']); });
+            if ($t['db_user']) self::dropQuietly(function () use ($host, $t) { $host->dropUser($t['db_user']); });
+        } catch (Throwable $e) {
+            TenantRegistry::update($slug, ['last_error' => mb_substr('Delete failed: ' . $e->getMessage(), 0, 2000)]);
+            throw $e;
+        }
         TenantRegistry::pdo()->prepare("DELETE FROM tenants WHERE slug = ?")->execute([$slug]);
+        self::removeDir(APPROOT . "/scratch/tenants/$slug");
         Tenancy::forgetCache();
+        $this->say("Workspace '$slug' and its database were deleted.");
+    }
+
+    /** Same as delete(); kept for the CLI. */
+    public function purge($slug) { $this->delete($slug); }
+
+    /** Runs a drop; a database/user that is already gone is not an error. */
+    private static function dropQuietly(callable $fn) {
+        try { $fn(); }
+        catch (Throwable $e) {
+            if (preg_match('/not exist|does not exist|doesn\'t exist|no such|not found|unknown database/i', $e->getMessage())) return;
+            throw $e;
+        }
+    }
+
+    private static function removeDir($dir) {
+        if (!is_dir($dir)) return;
+        foreach (new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST) as $f) {
+            $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+        }
+        @rmdir($dir);
     }
 
     /** Brings one workspace's database up to the current schema (run after each deploy). */

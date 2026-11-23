@@ -297,10 +297,32 @@ class SaaSController extends Controller {
         $model = new TenantModel();
         $oldData = $model->getByIdWithPackage($data['id']);
         if ($model->delete($data['id'])) {
+            // Tells the ERP to delete the workspace and its database (sent before the name is freed below)
             if ($oldData) $this->notifyProduct($oldData, $data['id']);
+            $this->freeDeletedTenant((int)$data['id']);
             return $this->json(['status' => 'success', 'message' => 'Tenant deleted']);
         } else {
             return $this->json(['status' => 'error', 'message' => 'Deletion failed'], 500);
+        }
+    }
+
+    /**
+     * A deleted tenant must not block a fresh start: removes its client logins (so the email can sign
+     * up again) and renames its workspace name (so the same name can be used again).
+     * The tenant row stays, marked Deleted, for invoice and payment history.
+     */
+    private function freeDeletedTenant(int $id) {
+        try {
+            $db = new \App\Core\Database();
+            $db->query("DELETE FROM portal_admins WHERE tenant_id = :id AND role = 'client'");
+            $db->bind(':id', $id);
+            $db->execute();
+            $db->query("UPDATE saas_tenants SET slug = CONCAT(slug, '-deleted-', id)
+                        WHERE id = :id AND status = 'Deleted' AND slug NOT LIKE '%-deleted-%'");
+            $db->bind(':id', $id);
+            $db->execute();
+        } catch (\Throwable $e) {
+            error_log('Free deleted tenant ' . $id . ': ' . $e->getMessage());
         }
     }
 
