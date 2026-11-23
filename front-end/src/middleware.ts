@@ -24,7 +24,12 @@ async function check(host: string): Promise<string | null> {
   let ttl = OK_TTL;
   try {
     const res = await fetch(`${API}/api/workspace/info`, {
-      headers: { "X-Tenant-Host": host, Accept: "application/json" },
+      // Browser-like User-Agent: cPanel firewalls (ModSecurity) answer 406 to bare server requests
+      headers: {
+        "X-Tenant-Host": host,
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0 (compatible; BizzFlowWeb/1.0)",
+      },
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
     });
