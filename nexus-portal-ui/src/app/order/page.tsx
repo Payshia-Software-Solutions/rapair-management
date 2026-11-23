@@ -84,6 +84,7 @@ function OrderContent() {
   const [showPassword, setShowPassword] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [emailTaken, setEmailTaken] = useState(false);
+  const [nameTaken, setNameTaken] = useState<string | null>(null);
   const [resendIn, setResendIn] = useState(0);
   const [resendNote, setResendNote] = useState<string | null>(null);
 
@@ -163,14 +164,17 @@ function OrderContent() {
     setForm(f => ({ ...f, [key]: value }));
     if (errors[key]) setErrors(e => ({ ...e, [key]: undefined }));
     if (key === 'email') setEmailTaken(false);
+    if (key === 'company_name' || key === 'contact_person') setNameTaken(null);
   };
 
   const fieldError = (key: keyof Form, f: Form = form): string | undefined => {
     switch (key) {
       case 'company_name':
-        return customerType === 'company' && !f.company_name.trim() ? 'Enter your company name.' : undefined;
+        if (customerType === 'company' && !f.company_name.trim()) return 'Enter your company name.';
+        return customerType === 'company' && nameTaken ? nameTaken : undefined;
       case 'contact_person':
-        return !f.contact_person.trim() ? (customerType === 'company' ? 'Enter the contact person.' : 'Enter your full name.') : undefined;
+        if (!f.contact_person.trim()) return customerType === 'company' ? 'Enter the contact person.' : 'Enter your full name.';
+        return customerType === 'solo' && nameTaken ? nameTaken : undefined;
       case 'nic_br_number': {
         const v = f.nic_br_number.trim();
         if (customerType === 'company') return v.length < 5 ? 'Enter a valid BR number (at least 5 characters).' : undefined;
@@ -233,8 +237,28 @@ function OrderContent() {
     } catch { /* the server re-checks on submit */ }
   };
 
-  const goTo = (target: number) => {
+  // The workspace name comes from the company name (or the person's name for solo accounts).
+  // Checked on step 1 so a taken name is shown right away, not after the last step.
+  const nameField: keyof Form = customerType === 'company' ? 'company_name' : 'contact_person';
+  const checkName = async (): Promise<boolean> => {
+    const name = (customerType === 'company' ? form.company_name : form.contact_person).trim();
+    if (!name) return true;
+    try {
+      const res = await fetch(`${API_BASE}/auth/check-name?name=${encodeURIComponent(name)}`);
+      const data = await res.json();
+      const msg = data.status === 'success' && data.available === false ? (data.message || 'This name is already taken.') : null;
+      setNameTaken(msg);
+      setErrors(e => ({ ...e, [nameField]: msg ?? undefined }));
+      if (msg) requestAnimationFrame(() => document.getElementById(`f-${nameField}`)?.focus());
+      return !msg;
+    } catch {
+      return true; // the server re-checks on submit
+    }
+  };
+
+  const goTo = async (target: number) => {
     if (target > step && !validateStep(step)) return;
+    if (target > step && step === 1 && !(await checkName())) return;
     const clamped = Math.min(target, 3);
     setStep(clamped);
     setMaxStep(m => Math.max(m, clamped));
@@ -272,6 +296,10 @@ function OrderContent() {
         sessionStorage.removeItem(DRAFT_KEY);
         setRegisteredEmail(payload.email);
         setResendIn(60);
+      } else if (result.field === 'company_name' || result.field === 'contact_person') {
+        setNameTaken(result.message || 'This name is already taken.');
+        setErrors(e => ({ ...e, [result.field]: result.message || 'This name is already taken.' }));
+        setStep(1);
       } else if (/terms/i.test(result.message || '')) {
         setErrors(e => ({ ...e, accept_terms: 'Please accept the terms to continue.' }));
         setStep(2);
@@ -474,13 +502,13 @@ function OrderContent() {
                       {customerType === 'company' && (
                         <Field id="f-company_name" label="Company name" required error={errors.company_name}>
                           <input id="f-company_name" className={inputCls(!!errors.company_name)} value={form.company_name} autoComplete="organization"
-                            onChange={(e) => update('company_name', e.target.value)} onBlur={() => blurField('company_name')}
+                            onChange={(e) => update('company_name', e.target.value)} onBlur={() => { blurField('company_name'); if (customerType === 'company') void checkName(); }}
                             aria-invalid={!!errors.company_name} {...describe('company_name')} placeholder="Acme Trading (Pvt) Ltd" />
                         </Field>
                       )}
                       <Field id="f-contact_person" label={customerType === 'company' ? 'Contact person' : 'Full name'} required error={errors.contact_person}>
                         <input id="f-contact_person" className={inputCls(!!errors.contact_person)} value={form.contact_person} autoComplete="name"
-                          onChange={(e) => update('contact_person', e.target.value)} onBlur={() => blurField('contact_person')}
+                          onChange={(e) => update('contact_person', e.target.value)} onBlur={() => { blurField('contact_person'); if (customerType === 'solo') void checkName(); }}
                           aria-invalid={!!errors.contact_person} {...describe('contact_person')} placeholder="Alex Rivera" />
                       </Field>
                       <Field id="f-nic_br_number" label={identityLabel} required error={errors.nic_br_number}

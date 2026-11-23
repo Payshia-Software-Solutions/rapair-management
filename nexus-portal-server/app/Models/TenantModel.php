@@ -90,6 +90,21 @@ class TenantModel {
         return $tenant;
     }
 
+    /** A Deleted tenant still holding $slug gives it up (renamed), so the name can be used again. */
+    public function releaseSlugFromDeleted($slug) {
+        $this->db->query("UPDATE saas_tenants SET slug = CONCAT(slug, '-deleted-', id) WHERE slug = :s AND status = 'Deleted'");
+        $this->db->bind(':s', $slug);
+        $this->db->execute();
+    }
+
+    /** True when a live (not Deleted) tenant uses $slug. */
+    public function slugTaken($slug, $exceptId = 0) {
+        $this->db->query("SELECT id FROM saas_tenants WHERE slug = :s AND status <> 'Deleted' AND id <> :id LIMIT 1");
+        $this->db->bind(':s', $slug);
+        $this->db->bind(':id', (int)$exceptId);
+        return (bool)$this->db->single();
+    }
+
     public function create($data) {
         $random = bin2hex(random_bytes(10));
         // Longer format: RM-SLUG-XXXX-XXXX-XXXX-XXXX (20 chars of random data)

@@ -4,7 +4,7 @@ import { adminFetch } from '@/lib/adminApi';
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { UserCheck, MoreVertical, RefreshCcw, Plus } from 'lucide-react';
+import { UserCheck, Trash2, RefreshCcw, Plus, Loader2 } from 'lucide-react';
 import Pagination from '@/components/Pagination';
 
 export default function UsersPage() {
@@ -12,6 +12,7 @@ export default function UsersPage() {
   const [loading,     setLoading]     = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [deletingId,  setDeletingId]  = useState<number | null>(null);
   const router = useRouter();
 
   const fetchData = async () => {
@@ -30,6 +31,20 @@ export default function UsersPage() {
   };
 
   useEffect(() => { fetchData(); }, []);
+
+  const deleteUser = async (u: any) => {
+    if (!window.confirm(`Delete the account ${u.full_name} (@${u.username})? They will no longer be able to sign in. This cannot be undone.`)) return;
+    setDeletingId(u.id);
+    try {
+      const res = await adminFetch('/admin/users/delete', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: u.id }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.status !== 'success') alert(data.message || 'Could not delete the account.');
+      else await fetchData();
+    } catch { alert('Could not reach the server.'); }
+    finally { setDeletingId(null); }
+  };
 
   const pageItems  = users.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   const totalPages = Math.ceil(users.length / itemsPerPage);
@@ -124,12 +139,21 @@ export default function UsersPage() {
                   </td>
                   <td className="px-5 py-3.5">
                     <div className="text-[13px] text-nx-ink dark:text-white truncate max-w-[150px]">{u.tenant_name || '—'}</div>
-                    <div className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">{u.tenant_name ? 'Enterprise' : 'System'}</div>
+                    <div className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">
+                      {u.tenant_status === 'Deleted' ? <span className="text-nx-danger">Tenant deleted</span> : u.tenant_id && !u.tenant_name ? <span className="text-nx-danger">Tenant missing</span> : u.tenant_name ? 'Enterprise' : 'System'}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <button className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors opacity-0 group-hover:opacity-100">
-                      <MoreVertical size={14} />
-                    </button>
+                    {u.deletable ? (
+                      <button type="button" onClick={() => void deleteUser(u)} disabled={deletingId === u.id}
+                        aria-label={`Delete account ${u.full_name}`} title="Delete account (not linked to a tenant)"
+                        className="inline-flex items-center gap-1.5 rounded-md border border-nx-danger/30 px-2.5 py-1 text-[11px] font-semibold text-nx-danger hover:bg-nx-danger-soft disabled:opacity-60 transition-colors">
+                        {deletingId === u.id ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Trash2 size={13} aria-hidden="true" />}
+                        Delete
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-nx-text-subtle" title={u.delete_blocked_reason || ''}>—</span>
+                    )}
                   </td>
                 </tr>
               ))}

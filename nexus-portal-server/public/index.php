@@ -95,6 +95,7 @@ $router->add('api/auth/login', ['controller' => 'AuthController', 'action' => 'l
 $router->add('api/auth/logout', ['controller' => 'AuthController', 'action' => 'logout']);
 $router->add('api/auth/check', ['controller' => 'AuthController', 'action' => 'check']);
 $router->add('api/auth/check-email', ['controller' => 'AuthController', 'action' => 'checkEmail']);
+$router->add('api/auth/check-name', ['controller' => 'AuthController', 'action' => 'checkName']);
 $router->add('api/auth/resend-verification', ['controller' => 'AuthController', 'action' => 'resendVerification'], 'POST');
 
 // SaaS Public Routes
@@ -109,6 +110,7 @@ $router->add('api/admin/requests', ['controller' => 'AdminController', 'action' 
 $router->add('api/admin/requests/update', ['controller' => 'AdminController', 'action' => 'updateStatus'], 'POST');
 $router->add('api/admin/users', ['controller' => 'AdminController', 'action' => 'listUsers']);
 $router->add('api/admin/users/create', ['controller' => 'AdminController', 'action' => 'createUser'], 'POST');
+$router->add('api/admin/users/delete', ['controller' => 'AdminController', 'action' => 'deleteUser'], 'POST');
 
 // SaaS Admin Routes
 $router->add('api/admin/tenants/provision-status', ['controller' => 'ProvisioningController', 'action' => 'provisionStatus']);
@@ -195,4 +197,18 @@ $router->add('api/admin/webhooks/run', ['controller' => 'ProvisioningController'
 $url = $_GET['url'] ?? '';
 $method = $_SERVER['REQUEST_METHOD'];
 
-$router->dispatch($url, $method);
+// Safety net: a database error must never reach the user as a raw PHP fatal error
+try {
+    $router->dispatch($url, $method);
+} catch (\PDOException $e) {
+    error_log('Unhandled DB error on ' . $url . ': ' . $e->getMessage());
+    $dup = ($e->errorInfo[1] ?? null) == 1062 || strpos($e->getMessage(), '1062') !== false;
+    if (!headers_sent()) { http_response_code($dup ? 409 : 500); header('Content-Type: application/json'); }
+    echo json_encode(['status' => 'error', 'message' => $dup
+        ? 'This already exists (the name or email is already used). Please choose a different one.'
+        : 'Something went wrong on our side. Please try again in a moment.']);
+} catch (\Throwable $e) {
+    error_log('Unhandled error on ' . $url . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
+    if (!headers_sent()) { http_response_code(500); header('Content-Type: application/json'); }
+    echo json_encode(['status' => 'error', 'message' => 'Something went wrong on our side. Please try again in a moment.']);
+}

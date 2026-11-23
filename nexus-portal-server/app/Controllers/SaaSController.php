@@ -164,10 +164,9 @@ class SaaSController extends Controller {
         $pkg = (new PackageModel())->getById((int)($d['package_id'] ?? 0));
         if (!$pkg) return 'Choose a valid subscription package.';
 
-        $db->query("SELECT id FROM saas_tenants WHERE slug = :slug AND status <> 'Deleted' AND id <> :id LIMIT 1");
-        $db->bind(':slug', $d['slug']);
-        $db->bind(':id', $excludeId ?? 0);
-        if ($db->single()) return 'That slug is already used by another tenant.';
+        $tm = new TenantModel();
+        if ($tm->slugTaken($d['slug'], $excludeId ?? 0)) return 'That workspace name (slug) is already used by another tenant.';
+        $tm->releaseSlugFromDeleted($d['slug']); // an old deleted tenant may still hold it
 
         return null;
     }

@@ -48,6 +48,20 @@ class AuthController extends Controller {
         return $this->json(['status' => 'success', 'available' => !$taken]);
     }
 
+    // GET /api/auth/check-name?name=  The workspace name made from the company (or solo) name, and
+    // whether it is free. Lets the signup form say so on the first step instead of at the end.
+    public function checkName() {
+        $name = trim((string)($_GET['name'] ?? ''));
+        $slug = $this->slugFor($name);
+        if ($name === '' || !preg_match('/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/', $slug) || in_array($slug, self::RESERVED_SLUGS, true)) {
+            return $this->json(['status' => 'success', 'available' => false, 'slug' => $slug,
+                'message' => 'Use a name with letters or digits (at least 3 characters).']);
+        }
+        $taken = (new \App\Models\TenantModel())->slugTaken($slug);
+        return $this->json(['status' => 'success', 'available' => !$taken, 'slug' => $slug,
+            'message' => $taken ? "The workspace name \"$slug\" is already taken. Add something to make it unique (for example your city)." : null]);
+    }
+
     // POST /api/auth/resend-verification {email}  Same answer whether or not the address has an account.
     public function resendVerification() {
         $data = $this->getPostData() ?: [];
@@ -101,18 +115,20 @@ class AuthController extends Controller {
             return $this->json(['status' => 'error', 'message' => 'This email is already registered. Sign in instead.'], 409);
         }
 
-        $db = new \App\Core\Database();
-        $db->query("SELECT id FROM saas_tenants WHERE slug = :slug AND status <> 'Deleted'");
-        $db->bind(':slug', $slug);
-        if ($db->single()) {
-            return $this->json(['status' => 'error', 'message' => 'That company name is already taken.'], 409);
+        $tenantCheck = new \App\Models\TenantModel();
+        if ($tenantCheck->slugTaken($slug)) {
+            return $this->json(['status' => 'error', 'field' => $type === 'solo' ? 'contact_person' : 'company_name',
+                'message' => "The workspace name \"$slug\" is already taken. Use a slightly different company name (for example add your city)."], 409);
         }
+        $tenantCheck->releaseSlugFromDeleted($slug);
+        $db = new \App\Core\Database();
 
         if (!(new \App\Models\PackageModel())->getById($packageId)) {
             return $this->json(['status' => 'error', 'message' => 'Choose a valid package.'], 400);
         }
 
         $tenantModel = new \App\Models\TenantModel();
+        try {
         $tenant = $tenantModel->create([
             'name' => $companyName,
             'address' => trim((string)($data['address'] ?? '')),
@@ -129,6 +145,13 @@ class AuthController extends Controller {
             'nic_br_number' => $identity,
             'contact_person_name' => $contactPerson,
         ]);
+        } catch (\PDOException $e) {
+            error_log('Register: ' . $e->getMessage());
+            $dup = ($e->errorInfo[1] ?? null) == 1062;
+            return $this->json(['status' => 'error', 'field' => $dup ? ($type === 'solo' ? 'contact_person' : 'company_name') : null, 'message' => $dup
+                ? 'That company name or email is already used. Try a slightly different company name.'
+                : 'Could not create the workspace. Try again.'], $dup ? 409 : 500);
+        }
         if (!$tenant) {
             return $this->json(['status' => 'error', 'message' => 'Could not create the workspace. Try again.'], 500);
         }

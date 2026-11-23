@@ -18,7 +18,8 @@ class AdminModel {
 
     public function getAll() {
         $this->db->query("
-            SELECT a.id, a.username, a.full_name, a.email_verified, a.role, a.created_at, t.name as tenant_name 
+            SELECT a.id, a.username, a.full_name, a.email_verified, a.role, a.created_at, a.tenant_id,
+                   t.name as tenant_name, t.status AS tenant_status
             FROM portal_admins a
             LEFT JOIN saas_tenants t ON a.tenant_id = t.id
             ORDER BY a.created_at DESC
