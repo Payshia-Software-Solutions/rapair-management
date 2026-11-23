@@ -264,6 +264,19 @@ class ProvisioningService {
                 if (stripos($x->getMessage(), 'No workspace') === false) $erpError = $x->getMessage();
             }
         }
+        // Stuck "sending": the request that carried the setup died before the reply came back (hosting
+        // killed it, timeout). Send it again: right away once the workspace server says it is done
+        // (it answers instantly then, with a fresh login), otherwise after 6 minutes.
+        if ($e && $e->status === 'sending' && $ps === 'pending') {
+            $erpDone = $erp && ($erp['status'] ?? '') === 'active';
+            $this->db->query("UPDATE saas_webhook_events SET status = 'pending', next_attempt_at = NOW(),
+                                     last_error = 'The reply was lost; sending again'
+                              WHERE id = :id AND status = 'sending'
+                                AND updated_at < NOW() - INTERVAL " . ($erpDone ? "45 SECOND" : "6 MINUTE"));
+            $this->db->bind(':id', (int)$e->id);
+            $this->db->execute();
+        }
+
         return [
             'provision_status' => $ps,
             'provision_error' => $t->provision_error ?? null,

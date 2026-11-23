@@ -43,7 +43,15 @@ class Provisioner {
         $row = TenantRegistry::findBySlug($slug);
         if ($row && $row['status'] === 'active') {
             $this->say("Workspace '$slug' already exists and is active.");
-            return ['slug' => $slug, 'url' => self::appUrl($slug), 'admin_email' => $row['admin_email'], 'admin_password' => null];
+            // Nexus asks again when it never got our first reply (request killed / timed out), so the
+            // client never received the login. For a workspace created in the last day, issue a fresh
+            // admin password so the welcome email can still go out. Older workspaces are left alone.
+            $password = null;
+            if (strtotime((string)$row['created_at']) > time() - 86400) {
+                try { $password = $this->resetAdminPassword($row); }
+                catch (Throwable $e) { $this->say('  (could not issue a new admin password: ' . $e->getMessage() . ')'); }
+            }
+            return ['slug' => $slug, 'url' => self::appUrl($slug), 'admin_email' => $row['admin_email'], 'admin_password' => $password];
         }
         if ($row && $row['status'] === 'deleted') {
             // Left over from an older soft delete (or a delete that failed half way): clear it, start fresh
@@ -177,6 +185,16 @@ class Provisioner {
                 ->execute([$adminName, $email, $hash, $roleId]);
         }
         TenantRegistry::update($row['slug'], ['admin_email' => $email]);
+        return $password;
+    }
+
+    /** New password for the workspace's first (admin) user; returns it once. */
+    private function resetAdminPassword(array $row) {
+        $pdo = $this->tenantPdo($row);
+        $id = $pdo->query("SELECT id FROM users ORDER BY id LIMIT 1")->fetchColumn();
+        if (!$id) return null;
+        $password = self::readablePassword();
+        $pdo->prepare("UPDATE users SET password_hash = ? WHERE id = ?")->execute([password_hash($password, PASSWORD_DEFAULT), (int)$id]);
         return $password;
     }
 

@@ -156,7 +156,9 @@ if ($type === 'tenant.info') {
         'created_at' => $t['created_at'],
     ]]);
 }
-if ($prev && $prev['status'] === 'done') {
+// tenant.created is safe to run again (create() resumes / answers for an active workspace), and a
+// repeat means Nexus lost our reply, so it must run to hand out a login again. Others replay the stored result.
+if ($prev && $prev['status'] === 'done' && $type !== 'tenant.created') {
     provision_reply(200, ['status' => 'success', 'duplicate' => true, 'result' => json_decode((string)$prev['result'], true)]);
 }
 if (!$prev) {
