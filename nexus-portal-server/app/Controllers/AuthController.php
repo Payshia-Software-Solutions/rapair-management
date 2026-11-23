@@ -198,14 +198,33 @@ class AuthController extends Controller {
             return $this->json(['status' => 'error', 'message' => 'Verification failed on server side'], 500);
         }
 
+        // Verification answers right away. The workspace setup takes minutes, so it is only queued here
+        // and runs after the reply is sent; the client follows it on the subscription page.
+        $svc = new \App\Services\ProvisioningService();
+        $queued = false;
         try {
-            (new \App\Services\ProvisioningService())->provision((int)$user->tenant_id, true);
-            $message = 'Email verified! Your 14-day trial workspace is being set up.';
+            $svc->provision((int)$user->tenant_id, false);
+            $queued = true;
+            $message = 'Email verified! Sign in to follow your workspace setup.';
         } catch (\Throwable $e) {
             error_log('Workspace setup after verification failed: ' . $e->getMessage());
             $message = 'Email verified. Your workspace setup is delayed; our team has been notified.';
         }
-        return $this->json(['status' => 'success', 'message' => $message]);
+
+        $body = json_encode(['status' => 'success', 'message' => $message]);
+        header('Content-Type: application/json');
+        if (!$queued) { echo $body; exit; }
+        ignore_user_abort(true);
+        set_time_limit(400);
+        session_write_close();
+        header('Connection: close');
+        header('Content-Length: ' . strlen($body));
+        echo $body;
+        while (ob_get_level() > 0) @ob_end_flush();
+        flush();
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        try { $svc->deliverDue(5); } catch (\Throwable $e) { error_log('Setup delivery after verification: ' . $e->getMessage()); }
+        exit;
     }
     public function logout() {
         $_SESSION = [];
