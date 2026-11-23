@@ -135,6 +135,27 @@ try {
     provision_log('REGISTRY ' . get_class($e) . ': ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
     provision_reply(500, ['status' => 'error', 'message' => 'Control database error (check TENANCY_CONTROL_DB_* and run tools/tenants.php init): ' . $e->getMessage()]);
 }
+// Read-only lookup for the Nexus admin page: where the workspace lives. Never returns the password.
+// Answered directly, not recorded in provision_events (it changes nothing).
+if ($type === 'tenant.info') {
+    $t = $slug !== '' ? TenantRegistry::findBySlug($slug) : null;
+    if (!$t) provision_reply(404, ['status' => 'error', 'message' => "No workspace '$slug' on this server"]);
+    $d = $pdo->prepare("SELECT domain, kind FROM tenant_domains WHERE tenant_id = ? ORDER BY id");
+    $d->execute([$t['id']]);
+    provision_reply(200, ['status' => 'success', 'result' => [
+        'slug' => $t['slug'],
+        'status' => $t['status'],
+        'db_host' => $t['db_host'],
+        'db_name' => $t['db_name'],
+        'db_user' => $t['db_user'],
+        'has_password' => !empty($t['db_pass_enc']),
+        'plan_code' => $t['plan_code'],
+        'provision_step' => $t['provision_step'],
+        'last_error' => $t['last_error'],
+        'domains' => $d->fetchAll(PDO::FETCH_ASSOC),
+        'created_at' => $t['created_at'],
+    ]]);
+}
 if ($prev && $prev['status'] === 'done') {
     provision_reply(200, ['status' => 'success', 'duplicate' => true, 'result' => json_decode((string)$prev['result'], true)]);
 }

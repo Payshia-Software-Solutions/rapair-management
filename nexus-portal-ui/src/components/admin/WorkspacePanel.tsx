@@ -5,6 +5,7 @@ import { Rocket, Loader2, ExternalLink, AlertTriangle, CheckCircle2, Server, Clo
 import { errMsg } from '@/lib/adminApi';
 import WebhookTable from './WebhookTable';
 import ProvisionDialog from './ProvisionDialog';
+import WorkspaceDatabase from './WorkspaceDatabase';
 
 type Props = {
   tenantId: string | number;
@@ -103,6 +104,8 @@ export default function WorkspacePanel({ tenantId, deployment, provisionStatus, 
           <p className="text-[13px] font-semibold text-slate-900 dark:text-white [overflow-wrap:anywhere]">{adminEmail || '—'}</p>
         </div>
       </div>
+
+      {deployment === 'shared' && key === 'ready' && <WorkspaceDatabase key={refresh} tenantId={tenantId} />}
 
       {/* State message */}
       {key === 'pending' && (

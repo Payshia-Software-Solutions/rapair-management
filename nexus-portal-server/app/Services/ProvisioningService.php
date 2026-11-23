@@ -191,6 +191,53 @@ class ProvisioningService {
         return $id;
     }
 
+    /**
+     * Live workspace details from the product (database host/name/user, domains, status).
+     * Signed like a webhook but sent directly and not queued: it only reads. No password comes back.
+     */
+    public function workspaceInfo($tenantId) {
+        $t = $this->tenant($tenantId);
+        if (!$t) throw new \InvalidArgumentException('Tenant not found');
+        $p = $this->productFor($t);
+        if (!$p) throw new \InvalidArgumentException('This tenant has no shared workspace (dedicated install or product not set up).');
+
+        $body = json_encode(['type' => 'tenant.info', 'data' => ['slug' => self::workspaceSlug($t->slug)]]);
+        $ts = time();
+        $ch = curl_init($p->provision_url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; NexusProvisioner/1.0; +https://nebulync.com)',
+            CURLOPT_ENCODING => '',
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                'Accept: application/json',
+                'X-Nexus-Event-Id: info_' . bin2hex(random_bytes(8)),
+                'X-Nexus-Timestamp: ' . $ts,
+                'X-Nexus-Signature: ' . hash_hmac('sha256', $ts . '.' . $body, $p->webhook_secret),
+            ],
+        ]);
+        $resp = curl_exec($ch);
+        $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $err = $resp === false ? curl_error($ch) : '';
+        curl_close($ch);
+
+        $json = json_decode((string)$resp, true);
+        if ($code === 200 && is_array($json) && ($json['status'] ?? '') === 'success') return $json['result'] ?? [];
+        if ($err) throw new \RuntimeException("Workspace server unreachable: $err");
+        if (is_array($json) && !empty($json['message'])) {
+            // An older product version doesn't know tenant.info yet
+            if (stripos($json['message'], 'Unknown event type') !== false) {
+                throw new \RuntimeException('The workspace server needs updating to show these details (deploy the latest ERP API).');
+            }
+            throw new \RuntimeException("HTTP $code: " . $json['message']);
+        }
+        throw new \RuntimeException(self::describeBadReply($code, $resp, $p->provision_url));
+    }
+
     // ---------------------------------------------------------------- delivery
 
     /** Sends everything that is due (cron: scripts/deliver_webhooks.php). Returns [sent, failed]. */

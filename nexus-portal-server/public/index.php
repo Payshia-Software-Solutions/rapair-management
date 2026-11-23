@@ -112,6 +112,7 @@ $router->add('api/admin/users/create', ['controller' => 'AdminController', 'acti
 
 // SaaS Admin Routes
 $router->add('api/admin/tenants/provision-status', ['controller' => 'ProvisioningController', 'action' => 'provisionStatus']);
+$router->add('api/admin/tenants/workspace-info', ['controller' => 'ProvisioningController', 'action' => 'workspaceInfo']);
 $router->add('api/admin/dashboard/summary', ['controller' => 'DashboardController', 'action' => 'summary']);
 $router->add('api/admin/tenants', ['controller' => 'SaaSController', 'action' => 'listTenants']);
 $router->add('api/admin/tenants/register', ['controller' => 'SaaSController', 'action' => 'registerTenant'], 'POST');

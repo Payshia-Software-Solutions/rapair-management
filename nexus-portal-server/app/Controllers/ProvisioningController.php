@@ -78,6 +78,17 @@ class ProvisioningController extends Controller {
         } catch (\Throwable $e) { return $this->fail($e); }
     }
 
+    // GET /api/admin/tenants/workspace-info?id=  (database and domains, read live from the product)
+    public function workspaceInfo() {
+        $this->checkAuth();
+        try {
+            $info = (new ProvisioningService())->workspaceInfo((int)($_GET['id'] ?? 0));
+            return $this->json(['status' => 'success', 'data' => $info]);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 502);
+        }
+    }
+
     // GET /api/admin/tenants/provision-status?id=  (polled by the progress dialog)
     public function provisionStatus() {
         $this->checkAuth();
