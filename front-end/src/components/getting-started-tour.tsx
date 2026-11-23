@@ -31,13 +31,44 @@ const STEPS: StepDef[] = [
     spots: [],
   },
   {
+    key: "units",
+    title: "Add units of measure",
+    text: "How you sell things: pcs, kg, box... Every item needs one.",
+    href: "/master-data/units",
+    spots: [{ path: "/master-data/units", target: "units-add", hint: "Click Add and create a unit, for example \"pcs\"." }],
+  },
+  {
+    key: "brands",
+    title: "Add a brand",
+    text: "The make of the products you sell. Every item needs one.",
+    href: "/master-data/brands",
+    spots: [{ path: "/master-data/brands", target: "brands-add", hint: "Click Add and create your first brand." }],
+  },
+  {
+    key: "collections",
+    title: "Add a collection",
+    text: "Groups items on the POS screen (for example Drinks, Snacks). Every item needs one.",
+    href: "/master-data/collections",
+    spots: [{ path: "/master-data/collections", target: "collections-add", hint: "Click Add and create your first collection." }],
+  },
+  {
     key: "item",
     title: "Add your first item",
-    text: "Something you sell, with its price.",
+    text: "Something you sell, with its price, unit, brand and collection.",
     href: "/inventory/items",
     spots: [
-      { path: "/inventory/items/new", target: "item-save", hint: "Enter the item name and selling price, then click Save." },
+      { path: "/inventory/items/new", target: "item-save", hint: "Fill in name, selling price, unit, brand and collection, then click Create Product." },
       { path: "/inventory/items", target: "item-new", hint: "Click New to add your first item." },
+    ],
+  },
+  {
+    key: "customer",
+    title: "Add your first customer",
+    text: "Name and phone number, so bills and credit sales can be tracked.",
+    href: "/cms/customers",
+    spots: [
+      { path: "/cms/customers/form", target: "customer-save", hint: "Enter the customer's name and phone, then save." },
+      { path: "/cms/customers", target: "customer-add", hint: "Click Add Customer." },
     ],
   },
   {
@@ -162,7 +193,7 @@ export function GettingStartedTour() {
 
   if (!status || status.finished || status.dismissed) return null;
 
-  const doneKeys = new Set(status.steps.filter(s => s.done).map(s => s.key));
+  const doneKeys = new Set<string>(status.steps.filter(s => s.done).map(s => s.key));
   const doneCount = STEPS.filter(s => doneKeys.has(s.key)).length;
   const current = STEPS.find(s => !doneKeys.has(s.key)) ?? null;
   const pct = Math.round((doneCount / STEPS.length) * 100);

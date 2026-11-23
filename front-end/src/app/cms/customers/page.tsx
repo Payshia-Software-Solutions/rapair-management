@@ -156,7 +156,7 @@ export default function CustomersPage() {
             <h2 className="text-3xl font-bold tracking-tight">Customers</h2>
             <p className="text-muted-foreground">Manage your customer database and profiles.</p>
           </div>
-          <Link href="/cms/customers/form">
+          <Link href="/cms/customers/form" data-tour="customer-add">
             <Button className="sm:w-fit">
               <Plus className="w-4 h-4 mr-2" />
               Add Customer

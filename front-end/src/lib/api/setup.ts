@@ -25,7 +25,7 @@ export const reopenSetup = () => call<null>('/api/setup/reopen', {});
 
 /** Getting-started guide (until the first POS sale). Admins only. */
 export type TourStatus = {
-  steps: { key: 'setup' | 'item' | 'pos'; done: boolean }[];
+  steps: { key: 'setup' | 'units' | 'brands' | 'collections' | 'item' | 'customer' | 'pos'; done: boolean }[];
   finished: boolean;
   dismissed: boolean;
 };

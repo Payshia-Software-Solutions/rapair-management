@@ -190,11 +190,25 @@ export default function NewItemPage() {
     })();
   }, [form.sku]);
 
-  const canSave = useMemo(() => {
-    const nameOk = form.part_name.trim().length > 0;
-    const priceOk = asNumOrNull(form.price) !== null;
-    return nameOk && priceOk && !skuTaken;
-  }, [form, skuTaken]);
+  // Master data every item must be linked to. Missing lists are added first (links shown above the form).
+  const missingMaster = useMemo(() => [
+    units.length === 0 ? { label: "Units", href: "/master-data/units" } : null,
+    brands.length === 0 ? { label: "Brands", href: "/master-data/brands" } : null,
+    collections.length === 0 ? { label: "Collections", href: "/master-data/collections" } : null,
+  ].filter(Boolean) as { label: string; href: string }[], [units, brands, collections]);
+
+  const missingFields = useMemo(() => {
+    const m: string[] = [];
+    if (!form.part_name.trim()) m.push("Product name");
+    if (asNumOrNull(form.price) === null) m.push("Selling price");
+    if (!(form.unit || "").trim()) m.push("Unit of measure");
+    if (!(form.brand_id || "").trim()) m.push("Brand");
+    if (collectionIds.length === 0) m.push("Collection");
+    return m;
+  }, [form, collectionIds]);
+
+  const canSave = useMemo(() => missingFields.length === 0 && missingMaster.length === 0 && !skuTaken,
+    [missingFields, missingMaster, skuTaken]);
 
   const save = async () => {
     if (!canSave) return;
@@ -301,6 +315,25 @@ export default function NewItemPage() {
           </div>
         </div>
 
+        {!loading && missingMaster.length > 0 && (
+          <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+            <p className="font-semibold">Set up your master data first</p>
+            <p className="mt-1">Every product needs a unit, a brand and a collection. Add at least one of each, then come back here:</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {missingMaster.map((m) => (
+                <Link key={m.href} href={m.href} className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-700">
+                  Add {m.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+        {!loading && missingMaster.length === 0 && missingFields.length > 0 && (
+          <p role="status" className="text-xs text-muted-foreground">
+            Required before saving: <span className="font-medium text-foreground">{missingFields.join(", ")}</span>
+          </p>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="w-8 h-8 animate-spin mr-3" />
@@ -372,7 +405,7 @@ export default function NewItemPage() {
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2 col-span-full">
-                      <Label>Product Name</Label>
+                      <Label>Product Name <span className="text-destructive">*</span></Label>
                       <Input className="text-lg font-bold" value={form.part_name} onChange={(e) => setForm((p) => ({ ...p, part_name: e.target.value }))} required placeholder="e.g. Brake Pads" />
                     </div>
                     <div className="space-y-2">
@@ -390,7 +423,7 @@ export default function NewItemPage() {
                       <Input value={form.part_number} onChange={(e) => setForm((p) => ({ ...p, part_number: e.target.value }))} placeholder="Optional part number..." />
                     </div>
                     <div className="space-y-2">
-                      <Label>Brand</Label>
+                      <Label>Brand <span className="text-destructive">*</span></Label>
                       <SearchableSelect
                         value={form.brand_id}
                         onValueChange={(v) => setForm((p) => ({ ...p, brand_id: v }))}
@@ -403,7 +436,7 @@ export default function NewItemPage() {
                       <Input value={form.barcode_number} onChange={(e) => setForm((p) => ({ ...p, barcode_number: e.target.value }))} placeholder="Optional barcode number..." />
                     </div>
                     <div className="space-y-2">
-                      <Label>Collections (for POS)</Label>
+                      <Label>Collections (for POS) <span className="text-destructive">*</span></Label>
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button type="button" variant="outline" className="w-full justify-between h-10">
@@ -465,7 +498,7 @@ export default function NewItemPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Unit of Measure</Label>
+                      <Label>Unit of Measure <span className="text-destructive">*</span></Label>
                       <Select value={form.unit} onValueChange={(v) => setForm((p) => ({ ...p, unit: v }))}>
                         <SelectTrigger><SelectValue placeholder="Select unit..." /></SelectTrigger>
                         <SelectContent>

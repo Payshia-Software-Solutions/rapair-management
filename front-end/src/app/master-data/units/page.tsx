@@ -111,7 +111,7 @@ export default function UnitsPage() {
           </Badge>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="gap-2 bg-primary" onClick={openAdd}>
+              <Button className="gap-2 bg-primary" data-tour="units-add" onClick={openAdd}>
                 <Plus className="w-4 h-4" />
                 Add Unit
               </Button>

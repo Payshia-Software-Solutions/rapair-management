@@ -125,10 +125,20 @@ class SetupController extends Controller {
         }
         $s = $this->settings($db);
         $sale = !empty($s['tour_first_pos_invoice']) || $this->count($db, "SELECT COUNT(*) n FROM invoices") > 0;
+        $items = $this->count($db, "SELECT COUNT(*) n FROM parts");
+        $customers = $this->count($db, "SELECT COUNT(*) n FROM customers");
+        // The workspace template can ship sample items or a walk-in customer: only rows added after the
+        // guide first ran count as "your first item / customer". Baseline saved once.
+        if (!isset($s['tour_base_items'])) { $this->saveSetting($db, 'tour_base_items', (string)$items); $s['tour_base_items'] = $items; }
+        if (!isset($s['tour_base_customers'])) { $this->saveSetting($db, 'tour_base_customers', (string)$customers); $s['tour_base_customers'] = $customers; }
         $steps = [
-            ['key' => 'setup', 'done' => !empty($s['setup_completed'])],
-            ['key' => 'item',  'done' => $this->count($db, "SELECT COUNT(*) n FROM parts") > 0],
-            ['key' => 'pos',   'done' => $sale],
+            ['key' => 'setup',       'done' => !empty($s['setup_completed'])],
+            ['key' => 'units',       'done' => $this->count($db, "SELECT COUNT(*) n FROM units") > 0],
+            ['key' => 'brands',      'done' => $this->count($db, "SELECT COUNT(*) n FROM brands") > 0],
+            ['key' => 'collections', 'done' => $this->count($db, "SELECT COUNT(*) n FROM collections") > 0],
+            ['key' => 'item',        'done' => $items > (int)$s['tour_base_items']],
+            ['key' => 'customer',    'done' => $customers > (int)$s['tour_base_customers']],
+            ['key' => 'pos',         'done' => $sale],
         ];
         $this->success([
             'steps' => $steps,

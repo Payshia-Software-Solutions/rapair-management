@@ -124,7 +124,7 @@ export default function CollectionsPage() {
           <Badge variant="outline" className="w-fit px-3 py-1 bg-indigo-50 text-indigo-700 border-indigo-200">
             {items.length} Groups
           </Badge>
-          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700" onClick={openAdd}>
+          <Button className="gap-2 bg-indigo-600 hover:bg-indigo-700" data-tour="collections-add" onClick={openAdd}>
             <Plus className="w-4 h-4" />
             New Collection
           </Button>
