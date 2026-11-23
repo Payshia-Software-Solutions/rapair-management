@@ -238,6 +238,58 @@ class ProvisioningService {
         throw new \RuntimeException(self::describeBadReply($code, $resp, $p->provision_url));
     }
 
+    /**
+     * Setup progress for the progress screens (client and admin): Nexus side (queued / sending / retrying)
+     * plus the real step the workspace server has reached (database, template, schema, seed, domain).
+     * The workspace server is only asked while setup is running.
+     */
+    public function progress($tenantId) {
+        $t = $this->tenant($tenantId);
+        if (!$t) throw new \InvalidArgumentException('Tenant not found');
+        $this->db->query("SELECT id, status, attempts, last_error, last_http_code, next_attempt_at, created_at, sent_at
+                          FROM saas_webhook_events WHERE tenant_id = :t AND event_type = 'tenant.created' ORDER BY id DESC LIMIT 1");
+        $this->db->bind(':t', (int)$tenantId);
+        $e = $this->db->single() ?: null;
+        $this->db->query("SELECT NOW() AS now");
+        $now = $this->db->single()->now;
+
+        $ps = $t->provision_status ?: 'none';
+        $erp = null; $erpError = null;
+        if ($ps === 'pending' || $ps === 'failed') {
+            try {
+                $info = $this->workspaceInfo($tenantId);
+                $erp = ['status' => $info['status'] ?? null, 'step' => $info['provision_step'] ?? null, 'last_error' => $info['last_error'] ?? null];
+            } catch (\Throwable $x) {
+                // "No workspace" = the server has not started on it yet; anything else is worth showing
+                if (stripos($x->getMessage(), 'No workspace') === false) $erpError = $x->getMessage();
+            }
+        }
+        return [
+            'provision_status' => $ps,
+            'provision_error' => $t->provision_error ?? null,
+            'workspace_url' => $t->workspace_url ?? null,
+            'now' => $now,
+            'event' => $e ? [
+                'status' => $e->status,
+                'attempts' => (int)$e->attempts,
+                'last_error' => $e->last_error,
+                'next_attempt_at' => $e->next_attempt_at,
+                'created_at' => $e->created_at,
+                'sent_at' => $e->sent_at,
+            ] : null,
+            'erp' => $erp,
+            'erp_error' => $erpError,
+        ];
+    }
+
+    /** True when this tenant's setup event is waiting to be sent and is due (so a page poll can send it). */
+    public function setupDue($tenantId) {
+        $this->db->query("SELECT COUNT(*) AS n FROM saas_webhook_events WHERE tenant_id = :t AND status = 'pending'
+                          AND (next_attempt_at IS NULL OR next_attempt_at <= NOW())");
+        $this->db->bind(':t', (int)$tenantId);
+        return (int)$this->db->single()->n > 0;
+    }
+
     // ---------------------------------------------------------------- delivery
 
     /** Sends everything that is due (cron: scripts/deliver_webhooks.php). Returns [sent, failed]. */
@@ -253,8 +305,8 @@ class ProvisioningService {
         foreach ($this->db->resultSet() as $row) {
             $this->deliver((int)$row->id) ? $sent++ : $failed++;
         }
-        // A delivery that crashed mid-way ("sending" for 15+ minutes) goes back in the queue
-        $this->db->query("UPDATE saas_webhook_events SET status = 'pending' WHERE status = 'sending' AND updated_at < NOW() - INTERVAL 15 MINUTE");
+        // A delivery that crashed mid-way ("sending" for 7+ minutes; the longest request times out at 5) goes back in the queue
+        $this->db->query("UPDATE saas_webhook_events SET status = 'pending' WHERE status = 'sending' AND updated_at < NOW() - INTERVAL 7 MINUTE");
         $this->db->execute();
         return [$sent, $failed];
     }

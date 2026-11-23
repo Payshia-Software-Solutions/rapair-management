@@ -30,6 +30,46 @@ class WorkspaceController extends Controller {
         return [$db, $tenant];
     }
 
+    // GET /api/client/workspace/progress  Polled by the setup progress screen.
+    // Technical error text stays out of the client's view (admins see it in Nexus admin).
+    public function progress() {
+        [, $tenant] = $this->requireClient();
+        $svc = new ProvisioningService();
+        try {
+            $p = $svc->progress((int)$tenant->id);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => 'Could not load the setup status.'], 500);
+        }
+        if ($p['event']) {
+            $p['event']['had_error'] = !empty($p['event']['last_error']);
+            unset($p['event']['last_error']);
+        }
+        $p['provision_error'] = $p['provision_error'] ? 'Setup hit a problem.' : null;
+        if ($p['erp']) unset($p['erp']['last_error']);
+        unset($p['erp_error']);
+        self::replyThenDeliver($svc, (int)$tenant->id, $p);
+    }
+
+    /** Sends the JSON reply, then (setup waiting to be sent) delivers it, so no cron is needed. */
+    public static function replyThenDeliver(ProvisioningService $svc, int $tenantId, array $data) {
+        $due = ($data['provision_status'] ?? '') === 'pending' && $svc->setupDue($tenantId);
+        $body = json_encode(['status' => 'success', 'data' => $data]);
+        header('Content-Type: application/json');
+        if (!$due) { echo $body; exit; }
+        ignore_user_abort(true);
+        set_time_limit(400);
+        session_write_close(); // the browser's next poll must not wait on this session
+        // Headers first (body length known), so the browser gets its answer before delivery starts
+        header('Connection: close');
+        header('Content-Length: ' . strlen($body));
+        echo $body;
+        while (ob_get_level() > 0) @ob_end_flush();
+        flush();
+        if (function_exists('fastcgi_finish_request')) fastcgi_finish_request();
+        try { $svc->deliverDue(5); } catch (\Throwable $e) { error_log('Delivery after progress poll: ' . $e->getMessage()); }
+        exit;
+    }
+
     // POST /api/client/workspace/retry-setup
     // Client retries a workspace setup that failed. Queues a fresh tenant.created event and delivers it now.
     public function retrySetup() {

@@ -5,8 +5,9 @@ import { API_BASE } from '@/config';
 import { BUSINESS_TYPES } from '@/lib/businessTypes';
 import WorkspaceAddressChange from '@/components/WorkspaceAddressChange';
 import CustomDomainCard from '@/components/CustomDomainCard';
+import SetupProgress from '@/components/SetupProgress';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Zap, RefreshCcw, FileText, Download, CheckCircle2, AlertCircle, Clock, ExternalLink, Copy, Check,
   Eye, EyeOff, Pencil, Loader2, Rocket, MessageCircle, ShieldAlert,
@@ -51,7 +52,6 @@ export default function SubscriptionPage() {
   const [retrying, setRetrying] = useState(false);
   const [retryMsg, setRetryMsg] = useState<string | null>(null);
   const [profileMsg, setProfileMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const polls = useRef(0);
 
   const handleDownload = (id: number, type = '') => {
     const a = document.createElement('a');
@@ -77,13 +77,8 @@ export default function SubscriptionPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  // While the workspace is being created, check again every few seconds (for about two minutes).
-  useEffect(() => {
-    if (subscription?.provision_status !== 'pending') { polls.current = 0; return; }
-    if (polls.current >= 20) return;
-    const t = setTimeout(() => { polls.current += 1; fetchData(true); }, 6000);
-    return () => clearTimeout(t);
-  }, [subscription, fetchData]);
+  // Live setup progress polls by itself; when it finishes, reload the page data
+  const onSetupFinished = useCallback(() => { void fetchData(true); }, [fetchData]);
 
   const copy = (text: string, key: string) => {
     void navigator.clipboard.writeText(text);
@@ -167,8 +162,6 @@ export default function SubscriptionPage() {
   const suspended = status === 'Suspended';
   const ps: string = s.provision_status || 'none';
   const wsReady = ps === 'ready' && !!s.workspace_url && !suspended;
-  const minutesSince = s.created_at ? (Date.now() - new Date(String(s.created_at).replace(' ', 'T')).getTime()) / 60000 : 0;
-  const stuck = ps === 'pending' && minutesSince > 10;
 
   const cycle: 'monthly' | 'yearly' = s.billing_cycle === 'yearly' ? 'yearly' : 'monthly';
   const monthly = parseFloat(s.monthly_price || '0');
@@ -264,6 +257,9 @@ export default function SubscriptionPage() {
 
         <section aria-label="Workspace setup" className={`${card} p-5`}>
           <p className={eyebrow}>Workspace</p>
+          {(ps === 'pending' || ps === 'failed') ? (
+            <div className="mt-4"><SetupProgress endpoint="/client/workspace/progress" onFinished={onSetupFinished} /></div>
+          ) : (
           <ol className="mt-4 space-y-3">
             {steps.map(st => (
               <li key={st.label} className="flex items-center gap-3 text-sm">
@@ -276,6 +272,7 @@ export default function SubscriptionPage() {
               </li>
             ))}
           </ol>
+          )}
 
           {ps === 'failed' && (
             <div className="mt-4 rounded-lg bg-nx-danger-soft p-3 text-xs text-nx-danger">
@@ -308,11 +305,6 @@ export default function SubscriptionPage() {
               </button>
               {retryMsg && <p role="status" className="mt-2">{retryMsg}</p>}
             </div>
-          )}
-          {stuck && (
-            <p role="status" className="mt-4 rounded-lg bg-nx-warning-soft p-3 text-xs text-nx-warning">
-              This is taking longer than usual. <a className="font-semibold underline" href={supportHref} target="_blank" rel="noreferrer">Contact support</a> if it does not finish soon.
-            </p>
           )}
 
           {s.workspace_url && ps === 'ready' && (

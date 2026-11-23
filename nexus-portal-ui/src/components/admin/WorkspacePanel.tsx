@@ -6,6 +6,7 @@ import { errMsg } from '@/lib/adminApi';
 import WebhookTable from './WebhookTable';
 import ProvisionDialog from './ProvisionDialog';
 import WorkspaceDatabase from './WorkspaceDatabase';
+import SetupProgress from '../SetupProgress';
 
 type Props = {
   tenantId: string | number;
@@ -109,9 +110,9 @@ export default function WorkspacePanel({ tenantId, deployment, provisionStatus, 
 
       {/* State message */}
       {key === 'pending' && (
-        <p role="status" className="flex items-start gap-2 rounded-xl border border-nx-warning/30 bg-nx-warning-soft px-4 py-3 text-xs text-nx-warning">
-          <Clock size={14} aria-hidden="true" className="mt-0.5 shrink-0" /> The workspace is being created. This usually takes under a minute.
-        </p>
+        <div className="rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+          <SetupProgress endpoint={`/admin/tenants/setup-progress?id=${tenantId}`} detail onFinished={finished} />
+        </div>
       )}
       {(key === 'failed' || error) && (
         <p role="alert" className="flex items-start gap-2 rounded-xl border border-nx-danger/30 bg-nx-danger-soft px-4 py-3 text-xs text-nx-danger">

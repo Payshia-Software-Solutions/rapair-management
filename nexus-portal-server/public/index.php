@@ -112,6 +112,7 @@ $router->add('api/admin/users/create', ['controller' => 'AdminController', 'acti
 
 // SaaS Admin Routes
 $router->add('api/admin/tenants/provision-status', ['controller' => 'ProvisioningController', 'action' => 'provisionStatus']);
+$router->add('api/admin/tenants/setup-progress', ['controller' => 'ProvisioningController', 'action' => 'setupProgress']);
 $router->add('api/admin/tenants/workspace-info', ['controller' => 'ProvisioningController', 'action' => 'workspaceInfo']);
 $router->add('api/admin/dashboard/summary', ['controller' => 'DashboardController', 'action' => 'summary']);
 $router->add('api/admin/tenants', ['controller' => 'SaaSController', 'action' => 'listTenants']);
@@ -131,6 +132,7 @@ $router->add('api/admin/packages/delete', ['controller' => 'SaaSController', 'ac
 $router->add('api/client/subscription', ['controller' => 'SaaSController', 'action' => 'getMySubscription']);
 $router->add('api/client/profile', ['controller' => 'SaaSController', 'action' => 'updateMyProfile'], 'POST');
 
+$router->add('api/client/workspace/progress', ['controller' => 'WorkspaceController', 'action' => 'progress']);
 $router->add('api/client/workspace/retry-setup', ['controller' => 'WorkspaceController', 'action' => 'retrySetup'], 'POST');
 $router->add('api/client/workspace/address/request',['controller' => 'WorkspaceController', 'action' => 'requestAddressChange'], 'POST');
 $router->add('api/client/workspace/address/confirm', ['controller' => 'WorkspaceController', 'action' => 'confirmAddressChange'], 'POST');

@@ -78,6 +78,19 @@ class ProvisioningController extends Controller {
         } catch (\Throwable $e) { return $this->fail($e); }
     }
 
+    // GET /api/admin/tenants/setup-progress?id=  (full detail, including error text)
+    public function setupProgress() {
+        $this->checkAuth();
+        $id = (int)($_GET['id'] ?? 0);
+        $svc = new ProvisioningService();
+        try {
+            $p = $svc->progress($id);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 404);
+        }
+        \App\Controllers\WorkspaceController::replyThenDeliver($svc, $id, $p);
+    }
+
     // GET /api/admin/tenants/workspace-info?id=  (database and domains, read live from the product)
     public function workspaceInfo() {
         $this->checkAuth();
