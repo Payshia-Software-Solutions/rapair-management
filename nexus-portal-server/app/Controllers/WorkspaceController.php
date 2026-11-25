@@ -151,7 +151,7 @@ class WorkspaceController extends Controller {
             . "<p style='font-size:28px;font-weight:700;letter-spacing:6px;margin:12px 0'>$code</p>"
             . "<p>It expires in " . self::OTP_MINUTES . " minutes. If you did not ask for this, ignore this email and consider changing your password.</p>";
         $sent = false;
-        try { $sent = Mailer::sendCustomEmail($admin->username, $admin->full_name ?: $admin->username, 'Your BizzFlow confirmation code', $body); }
+        try { $sent = Mailer::sendCustomEmail($admin->username, $admin->full_name ?: $admin->username, 'Your BizzFlow confirmation code', $body, null, true); }
         catch (\Throwable $e) { error_log('Address OTP mail: ' . $e->getMessage()); }
         if (!$sent) {
             return $this->json(['status' => 'error', 'message' => 'We could not send the confirmation email. Try again shortly.'], 502);

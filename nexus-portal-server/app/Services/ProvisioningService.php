@@ -502,7 +502,7 @@ class ProvisioningService {
                     . "<tr><td style='padding:4px 12px 4px 0;color:#64748b'>Temporary password</td><td><code>$pw</code></td></tr>"
                     . "</table><p>Please change the password after your first sign-in.</p>";
                 $sent = false;
-                try { $sent = Mailer::sendCustomEmail($t->admin_email, $t->name, 'Your BizzFlow workspace is ready', $body); }
+                try { $sent = Mailer::sendCustomEmail($t->admin_email, $t->name, 'Your BizzFlow workspace is ready', $body, null, true); }
                 catch (\Throwable $x) { error_log('Welcome email: ' . $x->getMessage()); }
                 // Log without the password
                 (new \App\Models\TenantModel())->logEmail(null, 'Workspace Ready', $t->admin_email, null, $sent ? 'Sent' : 'Failed',

@@ -25,7 +25,11 @@ class Mailer {
         }
     }
 
-    private static function getMailer() {
+    /**
+     * $globalCopies = false leaves out the global CC/BCC (Admin -> Settings -> Mail). Use it for mail
+     * meant only for its recipient: activation links, confirmation codes, passwords.
+     */
+    private static function getMailer($globalCopies = true) {
         // Fetch Mail Settings from DB
         $db = new Database();
         $db->query("SELECT setting_key, setting_value FROM saas_settings WHERE setting_key LIKE 'smtp_%'");
@@ -78,8 +82,8 @@ class Mailer {
 
         // Global CC and BCC as requested (wrapped in try-catch to prevent blocking)
         try {
-            if (!empty($globalCC)) $mail->addCC($globalCC);
-            if (!empty($globalBCC)) $mail->addBCC($globalBCC);
+            if ($globalCopies && !empty($globalCC)) $mail->addCC($globalCC);
+            if ($globalCopies && !empty($globalBCC)) $mail->addBCC($globalBCC);
         } catch (\Exception $e) {
             error_log("Global Mailer CC/BCC Error: " . $e->getMessage());
         }
@@ -87,14 +91,116 @@ class Mailer {
         return $mail;
     }
 
+    /** Company details from Admin -> Settings -> Company, for email footers. */
+    private static function company() {
+        static $c = null;
+        if ($c !== null) return $c;
+        $c = ['company_name' => 'Nebulync Software Pvt Ltd', 'company_address' => '', 'company_email' => '', 'company_phone' => '', 'company_website' => ''];
+        try {
+            $db = new Database();
+            $db->query("SELECT setting_key, setting_value FROM saas_settings WHERE setting_key LIKE 'company_%'");
+            foreach ($db->resultSet() as $r) if ($r->setting_value !== '') $c[$r->setting_key] = $r->setting_value;
+        } catch (\Throwable $e) {
+            error_log('Mailer company settings: ' . $e->getMessage());
+        }
+        return $c;
+    }
+
+    /**
+     * Branded email layout: table-based with inline styles so it renders the same in Gmail, Outlook and
+     * phone mail apps. $o: preheader, heading, body (HTML, already escaped), button => [label, url], note.
+     */
+    public static function layout(array $o) {
+        $e = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
+        $c = self::company();
+        $logo = rtrim(Config::SITE_URL(), '/') . '/bizzflow-logo.png';
+        $font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+        $heading = isset($o['heading'])
+            ? '<h1 style="margin:0 0 16px;font-size:22px;line-height:30px;font-weight:700;color:#0f172a;">' . $e($o['heading']) . '</h1>'
+            : '';
+
+        $button = '';
+        if (!empty($o['button'])) {
+            [$label, $url] = $o['button'];
+            $button = '
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin:28px 0;">
+                <tr><td align="center" bgcolor="#4f46e5" style="border-radius:8px;">
+                  <a href="' . $e($url) . '" target="_blank" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;line-height:20px;color:#ffffff;text-decoration:none;border-radius:8px;">' . $e($label) . '</a>
+                </td></tr>
+              </table>
+              <p style="margin:0 0 6px;font-size:13px;line-height:20px;color:#64748b;">If the button does not work, copy this link into your browser:</p>
+              <p style="margin:0 0 8px;font-size:13px;line-height:20px;word-break:break-all;"><a href="' . $e($url) . '" style="color:#4f46e5;text-decoration:underline;">' . $e($url) . '</a></p>';
+        }
+
+        $note = !empty($o['note'])
+            ? '<p style="margin:24px 0 0;padding-top:20px;border-top:1px solid #e2e8f0;font-size:13px;line-height:20px;color:#64748b;">' . $e($o['note']) . '</p>'
+            : '';
+
+        $contact = array_filter([$c['company_email'], $c['company_phone'], $c['company_website']]);
+        $footer = '<strong style="color:#475569;">' . $e($c['company_name']) . '</strong>'
+            . ($c['company_address'] ? '<br>' . $e($c['company_address']) : '')
+            . ($contact ? '<br>' . implode(' &middot; ', array_map($e, $contact)) : '');
+
+        return '<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="x-apple-disable-message-reformatting"><title>' . $e($o['heading'] ?? 'BizzFlow') . '</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;-webkit-text-size-adjust:100%;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;">' . $e($o['preheader'] ?? '') . '</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f1f5f9;">
+    <tr><td align="center" style="padding:32px 16px;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;font-family:' . $font . ';">
+        <tr><td align="left" style="padding:0 4px 20px;">
+          <img src="' . $e($logo) . '" alt="BizzFlow" height="32" style="display:block;height:32px;width:auto;border:0;">
+        </td></tr>
+        <tr><td style="background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:36px 36px 32px;font-size:15px;line-height:24px;color:#334155;">
+          ' . $heading . '
+          ' . ($o['body'] ?? '') . '
+          ' . $button . '
+          ' . $note . '
+        </td></tr>
+        <tr><td align="center" style="padding:24px 16px 0;font-size:12px;line-height:18px;color:#94a3b8;">
+          ' . $footer . '<br>&copy; ' . date('Y') . ' ' . $e($c['company_name']) . '. All rights reserved.
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>';
+    }
+
+    /** Plain-text version for mail apps that do not show HTML (also helps spam scores). */
+    private static function plainText($html) {
+        $t = preg_replace('/<(style|title)\b.*?<\/\1>/is', '', $html);
+        $t = preg_replace('/<div style="display:none.*?<\/div>/is', '', $t);
+        $t = preg_replace('/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/is', '$2 ($1)', $t);
+        $t = preg_replace('/<(br|\/p|\/h1|\/h2|\/tr|\/div)[^>]*>/i', "\n", $t);
+        $t = html_entity_decode(strip_tags($t), ENT_QUOTES, 'UTF-8');
+        $t = preg_replace('/[ \t]+/', ' ', $t);
+        $t = preg_replace("/ *\n */", "\n", $t);
+        return trim(preg_replace("/\n{3,}/", "\n\n", $t));
+    }
+
+    /** Account activation link. Sent to the new user only (no global CC/BCC). */
     public static function sendVerificationEmail($to, $name, $token) {
         try {
-            $mail = self::getMailer();
+            $mail = self::getMailer(false);
             $mail->addAddress($to, $name);
-            $link = Config::SITE_URL() . "/verify-email?token=" . $token;
+            $link = rtrim(Config::SITE_URL(), '/') . '/verify-email?token=' . urlencode($token);
+            $first = trim(explode(' ', trim((string)$name))[0] ?? '') ?: 'there';
+            $h = function ($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); };
             $mail->isHTML(true);
-            $mail->Subject = 'Verify Your Nexus ERP Account';
-            $mail->Body = "<h2>Welcome to Nexus ERP, $name!</h2><p>Please verify your email: <a href='$link'>$link</a></p>";
+            $mail->CharSet = 'UTF-8';
+            $mail->Subject = 'Activate your BizzFlow account';
+            $mail->Body = self::layout([
+                'preheader' => 'Confirm your email address to finish setting up your BizzFlow account.',
+                'heading' => 'Confirm your email address',
+                'body' => '<p style="margin:0 0 16px;">Hi ' . $h($first) . ',</p>'
+                    . '<p style="margin:0 0 16px;">Thank you for signing up for BizzFlow. Please confirm that <strong>'
+                    . $h($to) . '</strong> is your email address to activate your account.</p>'
+                    . '<p style="margin:0;">Once it is confirmed, you can sign in and we will set up your workspace.</p>',
+                'button' => ['Activate my account', $link],
+                'note' => 'If you did not create a BizzFlow account, you can ignore this email. No account will be activated.',
+            ]);
+            $mail->AltBody = self::plainText($mail->Body);
+            self::$lastBody = $mail->Body;
             return $mail->send();
         } catch (Exception $e) {
             error_log("Mailer Error: {$e->getMessage()}");
@@ -358,36 +464,29 @@ class Mailer {
         }
     }
 
-    public static function sendCustomEmail($to, $name, $subject, $body, $cc = null) {
+    /**
+     * $private = true: for mail with codes, passwords or anything only the recipient should see.
+     * Leaves out the global CC/BCC (and ignores $cc).
+     */
+    public static function sendCustomEmail($to, $name, $subject, $body, $cc = null, $private = false) {
         try {
-            $mail = self::getMailer();
+            $mail = self::getMailer(!$private);
             $mail->addAddress($to, $name);
-            self::addCCAddresses($mail, $cc);
+            if (!$private) self::addCCAddresses($mail, $cc);
 
             $mail->isHTML(true);
+            $mail->CharSet = 'UTF-8';
             $mail->Subject = $subject;
-
-            // Use a clean, branded template for custom emails
-            $mail->Body = "
-                <div style='font-family: sans-serif; color: #1e293b; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden;'>
-                    <div style='background: #f8fafc; padding: 40px; text-align: center; border-bottom: 1px solid #f1f5f9;'>
-                        <img src='https://nebulync.com/logo.png' alt='BizzFlow' style='height: 30px;' />
-                    </div>
-                    <div style='line-height: 1.6; padding: 40px;'>
-                        " . $body . "
-                    </div>
-                    <div style='margin-top: 40px; padding: 20px 40px; border-top: 1px solid #f1f5f9; font-size: 12px; color: #94a3b8; background: #f8fafc;'>
-                        &copy; " . date('Y') . " BizzFlow ERP. All rights reserved.
-                    </div>
-                </div>
-            ";
+            $mail->Body = self::layout(['preheader' => $subject, 'body' => $body]);
+            $mail->AltBody = self::plainText($mail->Body);
             self::$lastBody = $mail->Body;
             return $mail->send();
         } catch (Exception $e) {
-            error_log("Custom Mailer Error: " . $mail->ErrorInfo);
+            error_log("Custom Mailer Error: " . $e->getMessage());
             return false;
         }
     }
+
     public static function sendSuspensionEmail($to, $name, $reason) {
         try {
             $mail = self::getMailer();
