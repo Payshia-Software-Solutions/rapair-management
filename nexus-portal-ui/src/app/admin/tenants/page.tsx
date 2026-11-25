@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { RefreshCcw, Search, Plus, Edit, Trash2, Copy, Check, Eye, EyeOff, ExternalLink, AlertTriangle, Clock, X, Loader2 } from 'lucide-react';
+import { RefreshCcw, Search, Plus, Edit, Trash2, Copy, Check, Eye, EyeOff, ExternalLink, AlertTriangle, Clock, ChevronRight } from 'lucide-react';
 import Pagination from '@/components/Pagination';
 import { adminFetch } from '@/lib/adminApi';
 
@@ -89,7 +89,6 @@ export default function TenantsPage() {
   const [page, setPage] = useState(1);
   const [revealed, setRevealed] = useState<Record<string, boolean>>({});
   const [copied, setCopied] = useState<string | null>(null);
-  const [approving, setApproving] = useState<string | null>(null);
   const perPage = 10;
 
   const load = async () => {
@@ -139,27 +138,6 @@ export default function TenantsPage() {
     setTimeout(() => setCopied(null), 1600);
   };
 
-  const suspend = async (t: Tenant) => {
-    const reason = prompt(`Suspend ${t.name}? Enter the reason (the customer is emailed):`, 'Account suspended by administrator');
-    if (!reason) return;
-
-    setApproving(`reject-${t.id}`);
-    try {
-      const res = await adminFetch('/admin/tenants/suspend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: t.id, reason }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.status !== 'success') throw new Error(data.message || 'Rejection failed.');
-      load();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setApproving(null);
-    }
-  };
-
   const remove = async (t: Tenant) => {
     if (!confirm(`Delete ${t.name}? Their workspace stops working and the record is hidden. This cannot be undone here.`)) return;
     try {
@@ -205,36 +183,66 @@ export default function TenantsPage() {
 
       {/* Filters */}
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div role="tablist" aria-label="Filter by status" className="flex flex-wrap gap-1 rounded-xl border border-nx-line bg-white p-1 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+        <div role="tablist" aria-label="Filter by status" className="flex gap-1 overflow-x-auto rounded-xl border border-nx-line bg-white p-1 dark:border-nx-line-dark dark:bg-nx-surface-dark">
           {TABS.map(t => {
             const on = tab === t;
             return (
               <button key={t} role="tab" aria-selected={on} onClick={() => setTab(t)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${on ? 'bg-nx-accent-soft text-nx-accent dark:bg-nx-accent/15 dark:text-nx-accent-light' : 'text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'}`}>
+                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${on ? 'bg-nx-accent-soft text-nx-accent dark:bg-nx-accent/15 dark:text-nx-accent-light' : 'text-nx-text-muted hover:text-nx-ink dark:text-nx-text-subtle dark:hover:text-white'}`}>
                 {t === 'All' ? 'All' : STATUS_STYLE[t]?.label ?? t}
                 <span className="rounded-md bg-nx-surface-muted px-1.5 text-xs tabular-nums text-nx-text-muted dark:bg-nx-line-dark dark:text-nx-text-subtle">{counts[t] ?? 0}</span>
               </button>
             );
           })}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row">
           <select value={plan} onChange={e => setPlan(e.target.value)} aria-label="Filter by plan"
             className="rounded-lg border border-nx-line bg-white px-3 py-2 text-sm text-nx-ink focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white">
             <option value="all">All plans</option>
             {plans.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-nx-text-subtle" />
             <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Name, slug, email or license…" aria-label="Search tenants"
-              className="w-72 rounded-lg border border-nx-line bg-white py-2 pl-9 pr-3 text-sm text-nx-ink placeholder:text-nx-text-subtle focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white" />
+              className="w-full sm:w-72 rounded-lg border border-nx-line bg-white py-2 pl-9 pr-3 text-sm text-nx-ink placeholder:text-nx-text-subtle focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 dark:border-nx-line-dark dark:bg-nx-surface-dark dark:text-white" />
           </div>
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-nx-line bg-white dark:border-nx-line-dark dark:bg-nx-surface-dark">
+      {/* Phones: one card per tenant. Suspend and the keys live in the tenant view. */}
+      <div className="overflow-hidden rounded-xl border border-nx-line bg-white md:hidden dark:border-nx-line-dark dark:bg-nx-surface-dark">
+        {loading && <p className="px-4 py-10 text-center text-sm text-nx-text-subtle">Loading tenants…</p>}
+        {!loading && pageItems.length === 0 && <p className="px-4 py-10 text-center text-sm text-nx-text-subtle">No tenants match these filters</p>}
+        <ul className="divide-y divide-nx-surface-muted dark:divide-nx-line-dark">
+          {!loading && pageItems.map(t => {
+            const st = STATUS_STYLE[t.status] ?? FALLBACK;
+            const life = lifecycle(t);
+            return (
+              <li key={t.id}>
+                <button type="button" onClick={() => router.push(`/admin/tenants/edit/${t.id}`)}
+                  className={`flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-nx-surface-soft ${t.status === 'Trial' && life.tone === 'danger' ? 'bg-nx-danger-soft/40' : ''}`}>
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${avatarTone(t.name)}`}>{t.name.slice(0, 2).toUpperCase()}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-nx-ink dark:text-white">{t.name}</span>
+                      <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium ${st.pill}`}><span className={`h-1.5 w-1.5 rounded-full ${st.dot}`} />{st.label}</span>
+                    </span>
+                    <span className="block truncate text-xs text-nx-text-muted dark:text-nx-text-subtle">{t.package_name || 'No package'} · <span className="capitalize">{t.billing_cycle || 'monthly'}</span> · {t.currency || 'USD'}</span>
+                    {life.text && <span className={`block truncate text-[11px] ${life.tone === 'danger' ? 'font-medium text-nx-danger' : life.tone === 'warn' ? 'text-nx-warning' : 'text-nx-text-subtle'}`}>{life.text}</span>}
+                  </span>
+                  <ChevronRight size={16} className="shrink-0 text-nx-text-subtle" aria-hidden="true" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} totalItems={filtered.length} itemsPerPage={perPage} />
+      </div>
+
+      {/* Table (tablets and up) */}
+      <div className="hidden overflow-hidden rounded-xl border border-nx-line bg-white md:block dark:border-nx-line-dark dark:bg-nx-surface-dark">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left">
+          <table className="w-full min-w-[860px] text-left">
             <thead className="border-b border-nx-line bg-nx-surface-soft text-[11px] font-semibold uppercase tracking-wider text-nx-text-muted dark:border-nx-line-dark dark:bg-nx-surface-dark-2 dark:text-nx-text-subtle">
               <tr>
                 <th className="px-5 py-3">Tenant</th>
@@ -328,12 +336,6 @@ export default function TenantsPage() {
 
                     <td className="px-5 py-4">
                       <div className="flex items-center justify-end gap-1 opacity-70 transition-opacity group-hover:opacity-100">
-                        {t.status !== 'Suspended' && (
-                          <button onClick={() => suspend(t)} disabled={approving !== null} className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium text-nx-danger hover:bg-nx-danger-soft disabled:opacity-60">
-                            {approving === `reject-${t.id}` ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                            Suspend
-                          </button>
-                        )}
                         <button onClick={() => router.push(`/admin/tenants/edit/${t.id}`)} className="rounded-md p-2 text-nx-text-subtle hover:bg-nx-surface-muted hover:text-nx-accent dark:hover:bg-nx-line-dark" aria-label={`Edit ${t.name}`}>
                           <Edit size={15} />
                         </button>

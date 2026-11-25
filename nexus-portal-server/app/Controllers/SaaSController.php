@@ -101,9 +101,10 @@ class SaaSController extends Controller {
         $tenant = $model->getByIdWithPackage($id);
         
         if ($tenant) {
+            $tenant->billing = $this->billingSummary((int)$tenant->id);
             return $this->json(['status' => 'success', 'data' => $tenant]);
         }
-        
+
         // Debug: check if it exists at all
         error_log("Tenant not found for ID: " . $id);
         return $this->json(['status' => 'error', 'message' => 'Tenant not found for ID: ' . $id], 404);
@@ -279,6 +280,46 @@ class SaaSController extends Controller {
         } else {
             return $this->json(['status' => 'error', 'message' => 'Update failed'], 500);
         }
+    }
+
+    /** Money at a glance for the tenant view: totals, outstanding, overdue and the latest invoices. */
+    private function billingSummary($tenantId) {
+        \App\Services\BillingService::syncOverdue();
+        $db = new \App\Core\Database();
+        $db->query("
+            SELECT COUNT(*) AS invoices,
+                   COALESCE(SUM(CASE WHEN i.status <> 'Cancelled' THEN i.amount END), 0) AS billed,
+                   COALESCE(SUM(CASE WHEN i.status <> 'Cancelled' THEN GREATEST(i.amount - COALESCE(pp.paid, 0), 0) END), 0) AS outstanding,
+                   SUM(i.status = 'Overdue') AS overdue_count,
+                   COALESCE(SUM(pp.paid), 0) AS paid,
+                   MAX(i.currency) AS currency
+            FROM saas_invoices i
+            LEFT JOIN (SELECT invoice_id, SUM(amount) AS paid FROM saas_payments GROUP BY invoice_id) pp ON pp.invoice_id = i.id
+            WHERE i.tenant_id = :tid");
+        $db->bind(':tid', $tenantId);
+        $s = $db->single();
+
+        $db->query("
+            SELECT i.id, i.invoice_number, i.billing_month, i.amount, i.currency, i.status, i.due_date,
+                   GREATEST(i.amount - COALESCE((SELECT SUM(amount) FROM saas_payments WHERE invoice_id = i.id), 0), 0) AS balance
+            FROM saas_invoices i WHERE i.tenant_id = :tid ORDER BY i.created_at DESC, i.id DESC LIMIT 5");
+        $db->bind(':tid', $tenantId);
+        $recent = $db->resultSet();
+
+        $db->query("SELECT p.amount, p.created_at, p.receipt_number FROM saas_payments p JOIN saas_invoices i ON i.id = p.invoice_id
+                    WHERE i.tenant_id = :tid ORDER BY p.created_at DESC LIMIT 1");
+        $db->bind(':tid', $tenantId);
+
+        return [
+            'invoices' => (int)$s->invoices,
+            'billed' => (float)$s->billed,
+            'paid' => (float)$s->paid,
+            'outstanding' => (float)$s->outstanding,
+            'overdue_count' => (int)$s->overdue_count,
+            'currency' => $s->currency,
+            'last_payment' => $db->single() ?: null,
+            'recent' => $recent,
+        ];
     }
 
     public function updateTenantStatus() {

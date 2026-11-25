@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Loader2, Save, RefreshCcw, ShieldCheck, Layers, Plus, Trash2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import WorkspacePanel from '@/components/admin/WorkspacePanel';
+import TenantSummary, { type TenantInfo } from '@/components/admin/TenantSummary';
 
 const inputCls = `
   w-full rounded-lg border border-nx-line bg-nx-surface-muted py-2.5 px-3.5
@@ -24,6 +25,7 @@ export default function TenantEditPage() {
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [packages, setPackages] = useState<any[]>([]);
+  const [summary,  setSummary]  = useState<TenantInfo | null>(null);
   const [formData, setFormData] = useState<{
     id: string;
     name: string;
@@ -82,6 +84,7 @@ export default function TenantEditPage() {
             ...tenant,
             billing_cc_email: ccEmails
           });
+          setSummary(tenant);
         }
       } catch (err) {
         console.error(err);
@@ -99,7 +102,8 @@ export default function TenantEditPage() {
       const d = await res.json();
       if (d.status === 'success') {
         const t = d.data;
-        setFormData(prev => ({ ...prev, deployment: t.deployment, provision_status: t.provision_status, provision_error: t.provision_error, workspace_url: t.workspace_url } as typeof prev));
+        setSummary(t);
+        setFormData(prev => ({ ...prev, status: t.status, deployment: t.deployment, provision_status: t.provision_status, provision_error: t.provision_error, workspace_url: t.workspace_url } as typeof prev));
       }
     } catch { /* panel shows the last known state */ }
   };
@@ -111,8 +115,10 @@ export default function TenantEditPage() {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { billing, ...rest } = formData as typeof formData & { billing?: unknown };
       const payload = {
-        ...formData,
+        ...rest,
         billing_cc_email: formData.billing_cc_email.map(e => e.trim()).filter(Boolean).join(',') || null
       };
       const res = await adminFetch(`/admin/tenants/update`, {
@@ -174,7 +180,7 @@ export default function TenantEditPage() {
   }
 
   return (
-    <div className="w-full p-4 sm:p-8 space-y-6 pb-24">
+    <div className="w-full p-4 sm:p-8 space-y-6 pb-28 lg:pb-24">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>
@@ -186,7 +192,7 @@ export default function TenantEditPage() {
           </button>
           <div className="flex items-center gap-3">
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Edit {formData.name || 'Tenant Instance'}
+              {formData.name || 'Tenant'}
             </h1>
             <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
               formData.status === 'Active'
@@ -202,7 +208,7 @@ export default function TenantEditPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="hidden items-center gap-2.5 sm:flex">
           <button
             type="button"
             onClick={() => router.push('/admin/tenants')}
@@ -221,6 +227,8 @@ export default function TenantEditPage() {
           </button>
         </div>
       </div>
+
+      {summary && <TenantSummary tenant={summary} onChanged={reloadTenant} />}
 
       {/* Workspace on the product's shared deployment (automatic provisioning) */}
       <WorkspacePanel
@@ -241,7 +249,7 @@ export default function TenantEditPage() {
         <div className="lg:col-span-8 xl:col-span-9 space-y-6">
           
           {/* Card 1: Enterprise Profile & Contact */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-accent-soft text-nx-accent dark:text-nx-accent-light">
                 <Layers size={18} />
@@ -302,7 +310,7 @@ export default function TenantEditPage() {
           </div>
 
           {/* Card 2: Subscription & Billing Parameters */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-success-soft text-nx-success">
                 <ShieldCheck size={18} />
@@ -383,7 +391,7 @@ export default function TenantEditPage() {
           </div>
 
           {/* Card 3: Billing CC Recipients */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-4">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-white">Billing CC Recipients</h3>
@@ -432,7 +440,7 @@ export default function TenantEditPage() {
           </div>
 
           {/* Card 4: Keys & Security */}
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-4 sm:p-8 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-6">
             <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 dark:border-slate-800">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-nx-warning-soft text-nx-warning">
                 <ShieldCheck size={18} />
@@ -557,6 +565,16 @@ export default function TenantEditPage() {
         </div>
 
       </form>
+
+      {/* Phones: save stays in reach while scrolling the long form */}
+      <div className="fixed inset-x-0 bottom-0 z-30 flex gap-2 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden dark:border-slate-800 dark:bg-slate-900/95">
+        <button type="button" onClick={() => router.push('/admin/tenants')}
+          className="flex-1 rounded-xl border border-slate-200 py-3 text-xs font-bold text-slate-700 dark:border-slate-700 dark:text-slate-300">Back</button>
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="flex flex-[2] items-center justify-center gap-2 rounded-xl bg-nx-accent-strong py-3 text-xs font-bold text-white disabled:opacity-60">
+          {saving ? <Loader2 size={15} className="animate-spin" /> : <Save size={15} />} {saving ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
     </div>
   );
 }

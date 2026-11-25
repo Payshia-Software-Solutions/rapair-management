@@ -7,6 +7,35 @@ import { useTheme } from 'next-themes';
 import AdminSidebar from '@/components/AdminSidebar';
 import AdminTopBar from '@/components/AdminTopBar';
 
+/**
+ * Gives every admin table cell a data-label from its column header, so the phone CSS in globals.css
+ * can show each row as a card. Watches for rows added later (loading, paging, filters).
+ */
+function useStackedTables() {
+  useEffect(() => {
+    const label = () => {
+      document.querySelectorAll<HTMLTableElement>('.nx-stack table:not([data-no-stack])').forEach(table => {
+        const heads = Array.from(table.querySelectorAll('thead th')).map(th => (th.textContent || '').trim());
+        if (!heads.length) return;
+        table.querySelectorAll('tbody tr').forEach(tr => {
+          let col = 0;
+          Array.from(tr.children).forEach(cell => {
+            const td = cell as HTMLTableCellElement;
+            const want = td.colSpan > 1 ? null : heads[col] ?? '';
+            if (want !== null && td.getAttribute('data-label') !== want) td.setAttribute('data-label', want);
+            col += td.colSpan || 1;
+          });
+        });
+      });
+    };
+    label();
+    let raf = 0;
+    const obs = new MutationObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(label); });
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => { obs.disconnect(); cancelAnimationFrame(raf); };
+  }, []);
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router   = useRouter();
@@ -18,6 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { resolvedTheme, setTheme } = useTheme();
   const theme: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light';
   const [isSidebarOpen,   setIsSidebarOpen]   = useState(false);
+  useStackedTables();
 
   // Phone/tablet drawer: close on navigation and Escape, and stop the page behind it from scrolling
   const [openedOn, setOpenedOn] = useState(pathname);
@@ -104,7 +134,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onToggleSidebar={() => { setOpenedOn(pathname); setIsSidebarOpen(prev => !prev); }}
           sidebarOpen={isSidebarOpen}
         />
-        <main className="flex-1 overflow-y-auto">
+        <main className="nx-stack flex-1 overflow-y-auto">
           {children}
         </main>
       </div>

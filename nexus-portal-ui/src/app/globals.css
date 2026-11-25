@@ -369,3 +369,32 @@ input:focus, select:focus, textarea:focus {
 .badge-danger  { background: rgba(239,68,68,0.1);  color: #dc2626; }
 .badge-info    { background: rgba(99,102,241,0.1);  color: var(--primary); }
 .badge-muted   { background: var(--background-muted); color: var(--text-muted); }
+
+/* Admin tables on phones: each row becomes a card, each cell a "label  value" line.
+   Labels come from the column headers (see useStackedTables in app/admin/layout.tsx).
+   A table opts out with data-no-stack. */
+@media (max-width: 767px) {
+  .nx-stack table:not([data-no-stack]) { min-width: 0 !important; width: 100%; }
+  .nx-stack table:not([data-no-stack]) thead { display: none; }
+  .nx-stack table:not([data-no-stack]) tbody,
+  .nx-stack table:not([data-no-stack]) tr { display: block; }
+  .nx-stack table:not([data-no-stack]) tbody tr { padding: 0.625rem 0; border-bottom: 1px solid var(--color-nx-line, #e2e8f0); }
+  .dark .nx-stack table:not([data-no-stack]) tbody tr { border-bottom-color: var(--color-nx-line-dark, #27272a); }
+  .nx-stack table:not([data-no-stack]) tbody tr:last-child { border-bottom: 0; }
+  .nx-stack table:not([data-no-stack]) td {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.75rem;
+    padding: 0.3rem 1rem !important; border: 0 !important; text-align: right !important; min-width: 0;
+  }
+  .nx-stack table:not([data-no-stack]) td > * { min-width: 0; max-width: 70%; }
+  .nx-stack table:not([data-no-stack]) td::before {
+    content: attr(data-label); flex-shrink: 0; text-align: left;
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #94a3b8;
+  }
+  .nx-stack table:not([data-no-stack]) td:not([data-label])::before,
+  .nx-stack table:not([data-no-stack]) td[data-label=""]::before { content: none; }
+  .nx-stack table:not([data-no-stack]) td:not([data-label]) > *,
+  .nx-stack table:not([data-no-stack]) td[data-label=""] > * { max-width: 100%; margin-left: auto; }
+  .nx-stack table:not([data-no-stack]) td[colspan] { display: block; text-align: center !important; }
+  /* Row actions that only appear on hover on desktop are always visible on touch */
+  .nx-stack table:not([data-no-stack]) td .opacity-0 { opacity: 1 !important; }
+}
