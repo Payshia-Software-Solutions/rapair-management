@@ -170,6 +170,16 @@ class Provisioner {
             $pdo->prepare("UPDATE company SET name = ? WHERE id = 1")->execute([$name]);
         }
 
+        // Every POS bill needs a customer: each location defaults to a "Walk-in Customer"
+        try {
+            $cid = $pdo->query("SELECT id FROM customers WHERE name = 'Walk-in Customer' ORDER BY id LIMIT 1")->fetchColumn();
+            if (!$cid) {
+                $pdo->prepare("INSERT INTO customers (name, is_active) VALUES ('Walk-in Customer', 1)")->execute();
+                $cid = $pdo->lastInsertId();
+            }
+            $pdo->prepare("UPDATE service_locations SET default_customer_id = ? WHERE default_customer_id IS NULL OR default_customer_id = 0")->execute([(int)$cid]);
+        } catch (Exception $e) { $this->say('  (default walk-in customer not set: ' . $e->getMessage() . ')'); }
+
         // Admin: the template's admin@local becomes the client's admin with a fresh password
         $email = strtolower(trim($t['admin_email'] ?: $row['admin_email']));
         $password = self::readablePassword();
@@ -291,6 +301,89 @@ class Provisioner {
     public function migrate($slug) {
         $t = self::requireTenant($slug);
         $this->stepSchema($this->tenantPdo($t));
+    }
+
+    /**
+     * What a schema update would add to this workspace (read-only), for review before applying.
+     * 'fingerprint' identifies exactly this list; updateSchema() only runs when it still matches.
+     */
+    public function schemaDiff($slug) {
+        $t = self::requireTenant($slug);
+        require_once APPROOT . '/app/core/SchemaHelper.php';
+        require_once APPROOT . '/app/helpers/BackupHelper.php';
+        $diff = (new SchemaHelper(new TenantRawDb($this->tenantPdo($t))))->getDiff();
+        $last = BackupHelper::listFiles($t['slug']);
+        return [
+            'missing_tables' => $diff['missing_tables'],
+            'missing_columns' => $diff['missing_columns'],
+            'missing_indexes' => $diff['missing_indexes'],
+            'fingerprint' => self::diffFingerprint($diff),
+            'last_backup' => $last[0] ?? null,
+        ];
+    }
+
+    /**
+     * Backs the workspace database up, then adds what schemaDiff() listed. Refuses when the list
+     * changed since it was reviewed ($fingerprint), and never touches the database if the backup fails.
+     */
+    public function updateSchema($slug, $fingerprint) {
+        $t = self::requireTenant($slug);
+        require_once APPROOT . '/app/core/SchemaHelper.php';
+        require_once APPROOT . '/app/helpers/BackupHelper.php';
+        $pdo = $this->tenantPdo($t);
+        $helper = new SchemaHelper(new TenantRawDb($pdo));
+
+        $diff = $helper->getDiff();
+        if (!hash_equals(self::diffFingerprint($diff), (string)$fingerprint)) {
+            throw new Exception('The changes are different from the ones you reviewed. Review them again, then update.');
+        }
+        $count = count($diff['missing_tables']) + count($diff['missing_columns']) + count($diff['missing_indexes']);
+        if ($count === 0) return ['backup' => null, 'applied' => [], 'errors' => [], 'remaining' => 0];
+
+        $this->say('  backing up ' . $t['db_name']);
+        $backup = BackupHelper::create($pdo, $t['db_name'], $t['slug']); // throws on failure: nothing is changed
+        $pdo = $this->tenantPdo($t); // dump() switches buffering modes; start clean
+        $helper = new SchemaHelper(new TenantRawDb($pdo));
+
+        $results = $helper->sync($diff);
+        $errors = array_values(array_filter($results, fn($r) => stripos($r, 'Error') === 0));
+        $after = $helper->getDiff();
+        return [
+            'backup' => $backup,
+            'applied' => array_values(array_diff($results, $errors)),
+            'errors' => $errors,
+            'remaining' => count($after['missing_tables']) + count($after['missing_columns']) + count($after['missing_indexes']),
+        ];
+    }
+
+    /** Backups of this workspace's database on this server, newest first. */
+    public function backups($slug) {
+        $t = self::requireTenant($slug);
+        require_once APPROOT . '/app/helpers/BackupHelper.php';
+        return ['slug' => $t['slug'], 'backups' => BackupHelper::listFiles($t['slug']), 'keep' => BackupHelper::keep()];
+    }
+
+    /**
+     * Replaces the workspace's data with one of its backups. $confirm must be the workspace slug.
+     * The current data is backed up first, so the restore itself can be undone; if that fails, nothing changes.
+     * Tables created after the backup was taken are kept (the backup only replaces the tables it holds).
+     */
+    public function restoreBackup($slug, $name, $confirm) {
+        $t = self::requireTenant($slug);
+        if (!hash_equals($t['slug'], (string)$confirm)) throw new InvalidArgumentException('Type the workspace ID to confirm the restore.');
+        require_once APPROOT . '/app/helpers/BackupHelper.php';
+        $file = BackupHelper::path($t['slug'], $name);
+        if (!$file) throw new InvalidArgumentException('That backup was not found on the workspace server.');
+
+        $this->say('  safety backup of ' . $t['db_name']);
+        $safety = BackupHelper::create($this->tenantPdo($t), $t['db_name'], $t['slug'], basename($file));
+        $this->say('  restoring ' . basename($file));
+        $n = BackupHelper::restore($this->tenantPdo($t), $file);
+        return ['restored' => basename($file), 'statements' => $n, 'safety_backup' => $safety];
+    }
+
+    private static function diffFingerprint(array $diff) {
+        return hash('sha256', json_encode([$diff['missing_tables'] ?? [], $diff['missing_columns'] ?? [], $diff['missing_indexes'] ?? []]));
     }
 
     /**

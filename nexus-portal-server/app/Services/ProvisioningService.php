@@ -160,6 +160,15 @@ class ProvisioningService {
         }
     }
 
+    /** Developer mode switched: the workspace drops its cached licence so the change shows at once. */
+    public function onDevModeChanged($tenantId) {
+        $t = $this->tenant($tenantId);
+        if (!$this->productFor($t) || ($t->provision_status ?? '') === 'none') return;
+        $this->queue($t, 'workspace.dev_mode_changed', [
+            'slug' => self::workspaceSlug($t->slug), 'dev_mode' => (bool)(int)($t->dev_mode ?? 0),
+        ]);
+    }
+
     /** Package edited (modules changed): tell every shared workspace on that package. */
     public function onPackageChanged($packageId) {
         $this->db->query("SELECT id FROM saas_tenants WHERE package_id = :p AND deployment = 'shared' AND provision_status = 'ready' AND status <> 'Deleted'");
@@ -196,12 +205,42 @@ class ProvisioningService {
      * Signed like a webhook but sent directly and not queued: it only reads. No password comes back.
      */
     public function workspaceInfo($tenantId) {
+        return $this->ask($tenantId, 'tenant.info', 20);
+    }
+
+    /** What a schema update would add to this workspace's database (read-only, for review). */
+    public function schemaDiff($tenantId) {
+        return $this->ask($tenantId, 'tenant.schema_diff', 60);
+    }
+
+    /**
+     * Backs the workspace database up, then applies the reviewed schema changes. Sent once and never
+     * retried; the workspace server refuses when the changes differ from the reviewed $fingerprint.
+     */
+    public function updateSchema($tenantId, string $fingerprint) {
+        if (!preg_match('/^[a-f0-9]{64}$/', $fingerprint)) throw new \InvalidArgumentException('Review the changes first.');
+        return $this->applyNow($tenantId, 'workspace.schema_update', ['fingerprint' => $fingerprint]);
+    }
+
+    /** Backups of the workspace database kept on the workspace server. */
+    public function backups($tenantId) {
+        return $this->ask($tenantId, 'tenant.backups', 20);
+    }
+
+    /** Replaces the workspace data with a backup (the server backs up the current data first). Never retried. */
+    public function restoreBackup($tenantId, string $backup, string $confirm) {
+        if (!preg_match('/^backup-\d{8}-\d{6}-[a-f0-9]{8}\.sql\.gz$/', $backup)) throw new \InvalidArgumentException('Choose a backup.');
+        return $this->applyNow($tenantId, 'workspace.restore', ['backup' => $backup, 'confirm' => $confirm]);
+    }
+
+    /** Signed like a webhook but sent directly and not queued: for read-only questions. */
+    private function ask($tenantId, string $type, int $timeout) {
         $t = $this->tenant($tenantId);
         if (!$t) throw new \InvalidArgumentException('Tenant not found');
         $p = $this->productFor($t);
         if (!$p) throw new \InvalidArgumentException('This tenant has no shared workspace (dedicated install or product not set up).');
 
-        $body = json_encode(['type' => 'tenant.info', 'data' => ['slug' => self::workspaceSlug($t->slug)]]);
+        $body = json_encode(['type' => $type, 'data' => ['slug' => self::workspaceSlug($t->slug)]]);
         $ts = time();
         $ch = curl_init($p->provision_url);
         curl_setopt_array($ch, [
@@ -209,7 +248,7 @@ class ProvisioningService {
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => $timeout,
             CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; NexusProvisioner/1.0; +https://nebulync.com)',
             CURLOPT_ENCODING => '',
             CURLOPT_HTTPHEADER => [
@@ -229,9 +268,9 @@ class ProvisioningService {
         if ($code === 200 && is_array($json) && ($json['status'] ?? '') === 'success') return $json['result'] ?? [];
         if ($err) throw new \RuntimeException("Workspace server unreachable: $err");
         if (is_array($json) && !empty($json['message'])) {
-            // An older product version doesn't know tenant.info yet
+            // An older product version doesn't know this question yet
             if (stripos($json['message'], 'Unknown event type') !== false) {
-                throw new \RuntimeException('The workspace server needs updating to show these details (deploy the latest ERP API).');
+                throw new \RuntimeException('The workspace server needs updating for this (deploy the latest ERP API).');
             }
             throw new \RuntimeException("HTTP $code: " . $json['message']);
         }
@@ -363,7 +402,7 @@ class ProvisioningService {
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => 10,
-            CURLOPT_TIMEOUT => $e->event_type === 'tenant.created' ? 300 : 60,
+            CURLOPT_TIMEOUT => $e->event_type === 'tenant.created' ? 300 : (in_array($e->event_type, ['workspace.schema_update', 'workspace.restore'], true) ? 600 : 60), // schema update backs the database up first
             // Shared-hosting firewalls (ModSecurity / Imunify360) answer "406 Not Acceptable" to requests
             // without a browser-like User-Agent and Accept header, before the product's PHP ever runs
             CURLOPT_USERAGENT => 'Mozilla/5.0 (compatible; NexusProvisioner/1.0; +https://nebulync.com)',

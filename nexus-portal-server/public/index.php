@@ -116,10 +116,15 @@ $router->add('api/admin/users/delete', ['controller' => 'AdminController', 'acti
 $router->add('api/admin/tenants/provision-status', ['controller' => 'ProvisioningController', 'action' => 'provisionStatus']);
 $router->add('api/admin/tenants/setup-progress', ['controller' => 'ProvisioningController', 'action' => 'setupProgress']);
 $router->add('api/admin/tenants/workspace-info', ['controller' => 'ProvisioningController', 'action' => 'workspaceInfo']);
+$router->add('api/admin/tenants/schema-diff', ['controller' => 'ProvisioningController', 'action' => 'schemaDiff']);
+$router->add('api/admin/tenants/schema-update', ['controller' => 'ProvisioningController', 'action' => 'schemaUpdate'], 'POST');
+$router->add('api/admin/tenants/backups', ['controller' => 'ProvisioningController', 'action' => 'backups']);
+$router->add('api/admin/tenants/restore', ['controller' => 'ProvisioningController', 'action' => 'restoreBackup'], 'POST');
 $router->add('api/admin/dashboard/summary', ['controller' => 'DashboardController', 'action' => 'summary']);
 $router->add('api/admin/tenants', ['controller' => 'SaaSController', 'action' => 'listTenants']);
 $router->add('api/admin/tenants/register', ['controller' => 'SaaSController', 'action' => 'registerTenant'], 'POST');
 $router->add('api/admin/tenants/update', ['controller' => 'SaaSController', 'action' => 'updateTenant'], 'POST');
+$router->add('api/admin/tenants/dev-mode', ['controller' => 'SaaSController', 'action' => 'setTenantDevMode'], 'POST');
 $router->add('api/admin/tenants/update-status', ['controller' => 'SaaSController', 'action' => 'updateTenantStatus'], 'POST');
 $router->add('api/admin/tenants/delete', ['controller' => 'SaaSController', 'action' => 'deleteTenant'], 'POST');
 $router->add('api/admin/tenants/suspend', ['controller' => 'SaaSController', 'action' => 'suspendTenant'], 'POST');

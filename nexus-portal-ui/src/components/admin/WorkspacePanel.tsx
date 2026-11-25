@@ -6,6 +6,8 @@ import { errMsg } from '@/lib/adminApi';
 import WebhookTable from './WebhookTable';
 import ProvisionDialog from './ProvisionDialog';
 import WorkspaceDatabase from './WorkspaceDatabase';
+import WorkspaceSchema from './WorkspaceSchema';
+import WorkspaceBackups from './WorkspaceBackups';
 import SetupProgress from '../SetupProgress';
 
 type Props = {
@@ -37,6 +39,7 @@ export default function WorkspacePanel({ tenantId, deployment, provisionStatus, 
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [backups, setBackups] = useState(0);
 
   const raw = provisionStatus || 'none';
   const key: keyof typeof STATUS = raw === 'ready' || raw === 'pending' || raw === 'failed' ? raw : 'dedicated';
@@ -107,6 +110,8 @@ export default function WorkspacePanel({ tenantId, deployment, provisionStatus, 
       </div>
 
       {deployment === 'shared' && key === 'ready' && <WorkspaceDatabase key={refresh} tenantId={tenantId} />}
+      {deployment === 'shared' && key === 'ready' && <WorkspaceSchema tenantId={tenantId} onBackup={() => setBackups(x => x + 1)} />}
+      {deployment === 'shared' && key === 'ready' && <WorkspaceBackups tenantId={tenantId} refreshKey={backups} />}
 
       {/* State message */}
       {key === 'pending' && (

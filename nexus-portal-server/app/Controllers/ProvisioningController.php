@@ -102,6 +102,56 @@ class ProvisioningController extends Controller {
         }
     }
 
+    // GET /api/admin/tenants/schema-diff?id=  (what a database update would add; read-only)
+    public function schemaDiff() {
+        $this->checkAuth();
+        try {
+            return $this->json(['status' => 'success', 'data' => (new ProvisioningService())->schemaDiff((int)($_GET['id'] ?? 0))]);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 502);
+        }
+    }
+
+    // POST /api/admin/tenants/schema-update {id, fingerprint}  (backup first, then the reviewed changes only)
+    public function schemaUpdate() {
+        $this->checkAuth();
+        $in = $this->getPostData() ?: [];
+        set_time_limit(700);
+        try {
+            $r = (new ProvisioningService())->updateSchema((int)($in['id'] ?? 0), (string)($in['fingerprint'] ?? ''));
+            return $this->json(['status' => 'success', 'data' => $r]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->fail($e);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 502);
+        }
+    }
+
+    // GET /api/admin/tenants/backups?id=
+    public function backups() {
+        $this->checkAuth();
+        try {
+            return $this->json(['status' => 'success', 'data' => (new ProvisioningService())->backups((int)($_GET['id'] ?? 0))]);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 502);
+        }
+    }
+
+    // POST /api/admin/tenants/restore {id, backup, confirm}  (confirm = workspace ID; current data is backed up first)
+    public function restoreBackup() {
+        $this->checkAuth();
+        $in = $this->getPostData() ?: [];
+        set_time_limit(700);
+        try {
+            $r = (new ProvisioningService())->restoreBackup((int)($in['id'] ?? 0), (string)($in['backup'] ?? ''), (string)($in['confirm'] ?? ''));
+            return $this->json(['status' => 'success', 'data' => $r]);
+        } catch (\InvalidArgumentException $e) {
+            return $this->fail($e);
+        } catch (\Throwable $e) {
+            return $this->json(['status' => 'error', 'message' => $e->getMessage()], 502);
+        }
+    }
+
     // GET /api/admin/tenants/provision-status?id=  (polled by the progress dialog)
     public function provisionStatus() {
         $this->checkAuth();

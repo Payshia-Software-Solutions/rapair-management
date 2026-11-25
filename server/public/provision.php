@@ -17,6 +17,10 @@
  *   tenant.deleted              data: slug          (soft delete; database kept)
  *   workspace.address_changed   data: slug, label   (new public address {label}.<base domain>; old one is dropped)
  *   domain.added / domain.removed  data: slug, domain
+ *   workspace.dev_mode_changed  data: slug, dev_mode   (clears the cached developer-mode answer)
+ *   workspace.schema_update     data: slug, fingerprint (backs the database up, then adds the reviewed tables/columns/indexes)
+ *   workspace.restore           data: slug, backup, confirm (= slug; current data is backed up first)
+ *   tenant.info / tenant.schema_diff / tenant.backups  data: slug   (read-only, answered directly, not recorded)
  *
  * Not on single-client installs: without tenancy settings in config.php this returns 404.
  */
@@ -156,6 +160,16 @@ if ($type === 'tenant.info') {
         'created_at' => $t['created_at'],
     ]]);
 }
+// Read-only: what a schema update would add, so an admin can review it first. Not recorded either.
+if ($type === 'tenant.schema_diff' || $type === 'tenant.backups') {
+    try {
+        $p = new Provisioner();
+        provision_reply(200, ['status' => 'success', 'result' => $type === 'tenant.backups' ? $p->backups($slug) : $p->schemaDiff($slug)]);
+    } catch (Throwable $e) {
+        provision_log('SCHEMA_DIFF ' . $e->getMessage());
+        provision_reply(422, ['status' => 'error', 'message' => $e->getMessage()]);
+    }
+}
 // tenant.created is safe to run again (create() resumes / answers for an active workspace), and a
 // repeat means Nexus lost our reply, so it must run to hand out a login again. Others replay the stored result.
 if ($prev && $prev['status'] === 'done' && $type !== 'tenant.created') {
@@ -194,6 +208,18 @@ try {
         case 'tenant.deleted':         $p->delete($slug);  $result = ['slug' => $slug]; break;
         case 'workspace.address_changed':
             $result = $p->changeAddress($slug, (string)($data['label'] ?? ''));
+            break;
+        case 'workspace.dev_mode_changed':
+            // Drop the cached answer; the next page load asks Nexus again
+            if (!preg_match('/^[a-z0-9-]{1,100}$/', $slug)) throw new InvalidArgumentException('Bad slug');
+            @unlink(APPROOT . '/scratch/tenants/' . $slug . '/dev_mode.json');
+            $result = ['slug' => $slug, 'dev_mode' => !empty($data['dev_mode'])];
+            break;
+        case 'workspace.schema_update':
+            $result = $p->updateSchema($slug, (string)($data['fingerprint'] ?? ''));
+            break;
+        case 'workspace.restore':
+            $result = $p->restoreBackup($slug, (string)($data['backup'] ?? ''), (string)($data['confirm'] ?? ''));
             break;
         case 'domain.added':   TenantRegistry::addDomain($slug, (string)($data['domain'] ?? ''), 'custom'); $result = ['slug' => $slug]; break;
         case 'domain.removed': TenantRegistry::removeDomain((string)($data['domain'] ?? '')); $result = ['slug' => $slug]; break;
