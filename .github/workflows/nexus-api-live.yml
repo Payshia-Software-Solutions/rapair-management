@@ -26,4 +26,5 @@ jobs:
           config/config.php
           scratch/**
           logs/**
+          storage/**
           **/*.log

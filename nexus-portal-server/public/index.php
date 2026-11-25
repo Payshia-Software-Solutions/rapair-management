@@ -135,6 +135,8 @@ $router->add('api/admin/tenants/schema-diff', ['controller' => 'ProvisioningCont
 $router->add('api/admin/tenants/schema-update', ['controller' => 'ProvisioningController', 'action' => 'schemaUpdate'], 'POST');
 $router->add('api/admin/tenants/backups', ['controller' => 'ProvisioningController', 'action' => 'backups']);
 $router->add('api/admin/tenants/restore', ['controller' => 'ProvisioningController', 'action' => 'restoreBackup'], 'POST');
+$router->add('api/admin/system/schema-diff', ['controller' => 'SystemController', 'action' => 'schemaDiff']);
+$router->add('api/admin/system/schema-update', ['controller' => 'SystemController', 'action' => 'schemaUpdate'], 'POST');
 $router->add('api/admin/dashboard/summary', ['controller' => 'DashboardController', 'action' => 'summary']);
 $router->add('api/admin/tenants', ['controller' => 'SaaSController', 'action' => 'listTenants']);
 $router->add('api/admin/tenants/register', ['controller' => 'SaaSController', 'action' => 'registerTenant'], 'POST');

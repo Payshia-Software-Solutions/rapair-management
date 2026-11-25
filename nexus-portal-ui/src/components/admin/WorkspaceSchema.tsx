@@ -22,7 +22,11 @@ const size = (b: number) => (b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `$
  * the workspace server takes a full backup before applying them and refuses if the list changed meanwhile.
  * Only adds tables, columns and indexes. Nothing is dropped or altered.
  */
-export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: string | number; onBackup?: () => void }) {
+export default function WorkspaceSchema({ tenantId, onBackup, nexus = false }: { tenantId?: string | number; onBackup?: () => void; nexus?: boolean }) {
+  // nexus: the Nexus database itself instead of a workspace database
+  const diffPath = nexus ? "/admin/system/schema-diff" : `/admin/tenants/schema-diff?id=${tenantId}`;
+  const updatePath = nexus ? "/admin/system/schema-update" : "/admin/tenants/schema-update";
+  const where = nexus ? "the Nexus server" : "the workspace server";
   const [diff, setDiff] = useState<Diff | null>(null);
   const [result, setResult] = useState<Result | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +35,7 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
 
   const check = async () => {
     setBusy('check'); setError(null); setResult(null); setConfirmed(false);
-    try { setDiff(await adminApi<Diff>(`/admin/tenants/schema-diff?id=${tenantId}`)); }
+    try { setDiff(await adminApi<Diff>(diffPath)); }
     catch (e) { setError(errMsg(e)); setDiff(null); }
     finally { setBusy(null); }
   };
@@ -41,13 +45,13 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
     const t = setTimeout(() => void check(), 0);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantId]);
+  }, [tenantId, nexus]);
 
   const update = async () => {
     if (!diff) return;
     setBusy('update'); setError(null);
     try {
-      setResult(await adminApi<Result>('/admin/tenants/schema-update', { id: tenantId, fingerprint: diff.fingerprint }));
+      setResult(await adminApi<Result>(updatePath, nexus ? { fingerprint: diff.fingerprint } : { id: tenantId, fingerprint: diff.fingerprint }));
       setDiff(null);
       onBackup?.();
     } catch (e) { setError(errMsg(e)); }
@@ -73,8 +77,8 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
         {!diff && !result && !error && (
           <p className="text-slate-500 dark:text-slate-400">
             {busy === 'check'
-              ? 'Checking this workspace for missing tables and columns…'
-              : 'Checks for new tables and columns this workspace is missing. You review them before anything changes.'}
+              ? 'Checking this database for missing tables and columns…'
+              : 'Checks for new tables and columns this database is missing. You review them before anything changes.'}
           </p>
         )}
 
@@ -129,7 +133,7 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
 
             <label className="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} disabled={busy !== null} className="mt-0.5" />
-              <span>I reviewed these changes and want to apply them to this workspace.</span>
+              <span>I reviewed these changes and want to apply them to this database.</span>
             </label>
 
             <button type="button" onClick={() => void update()} disabled={!confirmed || busy !== null}
@@ -150,7 +154,7 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
             </p>
             {result.backup && (
               <p className="text-slate-600 dark:text-slate-400 [overflow-wrap:anywhere]">
-                Backup saved on the workspace server: {result.backup.name} ({size(result.backup.size)}, {result.backup.tables} tables, {result.backup.rows} rows)
+                Backup saved on {where}: {result.backup.name} ({size(result.backup.size)}, {result.backup.tables} tables, {result.backup.rows} rows)
                 {result.backup.offsite && result.backup.offsite.startsWith('failed') ? `. Off-site copy ${result.backup.offsite}` : result.backup.offsite ? '. Off-site copy saved.' : '.'}
               </p>
             )}

@@ -1,0 +1,357 @@
+{
+    "generated_at": "2026-11-25 12:28:17",
+    "tables": {
+        "erp_requests": {
+            "create": "CREATE TABLE `erp_requests` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `company_name` varchar(200) DEFAULT NULL,\n  `contact_person` varchar(200) DEFAULT NULL,\n  `email` varchar(200) DEFAULT NULL,\n  `phone` varchar(50) DEFAULT NULL,\n  `expected_users` int(11) DEFAULT NULL,\n  `package_type` varchar(100) DEFAULT NULL,\n  `status` varchar(50) DEFAULT 'New',\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "company_name": "varchar(200) DEFAULT NULL",
+                "contact_person": "varchar(200) DEFAULT NULL",
+                "email": "varchar(200) DEFAULT NULL",
+                "phone": "varchar(50) DEFAULT NULL",
+                "expected_users": "int(11) DEFAULT NULL",
+                "package_type": "varchar(100) DEFAULT NULL",
+                "status": "varchar(50) DEFAULT 'New'",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": []
+        },
+        "portal_admins": {
+            "create": "CREATE TABLE `portal_admins` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `tenant_id` int(11) DEFAULT NULL,\n  `username` varchar(100) NOT NULL,\n  `password` varchar(255) NOT NULL,\n  `full_name` varchar(200) DEFAULT NULL,\n  `verification_token` varchar(200) DEFAULT NULL,\n  `email_verified` tinyint(1) DEFAULT 0,\n  `role` varchar(50) DEFAULT 'client',\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `username` (`username`),\n  KEY `tenant_id` (`tenant_id`),\n  CONSTRAINT `portal_admins_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `saas_tenants` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "tenant_id": "int(11) DEFAULT NULL",
+                "username": "varchar(100) NOT NULL",
+                "password": "varchar(255) NOT NULL",
+                "full_name": "varchar(200) DEFAULT NULL",
+                "verification_token": "varchar(200) DEFAULT NULL",
+                "email_verified": "tinyint(1) DEFAULT 0",
+                "role": "varchar(50) DEFAULT 'client'",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "username": {
+                    "sql": "UNIQUE KEY `username` (`username`)",
+                    "unique": true,
+                    "columns": [
+                        "username"
+                    ]
+                },
+                "tenant_id": {
+                    "sql": "KEY `tenant_id` (`tenant_id`)",
+                    "unique": false,
+                    "columns": [
+                        "tenant_id"
+                    ]
+                }
+            }
+        },
+        "saas_custom_domains": {
+            "create": "CREATE TABLE `saas_custom_domains` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `tenant_id` int(11) NOT NULL,\n  `domain` varchar(253) NOT NULL,\n  `verify_token` varchar(64) NOT NULL,\n  `status` varchar(20) NOT NULL DEFAULT 'pending',\n  `verified_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_custom_domain` (`domain`),\n  KEY `idx_custom_tenant` (`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "tenant_id": "int(11) NOT NULL",
+                "domain": "varchar(253) NOT NULL",
+                "verify_token": "varchar(64) NOT NULL",
+                "status": "varchar(20) NOT NULL DEFAULT 'pending'",
+                "verified_at": "datetime DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "uq_custom_domain": {
+                    "sql": "UNIQUE KEY `uq_custom_domain` (`domain`)",
+                    "unique": true,
+                    "columns": [
+                        "domain"
+                    ]
+                },
+                "idx_custom_tenant": {
+                    "sql": "KEY `idx_custom_tenant` (`tenant_id`)",
+                    "unique": false,
+                    "columns": [
+                        "tenant_id"
+                    ]
+                }
+            }
+        },
+        "saas_email_logs": {
+            "create": "CREATE TABLE `saas_email_logs` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `invoice_id` int(11) DEFAULT NULL,\n  `email_type` varchar(50) NOT NULL,\n  `subject` varchar(255) DEFAULT NULL,\n  `body` longtext DEFAULT NULL,\n  `recipient` varchar(255) NOT NULL,\n  `cc_recipient` varchar(255) DEFAULT NULL,\n  `status` varchar(20) NOT NULL,\n  `error_message` text DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  KEY `invoice_id` (`invoice_id`),\n  CONSTRAINT `saas_email_logs_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `saas_invoices` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "invoice_id": "int(11) DEFAULT NULL",
+                "email_type": "varchar(50) NOT NULL",
+                "subject": "varchar(255) DEFAULT NULL",
+                "body": "longtext DEFAULT NULL",
+                "recipient": "varchar(255) NOT NULL",
+                "cc_recipient": "varchar(255) DEFAULT NULL",
+                "status": "varchar(20) NOT NULL",
+                "error_message": "text DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "invoice_id": {
+                    "sql": "KEY `invoice_id` (`invoice_id`)",
+                    "unique": false,
+                    "columns": [
+                        "invoice_id"
+                    ]
+                }
+            }
+        },
+        "saas_exchange_rates": {
+            "create": "CREATE TABLE `saas_exchange_rates` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `currency_code` varchar(10) NOT NULL,\n  `rate` decimal(15,6) NOT NULL,\n  `is_manual` tinyint(1) DEFAULT 0,\n  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `currency_code` (`currency_code`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "currency_code": "varchar(10) NOT NULL",
+                "rate": "decimal(15,6) NOT NULL",
+                "is_manual": "tinyint(1) DEFAULT 0",
+                "updated_at": "timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()"
+            },
+            "indexes": {
+                "currency_code": {
+                    "sql": "UNIQUE KEY `currency_code` (`currency_code`)",
+                    "unique": true,
+                    "columns": [
+                        "currency_code"
+                    ]
+                }
+            }
+        },
+        "saas_identity_otps": {
+            "create": "CREATE TABLE `saas_identity_otps` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `admin_id` int(11) NOT NULL,\n  `purpose` varchar(40) NOT NULL,\n  `code_hash` varchar(255) NOT NULL,\n  `payload` varchar(255) NOT NULL,\n  `attempts` int(11) NOT NULL DEFAULT 0,\n  `expires_at` datetime NOT NULL,\n  `used_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  KEY `idx_otp_admin` (`admin_id`,`purpose`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "admin_id": "int(11) NOT NULL",
+                "purpose": "varchar(40) NOT NULL",
+                "code_hash": "varchar(255) NOT NULL",
+                "payload": "varchar(255) NOT NULL",
+                "attempts": "int(11) NOT NULL DEFAULT 0",
+                "expires_at": "datetime NOT NULL",
+                "used_at": "datetime DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "idx_otp_admin": {
+                    "sql": "KEY `idx_otp_admin` (`admin_id`,`purpose`)",
+                    "unique": false,
+                    "columns": [
+                        "admin_id",
+                        "purpose"
+                    ]
+                }
+            }
+        },
+        "saas_invoices": {
+            "create": "CREATE TABLE `saas_invoices` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `tenant_id` int(11) NOT NULL,\n  `invoice_number` varchar(100) NOT NULL,\n  `billing_month` varchar(50) DEFAULT NULL,\n  `amount` decimal(10,2) DEFAULT 0.00,\n  `currency` varchar(10) DEFAULT 'USD',\n  `exchange_rate` decimal(16,8) DEFAULT 1.00000000,\n  `source` varchar(50) DEFAULT 'MARKET',\n  `due_date` date DEFAULT NULL,\n  `status` enum('Pending','Paid','Overdue','Cancelled') DEFAULT 'Pending',\n  `email_status` varchar(50) DEFAULT 'Pending',\n  `last_sent_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  KEY `tenant_id` (`tenant_id`),\n  CONSTRAINT `saas_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `saas_tenants` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "tenant_id": "int(11) NOT NULL",
+                "invoice_number": "varchar(100) NOT NULL",
+                "billing_month": "varchar(50) DEFAULT NULL",
+                "amount": "decimal(10,2) DEFAULT 0.00",
+                "currency": "varchar(10) DEFAULT 'USD'",
+                "exchange_rate": "decimal(16,8) DEFAULT 1.00000000",
+                "source": "varchar(50) DEFAULT 'MARKET'",
+                "due_date": "date DEFAULT NULL",
+                "status": "enum('Pending','Paid','Overdue','Cancelled') DEFAULT 'Pending'",
+                "email_status": "varchar(50) DEFAULT 'Pending'",
+                "last_sent_at": "datetime DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "tenant_id": {
+                    "sql": "KEY `tenant_id` (`tenant_id`)",
+                    "unique": false,
+                    "columns": [
+                        "tenant_id"
+                    ]
+                }
+            }
+        },
+        "saas_packages": {
+            "create": "CREATE TABLE `saas_packages` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `product_id` int(11) DEFAULT NULL,\n  `name` varchar(100) NOT NULL,\n  `package_key` varchar(50) NOT NULL,\n  `monthly_price` decimal(10,2) DEFAULT 0.00,\n  `yearly_price` decimal(10,2) DEFAULT NULL,\n  `modules` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`modules`)),\n  `services` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`services`)),\n  `server_info` text DEFAULT NULL,\n  `max_users` int(11) DEFAULT 10,\n  `max_locations` int(11) DEFAULT 1,\n  `is_public` tinyint(1) DEFAULT 1,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  `custom_domain` tinyint(1) NOT NULL DEFAULT 0,\n  PRIMARY KEY (`id`),\n  KEY `idx_pkg_product` (`product_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "product_id": "int(11) DEFAULT NULL",
+                "name": "varchar(100) NOT NULL",
+                "package_key": "varchar(50) NOT NULL",
+                "monthly_price": "decimal(10,2) DEFAULT 0.00",
+                "yearly_price": "decimal(10,2) DEFAULT NULL",
+                "modules": "longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`modules`))",
+                "services": "longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`services`))",
+                "server_info": "text DEFAULT NULL",
+                "max_users": "int(11) DEFAULT 10",
+                "max_locations": "int(11) DEFAULT 1",
+                "is_public": "tinyint(1) DEFAULT 1",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()",
+                "custom_domain": "tinyint(1) NOT NULL DEFAULT 0"
+            },
+            "indexes": {
+                "idx_pkg_product": {
+                    "sql": "KEY `idx_pkg_product` (`product_id`)",
+                    "unique": false,
+                    "columns": [
+                        "product_id"
+                    ]
+                }
+            }
+        },
+        "saas_payments": {
+            "create": "CREATE TABLE `saas_payments` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `invoice_id` int(11) NOT NULL,\n  `receipt_number` varchar(20) NOT NULL,\n  `amount` decimal(15,2) NOT NULL,\n  `payment_method` varchar(50) DEFAULT 'Bank Transfer',\n  `transaction_id` varchar(100) DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `receipt_number` (`receipt_number`),\n  KEY `invoice_id` (`invoice_id`),\n  CONSTRAINT `saas_payments_ibfk_1` FOREIGN KEY (`invoice_id`) REFERENCES `saas_invoices` (`id`) ON DELETE CASCADE\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "invoice_id": "int(11) NOT NULL",
+                "receipt_number": "varchar(20) NOT NULL",
+                "amount": "decimal(15,2) NOT NULL",
+                "payment_method": "varchar(50) DEFAULT 'Bank Transfer'",
+                "transaction_id": "varchar(100) DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
+            },
+            "indexes": {
+                "receipt_number": {
+                    "sql": "UNIQUE KEY `receipt_number` (`receipt_number`)",
+                    "unique": true,
+                    "columns": [
+                        "receipt_number"
+                    ]
+                },
+                "invoice_id": {
+                    "sql": "KEY `invoice_id` (`invoice_id`)",
+                    "unique": false,
+                    "columns": [
+                        "invoice_id"
+                    ]
+                }
+            }
+        },
+        "saas_products": {
+            "create": "CREATE TABLE `saas_products` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `product_key` varchar(50) NOT NULL,\n  `name` varchar(150) NOT NULL,\n  `description` varchar(500) DEFAULT NULL,\n  `provision_url` varchar(500) DEFAULT NULL,\n  `webhook_secret` varchar(200) DEFAULT NULL,\n  `workspace_domain` varchar(190) DEFAULT NULL,\n  `is_active` tinyint(1) NOT NULL DEFAULT 1,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_product_key` (`product_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "product_key": "varchar(50) NOT NULL",
+                "name": "varchar(150) NOT NULL",
+                "description": "varchar(500) DEFAULT NULL",
+                "provision_url": "varchar(500) DEFAULT NULL",
+                "webhook_secret": "varchar(200) DEFAULT NULL",
+                "workspace_domain": "varchar(190) DEFAULT NULL",
+                "is_active": "tinyint(1) NOT NULL DEFAULT 1",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()",
+                "updated_at": "timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()"
+            },
+            "indexes": {
+                "uq_product_key": {
+                    "sql": "UNIQUE KEY `uq_product_key` (`product_key`)",
+                    "unique": true,
+                    "columns": [
+                        "product_key"
+                    ]
+                }
+            }
+        },
+        "saas_settings": {
+            "create": "CREATE TABLE `saas_settings` (\n  `setting_key` varchar(50) NOT NULL,\n  `setting_value` text DEFAULT NULL,\n  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`setting_key`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "setting_key": "varchar(50) NOT NULL",
+                "setting_value": "text DEFAULT NULL",
+                "updated_at": "timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()"
+            },
+            "indexes": []
+        },
+        "saas_tenants": {
+            "create": "CREATE TABLE `saas_tenants` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `name` varchar(200) NOT NULL,\n  `address` text DEFAULT NULL,\n  `business_type` varchar(100) DEFAULT NULL,\n  `admin_email` varchar(200) DEFAULT NULL,\n  `contact_number` varchar(50) DEFAULT NULL,\n  `billing_cc_email` text DEFAULT NULL,\n  `slug` varchar(100) DEFAULT NULL,\n  `package_id` int(11) DEFAULT NULL,\n  `currency` varchar(10) DEFAULT 'USD',\n  `billing_cycle` enum('monthly','yearly') NOT NULL DEFAULT 'monthly',\n  `db_name` varchar(100) DEFAULT 'repair_management_db',\n  `api_url` varchar(500) DEFAULT NULL,\n  `status` enum('Active','Trial','Suspended','Deleted') DEFAULT 'Trial',\n  `trial_expiry` date DEFAULT NULL,\n  `license_key` varchar(200) DEFAULT NULL,\n  `api_key` varchar(200) DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  `deployment` enum('dedicated','shared') NOT NULL DEFAULT 'dedicated',\n  `provision_status` enum('none','pending','ready','failed') NOT NULL DEFAULT 'none',\n  `provision_error` text DEFAULT NULL,\n  `workspace_url` varchar(500) DEFAULT NULL,\n  `customer_type` varchar(20) DEFAULT 'company',\n  `nic_br_number` varchar(100) DEFAULT NULL,\n  `contact_person_name` varchar(255) DEFAULT NULL,\n  `terms_accepted_at` datetime DEFAULT NULL,\n  `usage_users` int(11) DEFAULT NULL,\n  `usage_locations` int(11) DEFAULT NULL,\n  `usage_updated_at` datetime DEFAULT NULL,\n  `address_changed_at` datetime DEFAULT NULL,\n  `dev_mode` tinyint(1) NOT NULL DEFAULT 0,\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `slug` (`slug`),\n  KEY `package_id` (`package_id`),\n  CONSTRAINT `saas_tenants_ibfk_1` FOREIGN KEY (`package_id`) REFERENCES `saas_packages` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "name": "varchar(200) NOT NULL",
+                "address": "text DEFAULT NULL",
+                "business_type": "varchar(100) DEFAULT NULL",
+                "admin_email": "varchar(200) DEFAULT NULL",
+                "contact_number": "varchar(50) DEFAULT NULL",
+                "billing_cc_email": "text DEFAULT NULL",
+                "slug": "varchar(100) DEFAULT NULL",
+                "package_id": "int(11) DEFAULT NULL",
+                "currency": "varchar(10) DEFAULT 'USD'",
+                "billing_cycle": "enum('monthly','yearly') NOT NULL DEFAULT 'monthly'",
+                "db_name": "varchar(100) DEFAULT 'repair_management_db'",
+                "api_url": "varchar(500) DEFAULT NULL",
+                "status": "enum('Active','Trial','Suspended','Deleted') DEFAULT 'Trial'",
+                "trial_expiry": "date DEFAULT NULL",
+                "license_key": "varchar(200) DEFAULT NULL",
+                "api_key": "varchar(200) DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()",
+                "deployment": "enum('dedicated','shared') NOT NULL DEFAULT 'dedicated'",
+                "provision_status": "enum('none','pending','ready','failed') NOT NULL DEFAULT 'none'",
+                "provision_error": "text DEFAULT NULL",
+                "workspace_url": "varchar(500) DEFAULT NULL",
+                "customer_type": "varchar(20) DEFAULT 'company'",
+                "nic_br_number": "varchar(100) DEFAULT NULL",
+                "contact_person_name": "varchar(255) DEFAULT NULL",
+                "terms_accepted_at": "datetime DEFAULT NULL",
+                "usage_users": "int(11) DEFAULT NULL",
+                "usage_locations": "int(11) DEFAULT NULL",
+                "usage_updated_at": "datetime DEFAULT NULL",
+                "address_changed_at": "datetime DEFAULT NULL",
+                "dev_mode": "tinyint(1) NOT NULL DEFAULT 0"
+            },
+            "indexes": {
+                "slug": {
+                    "sql": "UNIQUE KEY `slug` (`slug`)",
+                    "unique": true,
+                    "columns": [
+                        "slug"
+                    ]
+                },
+                "package_id": {
+                    "sql": "KEY `package_id` (`package_id`)",
+                    "unique": false,
+                    "columns": [
+                        "package_id"
+                    ]
+                }
+            }
+        },
+        "saas_webhook_events": {
+            "create": "CREATE TABLE `saas_webhook_events` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `event_id` varchar(64) NOT NULL,\n  `product_id` int(11) NOT NULL,\n  `tenant_id` int(11) DEFAULT NULL,\n  `event_type` varchar(60) NOT NULL,\n  `payload` mediumtext NOT NULL,\n  `status` enum('pending','sending','sent','failed') NOT NULL DEFAULT 'pending',\n  `attempts` int(11) NOT NULL DEFAULT 0,\n  `next_attempt_at` datetime DEFAULT NULL,\n  `last_http_code` int(11) DEFAULT NULL,\n  `last_error` text DEFAULT NULL,\n  `response` mediumtext DEFAULT NULL,\n  `sent_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_whe_event` (`event_id`),\n  KEY `idx_whe_due` (`status`,`next_attempt_at`),\n  KEY `idx_whe_tenant` (`tenant_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(11) NOT NULL AUTO_INCREMENT",
+                "event_id": "varchar(64) NOT NULL",
+                "product_id": "int(11) NOT NULL",
+                "tenant_id": "int(11) DEFAULT NULL",
+                "event_type": "varchar(60) NOT NULL",
+                "payload": "mediumtext NOT NULL",
+                "status": "enum('pending','sending','sent','failed') NOT NULL DEFAULT 'pending'",
+                "attempts": "int(11) NOT NULL DEFAULT 0",
+                "next_attempt_at": "datetime DEFAULT NULL",
+                "last_http_code": "int(11) DEFAULT NULL",
+                "last_error": "text DEFAULT NULL",
+                "response": "mediumtext DEFAULT NULL",
+                "sent_at": "datetime DEFAULT NULL",
+                "created_at": "timestamp NOT NULL DEFAULT current_timestamp()",
+                "updated_at": "timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()"
+            },
+            "indexes": {
+                "uq_whe_event": {
+                    "sql": "UNIQUE KEY `uq_whe_event` (`event_id`)",
+                    "unique": true,
+                    "columns": [
+                        "event_id"
+                    ]
+                },
+                "idx_whe_due": {
+                    "sql": "KEY `idx_whe_due` (`status`,`next_attempt_at`)",
+                    "unique": false,
+                    "columns": [
+                        "status",
+                        "next_attempt_at"
+                    ]
+                },
+                "idx_whe_tenant": {
+                    "sql": "KEY `idx_whe_tenant` (`tenant_id`)",
+                    "unique": false,
+                    "columns": [
+                        "tenant_id"
+                    ]
+                }
+            }
+        }
+    }
+}

@@ -55,6 +55,7 @@ Thumbs.db
 
 # Database backups (never commit)
 server/storage/backups/
+nexus-portal-server/storage/
 
 # Database dumps stay out of git (clean_database_template.sql is still tracked: the provisioner needs it)
 server/database.sql
