@@ -1,67 +1,66 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from "react";
+import React, { useEffect, useRef, useState, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
+
+const SAFETY_MS = 8000; // never leave the bar up longer than this
 
 function ProgressContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [progress, setProgress] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // When pathname or searchParams change, finish the progress bar
+  const clearTimers = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [];
+  };
+
+  const finish = () => {
+    clearTimers();
+    setProgress(100);
+    timers.current.push(setTimeout(() => { setIsVisible(false); setProgress(0); }, 300));
+  };
+
+  // Route changed: finish the bar (stale step timers are cancelled first)
   useEffect(() => {
-    if (isVisible) {
-      setProgress(100);
-      const timer = setTimeout(() => {
-        setIsVisible(false);
-        setProgress(0);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
+    finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, searchParams]);
 
-  // Intercept internal link clicks to start progress bar immediately
+  useEffect(() => () => clearTimers(), []);
+
+  // Start the bar on internal link clicks that will actually change the URL
   useEffect(() => {
     const handleAnchorClick = (e: MouseEvent) => {
-      const target = (e.target as HTMLElement).closest("a");
-      if (!target) return;
+      if (e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement | null)?.closest("a");
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const href = a.getAttribute("href");
+      if (!href || !href.startsWith("/") || href.startsWith("//")) return;
 
-      const href = target.getAttribute("href");
-      const isTargetBlank = target.getAttribute("target") === "_blank";
+      const next = new URL(href, window.location.href);
+      const here = new URL(window.location.href);
+      // Same page, or only the hash differs: no navigation, no bar
+      if (next.pathname === here.pathname && next.search === here.search) return;
 
-      if (
-        href &&
-        href.startsWith("/") &&
-        !href.startsWith("/#") &&
-        !href.startsWith("mailto:") &&
-        !href.startsWith("tel:") &&
-        !isTargetBlank &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.shiftKey &&
-        !e.altKey
-      ) {
-        if (href === pathname) return;
-
-        setIsVisible(true);
-        setProgress(30);
-
-        const t1 = setTimeout(() => setProgress(70), 150);
-        const t2 = setTimeout(() => setProgress(90), 400);
-
-        return () => {
-          clearTimeout(t1);
-          clearTimeout(t2);
-        };
-      }
+      clearTimers();
+      setIsVisible(true);
+      setProgress(30);
+      timers.current.push(
+        setTimeout(() => setProgress(70), 150),
+        setTimeout(() => setProgress(90), 400),
+        setTimeout(finish, SAFETY_MS),
+      );
     };
 
     document.addEventListener("click", handleAnchorClick);
     return () => document.removeEventListener("click", handleAnchorClick);
-  }, [pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  if (!isVisible && progress === 0) return null;
+  if (!isVisible) return null;
 
   return (
     <div
