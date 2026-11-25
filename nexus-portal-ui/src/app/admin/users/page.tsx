@@ -50,7 +50,7 @@ export default function UsersPage() {
   const totalPages = Math.ceil(users.length / itemsPerPage);
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 sm:p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold text-nx-ink dark:text-white">Client Accounts</h1>
@@ -100,7 +100,7 @@ export default function UsersPage() {
               {users.length} Active
             </span>
           </div>
-          <table className="w-full text-left">
+          <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left">
             <thead>
               <tr className="border-b border-nx-line dark:border-nx-line-dark bg-nx-surface-soft dark:bg-nx-surface-dark">
                 {['Identity', 'Role', 'Tenant', ''].map((h, i) => (
@@ -158,7 +158,7 @@ export default function UsersPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
           <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} totalItems={users.length} itemsPerPage={itemsPerPage} />
         </div>
       </div>

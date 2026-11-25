@@ -44,7 +44,7 @@ export default function PlanUsagePage() {
   const upgradeHref = `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(`Hi, I'd like to upgrade my ${s.package_name} plan (${s.name}).`)}`;
 
   return (
-    <div className="max-w-4xl space-y-6 p-6">
+    <div className="max-w-4xl space-y-6 p-4 sm:p-6">
       <div>
         <h1 className="text-xl font-bold text-nx-ink dark:text-white">Plan &amp; usage</h1>
         <p className="mt-1 text-sm text-nx-text-muted dark:text-nx-text-subtle">

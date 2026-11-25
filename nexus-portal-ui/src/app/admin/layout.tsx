@@ -19,6 +19,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const theme: 'light' | 'dark' = resolvedTheme === 'dark' ? 'dark' : 'light';
   const [isSidebarOpen,   setIsSidebarOpen]   = useState(false);
 
+  // Phone/tablet drawer: close on navigation and Escape, and stop the page behind it from scrolling
+  const [openedOn, setOpenedOn] = useState(pathname);
+  if (isSidebarOpen && openedOn !== pathname) { setIsSidebarOpen(false); setOpenedOn(pathname); }
+  useEffect(() => {
+    if (!isSidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsSidebarOpen(false); };
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
+  }, [isSidebarOpen]);
+
   useEffect(() => {
     const isLoginPage = pathname === '/admin' || pathname === '/admin/login';
     if (isLoginPage) { setLoading(false); return; }
@@ -73,7 +85,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-nx-canvas text-nx-ink dark:bg-nx-ink dark:text-white transition-colors duration-200">
+    <div className="flex h-dvh overflow-hidden bg-nx-canvas text-nx-ink dark:bg-nx-ink dark:text-white transition-colors duration-200">
       <AdminSidebar
         currentUser={currentUser}
         role={userRole}
@@ -89,7 +101,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           role={userRole}
           theme={theme}
           onToggleTheme={toggleTheme}
-          onToggleSidebar={() => setIsSidebarOpen(prev => !prev)}
+          onToggleSidebar={() => { setOpenedOn(pathname); setIsSidebarOpen(prev => !prev); }}
+          sidebarOpen={isSidebarOpen}
         />
         <main className="flex-1 overflow-y-auto">
           {children}

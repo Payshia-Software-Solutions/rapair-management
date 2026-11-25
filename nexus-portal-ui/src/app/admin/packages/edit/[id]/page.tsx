@@ -212,7 +212,7 @@ export default function PackageEditPage() {
   }
 
   return (
-    <div className="w-full p-6 sm:p-8 space-y-6 pb-16">
+    <div className="w-full p-4 sm:p-8 space-y-6 pb-16">
       {/* ── Top Navigation Bar ─────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-3">

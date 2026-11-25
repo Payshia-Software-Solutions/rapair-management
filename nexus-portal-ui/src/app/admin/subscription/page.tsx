@@ -134,7 +134,7 @@ export default function SubscriptionPage() {
 
   if (!subscription) {
     return (
-      <div className="p-6 max-w-4xl space-y-6">
+      <div className="p-4 sm:p-6 max-w-4xl space-y-6">
         <div className="rounded-2xl border border-nx-line bg-white p-8 dark:border-nx-line-dark dark:bg-nx-surface-dark text-center space-y-4">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-nx-accent/10 text-nx-accent dark:bg-nx-accent-light/20 dark:text-nx-accent-light">
             <Zap size={24} />
@@ -200,7 +200,7 @@ export default function SubscriptionPage() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">

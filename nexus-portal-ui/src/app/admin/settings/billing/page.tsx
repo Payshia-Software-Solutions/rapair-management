@@ -84,7 +84,7 @@ export default function BillingSettingsPage() {
   }
 
   return (
-    <div className="w-full p-6 sm:p-8 space-y-6 pb-24">
+    <div className="w-full p-4 sm:p-8 space-y-6 pb-24">
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-slate-800">
         <div>

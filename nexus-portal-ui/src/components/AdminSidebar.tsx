@@ -89,18 +89,19 @@ export default function AdminSidebar({
       {/* Mobile backdrop */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-[60] bg-black/40 lg:hidden"
+          aria-hidden="true"
+          className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-[2px] lg:hidden"
           onClick={onClose}
         />
       )}
 
-      <aside className={`
-        fixed inset-y-0 left-0 z-[70] flex h-screen w-[220px] flex-col
+      <aside id="admin-sidebar" aria-label="Main navigation" className={`
+        fixed inset-y-0 left-0 z-[70] flex h-dvh w-[272px] max-w-[85vw] flex-col
         border-r border-nx-line bg-white
         dark:border-nx-line-dark dark:bg-nx-surface-dark
-        transition-transform duration-200 ease-in-out
-        lg:sticky lg:top-0 lg:translate-x-0
-        ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+        transition-[transform,visibility] duration-200 ease-out
+        lg:sticky lg:top-0 lg:w-[220px] lg:translate-x-0 lg:visible lg:shadow-none
+        ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full invisible'}
       `}>
 
         {/* ── Logo ─────────────────────────────────── */}
@@ -112,10 +113,12 @@ export default function AdminSidebar({
             </span>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="lg:hidden rounded-md p-1 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"
+            aria-label="Close menu"
+            className="lg:hidden rounded-md p-2 -mr-1 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
@@ -139,10 +142,12 @@ export default function AdminSidebar({
                     return (
                       <button
                         key={item.id}
+                        type="button"
+                        aria-current={active ? 'page' : undefined}
                         onClick={() => navigate(item.id)}
                         className={`
-                          group relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2
-                          text-[13px] font-medium transition-colors text-left
+                          group relative flex w-full items-center gap-3 rounded-md px-2.5 py-2.5 lg:gap-2.5 lg:py-2
+                          text-[14px] lg:text-[13px] font-medium transition-colors text-left
                           ${active
                             ? 'bg-nx-surface-muted text-nx-ink dark:bg-nx-line-dark dark:text-white font-semibold'
                             : 'text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:text-nx-text-muted dark:hover:bg-nx-line-dark dark:hover:text-white'
@@ -153,7 +158,7 @@ export default function AdminSidebar({
                         {active && (
                           <span className="absolute left-0 top-1 bottom-1 w-[3px] rounded-full bg-nx-accent" />
                         )}
-                        <Icon size={15} className="shrink-0" />
+                        <Icon size={16} className="shrink-0" aria-hidden="true" />
                         <span>{item.label}</span>
                       </button>
                     );
@@ -165,7 +170,7 @@ export default function AdminSidebar({
         </nav>
 
         {/* ── Footer ───────────────────────────────── */}
-        <div className="border-t border-nx-line dark:border-nx-line-dark p-3 space-y-2">
+        <div className="border-t border-nx-line dark:border-nx-line-dark p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] space-y-2">
           {/* User row */}
           <div className="flex items-center gap-2.5 rounded-md px-2 py-2">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-nx-accent text-[12px] font-bold text-white">
@@ -185,14 +190,14 @@ export default function AdminSidebar({
           <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={onToggleTheme}
-              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:hover:bg-nx-line-dark dark:hover:text-white transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-md py-2.5 lg:py-1.5 text-[12px] lg:text-[11px] font-medium text-nx-text-muted hover:bg-nx-surface-muted hover:text-nx-ink dark:hover:bg-nx-line-dark dark:hover:text-white transition-colors"
             >
               {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
               {theme === 'dark' ? 'Light' : 'Dark'}
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center gap-1.5 rounded-md py-1.5 text-[11px] font-medium text-[#ef4444] hover:bg-nx-danger-soft transition-colors"
+              className="flex items-center justify-center gap-1.5 rounded-md py-2.5 lg:py-1.5 text-[12px] lg:text-[11px] font-medium text-[#ef4444] hover:bg-nx-danger-soft transition-colors"
             >
               <LogOut size={13} />
               Logout

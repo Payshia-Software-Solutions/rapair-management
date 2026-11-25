@@ -10,10 +10,11 @@ type AdminTopBarProps = {
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onToggleSidebar: () => void;
+  sidebarOpen?: boolean;
 };
 
 export default function AdminTopBar({
-  currentUser, role, theme, onToggleTheme, onToggleSidebar
+  currentUser, role, theme, onToggleTheme, onToggleSidebar, sidebarOpen
 }: AdminTopBarProps) {
   const pathname = usePathname();
 
@@ -29,22 +30,26 @@ export default function AdminTopBar({
       transition-colors duration-200
     ">
       {/* ── Left ─────────────────────────────── */}
-      <div className="flex items-center gap-3">
+      <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         {/* Mobile hamburger */}
         <button
+          type="button"
           onClick={onToggleSidebar}
-          className="lg:hidden rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"
+          aria-label="Open menu"
+          aria-controls="admin-sidebar"
+          aria-expanded={!!sidebarOpen}
+          className="lg:hidden -ml-1 rounded-md p-2 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"
         >
-          <Menu size={18} />
+          <Menu size={20} />
         </button>
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm">
+        <div className="flex min-w-0 items-center gap-2 text-sm">
           <span className="hidden sm:block text-nx-text-subtle dark:text-nx-text-strong text-xs font-medium">
             Admin
           </span>
           <ChevronRight size={13} className="hidden sm:block text-nx-line-strong dark:text-nx-line-dark-strong" />
-          <span className="font-semibold text-nx-ink dark:text-white text-[13px]">
+          <span className="truncate font-semibold text-nx-ink dark:text-white text-[13px]">
             {pageTitle}
           </span>
         </div>
@@ -73,7 +78,7 @@ export default function AdminTopBar({
       ) : <div className="flex-1" />}
 
       {/* ── Right ────────────────────────────── */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1 sm:gap-1.5">
         {/* Theme toggle */}
         <button
           onClick={onToggleTheme}
@@ -92,7 +97,7 @@ export default function AdminTopBar({
         )}
 
         {/* Divider */}
-        <div className="mx-1 h-6 w-px bg-nx-line dark:bg-nx-line-dark" />
+        <div className="mx-1 hidden h-6 w-px bg-nx-line dark:bg-nx-line-dark sm:block" />
 
         {/* User avatar */}
         <div className="flex items-center gap-2.5">

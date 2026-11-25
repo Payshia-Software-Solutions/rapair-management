@@ -115,7 +115,7 @@ export default function TenantCreatePage() {
   };
 
   return (
-    <div className="w-full space-y-6 p-6 pb-24 sm:p-8">
+    <div className="w-full space-y-6 p-4 pb-24 sm:p-8">
       <div className="space-y-2 border-b border-nx-line pb-5 dark:border-nx-line-dark">
         <button onClick={() => router.push('/admin/tenants')} className="flex items-center gap-1 text-xs font-semibold text-nx-text-muted hover:text-nx-accent dark:text-nx-text-subtle">
           <ChevronLeft size={15} /> Back to tenants

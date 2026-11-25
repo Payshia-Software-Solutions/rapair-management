@@ -211,7 +211,7 @@ export default function DashboardPage() {
   const monthTotal = useMemo(() => data?.collections_monthly.reduce((a, b) => a + b.amount, 0) ?? 0, [data]);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6 p-4 sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-nx-ink dark:text-white">Overview</h1>
@@ -316,7 +316,7 @@ export default function DashboardPage() {
             <Link href="/admin/tenants/create" className="text-xs font-semibold text-nx-accent hover:underline">Register the first tenant</Link>
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm">
             <thead className="text-[11px] uppercase tracking-wider text-nx-text-subtle">
               <tr className="border-b border-nx-line dark:border-nx-line-dark">
                 <th className="px-5 py-2.5 font-semibold">Tenant</th>
@@ -341,7 +341,7 @@ export default function DashboardPage() {
               ))}
               {!data && <tr><td colSpan={4} className="px-5 py-8 text-center text-sm text-nx-text-subtle">Loading…</td></tr>}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
         <section className="rounded-xl border border-nx-line bg-white p-6 dark:border-nx-line-dark dark:bg-nx-surface-dark">

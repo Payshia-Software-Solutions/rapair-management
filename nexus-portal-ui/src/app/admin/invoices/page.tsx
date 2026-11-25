@@ -184,7 +184,7 @@ export default function GlobalInvoicesPage() {
   const inputCls = "w-full rounded-lg border border-nx-line bg-nx-surface-muted py-2.5 px-3 text-[13px] text-nx-ink dark:border-nx-line-dark dark:bg-nx-line-dark dark:text-white focus:border-nx-accent focus:outline-none focus:ring-2 focus:ring-nx-accent/20 transition-all";
 
   return (
-    <div className="p-6 space-y-5">
+    <div className="p-4 sm:p-6 space-y-5">
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -446,7 +446,7 @@ export default function GlobalInvoicesPage() {
               )}
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-4 sm:p-6 space-y-5">
               {billingModal.step === 'idle' && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
