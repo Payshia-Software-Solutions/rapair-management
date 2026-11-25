@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Layers, Loader2, AlertTriangle, CheckCircle2, Archive, Search } from 'lucide-react';
 import { adminApi, errMsg } from '@/lib/adminApi';
 
@@ -36,6 +36,13 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
     finally { setBusy(null); }
   };
 
+  // Check in the background as soon as the tenant page opens (read-only; nothing changes until "Back up and update")
+  useEffect(() => {
+    const t = setTimeout(() => void check(), 0);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantId]);
+
   const update = async () => {
     if (!diff) return;
     setBusy('update'); setError(null);
@@ -65,7 +72,9 @@ export default function WorkspaceSchema({ tenantId, onBackup }: { tenantId: stri
       <div className="space-y-4 p-4 text-xs text-slate-700 dark:text-slate-300">
         {!diff && !result && !error && (
           <p className="text-slate-500 dark:text-slate-400">
-            After deploying a new ERP version, check here for new tables and columns this workspace is missing. You review them before anything changes.
+            {busy === 'check'
+              ? 'Checking this workspace for missing tables and columns…'
+              : 'Checks for new tables and columns this workspace is missing. You review them before anything changes.'}
           </p>
         )}
 

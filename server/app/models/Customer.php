@@ -221,55 +221,91 @@ class Customer extends Model {
         return $this->db->execute();
     }
 
+    /**
+     * Customer 360: profile, money, activity and every module's records for one customer.
+     * Optional modules (loyalty, vouchers, credit notes, hotel, service) are read only when their
+     * tables exist, so a workspace without them still gets a full answer.
+     */
     public function getSummary($id) {
         $customer = $this->getById($id);
         if (!$customer) return null;
+        $id = (int)$id;
+        unset($customer->password); // portal login hash never leaves the server
 
-        // 1. Recent Invoices
-        $this->db->query("SELECT * FROM invoices WHERE customer_id = :id ORDER BY id DESC LIMIT 10");
-        $this->db->bind(':id', $id);
-        $invoices = $this->db->resultSet();
+        $rows = function ($sql) use ($id) {
+            try {
+                $this->db->query($sql);
+                if (strpos($sql, ':id') !== false) $this->db->bind(':id', $id);
+                return $this->db->resultSet();
+            } catch (Exception $e) {
+                return []; // module not installed in this workspace
+            }
+        };
+        $one = function ($sql) use ($rows) { $r = $rows($sql); return $r[0] ?? null; };
 
-        // 2. Recent Payments
-        $this->db->query("SELECT * FROM payment_receipts WHERE customer_id = :id ORDER BY id DESC LIMIT 10");
-        $this->db->bind(':id', $id);
-        $payments = $this->db->resultSet();
+        $invoices = $rows("SELECT id, invoice_no, issue_date, due_date, grand_total, paid_amount, status, order_type, created_at
+                           FROM invoices WHERE customer_id = :id ORDER BY id DESC LIMIT 50");
+        $payments = $rows("SELECT id, receipt_no, invoice_id, invoice_no, amount, payment_method, payment_date, status, created_at
+                           FROM payment_receipts WHERE customer_id = :id ORDER BY id DESC LIMIT 50");
+        $reservations = $rows("SELECT r.*, rm.room_number AS room_no FROM hotel_reservations r LEFT JOIN hotel_rooms rm ON rm.id = r.room_id
+                               WHERE r.customer_id = :id ORDER BY r.id DESC LIMIT 20");
+        if (!$reservations) $reservations = $rows("SELECT * FROM hotel_reservations WHERE customer_id = :id ORDER BY id DESC LIMIT 20");
 
-        // 3. Recent Reservations
-        $this->db->query("SELECT * FROM hotel_reservations WHERE customer_id = :id ORDER BY id DESC LIMIT 10");
-        $this->db->bind(':id', $id);
-        $reservations = $this->db->resultSet();
+        $stats = $one("
+            SELECT COUNT(*) AS total_invoices,
+                   COALESCE(SUM(grand_total), 0) AS total_spent,
+                   COALESCE(SUM(paid_amount), 0) AS total_paid,
+                   COALESCE(AVG(grand_total), 0) AS avg_invoice,
+                   COALESCE(SUM(GREATEST(grand_total - paid_amount, 0)), 0) AS outstanding,
+                   COALESCE(SUM(CASE WHEN due_date < CURDATE() AND grand_total > paid_amount THEN grand_total - paid_amount ELSE 0 END), 0) AS overdue,
+                   SUM(CASE WHEN due_date < CURDATE() AND grand_total > paid_amount THEN 1 ELSE 0 END) AS overdue_invoices,
+                   MIN(issue_date) AS first_purchase,
+                   MAX(issue_date) AS last_purchase,
+                   COALESCE(SUM(CASE WHEN issue_date >= CURDATE() - INTERVAL 90 DAY THEN grand_total ELSE 0 END), 0) AS spent_90d,
+                   COALESCE(SUM(CASE WHEN issue_date >= CURDATE() - INTERVAL 180 DAY AND issue_date < CURDATE() - INTERVAL 90 DAY THEN grand_total ELSE 0 END), 0) AS spent_prev_90d
+            FROM invoices WHERE customer_id = :id AND status != 'Cancelled'") ?: (object)[];
+        $stays = $one("SELECT COUNT(*) AS n FROM hotel_reservations WHERE customer_id = :id AND status = 'CheckedOut'");
+        $stats->total_stays = $stays ? (int)$stays->n : 0;
 
-        // 4. Lifetime Statistics
-        $this->db->query("
-            SELECT 
-                COUNT(*) as total_invoices,
-                COALESCE(SUM(grand_total), 0) as total_spent,
-                COALESCE(SUM(paid_amount), 0) as total_paid,
-                (SELECT COUNT(*) FROM hotel_reservations WHERE customer_id = :id AND status = 'CheckedOut') as total_stays
-            FROM invoices 
-            WHERE customer_id = :id AND status != 'Cancelled'
-        ");
-        $this->db->bind(':id', $id);
-        $stats = $this->db->single();
+        // Spending per month, last 12 months (missing months are filled in by the page)
+        $monthly = $rows("SELECT DATE_FORMAT(issue_date, '%Y-%m') AS month, SUM(grand_total) AS total, COUNT(*) AS invoices
+                          FROM invoices WHERE customer_id = :id AND status != 'Cancelled'
+                            AND issue_date >= DATE_FORMAT(CURDATE() - INTERVAL 11 MONTH, '%Y-%m-01')
+                          GROUP BY month ORDER BY month");
 
-        // 5. Purchased Items (Aggregated)
-        $this->db->query("
-            SELECT 
-                ii.description as item_name,
-                SUM(ii.quantity) as total_qty,
-                AVG(ii.unit_price) as avg_price,
-                SUM(ii.line_total) as total_spent,
-                MAX(i.issue_date) as last_purchased
-            FROM invoice_items ii
-            JOIN invoices i ON i.id = ii.invoice_id
+        $items = $rows("
+            SELECT ii.description AS item_name, SUM(ii.quantity) AS total_qty, AVG(ii.unit_price) AS avg_price,
+                   SUM(ii.line_total) AS total_spent, MAX(i.issue_date) AS last_purchased, COUNT(DISTINCT i.id) AS times
+            FROM invoice_items ii JOIN invoices i ON i.id = ii.invoice_id
             WHERE i.customer_id = :id AND i.status != 'Cancelled'
-            GROUP BY ii.description
-            ORDER BY total_spent DESC
-            LIMIT 50
-        ");
-        $this->db->bind(':id', $id);
-        $items = $this->db->resultSet();
+            GROUP BY ii.description ORDER BY total_spent DESC LIMIT 50");
+
+        $paymentMethods = $rows("SELECT payment_method, COUNT(*) AS n, SUM(amount) AS total FROM payment_receipts
+                                 WHERE customer_id = :id AND (status IS NULL OR status != 'Cancelled')
+                                 GROUP BY payment_method ORDER BY total DESC");
+
+        // Other modules
+        $vehicles = $rows("SELECT id, make, model, year, vin, image_filename, created_at FROM vehicles WHERE customer_id = :id ORDER BY id DESC");
+        $orders = $rows("SELECT id, vehicle_identifier, vehicle_model, problem_description, status, priority, mileage, technician, created_at, completed_at
+                         FROM repair_orders WHERE customer_id = :id ORDER BY id DESC LIMIT 30");
+        $quotations = $rows("SELECT id, quotation_no, issue_date, expiry_date, status, grand_total, converted_invoice_id
+                             FROM quotations WHERE customer_id = :id ORDER BY id DESC LIMIT 30");
+        $returns = $rows("SELECT id, return_no, invoice_id, return_date, total_amount, reason, status
+                          FROM sales_returns WHERE customer_id = :id ORDER BY id DESC LIMIT 30");
+        $creditNotes = $rows("SELECT * FROM credit_notes WHERE customer_id = :id ORDER BY id DESC LIMIT 30");
+        $vouchers = $rows("SELECT id, code, initial_value, balance, status, source, expires_at, created_at
+                           FROM gift_vouchers WHERE customer_id = :id ORDER BY id DESC LIMIT 30");
+
+        $loyalty = null;
+        $member = $one("SELECT m.*, t.name AS tier_name, t.color AS tier_color, t.discount_pct
+                        FROM loyalty_members m LEFT JOIN loyalty_tiers t ON t.id = m.tier_id WHERE m.customer_id = :id");
+        if ($member) {
+            $next = $rows("SELECT name, threshold FROM loyalty_tiers WHERE is_active = 1 ORDER BY threshold");
+            $ledger = $rows("SELECT l.type, l.points, l.amount, l.invoice_id, l.note, l.created_at
+                             FROM loyalty_ledger l JOIN loyalty_members m ON m.id = l.member_id
+                             WHERE m.customer_id = :id ORDER BY l.id DESC LIMIT 20");
+            $loyalty = ['member' => $member, 'tiers' => $next, 'ledger' => $ledger];
+        }
 
         return [
             'customer' => $customer,
@@ -277,7 +313,16 @@ class Customer extends Model {
             'payments' => $payments,
             'reservations' => $reservations,
             'stats' => $stats,
-            'purchased_items' => $items
+            'monthly' => $monthly,
+            'purchased_items' => $items,
+            'payment_methods' => $paymentMethods,
+            'vehicles' => $vehicles,
+            'orders' => $orders,
+            'quotations' => $quotations,
+            'returns' => $returns,
+            'credit_notes' => $creditNotes,
+            'gift_vouchers' => $vouchers,
+            'loyalty' => $loyalty,
         ];
     }
 }
