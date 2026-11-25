@@ -205,6 +205,9 @@ $router->add('api/admin/settings/mail/test', ['controller' => 'SettingsControlle
 // Billing & Discount Settings
 $router->add('api/admin/settings/billing', ['controller' => 'SettingsController', 'action' => 'getBillingSettings']);
 $router->add('api/admin/settings/billing/update', ['controller' => 'SettingsController', 'action' => 'updateBillingSettings'], 'POST');
+$router->add('api/saas/maintenance', ['controller' => 'MaintenanceController', 'action' => 'status']);
+$router->add('api/admin/settings/maintenance', ['controller' => 'MaintenanceController', 'action' => 'get']);
+$router->add('api/admin/settings/maintenance/update', ['controller' => 'MaintenanceController', 'action' => 'update'], 'POST');
 $router->add('api/saas/settings/public', ['controller' => 'SettingsController', 'action' => 'getPublicSettings']);
 
 // Products & automatic workspace provisioning (webhook outbox)

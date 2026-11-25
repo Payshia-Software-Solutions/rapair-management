@@ -13,7 +13,7 @@ const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 const OK_TTL = 60_000; // known workspace: recheck after 1 minute
 const BAD_TTL = 15_000; // unknown/paused: recheck sooner, so a new workspace works quickly
 
-type Info = { code: string; workspace?: string; since?: string };
+type Info = { code: string; workspace?: string; since?: string; message?: string; until?: string };
 type Verdict = { code: Info | null; until: number };
 const cache = new Map<string, Verdict>();
 
@@ -40,6 +40,8 @@ async function check(host: string): Promise<Info | null> {
         code: (body && body.code) || `http_${res.status}`,
         workspace: typeof body?.workspace === "string" ? body.workspace.slice(0, 120) : undefined,
         since: typeof body?.since === "string" ? body.since.slice(0, 10) : undefined,
+        message: body?.code === "maintenance" && typeof body?.message === "string" ? body.message.slice(0, 500) : undefined,
+        until: typeof body?.until === "string" ? body.until.slice(0, 16) : undefined,
       };
       ttl = BAD_TTL;
     }
@@ -71,6 +73,8 @@ export async function middleware(req: NextRequest) {
   const q = new URLSearchParams({ code: code.code });
   if (code.workspace) q.set("w", code.workspace);
   if (code.since) q.set("since", code.since);
+  if (code.message) q.set("m", code.message);
+  if (code.until) q.set("until", code.until);
   url.search = `?${q}`;
   return NextResponse.rewrite(url, { status: code.code === "workspace_not_found" ? 404 : 503 });
 }

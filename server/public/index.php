@@ -87,6 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     exit;
 }
 
+// Maintenance mode for all workspaces (switched in Nexus): 503 for every API call while on
+require_once __DIR__ . '/../app/helpers/Maintenance.php';
+Maintenance::guard();
+
 // Simple Autoloader (PSR-4 alternative for this structure)
 spl_autoload_register(function ($className) {
     // Map namespaces to directories

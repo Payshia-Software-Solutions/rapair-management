@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   Inbox, Layers, CreditCard, Zap, UserCheck,
   FileText, Mail, Send, Globe, Building2,
-  LogOut, Sun, Moon, ChevronRight, X, BarChart, Percent, Boxes, Webhook, Gauge, Database
+  LogOut, Sun, Moon, ChevronRight, X, BarChart, Percent, Boxes, Webhook, Gauge, Database, Wrench
 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { API_BASE } from '@/config';
@@ -57,6 +57,7 @@ const menuSections = [
       { id: 'settings/company', label: 'Branding',    icon: Building2,  roles: ['super_admin'] },
       { id: 'settings/mail',    label: 'Mail Server', icon: Mail,       roles: ['super_admin'] },
       { id: 'settings/database', label: 'Database',   icon: Database,   roles: ['super_admin'] },
+      { id: 'settings/maintenance', label: 'Maintenance', icon: Wrench, roles: ['super_admin'] },
     ]
   }
 ];

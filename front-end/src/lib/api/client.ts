@@ -58,6 +58,17 @@ export const api = async (path: string, options: RequestInit = {}): Promise<Resp
   if (response.status === 402 && typeof window !== 'undefined') {
     window.dispatchEvent(new Event('trial:ended'));
   }
+  // Maintenance mode (switched in Nexus for all workspaces): show the maintenance page
+  if (response.status === 503 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/workspace-unavailable')) {
+    const body = await response.clone().json().catch(() => null);
+    if (body?.code === 'maintenance') {
+      const q = new URLSearchParams({ code: 'maintenance' });
+      if (typeof body.message === 'string') q.set('m', body.message.slice(0, 500));
+      if (typeof body.until === 'string') q.set('until', body.until.slice(0, 16));
+      q.set('back', window.location.pathname + window.location.search);
+      window.location.href = `/workspace-unavailable?${q}`;
+    }
+  }
   return response;
 };
 

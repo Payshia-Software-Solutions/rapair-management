@@ -1,4 +1,4 @@
-import { Clock, Mail, PauseCircle, RefreshCw, SearchX, ShieldCheck } from "lucide-react";
+import { Clock, Mail, PauseCircle, RefreshCw, SearchX, ShieldCheck, Wrench } from "lucide-react";
 
 const SUPPORT_EMAIL = "support@nebulync.com";
 
@@ -16,6 +16,12 @@ const MESSAGES: Record<string, Msg> = {
     text: "Access to this workspace is paused, usually because of an unpaid invoice or a subscription change.",
     icon: PauseCircle,
     tone: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  },
+  maintenance: {
+    title: "Under maintenance",
+    text: "We are carrying out scheduled maintenance. BizzFlow will be back shortly.",
+    icon: Wrench,
+    tone: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
   },
   workspace_not_ready: {
     title: "Workspace is being set up",
@@ -35,10 +41,15 @@ const FALLBACK: Msg = {
 export default async function WorkspaceUnavailable({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string; w?: string; since?: string }>;
+  searchParams: Promise<{ code?: string; w?: string; since?: string; m?: string; until?: string; back?: string }>;
 }) {
-  const { code = "", w = "", since = "" } = await searchParams;
-  const m = MESSAGES[code] ?? FALLBACK;
+  const { code = "", w = "", since = "", m: customText = "", until = "", back = "" } = await searchParams;
+  const base = MESSAGES[code] ?? FALLBACK;
+  const maintenance = code === "maintenance";
+  const m = maintenance && customText ? { ...base, text: customText.slice(0, 500) } : base;
+  const untilLabel = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}$/.test(until) ? until.replace("T", " ") : "";
+  // Only same-site paths, so the link can't send people elsewhere
+  const retryHref = back.startsWith("/") && !back.startsWith("//") ? back : "/";
   const Icon = m.icon;
   const paused = code === "workspace_suspended";
   const workspace = w.slice(0, 120);
@@ -60,6 +71,23 @@ export default async function WorkspaceUnavailable({
           <h1 className="mt-4 text-2xl font-bold">{m.title}</h1>
           {workspace && <p className="mt-1 text-sm font-medium text-foreground">{workspace}</p>}
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{m.text}</p>
+
+          {maintenance && (
+            <>
+              {untilLabel && (
+                <dl className="mt-5 rounded-xl border bg-muted/40 p-4 text-sm">
+                  <dt className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expected back</dt>
+                  <dd className="mt-0.5 font-semibold">{untilLabel} (Sri Lanka time)</dd>
+                </dl>
+              )}
+              <div className="mt-5 flex gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm dark:border-emerald-900/60 dark:bg-emerald-950/40">
+                <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                <p className="text-emerald-900 dark:text-emerald-100">
+                  Your data is safe. Everything you saved before the maintenance is kept. Try again in a few minutes.
+                </p>
+              </div>
+            </>
+          )}
 
           {paused && (
             <>
@@ -102,7 +130,7 @@ export default async function WorkspaceUnavailable({
               <Mail className="h-4 w-4" aria-hidden="true" /> Contact support
             </a>
             <a
-              href="/"
+              href={retryHref}
               className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold hover:bg-muted"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
