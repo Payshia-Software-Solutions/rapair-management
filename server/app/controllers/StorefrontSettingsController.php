@@ -33,9 +33,7 @@ class StorefrontSettingsController extends Controller {
 
     // POST /api/storefront-settings/update
     public function update() {
-        try {
-            $this->requirePermission('ecommerce.write');
-        } catch (Exception $e) {}
+        $this->requirePermission('ecommerce.write');
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
@@ -64,16 +62,10 @@ class StorefrontSettingsController extends Controller {
 
     // POST /api/storefront-settings/testSmtp
     public function testSmtp() {
-        error_log("Reached testSmtp method");
-        try {
-            $this->requirePermission('ecommerce.write');
-        } catch (Exception $e) {
-            error_log("Permission check failed but ignored: " . $e->getMessage());
-        }
+        $this->requirePermission('ecommerce.write');
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
-        error_log("SMTP Config: " . json_encode($data));
 
         $config = [
             'mail_host' => $data['mail_host'] ?? '',
@@ -106,13 +98,11 @@ class StorefrontSettingsController extends Controller {
      * POST /api/storefront-settings/uploadIcon
      */
     public function uploadIcon() {
-        try {
-            $this->requirePermission('ecommerce.write');
-        } catch (Exception $e) {}
+        $this->requirePermission('ecommerce.write');
 
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') $this->error('Method Not Allowed', 405);
         
-        $locationId = $_POST['location_id'] ?? 1;
+        $locationId = (int)($_POST['location_id'] ?? 1);
         $settingKey = $_POST['key'] ?? null;
 
         if (!$settingKey || empty($_FILES['icon'])) {
@@ -124,11 +114,14 @@ class StorefrontSettingsController extends Controller {
             $this->error('File upload failed with error code: ' . $file['error']);
         }
 
-        $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $ext = preg_replace('/[^a-z0-9]+/', '', strtolower($ext));
-        if ($ext === '') $ext = 'png';
-        
-        $filename = 'kiosk_' . $locationId . '_' . $settingKey . '_' . uniqid() . '.' . $ext;
+        // Extension comes from the detected type, never from the client's filename
+        $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif', 'image/svg+xml' => 'svg'];
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($file['tmp_name']) ?: '';
+        if (!isset($allowed[$mime])) {
+            $this->error('Only PNG, JPG, WEBP, GIF or SVG images are allowed', 400);
+        }
+        $safeKey = preg_replace('/[^a-zA-Z0-9_-]+/', '', (string)$settingKey);
+        $filename = 'kiosk_' . $locationId . '_' . $safeKey . '_' . uniqid() . '.' . $allowed[$mime];
         
         try {
             require_once '../app/helpers/FtpStorage.php';

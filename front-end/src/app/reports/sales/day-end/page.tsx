@@ -206,6 +206,12 @@ export default function DayEndReportPage() {
                     <td className="px-4 py-3">TOTAL CASH & BANK INFLOW</td>
                     <td className="px-4 py-3 text-right text-green-700">{money(Number(data.summary.total_received))}</td>
                   </tr>
+                  {(Number(data.voucher_sales) > 0 || Number(data.voucher_refunds) > 0) && (
+                    <tr className="border-b text-xs text-muted-foreground">
+                      <td className="px-4 py-2">Gift vouchers sold (net, included in methods above)</td>
+                      <td className="px-4 py-2 text-right">{money(Number(data.voucher_sales || 0) - Number(data.voucher_refunds || 0))}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
               <div className="p-4 text-[10px] text-muted-foreground text-center">

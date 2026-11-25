@@ -12,6 +12,9 @@ import { createRequisition, fetchLocations, fetchParts, type PartRow, type Servi
 import { Plus, Trash2 } from "lucide-react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 
+const fmtMoney = (v: number) => v.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtQty = (v: number) => v.toLocaleString("en-LK", { maximumFractionDigits: 3 });
+
 type Line = { part_id: string; qty_requested: string; notes?: string };
 
 export default function NewStockRequestPage() {
@@ -75,17 +78,22 @@ export default function NewStockRequestPage() {
     }));
   }, [parts]);
 
+  const partById = useMemo(() => new Map((parts ?? []).map((p) => [String(p.id), p])), [parts]);
+  const totalValue = lines.reduce((s, l) => s + (Number(l.qty_requested) || 0) * Number(partById.get(l.part_id)?.cost_price ?? 0), 0);
+
+  const sameLoc = !!fromLoc && fromLoc === toLoc;
+
   const canSave = useMemo(() => {
-    if (!toLoc) return false;
+    if (!fromLoc || !toLoc || sameLoc) return false;
     return lines.some((l) => l.part_id && Number(l.qty_requested) > 0);
-  }, [toLoc, lines]);
+  }, [fromLoc, toLoc, sameLoc, lines]);
 
   const submit = async () => {
     if (!canSave) return;
     setSaving(true);
     try {
       const payload = {
-        from_location_id: fromLoc ? Number(fromLoc) : undefined,
+        from_location_id: Number(fromLoc),
         to_location_id: Number(toLoc),
         notes: notes.trim() || undefined,
         items: lines
@@ -96,8 +104,9 @@ export default function NewStockRequestPage() {
             notes: (l.notes ?? "").trim() || undefined,
           })),
       };
-      await createRequisition(payload);
-      toast({ title: "Created", description: "Stock request created." });
+      const res = await createRequisition(payload);
+      const pending = res?.data?.approval === "Pending";
+      toast({ title: pending ? "Sent for approval" : "Created", description: pending ? (res?.message || "Stock request sent for approval.") : "Stock request created." });
       router.push("/inventory/stock-requests");
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to create stock request", variant: "destructive" });
@@ -106,128 +115,112 @@ export default function NewStockRequestPage() {
     }
   };
 
+
+  const sel = "h-9 text-sm";
+  const validLines = lines.filter((l) => l.part_id && Number(l.qty_requested) > 0).length;
+
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Stock Request</h1>
-          <p className="text-muted-foreground mt-1">Create a request from the destination location</p>
+      <div className="w-full space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">New Stock Request</h1>
+            <p className="text-xs text-muted-foreground">Ask another location to send stock</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => router.push("/inventory/stock-requests")}>Back</Button>
         </div>
-        <Button variant="outline" onClick={() => router.push("/inventory/stock-requests")}>Back</Button>
-      </div>
 
-      <Card className="border-none shadow-md overflow-hidden">
-        <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-lg">Header</CardTitle>
-          <CardDescription>Preferred source and destination location</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Requested From (preferred source)</Label>
-              <SearchableSelect
-                value={fromLoc}
-                onValueChange={setFromLoc}
-                options={locationOptions}
-                placeholder="Optional"
-                searchPlaceholder="Search locations..."
-              />
-              <p className="text-xs text-muted-foreground">Optional. Helps warehouses choose where to dispatch from.</p>
+        <Card className="shadow-sm">
+          <CardContent className="space-y-3 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="space-y-1">
+                <Label className="text-xs">From (sends the stock) <span className="text-destructive">*</span></Label>
+                <SearchableSelect value={fromLoc} onValueChange={setFromLoc} options={locationOptions} placeholder="Select location..." searchPlaceholder="Search locations..." triggerClassName={sel} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">To (needs the stock) <span className="text-destructive">*</span></Label>
+                <SearchableSelect value={toLoc} onValueChange={setToLoc} options={locationOptions} placeholder="Select location..." searchPlaceholder="Search locations..." triggerClassName={`${sel} ${sameLoc ? "border-destructive" : ""}`} />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Notes</Label>
+                <Input className="h-9 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label>To Location</Label>
-              <SearchableSelect
-                value={toLoc}
-                onValueChange={setToLoc}
-                options={locationOptions}
-                placeholder="Select location..."
-                searchPlaceholder="Search locations..."
-              />
-              <p className="text-xs text-muted-foreground">This is the location that needs the stock.</p>
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Notes</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            {sameLoc && <p className="text-xs font-medium text-destructive">From and To cannot be the same location.</p>}
 
-      <Card className="border-none shadow-md overflow-hidden mt-6">
-        <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-lg">Items</CardTitle>
-          <CardDescription>Requested quantities (can be partial fulfilled later)</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 space-y-3">
-          {lines.map((line, idx) => (
-            <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
-              <div className="md:col-span-7 space-y-2">
-                <Label>Item</Label>
-                <SearchableSelect
-                  value={line.part_id}
-                  onValueChange={(val) => {
-                    const next = [...lines];
-                    next[idx] = { ...next[idx], part_id: val };
-                    setLines(next);
-                  }}
-                  options={partOptions}
-                  placeholder="Select item..."
-                  searchPlaceholder="Search items..."
-                />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <Label>Qty</Label>
-                <Input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={line.qty_requested}
-                  onChange={(e) => {
-                    const next = [...lines];
-                    next[idx] = { ...next[idx], qty_requested: e.target.value };
-                    setLines(next);
-                  }}
-                  placeholder="0"
-                />
-              </div>
-              <div className="md:col-span-2 space-y-2">
-                <Label>Line Notes</Label>
-                <Input
-                  value={line.notes ?? ""}
-                  onChange={(e) => {
-                    const next = [...lines];
-                    next[idx] = { ...next[idx], notes: e.target.value };
-                    setLines(next);
-                  }}
-                  placeholder="Optional"
-                />
-              </div>
-              <div className="md:col-span-1 flex justify-end">
-                <Button variant="outline" size="icon" onClick={() => removeLine(idx)} disabled={lines.length === 1}>
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="w-8 px-2 py-1.5 text-left font-medium">#</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Item</th>
+                    <th className="w-24 px-2 py-1.5 text-right font-medium">In stock</th>
+                    <th className="w-32 px-2 py-1.5 text-left font-medium">Qty</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">Value</th>
+                    <th className="w-40 px-2 py-1.5 text-left font-medium">Note</th>
+                    <th className="w-9" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {lines.map((line, idx) => {
+                    const part = partById.get(line.part_id);
+                    const unit = part?.unit || "";
+                    const qty = Number(line.qty_requested) || 0;
+                    const cost = Number(part?.cost_price ?? 0);
+                    const stock = Number(part?.stock_quantity ?? 0);
+                    const set = (patch: Partial<Line>) => setLines((prev) => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+                    return (
+                      <tr key={idx} className="align-middle">
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-2 py-1.5">
+                          <SearchableSelect value={line.part_id} onValueChange={(val) => set({ part_id: val })} options={partOptions} placeholder="Select item..." searchPlaceholder="Search items..." triggerClassName="h-8 text-sm" />
+                          {part && (
+                            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                              {[part.sku, part.brand_name, `LKR ${fmtMoney(cost)} / ${unit || "unit"}`].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
+                        </td>
+                        <td className={`px-2 py-1.5 text-right text-xs tabular-nums ${part && stock <= 0 ? "text-destructive" : "text-muted-foreground"}`}>
+                          {part ? `${fmtQty(stock)} ${unit}` : "—"}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="relative">
+                            <Input type="number" step="0.001" min="0" value={line.qty_requested} onChange={(e) => set({ qty_requested: e.target.value })}
+                              placeholder="0" className={`h-8 text-sm tabular-nums ${unit ? "pr-11" : ""}`} aria-label={`Quantity for line ${idx + 1}`} />
+                            {unit && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{unit}</span>}
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-xs tabular-nums">{qty > 0 && part ? fmtMoney(qty * cost) : "—"}</td>
+                        <td className="px-2 py-1.5">
+                          <Input className="h-8 text-sm" value={line.notes ?? ""} onChange={(e) => set({ notes: e.target.value })} placeholder="Optional" aria-label={`Note for line ${idx + 1}`} />
+                        </td>
+                        <td className="px-1 py-1.5">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeLine(idx)} disabled={lines.length === 1} aria-label={`Remove line ${idx + 1}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
 
-          <div className="flex items-center justify-between pt-2">
-            <Button variant="outline" className="gap-2" onClick={addLine}>
-              <Plus className="w-4 h-4" />
-              Add Item
-            </Button>
-            <div className="flex flex-col items-end gap-1">
-              {!canSave ? (
-                <div className="text-xs text-muted-foreground">
-                  {!toLoc ? "Select a To Location." : "Add at least one item with qty > 0."}
-                </div>
-              ) : null}
-              <Button onClick={submit} disabled={!canSave || saving}>
-                {saving ? "Saving..." : "Create Request"}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button size="sm" variant="outline" className="gap-1.5 border-dashed" onClick={addLine}>
+                <Plus className="h-4 w-4" /> Add item
               </Button>
+              <div className="flex items-center gap-4">
+                <div className="text-right text-xs text-muted-foreground">
+                  {validLines} line(s) · <span className="font-semibold text-foreground">LKR {fmtMoney(totalValue)}</span>
+                  {!canSave && <div>{!fromLoc ? "Select the From location" : !toLoc ? "Select the To location" : sameLoc ? "Pick two different locations" : "Add an item with a quantity"}</div>}
+                </div>
+                <Button size="sm" onClick={submit} disabled={!canSave || saving}>{saving ? "Saving..." : "Create request"}</Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 }

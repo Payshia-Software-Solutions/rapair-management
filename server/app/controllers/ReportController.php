@@ -842,6 +842,18 @@ class ReportController extends Controller {
         $this->db->bind(':date', $date);
         $payments = $this->db->resultSet();
 
+        // 2b. Gift voucher sales (not invoices) add to their payment method; void refunds take it back out
+        require_once '../app/helpers/GiftVoucherHelper.php';
+        $gv = GiftVoucherHelper::dayMovements($this->db, $locIds, $date);
+        $voucherSales = array_reduce($gv['sales'], function($s, $r) { return $s + (float)$r->amount; }, 0);
+        $voucherRefunds = array_reduce($gv['refunds'], function($s, $r) { return $s + (float)$r->amount; }, 0);
+        $byMethod = [];
+        foreach ($payments as $p) $byMethod[$p->payment_method] = (float)$p->total;
+        foreach ($gv['sales'] as $r) $byMethod[$r->payment_method] = ($byMethod[$r->payment_method] ?? 0) + (float)$r->amount;
+        foreach ($gv['refunds'] as $r) $byMethod[$r->payment_method] = ($byMethod[$r->payment_method] ?? 0) - (float)$r->amount;
+        $payments = [];
+        foreach ($byMethod as $m => $t) $payments[] = (object)['payment_method' => $m, 'total' => round($t, 2)];
+
         // 3. Returns
         $this->db->query("
             SELECT COALESCE(SUM(total_amount), 0) as total_returns
@@ -873,6 +885,8 @@ class ReportController extends Controller {
             'payments' => $payments,
             'returns' => $returns->total_returns ?? 0,
             'items_sold' => $items_sold,
+            'voucher_sales' => round($voucherSales, 2),
+            'voucher_refunds' => round($voucherRefunds, 2),
             'date' => $date
         ]);
     }
@@ -1212,6 +1226,7 @@ class ReportController extends Controller {
 
     // GET /api/report/database_audit
     public function database_audit() {
+        $this->requireDevMode();
         @ini_set('display_errors', '0');
         @ini_set('memory_limit', '256M');
         @set_time_limit(60);
@@ -1301,6 +1316,7 @@ class ReportController extends Controller {
 
     // GET /api/report/schema_diff
     public function schema_diff() {
+        $this->requireDevMode();
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
@@ -1315,6 +1331,7 @@ class ReportController extends Controller {
 
     // POST /api/report/schema_sync
     public function schema_sync() {
+        $this->requireDevMode();
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
@@ -1338,6 +1355,7 @@ class ReportController extends Controller {
 
     // POST /api/report/schema_snapshot?table=name
     public function schema_snapshot() {
+        $this->requireDevMode();
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
@@ -1406,6 +1424,7 @@ class ReportController extends Controller {
     }
     // POST /api/report/database_optimize
     public function database_optimize() {
+        $this->requireDevMode();
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
@@ -1431,15 +1450,29 @@ class ReportController extends Controller {
 
     // POST /api/report/database_drop?table=name
     public function database_drop() {
+        $this->requireDevMode();
         $u = $this->requireAuth();
         if ($u['role'] !== 'Admin') {
             $this->error('Access Denied', 403);
             return;
         }
 
-        $tableName = $_GET['table'] ?? null;
-        if (!$tableName) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        $tableName = (string)($_GET['table'] ?? '');
+        if ($tableName === '') {
             $this->error('Table name is required');
+            return;
+        }
+        // Plain identifiers only (the name goes into DDL, which cannot take a bound parameter)
+        if (!preg_match('/^[A-Za-z0-9_]{1,64}$/', $tableName)) {
+            $this->error('Invalid table name', 422);
+            return;
+        }
+        // Only leftover tables may be dropped: anything the app's schema defines is refused
+        require_once dirname(__FILE__) . '/../core/SchemaDefinition.php';
+        $known = array_change_key_case(SchemaDefinition::get(), CASE_LOWER);
+        if (isset($known[strtolower($tableName)])) {
+            $this->error("$tableName is part of the application schema and cannot be dropped here.", 403);
             return;
         }
 

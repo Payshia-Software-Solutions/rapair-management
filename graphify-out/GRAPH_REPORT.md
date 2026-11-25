@@ -1,55 +1,62 @@
-# Graph Report - rapair-management  (2026-11-21)
+# Graph Report - rapair-management  (2026-11-24)
 
 ## Corpus Check
-- Large corpus: 2600 files · ~1,972,618 words. Semantic extraction will be expensive (many Claude tokens). Consider running on a subfolder.
+- 1914 files · ~1,570,611 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 170 file(s) not represented in the graph (top: (none) 35, .map 21, .afm 14)
 
 ## Summary
-- 21761 nodes · 52113 edges · 1165 communities (351 shown, 814 thin omitted)
-- Extraction: 94% EXTRACTED · 6% INFERRED · 0% AMBIGUOUS · INFERRED: 2901 edges (avg confidence: 0.85)
+- 16336 nodes · 47489 edges · 795 communities (362 shown, 433 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 3154 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
+## Graph Freshness
+- Built from commit: `834e5c3b`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
+
 ## Community Hubs (Navigation)
-- front-end/src
+- use-toast.ts
 - front-end/src #2
-- front-end/src #3
-- front-end/src #4
-- server/vendor (vendored)
-- front-end/src #5
+- Button
+- api
+- SafeExceptionInterface
+- fetchLocations
 - nexus-portal-server/vendor (vendored)
-- nexus-portal-server/vendor (vendored) #2
-- nexus-portal-server/vendor (vendored) #3
+- Exception
+- Style
 - server/app
-- server/vendor (vendored) #2
+- CardHeader
 - server/app #2
-- nexus-portal-server/vendor (vendored) #4
-- front-end/src #6
+- Frame
+- app/orders/page.tsx
 - front-end/src #7
 - server/app #3
 - nexus-portal-server/vendor (vendored) #5
-- server/vendor (vendored) #3
+- LoyaltyHelper
 - nexus-portal-server/vendor (vendored) #6
 - nexus-portal-server/vendor (vendored) #7
 - nexus-portal-server/vendor (vendored) #8
 - server/app #4
 - server/app #5
-- server/vendor (vendored) #4
-- nexus-portal-server/vendor (vendored) #9
-- nexus-portal-server/vendor (vendored) #10
-- nexus-portal-server/vendor (vendored) #11
+- PrintDocument
+- UnexpectedTokenException
+- Canvas
+- Declaration
 - nexus-portal-server/vendor (vendored) #12
-- nexus-portal-server/vendor (vendored) #13
+- StringInputStream
 - nexus-portal-server/vendor (vendored) #14
 - front-end/package.json
 - server/app #6
 - nexus-portal-server/vendor (vendored) #15
-- server/vendor (vendored) #5
+- Changelog
 - desktop_pos/Services
 - desktop_pos/Pages
-- server/vendor (vendored) #6
+- PosShiftHelper
 - server/app #7
-- front-end/src #8
+- employees/page.tsx
 - nexus-portal-server/vendor (vendored) #16
-- nexus-portal-server/vendor (vendored) #17
+- Helpers
 - desktop_pos/Pages #2
 - desktop_pos/Pages #3
 - nexus-portal-server/vendor (vendored) #18
@@ -59,75 +66,83 @@
 - desktop_pos/Pages #5
 - nexus-portal-server/vendor (vendored) #20
 - mobile_pos/lib
-- nexus-portal-server/vendor (vendored) #21
+- Outline
 - server/app #9
 - server/app #10
 - nexus-portal-server/vendor (vendored) #22
-- server/vendor (vendored) #7
-- server/vendor (vendored) #8
-- mobile_pos/lib #2
-- server/app #11
+- Stylesheet
+- FontMetrics
+- splash_screen.dart
+- nexus-portal-server/vendor (vendored) #23
+- .create
+- Svg/Document.php
 - desktop_pos/Pages #6
-- nexus-portal-server/vendor (vendored) #24
+- FrameTree
 - nexus-portal-server/vendor (vendored) #25
-- server/vendor (vendored) #10
-- server/vendor (vendored) #11
-- server/vendor (vendored) #12
+- .implode
+- invoices_screen.dart
+- statements/page.tsx
 - mobile_pos/lib #3
 - desktop_pos/Pages #7
 - front-end/src #9
-- nexus-portal-server/vendor (vendored) #26
-- server/app #12
-- server/app #13
+- AtRule
+- .__construct
+- BanquetBooking
 - front-end/src #10
 - nexus-portal-ui/src
 - desktop_pos/Services #2
-- server/vendor (vendored) #13
-- server/vendor (vendored) #14
-- server/vendor (vendored) #15
+- .createFromPhpError
+- POSContext.tsx
+- floor-plan/page.tsx
 - mobile_pos/lib #4
-- server/vendor (vendored) #16
+- Selector
 - mobile_pos/lib #5
 - desktop_pos/Pages #8
+- nexus-portal-server/vendor (vendored) #27
 - server/app #14
-- server/vendor (vendored) #18
+- AbstractRenderer
+- CSSList
 - nexus-portal-server/vendor (vendored) #28
-- server/vendor (vendored) #19
+- InventoryGrid.tsx
 - nexus-portal-server/vendor (vendored) #29
 - nexus-portal-server/vendor (vendored) #30
 - server/app #15
-- server/vendor (vendored) #20
-- server/vendor (vendored) #21
-- server/vendor (vendored) #22
-- server/vendor (vendored) #23
-- server/vendor (vendored) #24
+- front-end/src/app/admin/users/page.tsx
+- PHP CSS Parser
+- overall/page.tsx
+- GiftVoucherHelper
+- cms/pos/page.tsx
 - desktop_pos/Pages #9
 - nexus-portal-server/vendor (vendored) #31
 - nexus-portal-server/vendor (vendored) #32
 - nexus-portal-server/vendor (vendored) #33
 - nexus-portal-server/vendor (vendored) #34
 - nexus-portal-ui/package.json
-- server/vendor (vendored) #25
-- server/vendor (vendored) #26
-- server/vendor (vendored) #27
-- server/vendor (vendored) #28
-- nexus-portal-server/vendor (vendored) #35
+- CreditNoteController
+- DebitNoteController
+- ApiClientController
+- BackupHelper
+- Color
+- .createFromPhpError
+- loyalty.ts
 - server/app #16
-- server/vendor (vendored) #29
+- AiChatController
+- Document
+- fetchCompany
 - mobile_pos/lib #6
 - nexus-portal-server/vendor (vendored) #38
-- server/app #17
+- PaymentReceipt
 - mobile_pos/macos
 - nexus-portal-server/vendor (vendored) #39
-- server/vendor (vendored) #32
+- Value
 - mobile_pos/lib #7
 - mobile_pos/lib #8
 - nexus-portal-server/app
 - nexus-portal-server/vendor (vendored) #40
 - nexus-portal-server/vendor (vendored) #41
 - desktop_pos/Pages #10
-- server/vendor (vendored) #33
-- server/vendor (vendored) #34
+- FloorController
+- home-route.ts
 - nexus-portal-server/vendor (vendored) #42
 - nexus-portal-server/vendor (vendored) #43
 - nexus-portal-server/vendor (vendored) #44
@@ -136,29 +151,30 @@
 - nexus-portal-server/vendor (vendored) #47
 - server/app #18
 - server/app #19
-- server/vendor (vendored) #35
-- server/vendor (vendored) #36
-- server/vendor (vendored) #37
-- server/vendor (vendored) #38
-- server/vendor (vendored) #39
-- server/vendor (vendored) #40
-- server/vendor (vendored) #41
-- nexus-portal-server/vendor (vendored) #48
+- AdminModel
+- ChequeDetailsDialog
+- SupplierController
+- Architecture (big picture)
+- with
+- with
+- .createFromPhpError
+- .createFromPhpError
 - room-kiosk-app/package.json
-- server/vendor (vendored) #42
-- server/vendor (vendored) #43
-- server/vendor (vendored) #44
+- .y
+- SchemaHelper
+- dompdf/README.md
 - nexus-portal-server/vendor (vendored) #49
-- nexus-portal-server/vendor (vendored) #50
+- .getPDFLibMajorVersion
 - server/app #20
-- server/vendor (vendored) #45
+- OnlineOrderController
 - nexus-portal-server/vendor (vendored) #51
 - nexus-portal-server/vendor (vendored) #52
 - nexus-portal-server/vendor (vendored) #53
 - mobile_pos/lib #9
 - nexus-portal-server/vendor (vendored) #54
-- nexus-portal-server/vendor (vendored) #55
-- server/vendor (vendored) #46
+- Tenancy
+- Size
+- nexus-portal-server/vendor (vendored) #56
 - server/app #21
 - mobile_pos/lib #10
 - nexus-portal-server/vendor (vendored) #57
@@ -166,15 +182,16 @@
 - nexus-portal-server/app #2
 - nexus-portal-server/vendor (vendored) #58
 - nexus-portal-server/vendor (vendored) #59
+- nexus-portal-server/vendor (vendored) #60
 - nexus-portal-server/vendor (vendored) #61
-- server/app #23
-- server/vendor (vendored) #47
-- server/vendor (vendored) #49
+- AdminController
+- osm-map.tsx
+- shifts/print/[id]/page.tsx
+- price-lists/page.tsx
 - nexus-portal-server/app #3
-- nexus-portal-server/vendor (vendored) #62
+- .add
 - nexus-portal-server/vendor (vendored) #63
 - nexus-portal-server/vendor (vendored) #64
-- server/vendor (vendored) #50
 - desktop_pos/Pages #11
 - mobile_pos/lib #11
 - front-end/src #11
@@ -183,125 +200,138 @@
 - nexus-portal-server/vendor (vendored) #67
 - nexus-portal-server/vendor (vendored) #68
 - server/app #24
-- server/vendor (vendored) #51
-- server/vendor (vendored) #52
-- server/vendor (vendored) #53
-- server/vendor (vendored) #54
+- admin/dashboard/page.tsx
+- InstallController.php
+- PosShiftGate.tsx
+- base64_decode
 - nexus-portal-server/vendor (vendored) #69
 - nexus-portal-server/vendor (vendored) #70
-- server/vendor (vendored) #55
-- server/vendor (vendored) #56
-- server/vendor (vendored) #57
+- PromotionController
+- BanquetMenu
+- credit-notes/print/[id]/page.tsx
 - desktop_pos/Pages #12
 - mobile_pos/lib #12
-- nexus-portal-server/vendor (vendored) #71
-- nexus-portal-ui/src #2
+- completion-print/[id]/page.tsx
+- API_BASE
 - desktop_pos/Pages #13
 - mobile_pos/pubspec.yaml
 - nexus-portal-server/vendor (vendored) #72
 - nexus-portal-server/vendor (vendored) #73
-- server/vendor (vendored) #58
-- server/vendor (vendored) #59
+- nexus-portal-server/vendor (vendored) #74
+- WorkspaceController
+- MysqlDatabaseHost
+- .summary
 - mobile_pos/lib #13
 - nexus-portal-server/vendor (vendored) #75
 - nexus-portal-server/app #4
 - nexus-portal-server/vendor (vendored) #76
 - nexus-portal-server/vendor (vendored) #77
-- server/vendor (vendored) #61
+- OutlineComposite
 - nexus-portal-server/vendor (vendored) #78
 - server/app #25
-- server/vendor (vendored) #62
-- server/vendor (vendored) #63
-- server/vendor (vendored) #64
-- server/vendor (vendored) #65
+- .createFromPhpError
+- safe/README.md
+- plan/page.tsx
+- EmployeeController
 - mobile_pos/lib #14
 - mobile_pos/linux
 - front-end/src #12
 - mobile_pos/lib #15
 - nexus-portal-server/vendor (vendored) #79
+- nexus-portal-server/vendor (vendored) #80
 - nexus-portal-server/vendor (vendored) #81
-- server/vendor (vendored) #66
+- PublicgeoController
+- BanquetHall
 - mobile_pos/lib #16
-- server/vendor (vendored) #68
+- Font
 - server/app #26
 - server/app #27
 - desktop_pos/Services #3
 - nexus-portal-server/vendor (vendored) #82
-- nexus-portal-server/vendor (vendored) #83
+- .createFromPhpError
 - server/app #28
-- server/vendor (vendored) #69
+- Payee
 - desktop_pos/Pages #14
 - mobile_pos/lib #17
 - local-printer/server.js
-- nexus-portal-server/vendor (vendored) #84
-- nexus-portal-server/vendor (vendored) #85
+- .write
+- KioskOrder
 - server/app #29
-- server/vendor (vendored) #70
-- server/vendor (vendored) #71
-- server/vendor (vendored) #72
+- SalaryTemplate
+- class-variance-authority
+- middleware.ts
 - front-end/docs
 - nexus-portal-server/app #5
-- nexus-portal-server/vendor (vendored) #86
-- server/vendor (vendored) #73
+- .createFromPhpError
+- The Parser Model
 - server/app #30
-- server/vendor (vendored) #74
+- Env
 - mobile_pos/lib #18
 - mobile_pos/lib #19
-- nexus-portal-server/vendor (vendored) #87
-- server/vendor (vendored) #75
+- LogisticsCategory
+- Technician
 - server/app #31
-- server/vendor (vendored) #76
-- desktop_pos/Services #4
+- The Serializer (Writer) Model
+- A short history of UTF-8 in email
 - desktop_pos/Pages #15
 - nexus-portal-server/vendor (vendored) #88
 - nexus-portal-server/vendor (vendored) #89
 - nexus-portal-server/vendor (vendored) #90
 - nexus-portal-server/vendor (vendored) #91
+- nexus-portal-server/vendor (vendored) #92
 - nexus-portal-server/vendor (vendored) #93
 - nexus-portal-server/vendor (vendored) #94
 - nexus-portal-server/vendor (vendored) #95
-- server/vendor (vendored) #77
-- server/vendor (vendored) #78
-- server/vendor (vendored) #79
-- server/vendor (vendored) #81
-- server/vendor (vendored) #82
-- server/vendor (vendored) #83
+- User
+- Provisioner.php
+- guest-receipt/[id]/page.tsx
+- dompdf/AUTHORS.md
+- PHP Font Lib
+- php-svg-lib/AUTHORS.md
+- packages/create/page.tsx
 - desktop_pos/Pages #16
-- front-end/src #13
+- insights/page.tsx
 - front-end/src #14
-- nexus-portal-server/vendor (vendored) #97
-- nexus-portal-server/vendor (vendored) #99
+- nexus-portal-server/vendor (vendored) #96
+- special_cases.php
+- nexus-portal-server/vendor (vendored) #98
+- .createFromPhpError
 - room-kiosk-app/src
 - server/app #32
-- server/app #33
-- server/vendor (vendored) #86
+- tenants.php
+- ComposerAutoloaderInit2185d2f99bcd56787481d9357a5972d3
+- require
+- @radix-ui/react-collapsible
 - mobile_pos/windows
 - local-printer/package.json
 - nexus-portal-server/vendor (vendored) #100
+- .createFromPhpError
+- workspace-unavailable/page.tsx
 - nexus-portal-ui/src #3
-- server/app #34
+- .ensure
 - server/app #35
+- file-saver.d.ts
 - nexus-portal-server/vendor (vendored) #103
 - nexus-portal-server/vendor (vendored) #104
+- nexus-portal-server/vendor (vendored) #105
+- .createFromPhpError
 - nexus-portal-ui/src #4
-- nexus-portal-ui/src #5
+- adminFetch
 - room-kiosk-app/package.json #2
 - room-kiosk-app/dev-dist
-- server/vendor (vendored) #89
-- server/vendor (vendored) #90
-- server/vendor (vendored) #91
-- server/vendor (vendored) #93
+- LaunchImage.imageset/README.md
+- php-svg-lib/README.md
+- RELEASE.md
+- oci_free_descriptor
+- CssLength
 - nexus-portal-server/vendor (vendored) #107
 - nexus-portal-server/vendor (vendored) #108
 - nexus-portal-server/vendor (vendored) #109
-- nexus-portal-server/vendor (vendored) #110
+- oci_free_descriptor
 - nexus-portal-server/vendor (vendored) #112
-- server/vendor (vendored) #94
-- server/app #36
-- server/vendor (vendored) #95
-- server/vendor (vendored) #96
-- server/vendor (vendored) #97
+- DateTime
 - local-printer-py/main.py
+- .createFromPhpError
 - server/app #37
 - nexus-portal-server/vendor (vendored) #116
 - desktop_pos/App.xaml
@@ -312,7 +342,6 @@
 - nexus-portal-server/vendor (vendored) #119
 - nexus-portal-server/vendor (vendored) #120
 - nexus-portal-server/vendor (vendored) #121
-- nexus-portal-server/vendor (vendored) #122
 - nexus-portal-server/vendor (vendored) #123
 - nexus-portal-server/vendor (vendored) #124
 - nexus-portal-server/vendor (vendored) #125
@@ -321,180 +350,107 @@
 - room-kiosk-app/src #2
 - server/app #38
 - server/app #39
-- server/vendor (vendored) #102
-- server/vendor (vendored) #103
-- server/vendor (vendored) #104
-- server/vendor (vendored) #105
 - front-end/src #16
 - front-end/src #17
 - front-end/tsconfig.json
 - mobile_pos/lib #20
 - nexus-portal-server/vendor (vendored) #128
 - nexus-portal-server/vendor (vendored) #129
-- server/vendor (vendored) #106
 - nexus-portal-ui/tsconfig.json
 - room-kiosk-app/tsconfig.app.json
-- server/app #40
 - server/app #41
-- server/vendor (vendored) #107
-- server/vendor (vendored) #108
 - front-end/components.json
 - front-end/src #18
-- front-end/src #19
+- silent-print.ts
 - nexus-portal-server/vendor (vendored) #130
 - mobile_pos/lib #21
 - nexus-portal-server/app #6
-- nexus-portal-server/vendor (vendored) #131
 - nexus-portal-server/vendor (vendored) #132
-- nexus-portal-server/vendor (vendored) #134
+- .createFromPhpError
 - room-kiosk-app/tsconfig.node.json
-- server/app #42
-- server/vendor (vendored) #111
-- server/vendor (vendored) #112
+- BankController
 - mobile_pos/windows #2
 - front-end/package.json #2
-- .github/workflows
-- .github/workflows #2
 - nexus-portal-server/vendor (vendored) #136
-- nexus-portal-server/vendor (vendored) #137
 - nexus-portal-server/vendor (vendored) #138
-- nexus-portal-server/vendor (vendored) #139
-- nexus-portal-server/vendor (vendored) #140
-- nexus-portal-server/vendor (vendored) #141
-- server/vendor (vendored) #114
-- server/vendor (vendored) #115
-- server/vendor (vendored) #116
-- server/vendor (vendored) #117
+- .createFromPhpError
 - desktop_pos/Services #6
 - front-end/src #20
 - nexus-portal-server/vendor (vendored) #142
-- nexus-portal-server/vendor (vendored) #143
 - nexus-portal-server/vendor (vendored) #144
-- nexus-portal-server/vendor (vendored) #145
 - nexus-portal-server/vendor (vendored) #146
-- nexus-portal-server/vendor (vendored) #148
+- .createFromPhpError
 - room-kiosk-app/dev-dist #2
 - room-kiosk-app/dev-dist #3
-- server/app #43
 - server/app #44
-- server/vendor (vendored) #118
-- server/vendor (vendored) #119
-- server/vendor (vendored) #120
-- server/vendor (vendored) #123
-- desktop_pos/Pages #17
-- front-end/src #21
 - front-end/src #22
 - nexus-portal-server/app #7
 - nexus-portal-server/vendor (vendored) #150
-- nexus-portal-server/vendor (vendored) #152
-- server/app #45
+- .createFromPhpError
 - server/app #46
 - server/app #47
 - server/app #48
-- server/vendor (vendored) #124
-- server/vendor (vendored) #125
-- server/vendor (vendored) #127
-- desktop_pos/Pages #18
+- Window
 - front-end/package.json #3
 - local-printer-py/installer.py
-- nexus-portal-server/vendor (vendored) #158
+- HTML5
 - nexus-portal-server/vendor (vendored) #159
 - nexus-portal-server/vendor (vendored) #160
 - nexus-portal-server/vendor (vendored) #161
 - nexus-portal-server/vendor (vendored) #162
 - nexus-portal-server/vendor (vendored) #163
-- server/vendor (vendored) #133
-- nexus-portal-server/vendor (vendored) #164
 - fix_imports.js
 - front-end/src #23
 - local-printer-py/build_all.py
-- mobile_pos/lib #22
-- server/app #49
 - server/app #51
-- server/vendor (vendored) #134
-- server/vendor (vendored) #135
 - front-end/src #24
 - front-end/src #25
 - local-printer-py/main.py #2
 - mobile_pos/windows #3
-- nexus-portal-server/vendor (vendored) #165
+- Entities
 - nexus-portal-server/vendor (vendored) #166
 - nexus-portal-server/vendor (vendored) #167
 - nexus-portal-server/vendor (vendored) #168
 - nexus-portal-server/vendor (vendored) #169
-- nexus-portal-server/vendor (vendored) #170
-- nexus-portal-server/vendor (vendored) #171
 - nexus-portal-server/vendor (vendored) #172
-- server/app #52
-- server/app #53
-- server/public
-- server/vendor (vendored) #137
-- server/vendor (vendored) #138
-- server/vendor (vendored) #139
+- .send
 - mobile_pos/windows #4
 - front-end/src #26
 - mobile_pos/lib #23
 - mobile_pos/web
 - mobile_pos/windows #5
-- nexus-portal-server/vendor (vendored) #173
 - reports/BizzFlow Sri Lanka market research.md
 - server/app #54
 - server/app #55
-- server/app #56
 - server/app #57
 - server/app #58
-- server/vendor (vendored) #140
-- server/vendor (vendored) #141
 - mobile_pos/windows #6
 - mobile_pos/windows #7
-- nexus-portal-server/vendor (vendored) #174
-- nexus-portal-server/vendor (vendored) #175
-- nexus-portal-server/vendor (vendored) #176
 - nexus-portal-server/vendor (vendored) #177
-- nexus-portal-server/vendor (vendored) #178
+- .createFromPhpError
 - room-kiosk-app/dev-dist #4
 - room-kiosk-app/dev-dist #5
 - server/app #59
 - server/app #60
-- server/app #61
-- server/vendor (vendored) #142
+- ShippingCostingSheet
 - mobile_pos/windows #8
-- front-end/src #27
+- onboarding/page.tsx
 - nexus-portal-server/app #8
 - nexus-portal-server/vendor (vendored) #181
 - nexus-portal-server/vendor (vendored) #182
-- nexus-portal-server/vendor (vendored) #183
-- nexus-portal-server/vendor (vendored) #184
-- nexus-portal-ui/src #6
 - room-kiosk-app/dev-dist #6
-- server/app #62
-- server/app #63
-- server/app #64
 - server/app #65
 - server/app #66
 - server/app #67
-- server/app #68
-- server/vendor (vendored) #145
-- server/vendor (vendored) #146
-- server/vendor (vendored) #147
-- server/vendor (vendored) #148
-- desktop_pos/Services #7
+- ReconciliationController
+- HoldOrderData
 - nexus-portal-server/vendor (vendored) #185
-- nexus-portal-server/vendor (vendored) #186
-- nexus-portal-server/vendor (vendored) #187
-- nexus-portal-server/vendor (vendored) #188
-- nexus-portal-server/vendor (vendored) #189
-- nexus-portal-server/vendor (vendored) #191
 - nexus-portal-server/vendor (vendored) #192
 - server/app #69
-- server/app #70
 - server/app #71
 - server/app #72
-- server/app #73
-- server/app #74
 - server/app #75
 - server/app #76
-- server/vendor (vendored) #150
 - client_setup_guide.md
 - desktop_pos/SplashWindow.xaml
 - front-end/server.js
@@ -502,24 +458,15 @@
 - research_notes/BizzFlow Sri Lanka market research
 - room-kiosk-app/dev-dist #7
 - server/app #77
-- server/app #78
 - server/app #79
 - server/app #80
 - server/app #81
-- server/app #82
-- server/app #83
-- server/app #84
-- server/vendor (vendored) #153
 - desktop_pos/Services #8
 - front-end/src #29
 - local-printer/package.json #2
 - nexus-portal-server/vendor (vendored) #194
 - research_notes/BizzFlow Sri Lanka market research #2
 - room-kiosk-app/dev-dist #8
-- server/app #85
-- server/app #86
-- server/app #87
-- server/vendor (vendored) #154
 - mobile_pos/lib #24
 - mobile_pos/lib #25
 - mobile_pos/lib #26
@@ -530,12 +477,6 @@
 - research_notes/BizzFlow Sri Lanka market research #3
 - room-kiosk-app/package.json #3
 - server/app #88
-- server/vendor (vendored) #155
-- server/vendor (vendored) #156
-- server/vendor (vendored) #157
-- server/vendor (vendored) #158
-- server/vendor (vendored) #159
-- server/vendor (vendored) #160
 - desktop_pos/DesktopPOS.csproj
 - front-end/src #30
 - front-end/src #31
@@ -545,84 +486,30 @@
 - nexus-portal-server/composer.json
 - nexus-portal-server/vendor (vendored) #198
 - nexus-portal-server/vendor (vendored) #199
-- nexus-portal-server/vendor (vendored) #200
-- nexus-portal-server/vendor (vendored) #201
-- nexus-portal-server/vendor (vendored) #202
-- nexus-portal-server/vendor (vendored) #203
-- nexus-portal-server/vendor (vendored) #204
-- nexus-portal-server/vendor (vendored) #205
 - nexus-portal-server/vendor (vendored) #206
-- nexus-portal-server/vendor (vendored) #207
-- nexus-portal-server/vendor (vendored) #208
-- nexus-portal-server/vendor (vendored) #209
-- nexus-portal-server/vendor (vendored) #210
-- nexus-portal-server/vendor (vendored) #211
-- nexus-portal-server/vendor (vendored) #212
-- nexus-portal-server/vendor (vendored) #213
-- nexus-portal-server/vendor (vendored) #214
-- nexus-portal-server/vendor (vendored) #215
-- nexus-portal-server/vendor (vendored) #216
-- nexus-portal-server/vendor (vendored) #217
-- nexus-portal-server/vendor (vendored) #218
-- nexus-portal-server/vendor (vendored) #219
-- nexus-portal-server/vendor (vendored) #220
-- nexus-portal-server/vendor (vendored) #221
-- nexus-portal-server/vendor (vendored) #222
+- LdapException
+- Oci8Exception
+- StreamException
+- UodbcException
+- ZlibException
+- OpensslException
 - nexus-portal-ui/src #7
-- nexus-portal-ui/src #8
-- nexus-portal-ui/src #9
+- nexus-portal-ui/src/app/admin/subscription/page.tsx
+- tenants/create/page.tsx
 - research_notes/BizzFlow Sri Lanka market research #4
 - room-kiosk-app/README.md
 - server/app #89
 - server/composer.json
-- server/vendor (vendored) #161
-- server/vendor (vendored) #163
-- server/vendor (vendored) #164
-- server/vendor (vendored) #165
-- server/vendor (vendored) #166
-- server/vendor (vendored) #167
-- server/vendor (vendored) #168
-- server/vendor (vendored) #169
-- server/vendor (vendored) #170
-- server/vendor (vendored) #171
-- server/vendor (vendored) #172
-- server/vendor (vendored) #173
-- server/vendor (vendored) #174
-- server/vendor (vendored) #175
-- server/vendor (vendored) #176
-- server/vendor (vendored) #177
-- server/vendor (vendored) #178
-- server/vendor (vendored) #179
-- server/vendor (vendored) #180
-- server/vendor (vendored) #181
-- server/vendor (vendored) #182
-- server/vendor (vendored) #183
-- server/vendor (vendored) #184
-- server/vendor (vendored) #185
-- server/vendor (vendored) #186
-- server/vendor (vendored) #187
-- server/vendor (vendored) #188
-- server/vendor (vendored) #189
-- server/vendor (vendored) #190
-- server/vendor (vendored) #191
 - mobile_pos/android
 - front-end/apphosting.yaml
 - front-end/postcss.config.mjs
 - front-end/src #32
 - mobile_pos/android #2
-- nexus-portal-server/app #10
 - nexus-portal-server/vendor (vendored) #224
 - nexus-portal-server/vendor (vendored) #225
-- nexus-portal-server/vendor (vendored) #226
-- nexus-portal-server/vendor (vendored) #227
 - nexus-portal-ui/src #10
 - research_notes/BizzFlow Sri Lanka market research #5
 - room-kiosk-app/tsconfig.json
-- server/vendor (vendored) #193
-- server/vendor (vendored) #194
-- server/vendor (vendored) #195
-- server/vendor (vendored) #196
-- server/vendor (vendored) #197
 - desktop_pos/Themes
 - desktop_pos/Themes #2
 - front-end/next.config.ts
@@ -642,11 +529,6 @@
 - research_notes/BizzFlow Sri Lanka market research #8
 - research_notes/BizzFlow Sri Lanka market research #9
 - research_notes/BizzFlow Sri Lanka market research #10
-- server/vendor (vendored) #204
-- server/vendor (vendored) #205
-- server/vendor (vendored) #206
-- server/vendor (vendored) #208
-- server/vendor (vendored) #209
 - front-end/README.md
 - research_notes/BizzFlow Sri Lanka market research #11
 - research_notes/BizzFlow Sri Lanka market research #12
@@ -654,28 +536,28 @@
 - research_notes/BizzFlow Sri Lanka market research #14
 
 ## God Nodes (most connected - your core abstractions)
-1. `api()` - 714 edges
-2. `Button` - 640 edges
-3. `useToast()` - 496 edges
-4. `Card` - 471 edges
-5. `Input` - 462 edges
-6. `DashboardLayout()` - 445 edges
+1. `api()` - 742 edges
+2. `Button` - 658 edges
+3. `useToast()` - 537 edges
+4. `Input` - 502 edges
+5. `Card` - 469 edges
+6. `DashboardLayout()` - 468 edges
 7. `CardContent` - 408 edges
-8. `Badge()` - 365 edges
-9. `CardHeader` - 322 edges
-10. `CardTitle` - 312 edges
+8. `Badge()` - 381 edges
+9. `json_decode()` - 350 edges
+10. `CardHeader` - 322 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `front-end silent-print.ts client` --conceptually_related_to--> `ServiceBay app blueprint`  [AMBIGUOUS]
-  local-printer/README.md → front-end/docs/blueprint.md
-- `{closure#2}()` --references--> `Selector`  [EXTRACTED]
-  server/vendor/sabberworm/php-css-parser/src/CSSList/CSSList.php → nexus-portal-server/vendor/sabberworm/php-css-parser/src/Property/Selector.php
-- `EcommerceDeveloperPage()` --references--> `API_BASE`  [EXTRACTED]
-  front-end/src/app/ecommerce/developer/page.tsx → nexus-portal-ui/src/config.ts
-- `CPDF` --implements--> `Canvas`  [EXTRACTED]
-  server/vendor/dompdf/dompdf/src/Adapter/CPDF.php → nexus-portal-server/vendor/dompdf/dompdf/src/Canvas.php
-- `GD` --implements--> `Canvas`  [EXTRACTED]
-  server/vendor/dompdf/dompdf/src/Adapter/GD.php → nexus-portal-server/vendor/dompdf/dompdf/src/Canvas.php
+- `Front-end data flow` --references--> `api()`  [INFERRED]
+  CLAUDE.md → front-end/src/lib/api/client.ts
+- `Backend routing (`server/`)` --references--> `PagesController`  [INFERRED]
+  CLAUDE.md → server/app/controllers/PagesController.php
+- `Upgrading from 5.2` --references--> `PHPMailer`  [INFERRED]
+  nexus-portal-server/vendor/phpmailer/phpmailer/README.md → nexus-portal-server/vendor/phpmailer/phpmailer/src/PHPMailer.php
+- `Fixed` --references--> `OutputFormat`  [INFERRED]
+  nexus-portal-server/vendor/sabberworm/php-css-parser/CHANGELOG.md → nexus-portal-server/vendor/sabberworm/php-css-parser/src/OutputFormat.php
+- `Backwards-incompatible changes` --references--> `SourceException`  [INFERRED]
+  nexus-portal-server/vendor/sabberworm/php-css-parser/CHANGELOG.md → nexus-portal-server/vendor/sabberworm/php-css-parser/src/Parsing/SourceException.php
 
 ## Import Cycles
 - 2-file cycle: `front-end/src/lib/api/email-marketing.ts -> front-end/src/lib/api/index.ts -> front-end/src/lib/api/email-marketing.ts`
@@ -685,179 +567,183 @@
 - **ServiceBay repair order workflow** — front_end_docs_blueprint_repair_order_creation, front_end_docs_blueprint_workshop_order_queue, front_end_docs_blueprint_bay_technician_assignment, front_end_docs_blueprint_repair_status_management, front_end_docs_blueprint_repair_completion_details [INFERRED 0.75]
 - **Siloed vertical local vendors** — research_notes_bizzflow_sri_lanka_market_research_competitors_pos_masters, research_notes_bizzflow_sri_lanka_market_research_competitors_auto_plus, research_notes_bizzflow_sri_lanka_market_research_competitors_cloudchef, research_notes_bizzflow_sri_lanka_market_research_competitors_mihcm_gallery_hr [INFERRED 0.75]
 
-## Communities (1165 total, 814 thin omitted)
+## Communities (795 total, 433 thin omitted)
 
-### Community 0 - "front-end/src"
-Cohesion: 0.04
-Nodes (265): CardSettlementsPage(), money(), today(), CompanyLogoCard(), HomeDashboardCard(), AdminCompanyPage(), EditLocationPage(), AdminSchemaPage() (+257 more)
+### Community 0 - "use-toast.ts"
+Cohesion: 0.02
+Nodes (181): money(), PurchaseOrderPrintPage(), BOMConsumptionReportPage(), downloadExcel(), firstDayOfMonth(), GroupedRow, RawRecord, todayLocalDate() (+173 more)
 
 ### Community 1 - "front-end/src #2"
+Cohesion: 0.05
+Nodes (226): AccountLedgerPage(), JournalEntriesPage(), AccountingOverviewPage(), automated, quickLinks, BankReconciliationPage(), AccountingSettingsPage(), TrialBalancePage() (+218 more)
+
+### Community 2 - "Button"
 Cohesion: 0.04
-Nodes (240): AccountLedgerPage(), ExpensesPage(), PayeesPage(), AccountingSettingsPage(), CostingSheetManagementPage(), AdminLocationsPage(), SystemSettingsPage(), CostingTemplatesPage() (+232 more)
+Nodes (227): Acc, ChartOfAccountsPage(), CREDIT, LEVEL_LABEL, money(), Node, CardSettlementsPage(), money() (+219 more)
 
-### Community 2 - "front-end/src #3"
-Cohesion: 0.03
-Nodes (220): Acc, ChartOfAccountsPage(), CREDIT, LEVEL_LABEL, money(), Node, JournalEntriesPage(), generatePassword() (+212 more)
-
-### Community 3 - "front-end/src #4"
+### Community 3 - "api"
 Cohesion: 0.02
-Nodes (244): AccountLedgerPrintPage(), JournalPrintContent(), JournalPrintPage(), JournalPrintPage(), HELP, money(), PostingCheckPage(), ExportCostingPage() (+236 more)
+Nodes (204): HELP, money(), PostingCheckPage(), ExportCostingPage(), FREIGHT_TYPES, INCOTERM_DESCRIPTIONS, CostingPrintPage(), PrintContent() (+196 more)
 
-### Community 4 - "server/vendor (vendored)"
-Cohesion: 0.01
-Nodes (62): OpcacheException, SemException, SplException, StringsException, UrlException, VarException, SafeExceptionInterface, ApacheException (+54 more)
-
-### Community 5 - "front-end/src #5"
+### Community 4 - "SafeExceptionInterface"
 Cohesion: 0.03
-Nodes (183): NewLocationPage(), FaqItem, FaqPage(), parseItems(), EcommerceProductsPage(), ProductGridCard(), ViewMode, EcommerceSettingsPage() (+175 more)
+Nodes (39): apcu_cache_info(), apcu_cas(), apcu_dec(), apcu_inc(), apcu_sma_info(), unixtojd(), class_alias(), com_create_guid() (+31 more)
+
+### Community 5 - "fetchLocations"
+Cohesion: 0.04
+Nodes (109): CreateOnlineInvoicePage(), CreateInvoicePage(), EcommerceProductsPage(), ProductGridCard(), ViewMode, loadAllParts(), loadLocations(), PrintableItem (+101 more)
 
 ### Community 6 - "nexus-portal-server/vendor (vendored)"
 Cohesion: 0.02
-Nodes (5): Style, Stylesheet, preg_match(), preg_match_all(), preg_replace_callback()
+Nodes (7): {closure#1}(), Style, preg_grep(), preg_match_all(), preg_replace_callback(), preg_replace_callback_array(), PcreException
 
-### Community 7 - "nexus-portal-server/vendor (vendored) #2"
-Cohesion: 0.02
-Nodes (28): Exception, Block, Inline, Table, TableCell, TableRow, TableRowGroup, AbstractFrameReflower (+20 more)
+### Community 7 - "Exception"
+Cohesion: 0.03
+Nodes (16): Exception, Block, Inline, Page, TableCell, TableRow, Inline, ListBullet (+8 more)
 
-### Community 8 - "nexus-portal-server/vendor (vendored) #3"
-Cohesion: 0.02
-Nodes (38): DefaultStyle, Document, Style, AbstractTag, Anchor, Circle, ClipPath, Ellipse (+30 more)
+### Community 8 - "Style"
+Cohesion: 0.06
+Nodes (7): Style, AbstractTag, ClipPath, Image, RadialGradient, Symbol, UseTag
 
 ### Community 9 - "server/app"
 Cohesion: 0.01
-Nodes (24): AttributeController, BankbranchController, BanquetController, BrandController, CategoryController, ChecklistrepoController, DepartmentController, FiscalController (+16 more)
+Nodes (22): json_decode(), AttributeController, BanquetController, CategoryController, ChecklistrepoController, CityController, DepartmentController, DistrictController (+14 more)
 
-### Community 10 - "server/vendor (vendored) #2"
-Cohesion: 0.03
-Nodes (3): Style, preg_match(), preg_replace_callback()
+### Community 10 - "CardHeader"
+Cohesion: 0.04
+Nodes (166): PayeesPage(), NewLocationPage(), KitchenTicketModeCard(), BRIDGE_URLS, BridgeBadge(), BridgePrinter, BridgeStatus, PRINTER_TYPES (+158 more)
 
 ### Community 11 - "server/app #2"
 Cohesion: 0.02
-Nodes (21): EmailMarketingController, FuelController, MarketingController, PosController, RefundController, ReturnController, SalesTargetController, VisitController (+13 more)
+Nodes (19): AuthController, EmailMarketingController, FuelController, MarketadminController, MarketingController, PosController, RefundController, ReturnController (+11 more)
 
-### Community 12 - "nexus-portal-server/vendor (vendored) #4"
-Cohesion: 0.02
-Nodes (21): Frame, JavascriptEmbedder, AbstractRenderer, Block, Image, Inline, ListBullet, Renderer (+13 more)
-
-### Community 13 - "front-end/src #6"
+### Community 12 - "Frame"
 Cohesion: 0.04
-Nodes (127): BalanceSheetPrintPage(), AccountingOverviewPage(), automated, quickLinks, BankReconciliationPage(), TrialBalancePage(), TrialBalancePrintPage(), AiInsightsPage() (+119 more)
+Nodes (4): Cellmap, Frame, {closure#1}(), Table
+
+### Community 13 - "app/orders/page.tsx"
+Cohesion: 0.04
+Nodes (128): ExpensesPage(), CostingSheetManagementPage(), Backup, BackupsPage(), call(), Info, mb(), ago() (+120 more)
 
 ### Community 14 - "front-end/src #7"
-Cohesion: 0.03
-Nodes (125): FiscalManagementPage(), basePagePermissionMatrix, PermMatrixRow, PermRow, RbacPage(), RoleRow, AdminUsersPage(), LocationRow (+117 more)
+Cohesion: 0.05
+Nodes (81): FiscalManagementPage(), CompanyLogoCard(), HomeDashboardCard(), AdminCompanyPage(), money(), pct(), Row(), Tax (+73 more)
 
 ### Community 15 - "server/app #3"
-Cohesion: 0.02
-Nodes (16): AdminController, GrnController, IssuenoteController, LocationController, OnlineOrderController, OrderController, PaymentController, PrinterController (+8 more)
+Cohesion: 0.03
+Nodes (17): json_encode(), JsonException, GrnController, IssuenoteController, OrderController, PaymentController, PrinterController, ShippingCarrierController (+9 more)
+
+### Community 17 - "LoyaltyHelper"
+Cohesion: 0.07
+Nodes (9): {closure#1}(), CustomerController, {closure#2}(), {closure#3}(), {closure#4}(), {closure#5}(), {closure#6}(), LoyaltyController (+1 more)
 
 ### Community 18 - "nexus-portal-server/vendor (vendored) #6"
 Cohesion: 0.04
-Nodes (4): DSNConfigurator, Exception, PHPMailer, preg_replace()
+Nodes (8): Security notices relating to PHPMailer, DSNConfigurator, Exception, PHPMailer, preg_match(), preg_replace(), EmailHelper, {closure#9}()
 
 ### Community 19 - "nexus-portal-server/vendor (vendored) #7"
 Cohesion: 0.03
-Nodes (3): CPdf, hex2bin(), md5_file()
+Nodes (17): {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}() (+9 more)
 
 ### Community 20 - "nexus-portal-server/vendor (vendored) #8"
-Cohesion: 0.02
-Nodes (21): AbstractFrameDecorator, Block, Absolute, AbstractPositioner, Block, Fixed, Inline, ListBullet (+13 more)
+Cohesion: 0.04
+Nodes (12): Factory, AbstractFrameDecorator, AbstractFrameReflower, Block, Absolute, AbstractPositioner, Block, Fixed (+4 more)
 
 ### Community 21 - "server/app #4"
 Cohesion: 0.03
-Nodes (16): KioskController, PubliccontentController, PublicitemController, PubliclocationController, PublicOrderController, PublicsettingsController, EmailHelper, SmsHelper (+8 more)
+Nodes (14): PubliccontentController, PublicitemController, PubliclocationController, PublicmarketController, PublicOrderController, PublicsettingsController, MarketResolver, Coupon (+6 more)
 
 ### Community 22 - "server/app #5"
 Cohesion: 0.02
-Nodes (19): ApiClientController, ChecklistController, CityController, CompanyController, CouponController, CustomerStockController, DistrictController, InventoryController (+11 more)
+Nodes (19): AttendanceController, ChecklistController, CouponController, cloneAuthId(), CustomerNoteController, CustomerStockController, InventoryController, KioskContentController (+11 more)
 
-### Community 24 - "nexus-portal-server/vendor (vendored) #9"
-Cohesion: 0.03
-Nodes (17): CommentContainer, {closure#2}(), Position, Positionable, Charset, CSSNamespace, Import, CSSString (+9 more)
+### Community 23 - "PrintDocument"
+Cohesion: 0.09
+Nodes (51): AccountLedgerPrintPage(), nice(), JournalPrintPage(), JournalVoucher(), JournalRegisterPrintPage(), nice(), TrialBalancePrintPage(), InvoicePrintPage() (+43 more)
 
-### Community 25 - "nexus-portal-server/vendor (vendored) #10"
-Cohesion: 0.02
-Nodes (15): {closure#1}(), {closure#2}(), {closure#3}(), Canvas, {closure#1}(), {closure#2}(), FontMetrics, PhpEvaluator (+7 more)
-
-### Community 26 - "nexus-portal-server/vendor (vendored) #11"
+### Community 24 - "UnexpectedTokenException"
 Cohesion: 0.04
-Nodes (11): Comment, CSSElement, SourceException, UnexpectedEOFException, UnexpectedTokenException, Declaration, KeyframeSelector, Combinator (+3 more)
+Nodes (19): Added, Deprecated, Comment, CommentContainer, CSSElement, OutputException, SourceException, UnexpectedEOFException (+11 more)
+
+### Community 26 - "Declaration"
+Cohesion: 0.04
+Nodes (17): 9.0.0: New features, deprecation removals and bug fixes, 9.2.0: New features and deprecations, Added, Added, Changed, Changed, Deprecated, Documentation (+9 more)
 
 ### Community 27 - "nexus-portal-server/vendor (vendored) #12"
 Cohesion: 0.04
-Nodes (7): Dompdf, NullFrameDecorator, Inline, ListBullet, NullFrameDecorator, TableRow, TableRowGroup
+Nodes (7): InvoicePDF, ReceiptPDF, CanvasFactory, Dompdf, NullFrameDecorator, TableRowGroup, PdfHelper
 
-### Community 28 - "nexus-portal-server/vendor (vendored) #13"
-Cohesion: 0.03
-Nodes (25): {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}() (+17 more)
+### Community 28 - "StringInputStream"
+Cohesion: 0.08
+Nodes (3): FileInputStream, InputStream, StringInputStream
 
 ### Community 29 - "nexus-portal-server/vendor (vendored) #14"
-Cohesion: 0.03
-Nodes (25): Table, cmap, cvt, fpgm, head, hhea, hmtx, kern (+17 more)
+Cohesion: 0.06
+Nodes (13): Table, cmap, cvt, fpgm, head, hhea, hmtx, kern (+5 more)
 
 ### Community 30 - "front-end/package.json"
 Cohesion: 0.03
-Nodes (93): dependencies, class-variance-authority@^0.7.1, clsx@^2.1.1, date-fns@^3.6.0, exceljs@^4.4.0, file-saver@^2.0.5, firebase@^11.9.1, framer-motion@^12.38.0 (+85 more)
+Nodes (92): dependencies, clsx@^2.1.1, date-fns@^3.6.0, exceljs@^4.4.0, file-saver@^2.0.5, firebase@^11.9.1, framer-motion@^12.38.0, genkitx-groq@^0.30.0 (+84 more)
 
 ### Community 31 - "server/app #6"
 Cohesion: 0.02
-Nodes (16): Model, AuditLog, BanquetStaffAssignment, ChecklistItem, Department, EmployeeDocument, HRCategory, HRDepartment (+8 more)
+Nodes (20): Model, AccountSetting, BanquetStaffAssignment, Brand, ChecklistItem, Department, EmployeeDocument, HRCategory (+12 more)
 
 ### Community 32 - "nexus-portal-server/vendor (vendored) #15"
-Cohesion: 0.03
-Nodes (21): Attr, CloseQuote, ContentPart, Counter, Counters, NoCloseQuote, NoOpenQuote, OpenQuote (+13 more)
+Cohesion: 0.06
+Nodes (11): Attr, CloseQuote, ContentPart, Counter, Counters, NoCloseQuote, NoOpenQuote, OpenQuote (+3 more)
 
-### Community 33 - "server/vendor (vendored) #5"
-Cohesion: 0.04
-Nodes (8): CssLength, Scanner, StringInputStream, ParserState, UnexpectedEOFException, UnexpectedTokenException, base64_decode(), parse_url()
+### Community 33 - "Changelog"
+Cohesion: 0.03
+Nodes (64): 0.9, 1.0, 2.0.0 (2013-01-29), 5.0.1 (2013-03-20), 5.0.2 (2013-03-21), 5.0.3 (2013-03-21), 5.0.4 (2013-03-21), 5.0.5 (2013-04-17) (+56 more)
 
 ### Community 34 - "desktop_pos/Services"
-Cohesion: 0.05
-Nodes (42): LoginRequest, email, password, KotPreviewWindow, ApiResponse, data, message, status (+34 more)
+Cohesion: 0.06
+Nodes (32): LoginRequest, email, password, KotPreviewWindow, ApiResponse, data, message, status (+24 more)
 
 ### Community 35 - "desktop_pos/Pages"
-Cohesion: 0.05
-Nodes (50): CalculatedAmount, DiscountDisplay, DiscountVisibility, ApplyDiscountBtn, CartItemsControl, CatAlaCarte, CatRecipe, CatStandard (+42 more)
+Cohesion: 0.06
+Nodes (42): CalculatedAmount, DiscountDisplay, DiscountVisibility, ApplyDiscountBtn, CartItemsControl, CatAlaCarte, CatRecipe, CatStandard (+34 more)
 
-### Community 36 - "server/vendor (vendored) #6"
-Cohesion: 0.04
-Nodes (9): Stylesheet, Text, Style, Path, Polygon, Polyline, preg_match_all(), preg_split() (+1 more)
+### Community 36 - "PosShiftHelper"
+Cohesion: 0.08
+Nodes (4): PosShiftController, {closure#1}(), Controller, PosShiftHelper
 
 ### Community 37 - "server/app #7"
 Cohesion: 0.06
-Nodes (6): AccountingHelper, ProductionService, Account, GoodsReceiveNote, Journal, ProductionOrder
+Nodes (5): AccountingHelper, Account, GoodsReceiveNote, IssueNote, Journal
 
-### Community 38 - "front-end/src #8"
-Cohesion: 0.07
-Nodes (67): ago(), money(), MyApprovalsPage(), statusVariant(), ApprovalRulesPage(), blankLevel(), lkr(), Lookups (+59 more)
+### Community 38 - "employees/page.tsx"
+Cohesion: 0.16
+Nodes (32): DOCUMENT_PRESETS, EmployeeProfilePage(), EmployeesPage(), applySalaryTemplateToEmployee(), AttendanceRow, createEmployee(), createLeaveRequest(), deleteEmployee() (+24 more)
 
-### Community 40 - "nexus-portal-server/vendor (vendored) #17"
-Cohesion: 0.03
-Nodes (10): Color, ImageException, Image, Image, Helpers, Cache, {closure#1}(), Image (+2 more)
+### Community 40 - "Helpers"
+Cohesion: 0.04
+Nodes (8): Color, {closure#1}(), Image, ListBullet, ListBulletImage, Image, Helpers, Cache
 
 ### Community 41 - "desktop_pos/Pages #2"
-Cohesion: 0.04
-Nodes (59): Initials, AvatarText, CustomerListView, EmptyPanel, ItemBorder, LoadingPanel, Page, PART_ContentHost (+51 more)
+Cohesion: 0.05
+Nodes (45): Initials, AvatarText, CustomerListView, EmptyPanel, ItemBorder, LoadingPanel, Page, PART_ContentHost (+37 more)
 
 ### Community 42 - "desktop_pos/Pages #3"
 Cohesion: 0.04
-Nodes (46): MainFrame, Window, MainWindow, LocationInfo, id, name, LoginResponse, token (+38 more)
-
-### Community 43 - "nexus-portal-server/vendor (vendored) #18"
-Cohesion: 0.05
-Nodes (3): GD, Text, preg_split()
+Nodes (42): LocationInfo, id, name, LoginResponse, token, user, UserDetails, allowed_locations (+34 more)
 
 ### Community 44 - "desktop_pos/Pages #4"
 Cohesion: 0.10
 Nodes (5): DesktopPOS, DesktopPOS.Models, DesktopPOS.Controls, DesktopPOS.Services, DesktopPOS.Pages
 
+### Community 45 - "nexus-portal-server/vendor (vendored) #19"
+Cohesion: 0.04
+Nodes (8): 8.8.0: Bug fixes and deprecations, Added, Changed, Deprecated, Fixed, OutputFormat, OutputFormatter, CalcRuleValueList
+
 ### Community 46 - "server/app #8"
 Cohesion: 0.05
-Nodes (8): ApprovalController, ExpenseController, PurchaseController, StockadjustmentController, StockcountController, Approval, ApprovalHandlers, NumberHelper
+Nodes (9): ApprovalController, ExpenseController, PurchaseController, StockadjustmentController, StockcountController, Approval, ApprovalHandlers, ApprovalSchema (+1 more)
 
 ### Community 47 - "desktop_pos/Pages #5"
-Cohesion: 0.05
-Nodes (35): TaxModel, apply_on, CalculatedAmount, code, id, is_active, name, rate_percent (+27 more)
+Cohesion: 0.06
+Nodes (32): TaxModel, apply_on, CalculatedAmount, code, id, is_active, name, rate_percent (+24 more)
 
 ### Community 48 - "nexus-portal-server/vendor (vendored) #20"
 Cohesion: 0.05
@@ -867,65 +753,85 @@ Nodes (4): {closure#1}(), {closure#2}(), {closure#3}(), CPDF
 Cohesion: 0.03
 Nodes (64): addPayment, ApiService, baseUrl, _checkResponse, clearActiveLocation, createCustomer, _createCustomerOnlineOnly, createInvoice (+56 more)
 
-### Community 50 - "nexus-portal-server/vendor (vendored) #21"
-Cohesion: 0.05
-Nodes (10): Outline, OutlineComponent, OutlineComposite, OutlineSimple, glyf, Outline, OutlineComponent, OutlineComposite (+2 more)
+### Community 50 - "Outline"
+Cohesion: 0.13
+Nodes (3): Outline, OutlineSimple, glyf
 
 ### Community 51 - "server/app #9"
 Cohesion: 0.04
-Nodes (6): PubliccollectionController, Collection, IssueNote, Part, PartAttribute, PartImage
+Nodes (7): PubliccollectionController, ProductionService, Collection, Part, PartAttribute, PartImage, ProductionOrder
 
 ### Community 52 - "server/app #10"
+Cohesion: 0.12
+Nodes (3): openssl_encrypt(), Provisioner, TenantRegistry
+
+### Community 54 - "Stylesheet"
+Cohesion: 0.07
+Nodes (4): Stylesheet, ImageException, {closure#1}(), preg_split()
+
+### Community 55 - "FontMetrics"
 Cohesion: 0.06
-Nodes (11): Provisioner, TenantRawDb, {closure#1}(), {closure#2}(), {closure#3}(), {closure#4}(), {closure#5}(), Tenancy (+3 more)
+Nodes (7): {closure#1}(), {closure#2}(), FontMetrics, {closure#1}(), {closure#2}(), {closure#3}(), Text
 
-### Community 56 - "mobile_pos/lib #2"
-Cohesion: 0.04
-Nodes (51): GuestReceiptDialog, _GuestReceiptDialogState, KOTReceiptDialog, _KOTReceiptDialogState, PrintingAnimation, _PrintingAnimationState, DayEndSummaryScreen, _DayEndSummaryScreenState (+43 more)
+### Community 56 - "splash_screen.dart"
+Cohesion: 0.07
+Nodes (19): _apiService, build, createState, initState, _isLoading, _loadLocations, _locations, LocationSelectionScreen (+11 more)
 
-### Community 58 - "server/app #11"
-Cohesion: 0.05
-Nodes (5): InvoiceController, PublicInvoiceController, QuotationController, CustomerStock, Promotion
+### Community 57 - "nexus-portal-server/vendor (vendored) #23"
+Cohesion: 0.06
+Nodes (66): ps_add_launchlink(), ps_add_locallink(), ps_add_note(), ps_add_pdflink(), ps_add_weblink(), ps_arc(), ps_arcn(), ps_begin_page() (+58 more)
+
+### Community 58 - ".create"
+Cohesion: 0.09
+Nodes (3): InvoiceController, PublicInvoiceController, CustomerStock
+
+### Community 59 - "Svg/Document.php"
+Cohesion: 0.06
+Nodes (13): Anchor, Circle, Ellipse, Group, Line, LinearGradient, Polygon, Polyline (+5 more)
 
 ### Community 60 - "desktop_pos/Pages #6"
-Cohesion: 0.04
-Nodes (44): BankListView, EmptyPanel, ItemBorder, LoadingPanel, SearchBox, Window, code, name (+36 more)
-
-### Community 61 - "nexus-portal-server/vendor (vendored) #24"
 Cohesion: 0.06
-Nodes (4): Factory, FrameTree, FrameTreeIterator, FrameTree
+Nodes (30): BankListView, EmptyPanel, ItemBorder, LoadingPanel, SearchBox, Window, code, name (+22 more)
 
-### Community 62 - "nexus-portal-server/vendor (vendored) #25"
-Cohesion: 0.06
-Nodes (9): Document, Parser, Anchor, ParserState, Value, Parser, Anchor, PrimitiveValue (+1 more)
+### Community 61 - "FrameTree"
+Cohesion: 0.07
+Nodes (3): FrameListIterator, FrameTree, FrameTreeIterator
+
+### Community 63 - ".implode"
+Cohesion: 0.08
+Nodes (3): {closure#11}(), Promotion, {closure#1}()
+
+### Community 64 - "invoices_screen.dart"
+Cohesion: 0.05
+Nodes (37): _activeLocationId, _apiService, build, createState, _handleBillAction, _heldBills, HeldBillsScreen, _HeldBillsScreenState (+29 more)
+
+### Community 65 - "statements/page.tsx"
+Cohesion: 0.11
+Nodes (40): cashFlowRows(), CashFlowTable(), CfRow, Compare, FinancialStatementsPage(), flatten(), fmt(), iso() (+32 more)
 
 ### Community 66 - "mobile_pos/lib #3"
-Cohesion: 0.04
-Nodes (50): build, _buildDivider, _buildReceiptView, _buildRow, createState, _formatCurrency, initState, isPrinting (+42 more)
+Cohesion: 0.05
+Nodes (40): build, _buildDivider, _buildReceiptView, _buildRow, createState, _formatCurrency, initState, isPrinting (+32 more)
 
 ### Community 67 - "desktop_pos/Pages #7"
 Cohesion: 0.05
 Nodes (37): id, Key, order_type, table_id, Value, DateText, GreetingText, LocationText (+29 more)
 
 ### Community 68 - "front-end/src #9"
-Cohesion: 0.08
-Nodes (53): Compare, FinancialStatementsPage(), flatten(), fmt(), iso(), Lines(), niceDate(), pad() (+45 more)
+Cohesion: 0.14
+Nodes (30): buildSeries(), CompareBar(), CompareMode, CompareRow, CompareState, CompareTable(), defaultCompare(), iso() (+22 more)
 
-### Community 69 - "nexus-portal-server/vendor (vendored) #26"
-Cohesion: 0.04
-Nodes (9): AtRuleBlockList, CSSBlockList, KeyFrame, AtRule, AtRuleSet, AtRuleBlockList, Document, KeyFrame (+1 more)
+### Community 69 - "AtRule"
+Cohesion: 0.11
+Nodes (5): 4.0.0 (2013-03-19), Backwards-incompatible changes, AtRuleBlockList, KeyFrame, AtRule
 
-### Community 70 - "server/app #12"
-Cohesion: 0.04
-Nodes (8): CheckController, BrandSchema, InventorySchema, ShippingSchema, TaxSchema, Brand, OrderPart, ShippingProvider
-
-### Community 71 - "server/app #13"
-Cohesion: 0.04
-Nodes (7): AccountingSchema, AccountSetting, BanquetBooking, BanquetHall, LogisticsCategory, Payee, Reconciliation
+### Community 70 - ".__construct"
+Cohesion: 0.02
+Nodes (18): BrandController, CheckController, TaxController, AccountingSchema, ApiClientsSchema, BrandSchema, CompanySchema, CouponSchema (+10 more)
 
 ### Community 72 - "front-end/src #10"
-Cohesion: 0.08
-Nodes (52): BRIDGE_URLS, BridgeBadge(), BridgePrinter, BridgeStatus, PRINTER_TYPES, Setting, AssignItemsDialog(), EMPTY (+44 more)
+Cohesion: 0.13
+Nodes (31): Pill(), PrintQueueDialog(), STATUS, time(), PosStatusBar(), useSignedInUser(), cancelPrintJob(), createPrintDevice() (+23 more)
 
 ### Community 73 - "nexus-portal-ui/src"
 Cohesion: 0.11
@@ -935,121 +841,157 @@ Nodes (42): asModuleList(), daysBetween(), fmtDate(), MODULES, money(), SaasConf
 Cohesion: 0.05
 Nodes (31): DayLedgerResponse, summary, DayLedgerSummary, methods, net, refunds, returns, sales (+23 more)
 
-### Community 77 - "server/vendor (vendored) #15"
-Cohesion: 0.04
-Nodes (5): FrameListIterator, FrameListIterator, FrameTreeIterator, LineBox, InputStream
+### Community 75 - ".createFromPhpError"
+Cohesion: 0.09
+Nodes (34): pspell_add_to_personal(), pspell_add_to_session(), pspell_clear_session(), pspell_config_create(), pspell_config_data_dir(), pspell_config_dict_dir(), pspell_config_ignore(), pspell_config_mode() (+26 more)
+
+### Community 76 - "POSContext.tsx"
+Cohesion: 0.10
+Nodes (35): OrderTypeSelector(), POSContext, POSContextType, PosLayout, PosLayoutPref, POSProvider(), resolvePosLayout(), KOTBody() (+27 more)
+
+### Community 77 - "floor-plan/page.tsx"
+Cohesion: 0.11
+Nodes (35): Drag, FloorPlanDesignerPage(), newKey(), OBJECT_PRESETS, Plan, Sel, snap(), TABLE_PRESETS (+27 more)
 
 ### Community 78 - "mobile_pos/lib #4"
 Cohesion: 0.04
 Nodes (54): _amountController, _amountTendered, _apiService, appliedPromotionId, appliedPromotionName, appliedTaxes, _banks, build (+46 more)
 
-### Community 79 - "server/vendor (vendored) #16"
-Cohesion: 0.05
-Nodes (12): {closure#1}(), {closure#2}(), {closure#3}(), Component, Selector, KeyframeSelector, {closure#1}(), {closure#2}() (+4 more)
+### Community 79 - "Selector"
+Cohesion: 0.06
+Nodes (11): {closure#2}(), KeyframeSelector, {closure#1}(), {closure#2}(), {closure#3}(), Combinator, Component, CompoundSelector (+3 more)
 
 ### Community 80 - "mobile_pos/lib #5"
-Cohesion: 0.04
-Nodes (30): build, child, GradientBackground, KOTReceiptView, PaymentReceiptView, build, initBaseUrl, main (+22 more)
+Cohesion: 0.05
+Nodes (22): build, initBaseUrl, main, navigatorKey, _initialPreferences, key, _loadFromPrefs, _prefs (+14 more)
 
 ### Community 81 - "desktop_pos/Pages #8"
 Cohesion: 0.06
-Nodes (23): HeldOrdersText, OrderCountText, Page, PanelActiveTaxesList, PanelAddressText, PanelContactText, PanelLocationNameText, PanelManagerNameText (+15 more)
+Nodes (27): HeldOrdersText, OrderCountText, Page, PanelActiveTaxesList, PanelAddressText, PanelContactText, PanelLocationNameText, PanelManagerNameText (+19 more)
+
+### Community 82 - "nexus-portal-server/vendor (vendored) #27"
+Cohesion: 0.07
+Nodes (55): cubrid_bind(), cubrid_col_size(), cubrid_column_names(), cubrid_column_types(), cubrid_commit(), cubrid_connect(), cubrid_connect_with_url(), cubrid_current_oid() (+47 more)
 
 ### Community 83 - "server/app #14"
-Cohesion: 0.06
+Cohesion: 0.07
 Nodes (3): PrintqueueController, PrintStationHelper, PosHeldOrder
 
-### Community 85 - "server/vendor (vendored) #18"
-Cohesion: 0.06
-Nodes (5): CSSList, CSSListItem, CSSBlockList, CSSList, AtRule
+### Community 84 - "AbstractRenderer"
+Cohesion: 0.09
+Nodes (11): JavascriptEmbedder, AbstractRenderer, Block, Image, Inline, ListBullet, Renderer, TableCell (+3 more)
+
+### Community 85 - "CSSList"
+Cohesion: 0.11
+Nodes (6): 5.0.0 (2013-03-20), Backwards-incompatible changes, CSSList, Commentable, CSSList, CSSListItem
 
 ### Community 86 - "nexus-portal-server/vendor (vendored) #28"
 Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+Nodes (49): openssl_cipher_iv_length(), openssl_cipher_key_length(), openssl_cms_decrypt(), openssl_cms_encrypt(), openssl_cms_read(), openssl_cms_sign(), openssl_cms_verify(), openssl_csr_export() (+41 more)
 
-### Community 87 - "server/vendor (vendored) #19"
-Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+### Community 87 - "InventoryGrid.tsx"
+Cohesion: 0.11
+Nodes (32): goToErp(), InventoryGrid(), ScrollRow(), getAutoLockMinutes(), PosLockScreen(), readLocked(), requestPosLock(), setAutoLockMinutes() (+24 more)
 
 ### Community 88 - "nexus-portal-server/vendor (vendored) #29"
-Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+Cohesion: 0.07
+Nodes (49): openssl_cipher_iv_length(), openssl_cms_decrypt(), openssl_cms_encrypt(), openssl_cms_read(), openssl_cms_sign(), openssl_cms_verify(), openssl_csr_export(), openssl_csr_export_to_file() (+41 more)
 
 ### Community 89 - "nexus-portal-server/vendor (vendored) #30"
 Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+Nodes (49): openssl_cipher_iv_length(), openssl_cipher_key_length(), openssl_cms_decrypt(), openssl_cms_encrypt(), openssl_cms_read(), openssl_cms_sign(), openssl_cms_verify(), openssl_csr_export() (+41 more)
 
 ### Community 90 - "server/app #15"
+Cohesion: 0.07
+Nodes (4): InventoryBatch, OrderPart, StockRequisition, StockTransfer
+
+### Community 91 - "front-end/src/app/admin/users/page.tsx"
+Cohesion: 0.11
+Nodes (33): basePagePermissionMatrix, PermMatrixRow, PermRow, RbacPage(), RoleRow, AdminUsersPage(), LocationRow, PhoneCell() (+25 more)
+
+### Community 92 - "PHP CSS Parser"
 Cohesion: 0.06
-Nodes (6): InventoryBatch, StockAdjustment, StockCount, StockRequisition, StockTransfer, DateTime
+Nodes (29): API and deprecation policy, Charset, Class diagram, Contributing, Contributors/Thanks to, Disable multibyte functions, Example 1 (At-Rules), Example 2 (Values) (+21 more)
 
-### Community 91 - "server/vendor (vendored) #20"
-Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+### Community 93 - "overall/page.tsx"
+Cohesion: 0.16
+Nodes (28): ACTIVE(), Booking, listOf(), Ops, OverallDashboardPage(), niceDateTime(), parseMysql(), timeAgo() (+20 more)
 
-### Community 92 - "server/vendor (vendored) #21"
-Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+### Community 94 - "GiftVoucherHelper"
+Cohesion: 0.14
+Nodes (3): GiftVoucherController, GiftVoucherHelper, AuditLog
 
-### Community 93 - "server/vendor (vendored) #22"
-Cohesion: 0.04
-Nodes (10): openssl_csr_get_public_key(), openssl_csr_new(), openssl_csr_sign(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new() (+2 more)
+### Community 95 - "cms/pos/page.tsx"
+Cohesion: 0.15
+Nodes (24): CheckoutDialog(), money(), quickCashOptions(), CheckoutLoyaltyPanel(), money(), AppliedVoucher, CheckoutBankOffers(), CheckoutVoucherPanel() (+16 more)
 
 ### Community 96 - "desktop_pos/Pages #9"
 Cohesion: 0.05
-Nodes (33): apply_on, rate_percent, CustomerListView, EmptyPanel, ItemBorder, LoadingPanel, SearchBox, Window (+25 more)
+Nodes (34): apply_on, rate_percent, App, ActiveTaxesList, BranchNameText, DefaultCustomerText, KotPrinterComboBox, Page (+26 more)
 
 ### Community 97 - "nexus-portal-server/vendor (vendored) #31"
 Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+Nodes (59): imap_8bit(), imap_append(), imap_base64(), imap_binary(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full() (+51 more)
+
+### Community 98 - "nexus-portal-server/vendor (vendored) #32"
+Cohesion: 0.07
+Nodes (41): closelog(), dns_get_record(), fsockopen(), gethostname(), getprotobyname(), getprotobynumber(), getservbyport(), header_register_callback() (+33 more)
 
 ### Community 99 - "nexus-portal-server/vendor (vendored) #33"
 Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+Nodes (48): imap_8bit(), imap_append(), imap_base64(), imap_binary(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full() (+40 more)
 
 ### Community 100 - "nexus-portal-server/vendor (vendored) #34"
-Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+Cohesion: 0.09
+Nodes (38): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+30 more)
 
 ### Community 101 - "nexus-portal-ui/package.json"
 Cohesion: 0.05
 Nodes (46): eslintConfig, dependencies, framer-motion@^12.38.0, lucide-react@^1.8.0, next@16.2.4, quill@^2.0.3, react@19.2.4, react-dom@19.2.4 (+38 more)
 
-### Community 103 - "server/vendor (vendored) #26"
-Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+### Community 104 - "ApiClientController"
+Cohesion: 0.09
+Nodes (3): ApiClientController, StorefrontSettingsController, StorefrontNotifier
 
-### Community 104 - "server/vendor (vendored) #27"
-Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+### Community 105 - "BackupHelper"
+Cohesion: 0.12
+Nodes (4): BackupController, BackupHelper, {closure#4}(), {closure#3}()
 
-### Community 105 - "server/vendor (vendored) #28"
-Cohesion: 0.07
-Nodes (37): imap_append(), imap_body(), imap_bodystruct(), imap_check(), imap_clearflag_full(), imap_close(), imap_createmailbox(), imap_deletemailbox() (+29 more)
+### Community 107 - ".createFromPhpError"
+Cohesion: 0.04
+Nodes (99): chgrp(), chmod(), chown(), copy(), disk_free_space(), disk_total_space(), fclose(), fdatasync() (+91 more)
 
-### Community 106 - "nexus-portal-server/vendor (vendored) #35"
-Cohesion: 0.07
-Nodes (4): Color, CSSFunction, CalcFunction, Color
+### Community 108 - "loyalty.ts"
+Cohesion: 0.14
+Nodes (24): money(), PosLoyaltyChip(), LoyaltyReportsPage(), monthLabel(), n(), Reports, adjustLoyaltyPoints(), call() (+16 more)
 
-### Community 109 - "server/app #16"
-Cohesion: 0.10
-Nodes (3): ReportController, SchemaHelper, {closure#1}()
+### Community 110 - "AiChatController"
+Cohesion: 0.15
+Nodes (8): AiChatController, {closure#1}(), {closure#2}(), {closure#3}(), {closure#4}(), {closure#5}(), {closure#6}(), {closure#7}()
+
+### Community 112 - "fetchCompany"
+Cohesion: 0.14
+Nodes (19): CustomerPrintPage(), PrintContent(), ItemNotes(), ReceiptBody(), ReceiptContent(), ReceiptPage(), TaxInvoiceContent(), TaxInvoicePage() (+11 more)
 
 ### Community 113 - "mobile_pos/lib #6"
 Cohesion: 0.04
 Nodes (45): build, _checkout, _activeRoutes, _apiService, build, _buildCustomerAvatar, _buildListView, _buildMapView (+37 more)
 
-### Community 115 - "server/app #17"
-Cohesion: 0.06
-Nodes (7): CompanySchema, CustomerSchema, OnlineOrderSchema, SyncHelper, SystemSchema, PaymentReceipt, ServiceLocation
+### Community 114 - "nexus-portal-server/vendor (vendored) #38"
+Cohesion: 0.05
+Nodes (20): A Simple Example, Changelog, Contributing, Documentation, Features, History, Installation & loading, Legacy versions (+12 more)
 
 ### Community 116 - "mobile_pos/macos"
 Cohesion: 0.05
 Nodes (22): blue_thermal_printer, Cocoa, connectivity_plus, file_selector_macos, Flutter, FlutterMacOS, Foundation, geolocator_apple (+14 more)
 
-### Community 118 - "server/vendor (vendored) #32"
-Cohesion: 0.05
-Nodes (8): LineName, {closure#1}(), ValueList, CSSFunction, LineName, RuleValueList, {closure#1}(), ValueList
+### Community 117 - "nexus-portal-server/vendor (vendored) #39"
+Cohesion: 0.10
+Nodes (10): array_combine(), array_flip(), array_replace(), array_replace_recursive(), array_walk_recursive(), shuffle(), array_walk_recursive(), shuffle() (+2 more)
+
+### Community 118 - "Value"
+Cohesion: 0.09
+Nodes (16): 8.9.0: New features, bug fixes and deprecations, Changed, Deprecated, Fixed, Removed, Convenience methods, Manipulation, Rule (+8 more)
 
 ### Community 119 - "mobile_pos/lib #7"
 Cohesion: 0.05
@@ -1060,28 +1002,36 @@ Cohesion: 0.04
 Nodes (43): _activeLocation, _apiService, _appliedPromotion, _applyMissingReward, _applyMissingRewardAsDiscount, _billDiscountType, _billDiscountValue, _buildPlaceholderImage (+35 more)
 
 ### Community 121 - "nexus-portal-server/app"
-Cohesion: 0.09
-Nodes (4): SettingsController, Database, ExchangeRateService, json_decode()
+Cohesion: 0.08
+Nodes (3): SettingsController, Database, ExchangeRateService
+
+### Community 122 - "nexus-portal-server/vendor (vendored) #40"
+Cohesion: 0.08
+Nodes (38): assert_options(), cli_set_process_title(), dl(), get_cfg_var(), get_include_path(), getlastmod(), getmygid(), getmyinode() (+30 more)
+
+### Community 123 - "nexus-portal-server/vendor (vendored) #41"
+Cohesion: 0.14
+Nodes (20): xdiff_file_bdiff(), xdiff_file_bpatch(), xdiff_file_diff(), xdiff_file_diff_binary(), xdiff_file_patch_binary(), xdiff_file_rabdiff(), xdiff_string_bpatch(), xdiff_string_patch() (+12 more)
 
 ### Community 124 - "desktop_pos/Pages #10"
 Cohesion: 0.06
 Nodes (36): line_total, return_date, return_no, total_amount, CustomerNameText, DetailsContainer, InvoiceNoText, ItemsList (+28 more)
 
-### Community 125 - "server/vendor (vendored) #33"
-Cohesion: 0.06
-Nodes (5): ListBullet, ListBulletImage, Block, ListBulletImage, ListBullet
+### Community 125 - "FloorController"
+Cohesion: 0.12
+Nodes (3): {closure#1}(), FloorController, PosFloorSchema
 
-### Community 126 - "server/vendor (vendored) #34"
-Cohesion: 0.07
-Nodes (7): Commentable, OutputException, Renderable, CSSElement, CSSListItem, OutputFormatter, Component
+### Community 126 - "home-route.ts"
+Cohesion: 0.18
+Nodes (17): Home(), APP_MODULES, AppLauncher(), AppLauncherProps, AppTile, dashboardByKey(), DashboardKey, DashboardOption (+9 more)
 
 ### Community 127 - "nexus-portal-server/vendor (vendored) #42"
 Cohesion: 0.04
-Nodes (35): imagechar(), imagecolorat(), imagecolordeallocate(), imagecolormatch(), imageconvolution(), imagecopymerge(), imagecopyresampled(), imagecreate() (+27 more)
+Nodes (44): imagealphablending(), imageavif(), imagechar(), imagecolorat(), imagecolordeallocate(), imagecolormatch(), imagecolorset(), imageconvolution() (+36 more)
 
 ### Community 128 - "nexus-portal-server/vendor (vendored) #43"
 Cohesion: 0.04
-Nodes (44): imageaffine(), imagealphablending(), imageantialias(), imagearc(), imageavif(), imagebmp(), imagecharup(), imagecolorset() (+36 more)
+Nodes (35): imageaffine(), imageantialias(), imagearc(), imagebmp(), imagecharup(), imagecolorsforindex(), imagecopymergegray(), imagecopyresampled() (+27 more)
 
 ### Community 129 - "nexus-portal-server/vendor (vendored) #44"
 Cohesion: 0.04
@@ -1100,112 +1050,132 @@ Cohesion: 0.04
 Nodes (44): imageaffine(), imagealphablending(), imageantialias(), imagearc(), imageavif(), imagebmp(), imagecharup(), imagecolorset() (+36 more)
 
 ### Community 133 - "server/app #18"
-Cohesion: 0.09
-Nodes (4): PublicecomuserController, Controller, CustomerAuth, StorefrontAccountSchema
+Cohesion: 0.07
+Nodes (6): PublicCustomerController, PublicecomuserController, CustomerAuth, JwtHelper, LoginGuard, StorefrontAccountSchema
 
 ### Community 134 - "server/app #19"
-Cohesion: 0.06
+Cohesion: 0.05
 Nodes (7): HRMSchema, Attendance, Employee, HRSetting, Leave, Payroll, SalaryItem
 
-### Community 135 - "server/vendor (vendored) #35"
-Cohesion: 0.04
-Nodes (35): imagechar(), imagecolorat(), imagecolordeallocate(), imagecolormatch(), imageconvolution(), imagecopymerge(), imagecopyresampled(), imagecreate() (+27 more)
+### Community 135 - "AdminModel"
+Cohesion: 0.16
+Nodes (3): AuthController, AdminModel, session_regenerate_id()
 
-### Community 136 - "server/vendor (vendored) #36"
-Cohesion: 0.04
-Nodes (44): imageaffine(), imagealphablending(), imageantialias(), imagearc(), imageavif(), imagebmp(), imagecharup(), imagecolorset() (+36 more)
+### Community 136 - "ChequeDetailsDialog"
+Cohesion: 0.14
+Nodes (14): ChequeBankText, ChequeDatePicker, ChequeNoBox, ErrorText, SelectBankButton, Window, ChequeDetailsDialog, ChequeBank (+6 more)
 
-### Community 137 - "server/vendor (vendored) #37"
-Cohesion: 0.04
-Nodes (35): imagechar(), imagecolorat(), imagecolordeallocate(), imagecolormatch(), imageconvolution(), imagecopymerge(), imagecopyresampled(), imagecreate() (+27 more)
+### Community 138 - "Architecture (big picture)"
+Cohesion: 0.11
+Nodes (13): Architecture (big picture), Backend routing (`server/`), Code navigation, Commands, Deployment, front-end (`cd front-end`), Front-end data flow, Known gotchas (+5 more)
 
-### Community 138 - "server/vendor (vendored) #38"
-Cohesion: 0.04
-Nodes (44): imageaffine(), imagealphablending(), imageantialias(), imagearc(), imageavif(), imagebmp(), imagecharup(), imagecolorset() (+36 more)
+### Community 139 - "with"
+Cohesion: 0.11
+Nodes (17): jobs, web-deploy, name, on, push, branches, name, uses (+9 more)
 
-### Community 139 - "server/vendor (vendored) #39"
-Cohesion: 0.04
-Nodes (35): imageantialias(), imageavif(), imagecolordeallocate(), imagecolormatch(), imagecolorset(), imageconvolution(), imagecopymerge(), imagecopymergegray() (+27 more)
+### Community 140 - "with"
+Cohesion: 0.11
+Nodes (17): jobs, web-deploy, name, on, push, branches, name, uses (+9 more)
 
-### Community 140 - "server/vendor (vendored) #40"
-Cohesion: 0.04
-Nodes (44): imageaffine(), imagealphablending(), imagearc(), imagebmp(), imagechar(), imagecharup(), imagecolorat(), imagecolorsforindex() (+36 more)
+### Community 141 - ".createFromPhpError"
+Cohesion: 0.27
+Nodes (12): xml_parser_free(), xml_set_character_data_handler(), xml_set_default_handler(), xml_set_element_handler(), xml_set_end_namespace_decl_handler(), xml_set_external_entity_ref_handler(), xml_set_notation_decl_handler(), xml_set_object() (+4 more)
 
-### Community 141 - "server/vendor (vendored) #41"
-Cohesion: 0.08
-Nodes (35): xml_parser_free(), xml_set_character_data_handler(), xml_set_default_handler(), xml_set_element_handler(), xml_set_end_namespace_decl_handler(), xml_set_external_entity_ref_handler(), xml_set_notation_decl_handler(), xml_set_object() (+27 more)
-
-### Community 142 - "nexus-portal-server/vendor (vendored) #48"
-Cohesion: 0.09
-Nodes (40): pg_cancel_query(), pg_connect(), pg_connection_reset(), pg_convert(), pg_copy_from(), pg_copy_to(), pg_delete(), pg_end_copy() (+32 more)
+### Community 142 - ".createFromPhpError"
+Cohesion: 0.06
+Nodes (80): pg_cancel_query(), pg_connect(), pg_connection_reset(), pg_convert(), pg_copy_from(), pg_copy_to(), pg_delete(), pg_end_copy() (+72 more)
 
 ### Community 143 - "room-kiosk-app/package.json"
 Cohesion: 0.07
 Nodes (41): autoprefixer, @eslint/js, eslint-plugin-react-hooks, eslint-plugin-react-refresh, globals, @tailwindcss/vite, typescript-eslint, vite (+33 more)
 
-### Community 145 - "server/vendor (vendored) #43"
-Cohesion: 0.06
-Nodes (4): Exception, Helpers, AdobeFontMetrics, EncodingMap
-
-### Community 146 - "server/vendor (vendored) #44"
-Cohesion: 0.09
-Nodes (40): pg_cancel_query(), pg_connect(), pg_connection_reset(), pg_convert(), pg_copy_from(), pg_copy_to(), pg_delete(), pg_end_copy() (+32 more)
+### Community 146 - "dompdf/README.md"
+Cohesion: 0.13
+Nodes (13): About Fonts & Character Encoding, Download and install, Easy Installation, Features, Framework Integration, Install with composer, Install with git, Limitations (Known Issues) (+5 more)
 
 ### Community 147 - "nexus-portal-server/vendor (vendored) #49"
-Cohesion: 0.06
-Nodes (9): DirectoryEntry, TableDirectoryEntry, File, Header, TableDirectoryEntry, TableDirectoryEntry, File, Header (+1 more)
-
-### Community 148 - "nexus-portal-server/vendor (vendored) #50"
 Cohesion: 0.09
-Nodes (39): pg_cancel_query(), pg_connect(), pg_connection_reset(), pg_convert(), pg_copy_from(), pg_copy_to(), pg_delete(), pg_end_copy() (+31 more)
+Nodes (5): DirectoryEntry, TableDirectoryEntry, File, Header, TableDirectoryEntry
 
 ### Community 149 - "server/app #20"
-Cohesion: 0.06
-Nodes (5): AccountController, AccountMapping, PurchaseReturn, Supplier, SupplierPayment
-
-### Community 150 - "server/vendor (vendored) #45"
 Cohesion: 0.09
-Nodes (39): pg_cancel_query(), pg_connect(), pg_connection_reset(), pg_convert(), pg_copy_from(), pg_copy_to(), pg_delete(), pg_end_copy() (+31 more)
+Nodes (4): AccountController, AccountMapping, PurchaseReturn, Supplier
+
+### Community 151 - "nexus-portal-server/vendor (vendored) #51"
+Cohesion: 0.15
+Nodes (18): gnupg_adddecryptkey(), gnupg_addencryptkey(), gnupg_addsignkey(), gnupg_cleardecryptkeys(), gnupg_clearencryptkeys(), gnupg_clearsignkeys(), gnupg_setarmor(), gnupg_setsignmode() (+10 more)
+
+### Community 152 - "nexus-portal-server/vendor (vendored) #52"
+Cohesion: 0.15
+Nodes (18): ob_clean(), ob_end_clean(), ob_end_flush(), ob_flush(), ob_get_clean(), ob_start(), output_add_rewrite_var(), output_reset_rewrite_vars() (+10 more)
+
+### Community 153 - "nexus-portal-server/vendor (vendored) #53"
+Cohesion: 0.16
+Nodes (19): sqlsrv_begin_transaction(), sqlsrv_cancel(), sqlsrv_client_info(), sqlsrv_close(), sqlsrv_commit(), sqlsrv_configure(), sqlsrv_execute(), sqlsrv_fetch() (+11 more)
 
 ### Community 154 - "mobile_pos/lib #9"
 Cohesion: 0.05
 Nodes (27): _activeLocationId, _activeLocationName, _buildActionCard, _buildStatCard, _checkConnectivity, _checkLocationBeforeProceeding, _checkOfflineQueue, createState (+19 more)
 
-### Community 156 - "nexus-portal-server/vendor (vendored) #55"
-Cohesion: 0.06
-Nodes (4): LegacyDeclarationListMethods, {closure#1}(), RuleSet, DeclarationBlock
+### Community 156 - "Tenancy"
+Cohesion: 0.21
+Nodes (6): {closure#1}(), {closure#2}(), {closure#3}(), {closure#4}(), {closure#5}(), Tenancy
 
-### Community 157 - "server/vendor (vendored) #46"
-Cohesion: 0.05
-Nodes (5): PrimitiveValue, Size, CSSString, Size, URL
-
-### Community 159 - "server/app #21"
-Cohesion: 0.06
-Nodes (3): PartController, PricelistController, PriceListHelper
+### Community 158 - "nexus-portal-server/vendor (vendored) #56"
+Cohesion: 0.04
+Nodes (49): openssl_cipher_iv_length(), openssl_cipher_key_length(), openssl_cms_decrypt(), openssl_cms_encrypt(), openssl_cms_read(), openssl_cms_sign(), openssl_cms_verify(), openssl_csr_export() (+41 more)
 
 ### Community 160 - "mobile_pos/lib #10"
 Cohesion: 0.05
 Nodes (33): _addressController, _apiCities, build, _cities, createState, _creditDaysController, _creditLimitController, CustomerRegistrationScreen (+25 more)
+
+### Community 161 - "nexus-portal-server/vendor (vendored) #57"
+Cohesion: 0.15
+Nodes (14): apache_get_version(), apache_getenv(), apache_lookup_uri(), apache_request_headers(), apache_response_headers(), apache_setenv(), getallheaders(), virtual() (+6 more)
 
 ### Community 162 - "server/app #22"
 Cohesion: 0.08
 Nodes (3): CancellationController, PaymentreceiptController, CancellationRequestHelper
 
 ### Community 163 - "nexus-portal-server/app #2"
-Cohesion: 0.12
-Nodes (3): SaaSController, PackageModel, TenantModel
+Cohesion: 0.09
+Nodes (4): SaaSController, PackageModel, TenantModel, {closure#1}()
 
 ### Community 165 - "nexus-portal-server/vendor (vendored) #59"
-Cohesion: 0.09
-Nodes (4): Header, File, Header, Header
+Cohesion: 0.10
+Nodes (3): Header, File, Header
 
-### Community 168 - "server/app #23"
-Cohesion: 0.08
-Nodes (5): EmployeeController, {closure#1}(), SaasController, NexusBridge, SaasHelper
+### Community 166 - "nexus-portal-server/vendor (vendored) #60"
+Cohesion: 0.09
+Nodes (39): eio_busy(), eio_chmod(), eio_chown(), eio_close(), eio_custom(), eio_dup2(), eio_event_loop(), eio_fallocate() (+31 more)
+
+### Community 167 - "nexus-portal-server/vendor (vendored) #61"
+Cohesion: 0.05
+Nodes (36): oci_bind_array_by_name(), oci_bind_by_name(), oci_cancel(), oci_commit(), oci_connect(), oci_define_by_name(), oci_execute(), oci_field_name() (+28 more)
+
+### Community 168 - "AdminController"
+Cohesion: 0.06
+Nodes (6): AdminController, LocationController, {closure#1}(), SaasController, NexusBridge, SaasHelper
+
+### Community 169 - "osm-map.tsx"
+Cohesion: 0.16
+Nodes (10): leaflet@^1.9.4, react-leaflet@^5.0.0, OSMLocationPicker(), OSMLocationPickerProps, OSMMap, customIcon, OSMMap(), OSMMapProps (+2 more)
+
+### Community 170 - "shifts/print/[id]/page.tsx"
+Cohesion: 0.24
+Nodes (10): ShiftPrint(), ShiftPrintPage(), TerminalReport(), TerminalReportPrintPage(), PrintSection(), call(), PosShift, posShiftApi (+2 more)
+
+### Community 171 - "price-lists/page.tsx"
+Cohesion: 0.38
+Nodes (12): fmt(), ListItems(), PriceListsPage(), ruleText(), deletePriceList(), fetchPriceListItems(), fetchPriceLists(), parse() (+4 more)
 
 ### Community 172 - "nexus-portal-server/app #3"
-Cohesion: 0.12
+Cohesion: 0.10
 Nodes (3): ProvisioningController, ProductModel, ProvisioningService
+
+### Community 175 - "nexus-portal-server/vendor (vendored) #64"
+Cohesion: 0.10
+Nodes (35): oci_bind_array_by_name(), oci_bind_by_name(), oci_cancel(), oci_commit(), oci_connect(), oci_define_by_name(), oci_execute(), oci_field_name() (+27 more)
 
 ### Community 177 - "desktop_pos/Pages #11"
 Cohesion: 0.07
@@ -1216,60 +1186,56 @@ Cohesion: 0.06
 Nodes (31): _bluetooth, build, _connect, _connected, createState, _devices, _disconnect, _getDevices (+23 more)
 
 ### Community 179 - "front-end/src #11"
-Cohesion: 0.10
-Nodes (31): EditInquiryPage(), NewInquiryPage(), InquiryDetails(), InquiryDetailsProps, InquiryForm(), InquiryFormProps, PlusCircle(), Action (+23 more)
+Cohesion: 0.21
+Nodes (17): EditInquiryPage(), NewInquiryPage(), InquiryDetails(), InquiryDetailsProps, InquiryForm(), InquiryFormProps, PlusCircle(), addInquiryLog() (+9 more)
 
 ### Community 180 - "nexus-portal-server/vendor (vendored) #65"
 Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+Nodes (33): ldap_8859_to_t61(), ldap_add(), ldap_bind(), ldap_compare(), ldap_control_paged_result(), ldap_control_paged_result_response(), ldap_count_entries(), ldap_delete() (+25 more)
 
 ### Community 181 - "nexus-portal-server/vendor (vendored) #66"
 Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+Nodes (33): ldap_8859_to_t61(), ldap_add(), ldap_bind(), ldap_compare(), ldap_control_paged_result(), ldap_control_paged_result_response(), ldap_count_entries(), ldap_delete() (+25 more)
 
 ### Community 182 - "nexus-portal-server/vendor (vendored) #67"
-Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+Cohesion: 0.14
+Nodes (33): ldap_8859_to_t61(), ldap_add(), ldap_bind(), ldap_compare(), ldap_control_paged_result(), ldap_control_paged_result_response(), ldap_count_entries(), ldap_delete() (+25 more)
 
 ### Community 183 - "nexus-portal-server/vendor (vendored) #68"
 Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+Nodes (33): ldap_8859_to_t61(), ldap_add(), ldap_bind(), ldap_compare(), ldap_control_paged_result(), ldap_control_paged_result_response(), ldap_count_entries(), ldap_delete() (+25 more)
 
 ### Community 184 - "server/app #24"
 Cohesion: 0.08
-Nodes (3): InvoiceSchema, Invoice, ProductionBOM
+Nodes (3): QuotationController, Invoice, ProductionBOM
 
-### Community 185 - "server/vendor (vendored) #51"
-Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+### Community 185 - "admin/dashboard/page.tsx"
+Cohesion: 0.27
+Nodes (12): AlertChip(), CollectionsChart(), CURRENCIES, DashboardPage(), fmtCompact(), fmtMoney(), KpiCard(), monthLabel() (+4 more)
 
-### Community 186 - "server/vendor (vendored) #52"
-Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+### Community 186 - "InstallController.php"
+Cohesion: 0.26
+Nodes (4): appendLog(), InstallController, showToast(), startSeeding()
 
-### Community 187 - "server/vendor (vendored) #53"
-Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+### Community 187 - "PosShiftGate.tsx"
+Cohesion: 0.29
+Nodes (10): DENOMS, money(), openShiftPanel(), printShift(), Row(), SHIFT_EVENT, ShiftReport(), getTerminalId() (+2 more)
 
-### Community 188 - "server/vendor (vendored) #54"
-Cohesion: 0.11
-Nodes (27): ldap_add(), ldap_bind(), ldap_compare(), ldap_count_entries(), ldap_delete(), ldap_exop(), ldap_exop_passwd(), ldap_exop_whoami() (+19 more)
+### Community 188 - "base64_decode"
+Cohesion: 0.23
+Nodes (5): base64_decode(), get_headers(), get_meta_tags(), parse_url(), UrlException
 
 ### Community 189 - "nexus-portal-server/vendor (vendored) #69"
 Cohesion: 0.10
-Nodes (30): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+22 more)
+Nodes (31): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+23 more)
 
 ### Community 190 - "nexus-portal-server/vendor (vendored) #70"
 Cohesion: 0.10
-Nodes (30): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+22 more)
+Nodes (31): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+23 more)
 
-### Community 192 - "server/vendor (vendored) #56"
-Cohesion: 0.10
-Nodes (30): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+22 more)
-
-### Community 193 - "server/vendor (vendored) #57"
-Cohesion: 0.10
-Nodes (30): odbc_autocommit(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source(), odbc_exec() (+22 more)
+### Community 193 - "credit-notes/print/[id]/page.tsx"
+Cohesion: 0.24
+Nodes (7): CreditNotePrintPage(), call(), CREDIT_NOTE_REASONS, CreditNote, creditNoteApi, CreditNoteInput, OpenInvoice
 
 ### Community 194 - "desktop_pos/Pages #12"
 Cohesion: 0.09
@@ -1279,17 +1245,17 @@ Nodes (20): AmountBox, PART_ContentHost, Window, DiscountInputDialog, DiscountAm
 Cohesion: 0.06
 Nodes (34): _amountController, _banks, build, _buildCardDetails, _buildChequeDetails, _buildDivider, _buildRow, _cardAuthCode (+26 more)
 
-### Community 196 - "nexus-portal-server/vendor (vendored) #71"
-Cohesion: 0.08
-Nodes (4): Page, Page, Factory, Page
+### Community 196 - "completion-print/[id]/page.tsx"
+Cohesion: 0.31
+Nodes (8): ChecklistDoneItem, OrderCompletionPrintPage(), safeChecklistDone(), OrderPrintPage(), safeJsonArray(), useCompany(), fetchOrder(), OrderPartRow
 
-### Community 197 - "nexus-portal-ui/src #2"
-Cohesion: 0.09
-Nodes (16): highlights, ALL_MODULE_IDS, MODULE_CATEGORIES, ModuleItem, ALL_MODULE_IDS, MODULE_CATEGORIES, ModuleItem, BillingSettingsPage() (+8 more)
+### Community 197 - "API_BASE"
+Cohesion: 0.14
+Nodes (14): AdminLayout(), highlights, CompanySettingsPage(), LandingPage(), MODULES_CATALOG, VerifyEmailContent(), VerifyEmailPage(), AdminSidebar() (+6 more)
 
 ### Community 198 - "desktop_pos/Pages #13"
-Cohesion: 0.09
-Nodes (22): CartListView, CustomerNameText, DiscountBox, GrandTotalText, Page, SubtotalText, TaxText, LineTotalDisplay (+14 more)
+Cohesion: 0.05
+Nodes (39): CartListView, CustomerNameText, DiscountBox, GrandTotalText, Page, SubtotalText, TaxText, LineTotalDisplay (+31 more)
 
 ### Community 199 - "mobile_pos/pubspec.yaml"
 Cohesion: 0.06
@@ -1299,221 +1265,225 @@ Nodes (33): dependencies, blue_thermal_printer, connectivity_plus, cupertino_ico
 Cohesion: 0.06
 Nodes (33): authors, autoload, classmap, autoload-dev, psr-4, psr-4, description, homepage (+25 more)
 
-### Community 203 - "server/vendor (vendored) #58"
-Cohesion: 0.06
-Nodes (33): authors, autoload, classmap, autoload-dev, psr-4, psr-4, description, homepage (+25 more)
+### Community 202 - "nexus-portal-server/vendor (vendored) #74"
+Cohesion: 0.11
+Nodes (33): odbc_autocommit(), odbc_binmode(), odbc_columnprivileges(), odbc_columns(), odbc_commit(), odbc_connect(), odbc_cursor(), odbc_data_source() (+25 more)
 
 ### Community 206 - "mobile_pos/lib #13"
 Cohesion: 0.06
 Nodes (26): _apiService, build, createState, _customerMarkers, _dbService, _endDate, _fitMapBounds, _getRoadSnappedRoute (+18 more)
 
 ### Community 207 - "nexus-portal-server/vendor (vendored) #75"
-Cohesion: 0.08
-Nodes (4): AuthController, AdminModel, session_destroy(), session_id()
+Cohesion: 0.17
+Nodes (16): session_abort(), session_cache_expire(), session_cache_limiter(), session_create_id(), session_decode(), session_destroy(), session_encode(), session_gc() (+8 more)
 
 ### Community 210 - "nexus-portal-server/vendor (vendored) #77"
-Cohesion: 0.07
-Nodes (8): Exception, UTF8Utils, iconv(), iconv_strlen(), IconvException, UTF8Utils, iconv(), iconv_strlen()
-
-### Community 211 - "server/vendor (vendored) #61"
-Cohesion: 0.07
-Nodes (5): CalcFunction, CalcRuleValueList, RuleValueList, Declaration, CalcRuleValueList
+Cohesion: 0.12
+Nodes (9): Exception, UTF8Utils, iconv(), iconv_get_encoding(), iconv_mime_decode(), iconv_mime_encode(), iconv_set_encoding(), iconv_strlen() (+1 more)
 
 ### Community 212 - "nexus-portal-server/vendor (vendored) #78"
-Cohesion: 0.10
-Nodes (25): rnp_decrypt(), rnp_ffi_create(), rnp_ffi_set_pass_provider(), rnp_import_keys(), rnp_import_signatures(), rnp_key_export(), rnp_key_export_autocrypt(), rnp_key_export_revocation() (+17 more)
+Cohesion: 0.16
+Nodes (28): rnp_decrypt(), rnp_dump_packets(), rnp_dump_packets_to_json(), rnp_ffi_create(), rnp_ffi_set_pass_provider(), rnp_import_keys(), rnp_import_signatures(), rnp_key_export() (+20 more)
 
-### Community 213 - "server/app #25"
-Cohesion: 0.09
-Nodes (4): {closure#3}(), IntelligenceController, SchemaDefinition, TestController
+### Community 214 - ".createFromPhpError"
+Cohesion: 0.33
+Nodes (5): convert_uudecode(), hex2bin(), md5_file(), sha1_file(), StringsException
 
-### Community 215 - "server/vendor (vendored) #63"
-Cohesion: 0.11
-Nodes (3): {closure#1}(), {closure#2}(), FontMetrics
+### Community 215 - "safe/README.md"
+Cohesion: 0.22
+Nodes (8): Automated refactoring, Contributing, Installation, Learn more, Performance impact, PHPStan integration, The problem, The solution
+
+### Community 216 - "plan/page.tsx"
+Cohesion: 0.39
+Nodes (7): fmtDate(), Limits, PlanUsagePage(), Sub, humanize(), MODULES, UsageMeter()
 
 ### Community 218 - "mobile_pos/lib #14"
-Cohesion: 0.07
-Nodes (20): build, _checkInitialStatus, child, createState, didChangeAppLifecycleState, dispose, initState, _isLocationEnabled (+12 more)
+Cohesion: 0.06
+Nodes (23): build, child, GradientBackground, build, _checkInitialStatus, child, createState, didChangeAppLifecycleState (+15 more)
 
 ### Community 219 - "mobile_pos/linux"
 Cohesion: 0.08
 Nodes (14): fl_register_plugins(), main(), first_frame_cb(), my_application_activate(), my_application_class_init(), my_application_dispose(), my_application_init(), my_application_local_command_line() (+6 more)
 
 ### Community 220 - "front-end/src #12"
-Cohesion: 0.18
-Nodes (28): CancellationApprovalsPage(), money(), Status, StatusPill(), TABS, TYPE_LABEL, when(), fmtDate() (+20 more)
+Cohesion: 0.17
+Nodes (25): CancellationApprovalsPage(), money(), Status, StatusPill(), TABS, TYPE_LABEL, when(), fmtDate() (+17 more)
 
 ### Community 221 - "mobile_pos/lib #15"
 Cohesion: 0.06
 Nodes (28): cacheCustomerInvoices, cacheCustomers, cacheProducts, cachePromotions, _db, DbService, deleteOfflineCustomer, deleteOfflineInvoice (+20 more)
 
+### Community 222 - "nexus-portal-server/vendor (vendored) #79"
+Cohesion: 0.19
+Nodes (13): exec(), proc_close(), proc_nice(), proc_open(), shell_exec(), system(), exec(), proc_close() (+5 more)
+
+### Community 223 - "nexus-portal-server/vendor (vendored) #80"
+Cohesion: 0.10
+Nodes (32): mysql_close(), mysql_connect(), mysql_create_db(), mysql_data_seek(), mysql_db_name(), mysql_db_query(), mysql_drop_db(), mysql_fetch_lengths() (+24 more)
+
+### Community 224 - "nexus-portal-server/vendor (vendored) #81"
+Cohesion: 0.17
+Nodes (10): readline_add_history(), readline_callback_handler_install(), readline_clear_history(), readline_completion_function(), readline_read_history(), readline_write_history(), readline_completion_function(), readline_read_history() (+2 more)
+
 ### Community 227 - "mobile_pos/lib #16"
 Cohesion: 0.07
 Nodes (25): _apiService, build, _buildCustomerAvatar, _buildCustomerSelection, _buildInvoiceSelection, createState, _currentPosition, _customers (+17 more)
 
-### Community 228 - "server/vendor (vendored) #68"
-Cohesion: 0.08
-Nodes (5): FontNotFoundException, Font, Font, name, nameRecord
+### Community 228 - "Font"
+Cohesion: 0.12
+Nodes (4): FontNotFoundException, Font, name, nameRecord
 
 ### Community 229 - "server/app #26"
-Cohesion: 0.15
-Nodes (3): HrdocumentController, UploadController, FtpStorage
+Cohesion: 0.10
+Nodes (5): CompanyController, HrdocumentController, UploadController, ContentStore, FtpStorage
 
 ### Community 230 - "server/app #27"
-Cohesion: 0.09
-Nodes (7): appendLog(), InstallController, showToast(), startSeeding(), RbacController, BanquetSchema, RbacSchema
+Cohesion: 0.08
+Nodes (5): RbacController, UnitController, BanquetSchema, RbacSchema, UnitSchema
 
 ### Community 231 - "desktop_pos/Services #3"
-Cohesion: 0.07
-Nodes (27): LocationDetailsModel, address, allow_dine_in, allow_retail, allow_take_away, allowed_taxes_json, default_customer_id, id (+19 more)
+Cohesion: 0.04
+Nodes (46): CustomerListView, EmptyPanel, ItemBorder, LoadingPanel, SearchBox, Window, name, phone (+38 more)
 
-### Community 232 - "nexus-portal-server/vendor (vendored) #82"
+### Community 233 - ".createFromPhpError"
 Cohesion: 0.08
-Nodes (3): RulesInterface, Traverser, RulesInterface
-
-### Community 233 - "nexus-portal-server/vendor (vendored) #83"
-Cohesion: 0.12
-Nodes (24): socket_accept(), socket_addrinfo_bind(), socket_addrinfo_connect(), socket_atmark(), socket_bind(), socket_connect(), socket_create(), socket_create_listen() (+16 more)
+Nodes (54): socket_accept(), socket_addrinfo_bind(), socket_addrinfo_connect(), socket_addrinfo_lookup(), socket_bind(), socket_connect(), socket_create(), socket_create_listen() (+46 more)
 
 ### Community 234 - "server/app #28"
-Cohesion: 0.11
-Nodes (4): CpanelDatabaseHost, DatabaseHost, DatabaseHostFactory, MysqlDatabaseHost
-
-### Community 235 - "server/vendor (vendored) #69"
-Cohesion: 0.12
-Nodes (24): socket_accept(), socket_addrinfo_bind(), socket_addrinfo_connect(), socket_atmark(), socket_bind(), socket_connect(), socket_create(), socket_create_listen() (+16 more)
+Cohesion: 0.14
+Nodes (3): CpanelDatabaseHost, DatabaseHost, DatabaseHostFactory
 
 ### Community 236 - "desktop_pos/Pages #14"
-Cohesion: 0.10
-Nodes (16): invoice_no, CardBorder, DatePickerField, InvoicesGrid, LoadingText, PrintBtn, Window, created_at (+8 more)
+Cohesion: 0.09
+Nodes (18): invoice_no, TaxMethodConfirmationDialog, IsTaxInclusive, CardBorder, DatePickerField, InvoicesGrid, LoadingText, PrintBtn (+10 more)
 
 ### Community 237 - "mobile_pos/lib #17"
-Cohesion: 0.07
-Nodes (23): batchId, batchNumber, CartItem, discount, isReward, item, promoDiscount, quantity (+15 more)
+Cohesion: 0.04
+Nodes (46): batchId, batchNumber, CartItem, discount, isReward, item, promoDiscount, quantity (+38 more)
 
 ### Community 238 - "local-printer/server.js"
 Cohesion: 0.08
 Nodes (22): adminOnly(), api, app, args, config, cors, express, fs (+14 more)
 
-### Community 239 - "nexus-portal-server/vendor (vendored) #84"
-Cohesion: 0.11
-Nodes (4): AdobeFontMetrics, EncodingMap, name, nameRecord
+### Community 243 - "class-variance-authority"
+Cohesion: 0.33
+Nodes (6): class-variance-authority@^0.7.1, Alert, AlertDescription, AlertTitle, alertVariants, class-variance-authority
 
-### Community 240 - "nexus-portal-server/vendor (vendored) #85"
-Cohesion: 0.13
-Nodes (23): socket_accept(), socket_addrinfo_bind(), socket_addrinfo_connect(), socket_bind(), socket_connect(), socket_create(), socket_create_listen(), socket_export_stream() (+15 more)
-
-### Community 241 - "server/app #29"
-Cohesion: 0.08
-Nodes (3): CustomerController, ReviewsController, ReviewSchema
-
-### Community 243 - "server/vendor (vendored) #71"
-Cohesion: 0.13
-Nodes (23): socket_accept(), socket_addrinfo_bind(), socket_addrinfo_connect(), socket_bind(), socket_connect(), socket_create(), socket_create_listen(), socket_export_stream() (+15 more)
-
-### Community 244 - "server/vendor (vendored) #72"
-Cohesion: 0.13
-Nodes (24): rnp_decrypt(), rnp_ffi_create(), rnp_ffi_set_pass_provider(), rnp_import_keys(), rnp_import_signatures(), rnp_key_export(), rnp_key_export_autocrypt(), rnp_key_export_revocation() (+16 more)
+### Community 244 - "middleware.ts"
+Cohesion: 0.33
+Nodes (6): API, cache, check(), config, middleware(), Verdict
 
 ### Community 245 - "front-end/docs"
 Cohesion: 0.07
 Nodes (27): Bay & Technician Assignment, Intelligent Checklist & Category Suggestion, Repair Completion Details, Repair Order Creation, Repair Status Management, Reporting & Analytics, ServiceBay app blueprint, Workshop Order Queue (+19 more)
 
 ### Community 246 - "nexus-portal-server/app #5"
-Cohesion: 0.12
+Cohesion: 0.09
 Nodes (5): AdminController, CommunicationController, PortalController, Controller, RequestModel
 
-### Community 247 - "nexus-portal-server/vendor (vendored) #86"
-Cohesion: 0.14
-Nodes (26): ftp_alloc(), ftp_append(), ftp_cdup(), ftp_chdir(), ftp_chmod(), ftp_close(), ftp_connect(), ftp_delete() (+18 more)
+### Community 247 - ".createFromPhpError"
+Cohesion: 0.09
+Nodes (52): ftp_alloc(), ftp_append(), ftp_cdup(), ftp_chdir(), ftp_chmod(), ftp_close(), ftp_connect(), ftp_delete() (+44 more)
 
-### Community 248 - "server/vendor (vendored) #73"
-Cohesion: 0.08
-Nodes (8): PcreException, SimplexmlException, fputcsv(), ftp_raw(), simplexml_import_dom(), simplexml_load_file(), simplexml_load_string(), socket_write()
-
-### Community 250 - "server/vendor (vendored) #74"
-Cohesion: 0.14
-Nodes (26): ftp_alloc(), ftp_append(), ftp_cdup(), ftp_chdir(), ftp_chmod(), ftp_close(), ftp_connect(), ftp_delete() (+18 more)
+### Community 248 - "The Parser Model"
+Cohesion: 0.29
+Nodes (6): DOMDocument, EventHandler and DOMTree, InputStream, Scanner, The Parser Model, Tokenizer
 
 ### Community 251 - "mobile_pos/lib #18"
 Cohesion: 0.08
 Nodes (22): activeLocation, build, _buildContent, _buildHeader, _buildModeSelection, _buildOptionCard, _buildSkipCard, _buildStewardSelection (+14 more)
 
 ### Community 252 - "mobile_pos/lib #19"
-Cohesion: 0.08
-Nodes (22): _activeRouteIds, _allRoutes, build, createState, initState, _isLoading, _loadRoutes, onRoutesChanged (+14 more)
-
-### Community 253 - "nexus-portal-server/vendor (vendored) #87"
-Cohesion: 0.14
-Nodes (25): ftp_alloc(), ftp_append(), ftp_cdup(), ftp_chdir(), ftp_chmod(), ftp_close(), ftp_connect(), ftp_delete() (+17 more)
+Cohesion: 0.15
+Nodes (11): _activeRouteIds, _allRoutes, build, createState, initState, _isLoading, _loadRoutes, onRoutesChanged (+3 more)
 
 ### Community 255 - "server/app #31"
 Cohesion: 0.11
 Nodes (3): SettingsController, AiClient, AiConfig
 
-### Community 256 - "server/vendor (vendored) #76"
-Cohesion: 0.14
-Nodes (25): ftp_alloc(), ftp_append(), ftp_cdup(), ftp_chdir(), ftp_chmod(), ftp_close(), ftp_connect(), ftp_delete() (+17 more)
+### Community 256 - "The Serializer (Writer) Model"
+Cohesion: 0.33
+Nodes (5): HTML5 Class, HTML5 String, Output Rules, The Serializer (Writer) Model, The Traverser
 
-### Community 257 - "desktop_pos/Services #4"
-Cohesion: 0.10
-Nodes (15): App, AppSettings, AutoAddOnScan, DefaultCustomerId, DefaultCustomerName, IsDarkTheme, IsTaxInclusive, KotPrinterName (+7 more)
+### Community 257 - "A short history of UTF-8 in email"
+Cohesion: 0.33
+Nodes (5): A short history of UTF-8 in email, Background, Postfix gotcha, SMTPUTF8, SMTPUTF8 in PHPMailer
 
 ### Community 258 - "desktop_pos/Pages #15"
 Cohesion: 0.13
 Nodes (17): AmexBtn, border, CardAuthBox, CardLast4Box, ErrorText, MasterBtn, OtherBtn, VisaBtn (+9 more)
 
 ### Community 261 - "nexus-portal-server/vendor (vendored) #90"
-Cohesion: 0.15
-Nodes (12): {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}() (+4 more)
+Cohesion: 0.26
+Nodes (6): {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}(), {closure#1}()
 
 ### Community 262 - "nexus-portal-server/vendor (vendored) #91"
-Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+Cohesion: 0.14
+Nodes (23): deflate_add(), deflate_init(), gzclose(), gzcompress(), gzdecode(), gzdeflate(), gzencode(), gzfile() (+15 more)
+
+### Community 263 - "nexus-portal-server/vendor (vendored) #92"
+Cohesion: 0.13
+Nodes (25): stream_context_set_options(), stream_context_set_params(), stream_copy_to_stream(), stream_filter_append(), stream_filter_prepend(), stream_filter_register(), stream_filter_remove(), stream_get_contents() (+17 more)
 
 ### Community 264 - "nexus-portal-server/vendor (vendored) #93"
 Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+Nodes (22): deflate_add(), deflate_init(), gzclose(), gzcompress(), gzdecode(), gzdeflate(), gzencode(), gzfile() (+14 more)
 
 ### Community 265 - "nexus-portal-server/vendor (vendored) #94"
 Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+Nodes (22): deflate_add(), deflate_init(), gzclose(), gzcompress(), gzdecode(), gzdeflate(), gzencode(), gzfile() (+14 more)
 
 ### Community 266 - "nexus-portal-server/vendor (vendored) #95"
 Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+Nodes (22): deflate_add(), deflate_init(), gzclose(), gzcompress(), gzdecode(), gzdeflate(), gzencode(), gzfile() (+14 more)
 
-### Community 269 - "server/vendor (vendored) #79"
-Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+### Community 269 - "guest-receipt/[id]/page.tsx"
+Cohesion: 0.70
+Nodes (4): GuestReceiptContent(), GuestReceiptPage(), ReceiptBody(), loadHeldOrder()
 
-### Community 271 - "server/vendor (vendored) #81"
-Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+### Community 270 - "dompdf/AUTHORS.md"
+Cohesion: 0.40
+Nodes (4): Alumni, Contributors, Current Team, Thanks
 
-### Community 272 - "server/vendor (vendored) #82"
-Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+### Community 271 - "PHP Font Lib"
+Cohesion: 0.40
+Nodes (4): Base font information, Create a font subset, Font Metrics Generation, PHP Font Lib
 
-### Community 273 - "server/vendor (vendored) #83"
-Cohesion: 0.09
-Nodes (6): deflate_add(), deflate_init(), inflate_add(), inflate_get_read_len(), inflate_get_status(), inflate_init()
+### Community 272 - "php-svg-lib/AUTHORS.md"
+Cohesion: 0.40
+Nodes (4): Alumni, Contributors, Current Team, Thanks
+
+### Community 273 - "packages/create/page.tsx"
+Cohesion: 0.40
+Nodes (4): ALL_MODULE_IDS, MODULE_CATEGORIES, ModuleItem, PackageCreatePage()
 
 ### Community 274 - "desktop_pos/Pages #16"
 Cohesion: 0.16
 Nodes (12): AmountDisplay, PercentModeBtn, PercentModeText, SuffixLabel, ValueModeBtn, ValueModeText, Window, BillDiscountDialog (+4 more)
 
-### Community 275 - "front-end/src #13"
-Cohesion: 0.12
-Nodes (22): react-markdown@^10.1.0, remark-gfm@^4.0.1, BizFlowAiAssistant(), HIDDEN_ON, Message, QUICK_ACTIONS, WELCOME, AiProgress() (+14 more)
+### Community 275 - "insights/page.tsx"
+Cohesion: 0.13
+Nodes (30): react-markdown@^10.1.0, remark-gfm@^4.0.1, AiInsightsPage(), groupLabel(), Markdown(), Message, newKey(), SUGGESTIONS (+22 more)
 
 ### Community 276 - "front-end/src #14"
-Cohesion: 0.19
-Nodes (22): decodeJwtPayload(), DOCK_CONFIG_KEY, getCurrentUserId(), saveDockItems(), accountingItems, adminNavItems, approvalItems, banquetItems (+14 more)
+Cohesion: 0.16
+Nodes (28): MODULE_PAGES, ModulePage(), usePermissions(), DOCK_CONFIG_KEY, getCurrentUserId(), getPermittedDockPool(), getSavedDockItems(), saveDockItems() (+20 more)
 
-### Community 278 - "nexus-portal-server/vendor (vendored) #97"
-Cohesion: 0.09
-Nodes (6): JsonException, ftp_raw(), simplexml_import_dom(), simplexml_load_file(), simplexml_load_string(), socket_write()
+### Community 277 - "nexus-portal-server/vendor (vendored) #96"
+Cohesion: 0.13
+Nodes (25): fbird_blob_cancel(), ibase_add_user(), ibase_backup(), ibase_blob_cancel(), ibase_blob_create(), ibase_blob_get(), ibase_close(), ibase_commit() (+17 more)
+
+### Community 278 - "special_cases.php"
+Cohesion: 0.07
+Nodes (17): hash_hkdf(), hash_update_file(), hash_update_file(), HashException, SimplexmlException, fgetcsv(), fputcsv(), ftp_raw() (+9 more)
+
+### Community 279 - "nexus-portal-server/vendor (vendored) #98"
+Cohesion: 0.08
+Nodes (24): stream_context_set_params(), stream_copy_to_stream(), stream_filter_append(), stream_filter_prepend(), stream_filter_register(), stream_filter_remove(), stream_get_contents(), stream_get_line() (+16 more)
+
+### Community 280 - ".createFromPhpError"
+Cohesion: 0.05
+Nodes (44): date(), date_parse(), date_parse_from_format(), date_sun_info(), date_sunrise(), date_sunset(), gmmktime(), gmstrftime() (+36 more)
 
 ### Community 281 - "room-kiosk-app/src"
 Cohesion: 0.19
@@ -1523,29 +1493,49 @@ Nodes (14): App(), AppInner(), LanguageSyncWrapper(), Cart(), CartPanel(), Check
 Cohesion: 0.15
 Nodes (4): PublicinquiryController, PublicproductreviewController, PublicsubscriberController, PublicFormGuard
 
-### Community 283 - "server/app #33"
-Cohesion: 0.11
-Nodes (3): PublicmarketController, MarketResolver, Market
+### Community 285 - "require"
+Cohesion: 0.50
+Nodes (4): require, ext-iconv, php, thecodingmachine/safe
 
 ### Community 287 - "mobile_pos/windows"
-Cohesion: 0.12
+Cohesion: 0.13
 Nodes (4): wWinMain(), CreateAndAttachConsole(), GetCommandLineArguments(), Utf8FromUtf16()
 
 ### Community 288 - "local-printer/package.json"
 Cohesion: 0.11
 Nodes (23): bin, dependencies, body-parser@^1.20.2, cors@^2.8.5, express@^4.18.2, pdf-to-printer@latest, puppeteer-core@^22.6.0, systray2@^2.1.4 (+15 more)
 
+### Community 289 - "nexus-portal-server/vendor (vendored) #100"
+Cohesion: 0.24
+Nodes (10): rrd_create(), rrd_first(), rrd_graph(), rrd_info(), rrd_lastupdate(), rrd_restore(), rrd_tune(), rrd_update() (+2 more)
+
+### Community 290 - ".createFromPhpError"
+Cohesion: 0.07
+Nodes (47): ssh2_auth_agent(), ssh2_auth_hostbased_file(), ssh2_auth_password(), ssh2_auth_pubkey_file(), ssh2_connect(), ssh2_disconnect(), ssh2_exec(), ssh2_forward_accept() (+39 more)
+
 ### Community 292 - "nexus-portal-ui/src #3"
-Cohesion: 0.18
-Nodes (18): empty, Pkg, Product, ProductsPage(), TenantEditPage(), WebhooksPage(), LABELS, STATUS_CLS (+10 more)
+Cohesion: 0.13
+Nodes (26): empty, Pkg, Product, ProductsPage(), TenantEditPage(), WebhooksPage(), activeStep(), Phase (+18 more)
+
+### Community 297 - "nexus-portal-server/vendor (vendored) #103"
+Cohesion: 0.10
+Nodes (3): Elements, InstructionProcessor, DOMTreeBuilder
+
+### Community 299 - "nexus-portal-server/vendor (vendored) #105"
+Cohesion: 0.09
+Nodes (22): stream_context_set_params(), stream_copy_to_stream(), stream_filter_append(), stream_filter_prepend(), stream_filter_register(), stream_filter_remove(), stream_get_contents(), stream_get_line() (+14 more)
+
+### Community 300 - ".createFromPhpError"
+Cohesion: 0.08
+Nodes (44): posix_access(), posix_getgrgid(), posix_getgrnam(), posix_getgroups(), posix_getlogin(), posix_getpwuid(), posix_getrlimit(), posix_getsid() (+36 more)
 
 ### Community 301 - "nexus-portal-ui/src #4"
 Cohesion: 0.15
 Nodes (14): next-themes@^0.4.6, inter, metadata, RootLayout(), BackgroundGradients(), Footer(), Navbar(), ProgressBar() (+6 more)
 
-### Community 302 - "nexus-portal-ui/src #5"
-Cohesion: 0.17
-Nodes (15): EmailLogsPage(), StatusBadge(), EmailBadge(), GlobalInvoicesPage(), Modal(), StatusBadge(), PackagesPage(), PaymentHistoryPage() (+7 more)
+### Community 302 - "adminFetch"
+Cohesion: 0.09
+Nodes (32): EmailLogsPage(), StatusBadge(), EmailBadge(), GlobalInvoicesPage(), Modal(), StatusBadge(), ALL_MODULE_IDS, MODULE_CATEGORIES (+24 more)
 
 ### Community 303 - "room-kiosk-app/package.json #2"
 Cohesion: 0.09
@@ -1567,28 +1557,24 @@ Nodes (22): scripts, check, check:composer:normalize, check:dynamic, check:php:c
 Cohesion: 0.09
 Nodes (22): scripts-descriptions, check, check:composer:normalize, check:dynamic, check:php:codesniffer, check:php:fixer, check:php:lint, check:php:rector (+14 more)
 
-### Community 317 - "server/app #36"
-Cohesion: 0.16
-Nodes (3): DocumentSequenceHelper, PdfHelper, RecurringInvoice
+### Community 315 - "nexus-portal-server/vendor (vendored) #112"
+Cohesion: 0.26
+Nodes (9): yaz_ccl_parse(), yaz_close(), yaz_connect(), yaz_database(), yaz_element(), yaz_present(), yaz_search(), yaz_wait() (+1 more)
 
-### Community 318 - "server/vendor (vendored) #95"
-Cohesion: 0.09
-Nodes (21): authors, autoload, autoload-dev, psr-4, psr-4, dev-master, description, extra (+13 more)
-
-### Community 319 - "server/vendor (vendored) #96"
-Cohesion: 0.09
-Nodes (22): scripts, check, check:composer:normalize, check:dynamic, check:php:codesniffer, check:php:fixer, check:php:lint, check:php:rector (+14 more)
-
-### Community 320 - "server/vendor (vendored) #97"
-Cohesion: 0.09
-Nodes (22): scripts-descriptions, check, check:composer:normalize, check:dynamic, check:php:codesniffer, check:php:fixer, check:php:lint, check:php:rector (+14 more)
+### Community 317 - "DateTime"
+Cohesion: 0.06
+Nodes (7): DateTime, DocumentSequenceHelper, RecurringInvoice, Refund, SalesReturn, StockAdjustment, StockCount
 
 ### Community 322 - "local-printer-py/main.py"
 Cohesion: 0.11
 Nodes (5): get_settings(), get_windows_printers(), list_printers(), print_job(), show_print_status()
 
+### Community 323 - ".createFromPhpError"
+Cohesion: 0.08
+Nodes (40): mb_chr(), mb_convert_encoding(), mb_convert_variables(), mb_detect_order(), mb_encoding_aliases(), mb_ereg_replace(), mb_ereg_replace_callback(), mb_ereg_search_getregs() (+32 more)
+
 ### Community 326 - "server/app #37"
-Cohesion: 0.10
+Cohesion: 0.11
 Nodes (4): PayHereHelper, PaymentGatewayFactory, PaymentGatewayInterface, StripeHelper
 
 ### Community 331 - "desktop_pos/App.xaml"
@@ -1603,10 +1589,6 @@ Nodes (20): RefundPayload, amount, notes, payment_method, reference_no, ReturnPa
 Cohesion: 0.18
 Nodes (17): ExpensePrintPage(), money(), SigLine(), Tag(), TRow(), VField(), money(), SigLine() (+9 more)
 
-### Community 334 - "nexus-portal-server/vendor (vendored) #117"
-Cohesion: 0.14
-Nodes (3): OAuth, OAuthTokenProvider, OAuth
-
 ### Community 335 - "nexus-portal-server/vendor (vendored) #118"
 Cohesion: 0.10
 Nodes (19): authors, autoload, autoload-dev, psr-4, psr-4, description, homepage, license (+11 more)
@@ -1616,36 +1598,32 @@ Cohesion: 0.10
 Nodes (19): autoload, classmap, files, description, license, name, require, require-dev (+11 more)
 
 ### Community 338 - "nexus-portal-server/vendor (vendored) #121"
-Cohesion: 0.10
-Nodes (4): dir(), scandir(), DirException, dir()
-
-### Community 339 - "nexus-portal-server/vendor (vendored) #122"
-Cohesion: 0.10
-Nodes (5): hash_update_file(), hash_update_file(), HashException, hash_update_file(), hash_update_file()
+Cohesion: 0.26
+Nodes (7): chdir(), chroot(), dir(), getcwd(), opendir(), scandir(), DirException
 
 ### Community 340 - "nexus-portal-server/vendor (vendored) #123"
-Cohesion: 0.16
-Nodes (15): msg_get_queue(), msg_receive(), msg_remove_queue(), msg_send(), msg_set_queue(), msg_stat_queue(), sem_acquire(), sem_get() (+7 more)
+Cohesion: 0.18
+Nodes (17): msg_get_queue(), msg_queue_exists(), msg_receive(), msg_remove_queue(), msg_send(), msg_set_queue(), msg_stat_queue(), sem_acquire() (+9 more)
 
 ### Community 341 - "nexus-portal-server/vendor (vendored) #124"
-Cohesion: 0.12
-Nodes (9): shmop_delete(), shmop_read(), shmop_delete(), shmop_read(), ShmopException, shmop_delete(), shmop_read(), shmop_delete() (+1 more)
+Cohesion: 0.24
+Nodes (5): shmop_delete(), shmop_read(), shmop_delete(), shmop_read(), ShmopException
+
+### Community 342 - "nexus-portal-server/vendor (vendored) #125"
+Cohesion: 0.27
+Nodes (8): swoole_async_dns_lookup(), swoole_async_readfile(), swoole_async_write(), swoole_async_writefile(), swoole_event_defer(), swoole_event_del(), swoole_event_write(), SwooleException
+
+### Community 343 - "nexus-portal-server/vendor (vendored) #126"
+Cohesion: 0.24
+Nodes (6): yaml_parse(), yaml_parse_file(), yaml_parse_url(), yaml_parse(), yaml_parse_url(), YamlException
+
+### Community 344 - "nexus-portal-server/vendor (vendored) #127"
+Cohesion: 0.27
+Nodes (8): zip_entry_close(), zip_entry_compressedsize(), zip_entry_compressionmethod(), zip_entry_filesize(), zip_entry_name(), zip_entry_open(), zip_entry_read(), ZipException
 
 ### Community 345 - "room-kiosk-app/src #2"
 Cohesion: 0.24
 Nodes (11): react-router-dom, Props, Collection, Menu(), ProductModal(), Props, CartItem, CartState (+3 more)
-
-### Community 348 - "server/vendor (vendored) #102"
-Cohesion: 0.10
-Nodes (19): authors, autoload, autoload-dev, psr-4, psr-4, description, homepage, license (+11 more)
-
-### Community 350 - "server/vendor (vendored) #104"
-Cohesion: 0.10
-Nodes (19): autoload, classmap, files, description, license, name, require, require-dev (+11 more)
-
-### Community 351 - "server/vendor (vendored) #105"
-Cohesion: 0.16
-Nodes (15): msg_get_queue(), msg_receive(), msg_remove_queue(), msg_send(), msg_set_queue(), msg_stat_queue(), sem_acquire(), sem_get() (+7 more)
 
 ### Community 352 - "front-end/src #16"
 Cohesion: 0.14
@@ -1660,8 +1638,12 @@ Cohesion: 0.11
 Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModules, jsx, lib, module (+10 more)
 
 ### Community 355 - "mobile_pos/lib #20"
-Cohesion: 0.12
-Nodes (15): build, cameraController, createState, customerName, dispose, expectedQrCode, _onDetect, QrCheckinScreen (+7 more)
+Cohesion: 0.08
+Nodes (25): GuestReceiptDialog, _GuestReceiptDialogState, KOTReceiptDialog, _KOTReceiptDialogState, PrintingAnimation, _PrintingAnimationState, DayEndSummaryScreen, _DayEndSummaryScreenState (+17 more)
+
+### Community 356 - "nexus-portal-server/vendor (vendored) #128"
+Cohesion: 0.09
+Nodes (3): File, Header, ParseError
 
 ### Community 357 - "nexus-portal-server/vendor (vendored) #129"
 Cohesion: 0.11
@@ -1675,10 +1657,6 @@ Nodes (18): compilerOptions, allowJs, esModuleInterop, incremental, isolatedModu
 Cohesion: 0.11
 Nodes (18): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, jsx, lib, module, moduleDetection, moduleResolution (+10 more)
 
-### Community 364 - "server/vendor (vendored) #108"
-Cohesion: 0.11
-Nodes (18): authors, autoload, autoload-dev, psr-4, psr-4, description, homepage, license (+10 more)
-
 ### Community 367 - "front-end/components.json"
 Cohesion: 0.11
 Nodes (17): aliases, components, hooks, lib, ui, utils, iconLibrary, rsc (+9 more)
@@ -1687,21 +1665,33 @@ Nodes (17): aliases, components, hooks, lib, ui, utils, iconLibrary, rsc (+9 mor
 Cohesion: 0.14
 Nodes (16): @radix-ui/react-label@^2.1.2, @radix-ui/react-slot@^1.2.3, react-hook-form@^7.54.2, FormControl, FormDescription, FormFieldContext, FormFieldContextValue, FormItem (+8 more)
 
-### Community 369 - "front-end/src #19"
-Cohesion: 0.24
-Nodes (15): PrintContent(), ReceiptBody(), ReceiptPrintPage(), DayEndPage(), DayEndPrintContent(), ReceiptBody(), fetchPaymentReceiptDetails(), capturePageHtml() (+7 more)
+### Community 369 - "silent-print.ts"
+Cohesion: 0.14
+Nodes (28): DayEndPage(), DayEndPrintContent(), ReceiptBody(), fetchPosDayLedger(), capturePageHtml(), getPrinterSettings(), isPrinterServiceAvailable(), openBrowserPrint() (+20 more)
+
+### Community 370 - "nexus-portal-server/vendor (vendored) #130"
+Cohesion: 0.20
+Nodes (3): 3.0.0 (2013-03-06), Backwards-incompatible changes, Settings
 
 ### Community 371 - "mobile_pos/lib #21"
 Cohesion: 0.12
 Nodes (16): build, _confirmDelete, createState, _deleteCustomer, _deleteInvoice, _deletePayment, initState, _isLoading (+8 more)
 
-### Community 372 - "nexus-portal-server/app #6"
-Cohesion: 0.23
-Nodes (3): Config, Mailer, OutboxMailer
+### Community 374 - "nexus-portal-server/vendor (vendored) #132"
+Cohesion: 0.27
+Nodes (6): inotify_init(), inotify_rm_watch(), inotify_add_watch(), inotify_init(), inotify_rm_watch(), InotifyException
+
+### Community 377 - ".createFromPhpError"
+Cohesion: 0.07
+Nodes (46): sodium_crypto_aead_aes256gcm_decrypt(), sodium_crypto_aead_chacha20poly1305_decrypt(), sodium_crypto_aead_chacha20poly1305_encrypt(), sodium_crypto_aead_chacha20poly1305_ietf_decrypt(), sodium_crypto_aead_chacha20poly1305_ietf_encrypt(), sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(), sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(), sodium_crypto_auth_verify() (+38 more)
 
 ### Community 378 - "room-kiosk-app/tsconfig.node.json"
 Cohesion: 0.11
 Nodes (17): compilerOptions, allowImportingTsExtensions, erasableSyntaxOnly, lib, module, moduleDetection, moduleResolution, noEmit (+9 more)
+
+### Community 379 - "BankController"
+Cohesion: 0.05
+Nodes (5): BankbranchController, BankController, BankSchema, Bank, BankBranch
 
 ### Community 383 - "mobile_pos/windows #2"
 Cohesion: 0.14
@@ -1711,45 +1701,17 @@ Nodes (7): Win32Window::Destroy(), Win32Window::GetClientArea(), Win32Window::Sh
 Cohesion: 0.12
 Nodes (17): devDependencies, genkit-cli@^1.28.0, postcss@^8, tailwindcss@^3.4.1, @types/leaflet@^1.9.21, @types/node@^20, @types/react@^19.2.1, @types/react-dom@^19.2.1 (+9 more)
 
-### Community 385 - ".github/workflows"
-Cohesion: 0.12
-Nodes (16): jobs, web-deploy, name, on, push, branches, name, uses (+8 more)
-
-### Community 386 - ".github/workflows #2"
-Cohesion: 0.12
-Nodes (16): jobs, web-deploy, name, on, push, branches, name, uses (+8 more)
-
 ### Community 387 - "nexus-portal-server/vendor (vendored) #136"
-Cohesion: 0.12
-Nodes (5): ComposerAutoloaderInit2185d2f99bcd56787481d9357a5972d3, CanvasFactory, class_implements(), spl_autoload_register(), spl_autoload_unregister()
+Cohesion: 0.24
+Nodes (6): class_implements(), class_parents(), class_uses(), spl_autoload_register(), spl_autoload_unregister(), SplException
 
 ### Community 389 - "nexus-portal-server/vendor (vendored) #138"
 Cohesion: 0.12
-Nodes (16): authors, autoload-dev, psr-4, description, homepage, keywords, license, name (+8 more)
+Nodes (15): authors, autoload-dev, psr-4, dev-main, description, extra, branch-alias, homepage (+7 more)
 
-### Community 391 - "nexus-portal-server/vendor (vendored) #140"
-Cohesion: 0.19
-Nodes (13): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+5 more)
-
-### Community 392 - "nexus-portal-server/vendor (vendored) #141"
-Cohesion: 0.19
-Nodes (13): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+5 more)
-
-### Community 393 - "server/vendor (vendored) #114"
-Cohesion: 0.12
-Nodes (5): ComposerAutoloaderInit2185d2f99bcd56787481d9357a5972d3, CanvasFactory, class_implements(), spl_autoload_register(), spl_autoload_unregister()
-
-### Community 394 - "server/vendor (vendored) #115"
-Cohesion: 0.12
-Nodes (16): authors, autoload-dev, psr-4, description, homepage, keywords, license, name (+8 more)
-
-### Community 395 - "server/vendor (vendored) #116"
-Cohesion: 0.19
-Nodes (13): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+5 more)
-
-### Community 396 - "server/vendor (vendored) #117"
-Cohesion: 0.19
-Nodes (13): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+5 more)
+### Community 391 - ".createFromPhpError"
+Cohesion: 0.08
+Nodes (39): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+31 more)
 
 ### Community 397 - "desktop_pos/Services #6"
 Cohesion: 0.12
@@ -1759,9 +1721,17 @@ Nodes (16): ReturnLookupData, customer_id, customer_name, id, invoice_id, invoic
 Cohesion: 0.16
 Nodes (15): embla-carousel-react@^8.6.0, Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem, CarouselNext (+7 more)
 
-### Community 402 - "nexus-portal-server/vendor (vendored) #145"
-Cohesion: 0.20
-Nodes (12): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+4 more)
+### Community 401 - "nexus-portal-server/vendor (vendored) #144"
+Cohesion: 0.31
+Nodes (6): bzclose(), bzflush(), bzopen(), bzread(), bzwrite(), Bzip2Exception
+
+### Community 403 - "nexus-portal-server/vendor (vendored) #146"
+Cohesion: 0.31
+Nodes (6): mailparse_msg_extract_part_file(), mailparse_msg_free(), mailparse_msg_parse(), mailparse_msg_parse_file(), mailparse_stream_encode(), MailparseException
+
+### Community 405 - ".createFromPhpError"
+Cohesion: 0.11
+Nodes (28): db2_autocommit(), db2_bind_param(), db2_client_info(), db2_close(), db2_commit(), db2_execute(), db2_free_result(), db2_free_stmt() (+20 more)
 
 ### Community 407 - "room-kiosk-app/dev-dist #2"
 Cohesion: 0.17
@@ -1771,33 +1741,37 @@ Nodes (4): createCacheKey(), PrecacheController, printCleanupDetails(), WorkboxE
 Cohesion: 0.28
 Nodes (4): executeQuotaErrorCallbacks(), StrategyHandler, timeout(), toRequest()
 
-### Community 413 - "server/vendor (vendored) #120"
-Cohesion: 0.20
-Nodes (12): curl_copy_handle(), curl_escape(), curl_exec(), curl_getinfo(), curl_init(), curl_multi_info_read(), curl_multi_init(), curl_multi_setopt() (+4 more)
-
-### Community 417 - "desktop_pos/Pages #17"
-Cohesion: 0.21
-Nodes (6): LoadingText, TablesPanel, Window, TableSelectionDialog, TextBlock, WrapPanel
-
-### Community 418 - "front-end/src #21"
-Cohesion: 0.24
-Nodes (12): @radix-ui/react-toast@^1.2.6, Toast, ToastAction, ToastActionElement, ToastClose, ToastDescription, ToastProps, ToastTitle (+4 more)
-
 ### Community 419 - "front-end/src #22"
-Cohesion: 0.21
-Nodes (11): metadata, RootLayout(), viewport, ProgressBar(), ProgressContent(), TENANT_BASE_DOMAIN, TENANT_MODE_SHARED, tenantBootScript() (+3 more)
+Cohesion: 0.14
+Nodes (19): metadata, RootLayout(), viewport, ProgressBar(), ProgressContent(), Toast, ToastActionElement, ToastClose (+11 more)
 
-### Community 442 - "desktop_pos/Pages #18"
-Cohesion: 0.25
-Nodes (6): DineInOption, RetailOption, TakeAwayOption, Window, OrderTypeDialog, Border
+### Community 424 - ".createFromPhpError"
+Cohesion: 0.07
+Nodes (39): define(), highlight_file(), highlight_string(), hrtime(), pack(), sapi_windows_cp_conv(), sapi_windows_cp_set(), sapi_windows_generate_ctrl_event() (+31 more)
+
+### Community 442 - "Window"
+Cohesion: 0.10
+Nodes (12): MainFrame, Window, MainWindow, DineInOption, RetailOption, TakeAwayOption, Window, OrderTypeDialog (+4 more)
 
 ### Community 443 - "front-end/package.json #3"
 Cohesion: 0.14
 Nodes (14): scripts, build, clean, dev, dev:next, dev:stable, dev:turbopack, genkit:dev (+6 more)
 
+### Community 445 - "HTML5"
+Cohesion: 0.07
+Nodes (13): Basic Usage, HTML5-PHP, Installation, Known Issues (Or, Things We Designed Against the Spec), License, Options, Parser Design, Serializer Design (+5 more)
+
 ### Community 447 - "nexus-portal-server/vendor (vendored) #160"
-Cohesion: 0.16
-Nodes (5): finfo_close(), finfo_open(), FileinfoException, finfo_close(), finfo_open()
+Cohesion: 0.33
+Nodes (4): finfo_close(), finfo_open(), mime_content_type(), FileinfoException
+
+### Community 448 - "nexus-portal-server/vendor (vendored) #161"
+Cohesion: 0.31
+Nodes (4): fastcgi_finish_request(), fastcgi_finish_request(), fpm_get_status(), FpmException
+
+### Community 449 - "nexus-portal-server/vendor (vendored) #162"
+Cohesion: 0.31
+Nodes (4): rpmaddtag(), rpmaddtag(), rpmdefine(), RpminfoException
 
 ### Community 450 - "nexus-portal-server/vendor (vendored) #163"
 Cohesion: 0.26
@@ -1811,13 +1785,9 @@ Nodes (8): files, fs, files, fs, content, fs, files, fs
 Cohesion: 0.37
 Nodes (11): fmtDate(), SubscribersPage(), addSubscriber(), deleteSubscriber(), downloadSubscribersCsv(), fetchSubscribers(), parse(), setSubscriberStatus() (+3 more)
 
-### Community 456 - "mobile_pos/lib #22"
-Cohesion: 0.15
-Nodes (12): allowDineIn, allowedTaxesJson, allowRetail, allowServiceCharge, allowTakeAway, fromJson, id, locationType (+4 more)
-
 ### Community 462 - "front-end/src #24"
 Cohesion: 0.20
-Nodes (9): jspdf@4.2.1, jspdf-autotable@5.0.9, downloadReportPdf(), PdfOrientation, PdfPaper, sectionTitle(), toDataUrl(), jspdf (+1 more)
+Nodes (10): IssueNotePrintPage(), money(), qtyFmt(), downloadReportPdf(), PdfOrientation, PdfPaper, sectionTitle(), toDataUrl() (+2 more)
 
 ### Community 463 - "front-end/src #25"
 Cohesion: 0.26
@@ -1831,10 +1801,6 @@ Nodes (9): create_desktop_shortcut(), create_tray(), on_settings(), save_config(
 Cohesion: 0.23
 Nodes (6): FlutterWindow::OnCreate(), Win32Window::OnCreate(), Win32Window, child_content_, quit_on_close_, window_handle_
 
-### Community 466 - "nexus-portal-server/vendor (vendored) #165"
-Cohesion: 0.20
-Nodes (3): Entities, CharacterReference, CharacterReference
-
 ### Community 467 - "nexus-portal-server/vendor (vendored) #166"
 Cohesion: 0.17
 Nodes (12): suggest, decomplexity/SendOauth2, directorytree/imapengine, ext-imap, ext-mbstring, ext-openssl, greew/oauth2-azure-provider, hayageek/oauth2-yahoo (+4 more)
@@ -1843,17 +1809,21 @@ Nodes (12): suggest, decomplexity/SendOauth2, directorytree/imapengine, ext-imap
 Cohesion: 0.17
 Nodes (12): require-dev, php-parallel-lint/php-parallel-lint, phpstan/extension-installer, phpstan/phpstan, phpstan/phpstan-phpunit, phpstan/phpstan-strict-rules, phpunit/phpunit, rawr/phpunit-data-provider (+4 more)
 
-### Community 476 - "server/public"
-Cohesion: 0.17
-Nodes (10): consoleEl, progressFill, progressPercent, progressStatus, startBtn, statFailed, statFixed, statOk (+2 more)
+### Community 469 - "nexus-portal-server/vendor (vendored) #168"
+Cohesion: 0.32
+Nodes (3): error_log(), error_log(), ErrorfuncException
 
-### Community 478 - "server/vendor (vendored) #137"
-Cohesion: 0.17
-Nodes (12): suggest, decomplexity/SendOauth2, directorytree/imapengine, ext-imap, ext-mbstring, ext-openssl, greew/oauth2-azure-provider, hayageek/oauth2-yahoo (+4 more)
+### Community 470 - "nexus-portal-server/vendor (vendored) #169"
+Cohesion: 0.32
+Nodes (3): bindtextdomain(), bindtextdomain(), GettextException
 
-### Community 479 - "server/vendor (vendored) #138"
-Cohesion: 0.17
-Nodes (12): require-dev, php-parallel-lint/php-parallel-lint, phpstan/extension-installer, phpstan/phpstan, phpstan/phpstan-phpunit, phpstan/phpstan-strict-rules, phpunit/phpunit, rawr/phpunit-data-provider (+4 more)
+### Community 473 - "nexus-portal-server/vendor (vendored) #172"
+Cohesion: 0.36
+Nodes (4): ssdeep_fuzzy_compare(), ssdeep_fuzzy_hash(), ssdeep_fuzzy_hash_filename(), SsdeepException
+
+### Community 474 - ".send"
+Cohesion: 0.13
+Nodes (4): KioskController, SetupController, SmsHelper, SystemSetting
 
 ### Community 481 - "mobile_pos/windows #4"
 Cohesion: 0.18
@@ -1879,43 +1849,35 @@ Nodes (5): Point, x, y, Scale(), Win32Window::Win32Window()
 Cohesion: 0.18
 Nodes (6): IRD e-invoicing over RAMIS API, LankaQR zero MDR up to Rs 5,000, PDPA core duties from 1 Jan 2027, POS Masters, Revised VAT tax-invoice format (1 Oct 2026), Secured POS mandate (s.64B)
 
-### Community 501 - "nexus-portal-server/vendor (vendored) #178"
-Cohesion: 0.29
-Nodes (3): date_create(), DateTime, date_create()
+### Community 500 - "nexus-portal-server/vendor (vendored) #177"
+Cohesion: 0.38
+Nodes (3): uopz_extend(), uopz_implement(), UopzException
 
-### Community 513 - "front-end/src #27"
-Cohesion: 0.36
-Nodes (8): call(), completeSetup(), fetchSetupStatus(), markSetupStep(), reopenSetup(), sendTestMail(), SetupStatus, SetupStep
+### Community 502 - ".createFromPhpError"
+Cohesion: 0.11
+Nodes (26): pcntl_getpriority(), pcntl_setpriority(), pcntl_signal(), pcntl_signal_dispatch(), pcntl_sigprocmask(), pcntl_sigtimedwait(), pcntl_sigwaitinfo(), pcntl_getcpuaffinity() (+18 more)
+
+### Community 508 - "ShippingCostingSheet"
+Cohesion: 0.10
+Nodes (3): ShippingSchema, ShippingCostingSheet, ShippingProvider
+
+### Community 513 - "onboarding/page.tsx"
+Cohesion: 0.13
+Nodes (27): Field(), msg(), OnboardingPage(), SetupShell(), StepKey, STEPS, GettingStartedTour(), HIDDEN_ON (+19 more)
 
 ### Community 516 - "nexus-portal-server/vendor (vendored) #182"
 Cohesion: 0.22
 Nodes (8): authors, description, funding, license, minimum-stability, name, prefer-stable, type
 
-### Community 518 - "nexus-portal-server/vendor (vendored) #184"
-Cohesion: 0.22
-Nodes (8): openssl_csr_get_public_key(), openssl_csr_new(), openssl_dh_compute_key(), openssl_pkey_get_details(), openssl_pkey_get_private(), openssl_pkey_get_public(), openssl_pkey_new(), openssl_spki_new()
-
-### Community 519 - "nexus-portal-ui/src #6"
-Cohesion: 0.33
-Nodes (6): AdminLayout(), AdminSidebar(), AdminSidebarProps, menuSections, AdminTopBar(), AdminTopBarProps
-
 ### Community 520 - "room-kiosk-app/dev-dist #6"
 Cohesion: 0.28
 Nodes (4): NavigationRoute, RegExpRoute, registerRoute(), Route
 
-### Community 530 - "server/vendor (vendored) #147"
-Cohesion: 0.22
-Nodes (8): authors, description, funding, license, minimum-stability, name, prefer-stable, type
-
-### Community 532 - "desktop_pos/Services #7"
-Cohesion: 0.25
-Nodes (8): HoldOrderItem, description, discount, item_id, item_type, line_total, quantity, unit_price
+### Community 532 - "HoldOrderData"
+Cohesion: 0.11
+Nodes (19): HoldOrderData, created_at, customer_id, customer_name, grand_total, id, items, location_id (+11 more)
 
 ### Community 533 - "nexus-portal-server/vendor (vendored) #185"
-Cohesion: 0.25
-Nodes (8): require-dev, dealerdirect/phpcodesniffer-composer-installer, doctrine/annotations, php-parallel-lint/php-console-highlighter, php-parallel-lint/php-parallel-lint, phpcompatibility/php-compatibility, squizlabs/php_codesniffer, yoast/phpunit-polyfills
-
-### Community 550 - "server/vendor (vendored) #150"
 Cohesion: 0.25
 Nodes (8): require-dev, dealerdirect/phpcodesniffer-composer-installer, doctrine/annotations, php-parallel-lint/php-console-highlighter, php-parallel-lint/php-parallel-lint, phpcompatibility/php-compatibility, squizlabs/php_codesniffer, yoast/phpunit-polyfills
 
@@ -1963,10 +1925,6 @@ Nodes (6): scripts, check, coverage, lint, style, test
 Cohesion: 0.33
 Nodes (5): Global POS software market (US$14-16bn), 2013/14 Economic Census SME counts, Tea smallholders and 2025 tea output, 36,656 VAT-registered taxpayers (June 2026), Vehicle fleet of about 8.82M
 
-### Community 578 - "server/vendor (vendored) #154"
-Cohesion: 0.33
-Nodes (6): scripts, check, coverage, lint, style, test
-
 ### Community 579 - "mobile_pos/lib #24"
 Cohesion: 0.40
 Nodes (4): City, fromJson, id, name
@@ -1999,14 +1957,6 @@ Nodes (4): Agrithmics tea field data platform, POS Masters Auto+ garage suite, P
 Cohesion: 0.40
 Nodes (5): scripts, build, dev, lint, preview
 
-### Community 590 - "server/vendor (vendored) #156"
-Cohesion: 0.40
-Nodes (5): require, ext-ctype, ext-filter, ext-hash, php
-
-### Community 591 - "server/vendor (vendored) #157"
-Cohesion: 0.40
-Nodes (5): phpstan/extension-installer, config, allow-plugins, preferred-install, sort-packages
-
 ### Community 595 - "desktop_pos/DesktopPOS.csproj"
 Cohesion: 0.50
 Nodes (3): net10.0-windows, Newtonsoft.Json (13.0.4), Microsoft.NET.Sdk
@@ -2036,20 +1986,20 @@ Cohesion: 0.50
 Nodes (4): dealerdirect/phpcodesniffer-composer-installer, config, allow-plugins, lock
 
 ### Community 603 - "nexus-portal-server/vendor (vendored) #199"
-Cohesion: 0.50
+Cohesion: 0.40
 Nodes (4): autoload, files, psr-4, Sabberworm\\CSS\\
 
 ### Community 627 - "nexus-portal-ui/src #7"
 Cohesion: 0.83
 Nodes (3): Card(), Field(), MailSettingsPage()
 
-### Community 628 - "nexus-portal-ui/src #8"
-Cohesion: 0.83
-Nodes (3): InvoiceStatusBadge(), StatCard(), SubscriptionPage()
+### Community 628 - "nexus-portal-ui/src/app/admin/subscription/page.tsx"
+Cohesion: 0.17
+Nodes (16): fmtDate(), InvoiceStatusBadge(), SubscriptionPage(), CopyValue(), CustomDomainCard(), DomainInfo, View, ERP_STEPS (+8 more)
 
-### Community 629 - "nexus-portal-ui/src #9"
-Cohesion: 0.83
-Nodes (3): FormField(), OrderContent(), OrderPage()
+### Community 629 - "tenants/create/page.tsx"
+Cohesion: 0.15
+Nodes (18): CURRENCIES, Field(), Form, Pkg, RESERVED, slugify(), TenantCreatePage(), validate() (+10 more)
 
 ### Community 631 - "room-kiosk-app/README.md"
 Cohesion: 0.50
@@ -2059,14 +2009,6 @@ Nodes (3): React + TypeScript + Vite template, eslint-plugin-react-x and react-d
 Cohesion: 0.50
 Nodes (3): require, dompdf/dompdf, phpmailer/phpmailer
 
-### Community 637 - "server/vendor (vendored) #164"
-Cohesion: 0.50
-Nodes (4): dealerdirect/phpcodesniffer-composer-installer, config, allow-plugins, lock
-
-### Community 638 - "server/vendor (vendored) #165"
-Cohesion: 0.50
-Nodes (4): autoload, files, psr-4, Sabberworm\\CSS\\
-
 ### Community 674 - "nexus-portal-server/vendor (vendored) #224"
 Cohesion: 0.67
 Nodes (3): autoload, psr-4, PHPMailer\\PHPMailer\\
@@ -2075,55 +2017,39 @@ Nodes (3): autoload, psr-4, PHPMailer\\PHPMailer\\
 Cohesion: 0.67
 Nodes (3): autoload-dev, psr-4, PHPMailer\\Test\\
 
-### Community 676 - "nexus-portal-server/vendor (vendored) #226"
-Cohesion: 0.67
-Nodes (3): dev-main, extra, branch-alias
-
-### Community 682 - "server/vendor (vendored) #193"
-Cohesion: 0.67
-Nodes (3): autoload, psr-4, PHPMailer\\PHPMailer\\
-
-### Community 683 - "server/vendor (vendored) #194"
-Cohesion: 0.67
-Nodes (3): autoload-dev, psr-4, PHPMailer\\Test\\
-
-### Community 685 - "server/vendor (vendored) #196"
-Cohesion: 0.67
-Nodes (3): dev-main, extra, branch-alias
-
 ## Ambiguous Edges - Review These
+- `front-end silent-print.ts client` → `ServiceBay app blueprint`  [AMBIGUOUS]
+  local-printer/README.md · relation: conceptually_related_to
+- `IRD e-invoicing phases and RAMIS web API` → `s.64B CGIR secured POS requirement`  [AMBIGUOUS]
+  research_notes/BizzFlow Sri Lanka market research/regulatory.md · relation: conceptually_related_to
 - `Tea smallholders and 2025 tea output` → `Illustrative TAM of LKR 3.6-30bn per year`  [AMBIGUOUS]
   research_notes/BizzFlow Sri Lanka market research/market_size.md · relation: conceptually_related_to
 - `Standard VAT rate 18%` → `VAT registration threshold (LKR 60m vs 36m disputed)`  [AMBIGUOUS]
   research_notes/BizzFlow Sri Lanka market research/regulatory.md · relation: conceptually_related_to
-- `s.64B CGIR secured POS requirement` → `IRD e-invoicing phases and RAMIS web API`  [AMBIGUOUS]
-  research_notes/BizzFlow Sri Lanka market research/regulatory.md · relation: conceptually_related_to
-- `ServiceBay app blueprint` → `front-end silent-print.ts client`  [AMBIGUOUS]
-  local-printer/README.md · relation: conceptually_related_to
 
 ## Knowledge Gaps
 - **1094 isolated node(s):** `Track`, `ScrollContentPresenter`, `ScrollBar`, `ScrollViewer`, `Border` (+1089 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 8995 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **814 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 4729 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **433 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `SafeExceptionInterface` connect `server/vendor (vendored)` to `nexus-portal-server/vendor (vendored) #186`, `nexus-portal-server/vendor (vendored) #187`, `nexus-portal-server/vendor (vendored) #188`, `nexus-portal-server/vendor (vendored) #189`, `nexus-portal-server/vendor (vendored) #191`, `nexus-portal-server/vendor (vendored) #192`, `server/vendor (vendored) #13`, `nexus-portal-server/vendor (vendored) #200`, `nexus-portal-server/vendor (vendored) #201`, `nexus-portal-server/vendor (vendored) #202`, `nexus-portal-server/vendor (vendored) #203`, `nexus-portal-server/vendor (vendored) #204`, `nexus-portal-server/vendor (vendored) #205`, `nexus-portal-server/vendor (vendored) #206`, `nexus-portal-server/vendor (vendored) #207`, `nexus-portal-server/vendor (vendored) #208`, `nexus-portal-server/vendor (vendored) #209`, `nexus-portal-server/vendor (vendored) #210`, `nexus-portal-server/vendor (vendored) #32`, `nexus-portal-server/vendor (vendored) #211`, `nexus-portal-server/vendor (vendored) #212`, `nexus-portal-server/vendor (vendored) #213`, `nexus-portal-server/vendor (vendored) #214`, `nexus-portal-server/vendor (vendored) #215`, `nexus-portal-server/vendor (vendored) #216`, `nexus-portal-server/vendor (vendored) #217`, `nexus-portal-server/vendor (vendored) #218`, `nexus-portal-server/vendor (vendored) #220`, `nexus-portal-server/vendor (vendored) #221`, `nexus-portal-server/vendor (vendored) #222`, `nexus-portal-server/vendor (vendored) #219`, `nexus-portal-server/vendor (vendored) #39`, `nexus-portal-server/vendor (vendored) #40`, `nexus-portal-server/vendor (vendored) #41`, `server/vendor (vendored) #166`, `server/vendor (vendored) #167`, `server/vendor (vendored) #168`, `server/vendor (vendored) #169`, `server/vendor (vendored) #170`, `server/vendor (vendored) #171`, `server/vendor (vendored) #172`, `server/vendor (vendored) #173`, `server/vendor (vendored) #174`, `server/vendor (vendored) #175`, `server/vendor (vendored) #176`, `server/vendor (vendored) #177`, `server/vendor (vendored) #178`, `server/vendor (vendored) #179`, `server/vendor (vendored) #41`, `server/vendor (vendored) #180`, `server/vendor (vendored) #181`, `server/vendor (vendored) #182`, `server/vendor (vendored) #183`, `server/vendor (vendored) #184`, `server/vendor (vendored) #185`, `server/vendor (vendored) #186`, `server/vendor (vendored) #187`, `server/vendor (vendored) #188`, `nexus-portal-server/vendor (vendored) #51`, `nexus-portal-server/vendor (vendored) #52`, `nexus-portal-server/vendor (vendored) #53`, `server/vendor (vendored) #189`, `server/vendor (vendored) #190`, `server/vendor (vendored) #191`, `nexus-portal-server/vendor (vendored) #57`, `nexus-portal-server/vendor (vendored) #77`, `nexus-portal-server/vendor (vendored) #78`, `nexus-portal-server/vendor (vendored) #79`, `nexus-portal-server/vendor (vendored) #81`, `server/vendor (vendored) #73`, `server/vendor (vendored) #75`, `nexus-portal-server/vendor (vendored) #97`, `nexus-portal-server/vendor (vendored) #100`, `nexus-portal-server/vendor (vendored) #112`, `server/vendor (vendored) #94`, `nexus-portal-server/vendor (vendored) #121`, `nexus-portal-server/vendor (vendored) #122`, `nexus-portal-server/vendor (vendored) #124`, `nexus-portal-server/vendor (vendored) #125`, `nexus-portal-server/vendor (vendored) #126`, `nexus-portal-server/vendor (vendored) #127`, `server/vendor (vendored) #106`, `nexus-portal-server/vendor (vendored) #131`, `nexus-portal-server/vendor (vendored) #132`, `nexus-portal-server/vendor (vendored) #143`, `nexus-portal-server/vendor (vendored) #144`, `nexus-portal-server/vendor (vendored) #146`, `nexus-portal-server/vendor (vendored) #160`, `nexus-portal-server/vendor (vendored) #161`, `nexus-portal-server/vendor (vendored) #162`, `nexus-portal-server/vendor (vendored) #164`, `nexus-portal-server/vendor (vendored) #168`, `nexus-portal-server/vendor (vendored) #169`, `nexus-portal-server/vendor (vendored) #170`, `nexus-portal-server/vendor (vendored) #171`, `nexus-portal-server/vendor (vendored) #172`, `nexus-portal-server/vendor (vendored) #175`, `nexus-portal-server/vendor (vendored) #176`, `nexus-portal-server/vendor (vendored) #177`?**
-  _High betweenness centrality (0.167) - this node is a cross-community bridge._
+- **Why does `api()` connect `api` to `use-toast.ts`, `front-end/src #2`, `Button`, `onboarding/page.tsx`, `fetchLocations`, `CardHeader`, `Architecture (big picture)`, `app/orders/page.tsx`, `front-end/src #7`, `guest-receipt/[id]/page.tsx`, `insights/page.tsx`, `front-end/src #14`, `PrintDocument`, `front-end/src #22`, `employees/page.tsx`, `shifts/print/[id]/page.tsx`, `price-lists/page.tsx`, `front-end/src #11`, `PosShiftGate.tsx`, `credit-notes/print/[id]/page.tsx`, `statements/page.tsx`, `front-end/src #9`, `completion-print/[id]/page.tsx`, `front-end/src #23`, `front-end/src #10`, `nexus-portal-ui/src`, `POSContext.tsx`, `front-end/src #15`, `floor-plan/page.tsx`, `front-end/src #24`, `InventoryGrid.tsx`, `front-end/src/app/admin/users/page.tsx`, `front-end/src #12`, `overall/page.tsx`, `cms/pos/page.tsx`, `loyalty.ts`, `fetchCompany`, `silent-print.ts`, `home-route.ts`?**
+  _High betweenness centrality (0.279) - this node is a cross-community bridge._
 - **What connects `Track`, `ScrollContentPresenter`, `ScrollBar` to the rest of the system?**
   _1094 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `front-end/src` be split into smaller, more focused modules?**
-  _Cohesion score 0.035596260976300635 - nodes in this community are weakly interconnected._
-- **Why does `json_decode()` connect `server/app` to `server/app #18`, `server/app #62`, `server/app #2`, `server/app #64`, `server/app #3`, `server/vendor (vendored) #3`, `server/app #20`, `server/app #5`, `server/app #4`, `server/app #32`, `server/app #69`, `server/app #70`, `server/app #21`, `server/app #22`, `server/app #34`, `server/app #7`, `server/app #23`, `server/app #8`, `server/app #77`, `server/app #78`, `server/app #46`, `server/app #9`, `server/app #10`, `server/app #11`, `server/app #85`, `server/app #86`, `server/vendor (vendored) #12`, `server/app #49`, `server/app #14`, `server/app #25`, `server/vendor (vendored) #63`, `server/app #38`, `server/app #52`, `server/app #27`, `server/app #54`, `server/app #40`, `server/app #55`, `server/app #56`, `server/app #57`, `server/app #28`, `server/vendor (vendored) #110`, `server/app #29`, `server/vendor (vendored) #73`, `server/app #30`, `server/app #42`, `server/app #31`?**
-  _High betweenness centrality (0.070) - this node is a cross-community bridge._
+- **Should `use-toast.ts` be split into smaller, more focused modules?**
+  _Cohesion score 0.022825150732127476 - nodes in this community are weakly interconnected._
+- **Why does `Front-end data flow` connect `Architecture (big picture)` to `api`?**
+  _High betweenness centrality (0.268) - this node is a cross-community bridge._
 - **Should `front-end/src #2` be split into smaller, more focused modules?**
-  _Cohesion score 0.0386230555391258 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.047619047619047616 - nodes in this community are weakly interconnected._
 
 ### Low-confidence Hints
 _AMBIGUOUS edges — the extractor was unsure. Verify before acting on these._
 
-- **What is the exact relationship between `Tea smallholders and 2025 tea output` and `Illustrative TAM of LKR 3.6-30bn per year`?**
+- **What is the exact relationship between `front-end silent-print.ts client` and `ServiceBay app blueprint`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._
-- **What is the exact relationship between `Standard VAT rate 18%` and `VAT registration threshold (LKR 60m vs 36m disputed)`?**
+- **What is the exact relationship between `IRD e-invoicing phases and RAMIS web API` and `s.64B CGIR secured POS requirement`?**
   _Edge tagged AMBIGUOUS (relation: conceptually_related_to) - confidence is low._

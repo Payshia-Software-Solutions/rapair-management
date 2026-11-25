@@ -106,18 +106,24 @@ class PublicCustomerController extends Controller {
             return;
         }
 
+        require_once __DIR__ . '/../helpers/LoginGuard.php';
+        if ($msg = LoginGuard::blocked((string)$data['email'], 'portal')) { $this->error($msg, 429); return; }
+
         $this->db->query("SELECT * FROM customers WHERE email = :email AND is_portal_active = 1");
         $this->db->bind(':email', $data['email']);
         $customer = $this->db->single();
 
-        if ($customer && password_verify($data['password'], $customer->password)) {
+        $okLogin = $customer && password_verify($data['password'], $customer->password);
+        if ($okLogin) LoginGuard::succeed((string)$data['email'], 'portal'); else LoginGuard::fail((string)$data['email'], 'portal');
+        if ($okLogin) {
             // Update last login
             $this->db->query("UPDATE customers SET last_login_at = CURRENT_TIMESTAMP WHERE id = :id");
             $this->db->bind(':id', $customer->id);
             $this->db->execute();
 
-            // Simple token (In a real app, use JWT)
-            $token = base64_encode(json_encode(['id' => $customer->id, 'email' => $customer->email, 'time' => time()]));
+            // Signed, expiring token (an unsigned one could be forged to read any customer)
+            require_once __DIR__ . '/../helpers/CustomerAuth.php';
+            $token = CustomerAuth::issue($customer->id);
 
             $this->success([
                 'token' => $token,
@@ -169,16 +175,13 @@ class PublicCustomerController extends Controller {
      * Helper to authenticate token
      */
     private function auth() {
-        $headers = getallheaders();
-        $authHeader = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-        
-        if (preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-            $token = $matches[1];
-            $decoded = json_decode(base64_decode($token), true);
-            
-            if ($decoded && isset($decoded['id'])) {
-                return $decoded['id'];
-            }
+        // Only signed customer tokens are accepted (see CustomerAuth)
+        require_once __DIR__ . '/../helpers/CustomerAuth.php';
+        $id = CustomerAuth::customerIdFromRequest();
+        if ($id) {
+            $this->db->query("SELECT id FROM customers WHERE id = :id AND is_portal_active = 1");
+            $this->db->bind(':id', $id);
+            if ($this->db->single()) return $id;
         }
 
         $this->error('Unauthorized', 401);

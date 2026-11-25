@@ -52,3 +52,21 @@ graphify-out/cache/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Database backups (never commit)
+server/storage/backups/
+
+# Database dumps stay out of git (clean_database_template.sql is still tracked: the provisioner needs it)
+server/database.sql
+server/database_new.sql
+server/repair_management_db_dump.sql
+server/seed_packages.sql
+
+# Runtime state written by the API (dev mode, license cache, usage timestamps)
+/server/scratch/
+
+# graphify build state and dated snapshots (the graph itself stays tracked)
+graphify-out/.graphify_build_state.json
+graphify-out/.graphify_labels.json.sig
+graphify-out/.graphify_labels.pending.json
+graphify-out/20*/

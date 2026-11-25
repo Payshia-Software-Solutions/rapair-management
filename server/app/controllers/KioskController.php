@@ -67,10 +67,13 @@ class KioskController extends Controller {
                 echo json_encode(['success' => false, 'message' => 'Failed to create booking']);
             }
         } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            // Staff only: the kiosk app itself only POSTs
+            $this->requirePermission('orders.read');
             // Get all bookings (for Admin)
             $bookings = $model->getAllBookings();
             echo json_encode($bookings);
         } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'PATCH') {
+            $this->requirePermission('orders.write');
             // Update status
             $data = json_decode(file_get_contents('php://input'), true);
             $actualId = is_numeric($action) ? $action : $id;
@@ -333,6 +336,8 @@ HTML;
                 echo json_encode(['success' => false, 'message' => 'Failed to create order']);
             }
         } elseif ($_SERVER['REQUEST_METHOD'] === 'GET') {
+            // Staff only: the kiosk app itself only POSTs
+            $this->requirePermission('orders.read');
             // Get all orders (for Admin)
             $status = $_GET['status'] ?? null;
             $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -341,6 +346,7 @@ HTML;
             $orders = $model->getAllOrders($status, $page, $limit);
             echo json_encode($orders);
         } elseif ($_SERVER['REQUEST_METHOD'] === 'PUT' || $_SERVER['REQUEST_METHOD'] === 'PATCH') {
+            $this->requirePermission('orders.write');
             // Update status
             $data = json_decode(file_get_contents('php://input'), true);
             $actualId = is_numeric($action) ? $action : $id;

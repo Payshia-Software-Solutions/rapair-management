@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 
 export default function ProductionOrdersPage() {
+  const router = useRouter();
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<any[]>([])

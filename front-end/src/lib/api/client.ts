@@ -1,5 +1,6 @@
 import { clearUserSession } from "@/lib/session";
 import { tenantHeaders } from "@/lib/tenant";
+import { getTerminalId } from '../pos-terminal';
 /**
  * Core API fetch wrapper
  */
@@ -20,11 +21,13 @@ export const api = async (path: string, options: RequestInit = {}): Promise<Resp
     typeof window !== 'undefined' ? window.localStorage.getItem('auth_token') : null;
   const locationId =
     typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : null;
+  const terminalId = getTerminalId(locationId);
   const defaults: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(locationId ? { 'X-Location-Id': String(locationId) } : {}),
+      ...(terminalId ? { 'X-Terminal-Id': terminalId } : {}),
       ...tenantHeaders(),
     },
     credentials: 'omit',

@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { currentUserId } from "@/lib/session";
+import { posProfileOf } from "@/lib/pos-profiles";
+import { PosFloorView } from "./PosFloorView";
 
 export const OrderTypeSelector: React.FC = () => {
     const { 
@@ -52,6 +54,10 @@ export const OrderTypeSelector: React.FC = () => {
     }, [orderTypeDialogOpen]);
 
     const currentLocation = locations.find(l => String(l.id) === String(selectedLocation));
+    // Restaurant profile with a saved floor plan: Dine-in tables are picked on the plan
+    // (plan or cards view; cards when no plan is drawn)
+    const useFloorPlan = posProfileOf(currentLocation).floorPlan;
+    const floorStep = step === 'table' && useFloorPlan;
 
     const types = [
         {
@@ -125,7 +131,7 @@ export const OrderTypeSelector: React.FC = () => {
             <DialogContent size="lg" 
                 onInteractOutside={(e) => { if (!orderType) e.preventDefault(); }}
                 onEscapeKeyDown={(e) => { if (!orderType) e.preventDefault(); }}
-                className="p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg"
+                className={`p-0 gap-0 flex flex-col overflow-hidden sm:rounded-lg ${floorStep ? "max-w-[min(1200px,96vw)] w-[96vw] h-[90vh]" : ""}`}
             >
                 <div className="pl-5 pr-14 pt-5 pb-3 border-b border-border shrink-0">
                     <DialogHeader>
@@ -361,7 +367,20 @@ export const OrderTypeSelector: React.FC = () => {
                         </div>
                     )}
 
-                    {step === 'table' && (
+                    {floorStep && (
+                        <div className="h-[calc(90vh-120px)]">
+                            <PosFloorView
+                                locationId={selectedLocation}
+                                heldOrders={heldOrders}
+                                onRefresh={() => refreshHeldOrders()}
+                                onPickFree={(t) => handleSelectTable(t)}
+                                onPickBusy={(orderId) => { loadPOSBill(orderId); setOrderTypeDialogOpen(false); setStep('choice'); }}
+                                onSkip={() => handleSelectTable({ id: 'none', name: 'No Table' })}
+                            />
+                        </div>
+                    )}
+
+                    {step === 'table' && !useFloorPlan && (
                         <div className="space-y-4">
                             <button
                                 onClick={() => handleSelectTable({ id: 'none', name: 'No Table' })}

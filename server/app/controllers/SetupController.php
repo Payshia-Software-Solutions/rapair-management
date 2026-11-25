@@ -137,7 +137,12 @@ class SetupController extends Controller {
             ['key' => 'brands',      'done' => $this->count($db, "SELECT COUNT(*) n FROM brands") > 0],
             ['key' => 'collections', 'done' => $this->count($db, "SELECT COUNT(*) n FROM collections") > 0],
             ['key' => 'item',        'done' => $items > (int)$s['tour_base_items']],
+            // POS only sells an item that has stock, unless it is A La Carte or a Service
+            ['key' => 'stock',       'done' => $this->count($db, "SELECT COUNT(*) n FROM parts WHERE stock_quantity > 0 OR recipe_type = 'A La Carte' OR item_type = 'Service'") > 0],
             ['key' => 'customer',    'done' => $customers > (int)$s['tour_base_customers']],
+            // POS can't close a bill without a customer: every location needs a default one
+            ['key' => 'default_customer', 'done' => $this->count($db, "SELECT COUNT(*) n FROM service_locations") > 0
+                && $this->count($db, "SELECT COUNT(*) n FROM service_locations WHERE default_customer_id IS NULL OR default_customer_id = 0") === 0],
             ['key' => 'pos',         'done' => $sale],
         ];
         $this->success([

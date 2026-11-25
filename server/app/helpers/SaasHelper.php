@@ -227,6 +227,31 @@ class SaasHelper {
         }
     }
 
+    /**
+     * Developer mode for this workspace, switched in Nexus. Cached for 60 seconds only, so a switch
+     * shows within a minute (at once on the shared deployment, where Nexus clears this file).
+     */
+    public static function devMode() {
+        $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('dev_mode.json') : APPROOT . '/scratch/dev_mode.json';
+        $c = is_file($file) ? json_decode((string)@file_get_contents($file), true) : null;
+        if (is_array($c) && time() - (int)($c['ts'] ?? 0) < 60) return (bool)$c['on'];
+
+        $on = false;
+        $key = self::getApiKey();
+        if ($key) {
+            $ctx = stream_context_create(['http' => ['timeout' => 5, 'ignore_errors' => true]]);
+            $json = @file_get_contents(NEXUS_PORTAL_URL . '/api/saas/license/check?key=' . urlencode($key), false, $ctx);
+            $r = $json ? json_decode($json, true) : null;
+            if (($r['status'] ?? '') !== 'success') {
+                // Nexus unreachable: keep the last known answer rather than flipping the menu
+                return is_array($c) ? (bool)$c['on'] : false;
+            }
+            $on = (int)($r['data']['dev_mode'] ?? 0) === 1;
+        }
+        @file_put_contents($file, json_encode(['ts' => time(), 'on' => $on]));
+        return $on;
+    }
+
     private static function getCache() {
         $file = class_exists('Tenancy', false) ? Tenancy::scratchPath('nexus_license.json') : APPROOT . '/scratch/nexus_license.json';
         if (file_exists($file)) {

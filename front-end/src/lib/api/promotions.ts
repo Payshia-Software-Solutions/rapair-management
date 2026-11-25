@@ -64,3 +64,31 @@ export const validatePromotions = async (payload: { items: any[]; subtotal: numb
   const data = await res.json();
   return data.status === 'success' ? data.data : data;
 };
+
+/** Every promotion, including paused, scheduled and expired ones (admin list). */
+export const fetchAllPromotions = async () => {
+  const res = await api('/api/promotion/list');
+  if (!res.ok) throw new Error('Failed to load promotions');
+  const data = await res.json();
+  return data.status === 'success' ? data.data : data;
+};
+
+export type PromoCartPayload = {
+  items: any[];
+  location_id?: number | string | null;
+  order_type?: string | null;
+  bank_id?: number | string | null;
+  card_category?: string | null;
+  promo_code?: string | null;
+};
+
+/** Checks a promo code against the cart. Throws with the reason when it can't be used. */
+export const checkPromoCode = async (code: string, payload: PromoCartPayload) => {
+  const res = await api('/api/promotion/check_code', {
+    method: 'POST',
+    body: JSON.stringify({ ...payload, code }),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || data?.status !== 'success') throw new Error(data?.message || 'Promo code could not be applied');
+  return data.data;
+};

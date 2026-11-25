@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { fetchSupplierPaymentDetails, fetchCompany } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PrintDocument, PrintNotes, PrintTable, PrintTotals, fmtMoney } from "@/components/print/PrintDocument";
 import { Loader2, Printer, ArrowLeft, FileText, CreditCard, ArrowUpRight } from "lucide-react";
 import { amountToWords } from "@/lib/utils/number-to-words";
 import { format } from "date-fns";
@@ -46,7 +47,7 @@ export default function VendorPaymentPrintPage() {
     }, [id]);
 
     useEffect(() => {
-        if (autoPrint && !loading && payment && !printedRef.current) {
+        if (autoPrint && formatType !== "voucher" && !loading && payment && !printedRef.current) {
             printedRef.current = true;
             setTimeout(() => window.print(), 500);
         }
@@ -66,6 +67,37 @@ export default function VendorPaymentPrintPage() {
     }
 
     const words = amountToWords(payment.amount);
+
+    // The voucher uses the shared document layout; cheque and TT keep their bank-form layouts
+    if (formatType === "voucher") {
+        return (
+            <PrintDocument
+                title="Payment Voucher"
+                number={`PV-${String(payment.id).padStart(5, "0")}`}
+                size="A5-landscape"
+                autoPrint={autoPrint}
+                company={company}
+                meta={[
+                    ["Pay to", payment.supplier_name],
+                    ["Date", format(new Date(payment.payment_date), "d MMM yyyy")],
+                    ["Method", payment.payment_method],
+                    ["Reference", payment.reference_no || "–"],
+                ]}
+                signatures={["Prepared by", "Authorized by", "Received by"]}
+            >
+                {Array.isArray(payment.allocations) && payment.allocations.length > 0 ? (
+                    <PrintTable
+                        columns={[{ key: "grn", label: "Settles" }, { key: "amt", label: "Amount (LKR)", align: "right", width: "34mm" }]}
+                        rows={payment.allocations.map((a: any) => ({ grn: a.grn_number || `GRN #${a.grn_id ?? a.id}`, amt: fmtMoney(a.amount) }))}
+                    />
+                ) : (
+                    <p className="text-slate-600">Payment on account (not allocated to a GRN).</p>
+                )}
+                <PrintTotals lines={[{ label: "Amount paid", value: fmtMoney(payment.amount), grand: true }]} />
+                <PrintNotes label="Amount in words">{words}</PrintNotes>
+            </PrintDocument>
+        );
+    }
 
     const pageSizeCss = formatType === 'voucher'
         ? '@page { size: A5 landscape; margin: 8mm; }'

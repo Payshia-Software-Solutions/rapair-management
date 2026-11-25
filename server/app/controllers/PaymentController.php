@@ -30,6 +30,7 @@ class PaymentController extends Controller {
      */
     public function index() {
         $this->handleCors();
+        $this->requirePermission('orders.read');
         $this->db->query("SELECT * FROM payment_notifications ORDER BY created_at DESC LIMIT 100");
         $logs = $this->db->resultSet();
         echo json_encode(['status' => 'success', 'data' => $logs]);

@@ -168,15 +168,20 @@ class Supplier extends Model {
             $totalBalance = (float)($res->balance ?? 0);
         }
 
+        // Debit notes applied to GRNs also lower what is owed (table is created on first use)
+        require_once __DIR__ . '/../helpers/DebitNoteHelper.php';
+        DebitNoteHelper::ensure($this->db);
+
         // 2. Get Outstanding GRNs
         // We calculate balance as: total_amount - (sum of allocated payments from multiple payment entries) - (sum of allocated returns)
         $this->db->query("
             SELECT g.id, g.grn_number, g.received_at, g.total_amount,
                    COALESCE((SELECT SUM(amount) FROM acc_supplier_payment_allocations WHERE grn_id = g.id), 0) as paid_amount,
-                   COALESCE((SELECT SUM(total_amount) FROM acc_purchase_returns WHERE grn_id = g.id), 0) as returned_amount
+                   COALESCE((SELECT SUM(total_amount) FROM acc_purchase_returns WHERE grn_id = g.id), 0) as returned_amount,
+                   COALESCE((SELECT SUM(amount) FROM supplier_debit_note_allocations WHERE grn_id = g.id AND type = 'Apply'), 0) as debit_note_amount
             FROM goods_receive_notes g
             WHERE g.supplier_id = :sid
-            HAVING (total_amount - paid_amount - returned_amount) > 0.01
+            HAVING (total_amount - paid_amount - returned_amount - debit_note_amount) > 0.01
             ORDER BY g.received_at ASC
         ");
         $this->db->bind(':sid', $sid);

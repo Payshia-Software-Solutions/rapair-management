@@ -104,6 +104,15 @@ class StockrequisitionController extends Controller {
         }
         $data = json_decode(file_get_contents('php://input'), true) ?: [];
 
+        $fromId = (int)($data['from_location_id'] ?? $data['fromLocationId'] ?? 0);
+        $toLocId = (int)($data['to_location_id'] ?? $data['toLocationId'] ?? 0);
+        if ($fromId <= 0 || $toLocId <= 0) {
+            $this->error('Select both the From and To locations.', 422);
+        }
+        if ($fromId === $toLocId) {
+            $this->error('Requested From and To Location cannot be the same.', 422);
+        }
+
         // Non-admin users can only request stock for their allowed locations.
         try {
             if (!$this->isAdmin($u)) {
@@ -134,6 +143,32 @@ class StockrequisitionController extends Controller {
             'details' => json_encode(['requisition_id' => (int)$id]),
         ]);
 
+        // Approval workflow: when levels apply, the request waits in 'Pending Approval'
+        // and becomes 'Approved' on the last level (see ApprovalHandlers).
+        require_once '../app/helpers/Approval.php';
+        if (Approval::isEnabled('stock_requisition')) {
+            $res = $this->model->getById((int)$id);
+            $hdr = $res->requisition ?? null;
+            $toId = (int)($hdr->to_location_id ?? 0);
+            $db = new Database();
+            $db->query("SELECT COALESCE(SUM(i.qty_requested * COALESCE(p.cost_price, 0)), 0)
+                        FROM stock_transfer_requisition_items i INNER JOIN parts p ON p.id = i.part_id WHERE i.requisition_id = :id");
+            $db->bind(':id', (int)$id);
+            $value = round((float)$db->singleColumn(), 2);
+            if (Approval::levelsFor('stock_requisition', $value, $toId)) {
+                $db->query("UPDATE stock_transfer_requisitions SET status = 'Pending Approval' WHERE id = :id AND status = 'Requested'");
+                $db->bind(':id', (int)$id);
+                $db->execute();
+                $lines = count($res->items ?? []);
+                $r = Approval::submit('stock_requisition', (int)$id, [
+                    'doc_no' => $hdr->requisition_number ?? null, 'amount' => $value, 'location_id' => $toId,
+                    'summary' => "Stock request to " . ($hdr->to_location_name ?? 'location') . ", $lines line(s); value LKR " . number_format($value, 2),
+                ], (int)$u['sub']);
+                $this->success(['id' => (int)$id, 'approval' => 'Pending', 'request_id' => $r['request_id']],
+                    'Request sent for approval (' . $r['level'] . ').');
+            }
+        }
+
         $this->success(['id' => (int)$id], 'Requisition created');
     }
 
@@ -161,6 +196,13 @@ class StockrequisitionController extends Controller {
             }
         } catch (Exception $e) {
             // ignore
+        }
+
+        // A request under the approval workflow is approved from the Approvals inbox, not here.
+        require_once '../app/helpers/Approval.php';
+        $pending = Approval::forDocument('stock_requisition', (int)$id);
+        if ($pending && $pending->status === 'Pending') {
+            $this->error('This request is waiting in the approval workflow. Approve it from Approvals → Inbox.', 409);
         }
 
         $ok = $this->model->approve((int)$id, (int)$u['sub']);

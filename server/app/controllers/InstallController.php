@@ -6,6 +6,36 @@
 
 class InstallController extends Controller {
 
+    /**
+     * The installer creates tables, runs database.sql (which drops tables) and resets the default
+     * admin password, so it must never be reachable on a running system.
+     *   - INSTALL_ENABLED=true in .env  -> allowed (turn it off again after installing)
+     *   - otherwise only a first install from the server itself (loopback address) while the
+     *     database has no users yet; the reset ("seeds") always needs INSTALL_ENABLED.
+     * Shared (multi-workspace) servers never allow it.
+     */
+    private function guard($allowFirstInstall) {
+        if (class_exists('Env') && Env::get('APP_MODE', 'single') === 'shared') {
+            $this->json(['status' => 'error', 'message' => 'The installer is disabled on this server.'], 403);
+            exit;
+        }
+        $enabled = class_exists('Env') && strtolower((string)Env::get('INSTALL_ENABLED', '')) === 'true';
+        if ($enabled) return;
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+        $local = in_array($ip, ['127.0.0.1', '::1'], true);
+        if ($allowFirstInstall && $local) {
+            try {
+                $pdo = new PDO("mysql:host=" . DB_HOST . ";dbname=" . DB_NAME, DB_USER, DB_PASS, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+                $users = (int)$pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+                if ($users === 0) return;
+            } catch (Exception $e) {
+                return; // no database / no users table yet: a genuine first install
+            }
+        }
+        $this->json(['status' => 'error', 'message' => 'The installer is disabled. Set INSTALL_ENABLED=true in server/.env to run it, and remove it afterwards.'], 403);
+        exit;
+    }
+
     private function ensureSchema(PDO $pdo) {
         // RBAC tables
         $pdo->exec("
@@ -464,6 +494,7 @@ class InstallController extends Controller {
     }
 
     public function index() {
+        $this->guard(true);
         $response = [
             'status' => 'pending',
             'steps' => []
@@ -530,6 +561,7 @@ class InstallController extends Controller {
     }
 
     public function seeds() {
+        $this->guard(false);
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $response = [
                 'status' => 'pending',

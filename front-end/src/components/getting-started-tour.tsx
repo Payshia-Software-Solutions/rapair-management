@@ -62,6 +62,16 @@ const STEPS: StepDef[] = [
     ],
   },
   {
+    key: "stock",
+    title: "Add stock for your item",
+    text: "POS only sells items in stock. Receive stock with a GRN, or set food made to order as A La Carte (no stock needed).",
+    href: "/inventory/grn",
+    spots: [
+      { path: "/inventory/grn/new", target: "grn-save", hint: "Pick your item, enter the quantity and cost, then save the GRN." },
+      { path: "/inventory/grn", target: "grn-new", hint: "Click New GRN to receive stock for your item." },
+    ],
+  },
+  {
     key: "customer",
     title: "Add your first customer",
     text: "Name and phone number, so bills and credit sales can be tracked.",
@@ -70,6 +80,13 @@ const STEPS: StepDef[] = [
       { path: "/cms/customers/form", target: "customer-save", hint: "Enter the customer's name and phone, then save." },
       { path: "/cms/customers", target: "customer-add", hint: "Click Add Customer." },
     ],
+  },
+  {
+    key: "default_customer",
+    title: "Set a default customer for your location",
+    text: "Every POS bill needs a customer. Open your location, pick a default customer (for example \"Walk-in Customer\") and save.",
+    href: "/admin/locations",
+    spots: [],
   },
   {
     key: "pos",

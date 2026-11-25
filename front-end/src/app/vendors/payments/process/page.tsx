@@ -79,7 +79,7 @@ export default function ProcessPaymentPage() {
     if (newAlloc[id]) {
       delete newAlloc[id];
     } else {
-      const remaining = Number(grn.total_amount) - Number(grn.paid_amount) - Number(grn.returned_amount);
+      const remaining = Number(grn.total_amount) - Number(grn.paid_amount) - Number(grn.returned_amount) - Number(grn.debit_note_amount || 0);
       newAlloc[id] = remaining.toFixed(2);
     }
     setAllocations(newAlloc);
@@ -225,7 +225,7 @@ export default function ProcessPaymentPage() {
                   ) : (
                     <div className="grid gap-3">
                       {summary.outstanding_grns.map((grn: any) => {
-                        const balance = Number(grn.total_amount) - Number(grn.paid_amount) - Number(grn.returned_amount);
+                        const balance = Number(grn.total_amount) - Number(grn.paid_amount) - Number(grn.returned_amount) - Number(grn.debit_note_amount || 0);
                         const isSelected = !!allocations[grn.id.toString()];
                         return (
                           <div 
@@ -271,6 +271,7 @@ export default function ProcessPaymentPage() {
                                     <span>Total: {Number(grn.total_amount).toLocaleString()}</span>
                                     <span className="text-green-600/60">Paid: {Number(grn.paid_amount).toLocaleString()}</span>
                                     {Number(grn.returned_amount) > 0 && <span className="text-orange-500/60">Returns: {Number(grn.returned_amount).toLocaleString()}</span>}
+                                    {Number(grn.debit_note_amount) > 0 && <span className="text-orange-500/60">Debit notes: {Number(grn.debit_note_amount).toLocaleString()}</span>}
                                 </div>
                             </div>
                           </div>

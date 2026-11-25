@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Loader2, AlertCircle, ListOrdered, History, ChevronDown, ChevronRight, Calendar, Archive, Layers } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { fetchReportStockBalance, fetchLocations, LocationStockBalanceRow, ServiceLocation } from "@/lib/api";
+import { fetchReportStockBalance, fetchLocations, LocationStockBalanceRow, ServiceLocation, type PartRow } from "@/lib/api";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api/index";

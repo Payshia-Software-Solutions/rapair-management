@@ -21,6 +21,7 @@ class Approval {
         'expense'          => ['label' => 'Expense vouchers',    'href' => '/accounting/expenses?voucher=%d'],
         'stock_adjustment' => ['label' => 'Stock adjustments',   'href' => '/inventory/adjustments/%d'],
         'stock_count'      => ['label' => 'Stock counts',        'href' => '/inventory/stock-counts/%d'],
+        'stock_requisition' => ['label' => 'Stock requests (between locations)', 'href' => '/inventory/stock-requests/%d'],
         'cancellation'     => ['label' => 'Cancellations',       'href' => '/approvals/cancellations?id=%d'],
         'discount'         => ['label' => 'Discounts over limit', 'href' => '/cms/invoices/%d/view'],
     ];
@@ -333,6 +334,11 @@ class ApprovalHandlers {
                 if (!$res) throw new RuntimeException('Stock count could not be applied.');
                 break;
 
+            case 'stock_requisition':
+                $db->query("UPDATE stock_transfer_requisitions SET status = 'Approved', approved_by = :u, approved_at = NOW() WHERE id = :id AND status = 'Pending Approval'");
+                $db->bind(':u', $userId); $db->bind(':id', $id); $db->execute();
+                break;
+
             case 'stock_adjustment':
                 // The adjustment is created now, from the details saved when it was requested.
                 if ($id > 0) return; // already created
@@ -385,6 +391,11 @@ class ApprovalHandlers {
 
             case 'stock_adjustment':
                 break; // nothing was applied
+
+            case 'stock_requisition':
+                $db->query("UPDATE stock_transfer_requisitions SET status = 'Rejected', notes = CONCAT(COALESCE(notes, ''), :r) WHERE id = :id AND status = 'Pending Approval'");
+                $db->bind(':r', "\nNot approved: " . mb_substr($reason, 0, 400)); $db->bind(':id', $id); $db->execute();
+                break;
 
             case 'cancellation':
                 $db->query("UPDATE cancellation_requests SET status = 'rejected', decided_by = :u, decided_at = NOW(), decision_note = :n WHERE id = :id AND status = 'pending'");

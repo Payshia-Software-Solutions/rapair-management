@@ -18,6 +18,9 @@ import { Check, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { fetchPriceLists, type PriceList } from "@/lib/api/pricelists";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import Link from "next/link";
+import { LayoutGrid } from "lucide-react";
+import { POS_PROFILES, type PosProfileKey } from "@/lib/pos-profiles";
 
 interface LocationFormProps {
   initialData?: ServiceLocation;
@@ -57,6 +60,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
   const [taxIds, setTaxIds] = useState<number[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [defaultCustomerId, setDefaultCustomerId] = useState<string>("");
+  const [posProfile, setPosProfile] = useState<PosProfileKey>("classic");
 
   useEffect(() => {
     if (initialData) {
@@ -80,6 +84,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
       setGoogleAnalyticsCode(initialData.google_analytics_code || "");
       setFacebookPixelCode(initialData.facebook_pixel_code || "");
       setDefaultCustomerId(initialData.default_customer_id ? String(initialData.default_customer_id) : "");
+      setPosProfile(((initialData as any).pos_profile as PosProfileKey) || "classic");
       
       // Handle allowed_taxes_json
       try {
@@ -129,6 +134,7 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
         facebook_pixel_code: facebookPixelCode.trim() || undefined,
         default_customer_id: defaultCustomerId ? Number(defaultCustomerId) : null,
         tax_ids: taxIds,
+        pos_profile: posProfile,
       };
 
       if (isEdit && initialData) {
@@ -370,6 +376,32 @@ export function LocationForm({ initialData, isEdit = false }: LocationFormProps)
               <div className="flex items-center justify-between p-3 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20">
                 <Label className="font-bold cursor-pointer" htmlFor="pos-active">Global POS Enabled</Label>
                 <Switch id="pos-active" checked={isPosActive} onCheckedChange={setIsPosActive} />
+              </div>
+
+              <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">
+                <Label className="font-bold">POS type</Label>
+                <p className="text-[10px] text-muted-foreground">Changes the POS screen to suit this kind of business.</p>
+                <div className="grid gap-2">
+                  {POS_PROFILES.map((p) => (
+                    <button key={p.key} type="button" onClick={() => setPosProfile(p.key)}
+                      className={cn("rounded-md border p-2.5 text-left transition-colors",
+                        posProfile === p.key ? "border-primary bg-primary/5 ring-1 ring-primary" : "bg-white dark:bg-slate-950 hover:bg-muted")}>
+                      <span className="flex items-center gap-1.5 text-sm font-semibold">
+                        {posProfile === p.key && <Check className="h-3.5 w-3.5 text-primary" />} {p.label}
+                      </span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{p.description}</span>
+                    </button>
+                  ))}
+                </div>
+                {posProfile === "restaurant" && (
+                  isEdit && initialData ? (
+                    <Button asChild type="button" variant="outline" className="mt-1 w-full">
+                      <Link href={`/admin/locations/${initialData.id}/floor-plan`}><LayoutGrid className="mr-2 h-4 w-4" /> Design floor plan</Link>
+                    </Button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">Save the location first, then design its floor plan.</p>
+                  )
+                )}
               </div>
 
               <div className="space-y-2 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border">

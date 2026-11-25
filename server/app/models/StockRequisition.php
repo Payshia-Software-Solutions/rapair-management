@@ -30,7 +30,7 @@ class StockRequisition extends Model {
             LEFT JOIN users u ON u.id = r.created_by
             LEFT JOIN users u2 ON u2.id = r.approved_by
             LEFT JOIN stock_transfer_requisition_items i ON i.requisition_id = r.id
-            WHERE r.status IN ('Requested','Approved')
+            WHERE r.status IN ('Pending Approval','Requested','Approved')
             GROUP BY r.id
             ORDER BY r.id DESC
         ";

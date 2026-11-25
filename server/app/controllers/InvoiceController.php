@@ -50,6 +50,9 @@ class InvoiceController extends Controller {
         $invoice['payments'] = $this->invoiceModel->getPayments($id);
         $invoice['applied_taxes'] = $this->invoiceModel->getAppliedTaxes($id);
         $invoice['batch_movements'] = $this->invoiceModel->getBatchMovements($id);
+        // Loyalty lines for the receipt (points earned / redeemed on this bill, balance now)
+        require_once '../app/helpers/LoyaltyHelper.php';
+        $invoice['loyalty'] = LoyaltyHelper::invoiceSummary(new Database(), (int)$id);
 
         if (!empty($invoice['created_by'])) {
             $db = new Database();
@@ -94,44 +97,62 @@ class InvoiceController extends Controller {
         }
 
         // --- Promotion Validation (Integrity Check) ---
+        // The server recomputes the offer from the lines (display prices) and the bill may not
+        // take more off than that. Single best offer per bill, no stacking.
+        $promoModel = null;
+        $promoDiscount = 0.0;
         if (!empty($data['applied_promotion_id'])) {
             require_once '../app/models/Promotion.php';
             $promoModel = new Promotion();
-            $itemsObj = json_decode(json_encode($data['items'] ?? [])); // convert to objects for model
-            $subtotal = (float)($data['subtotal'] ?? 0);
-            
-            $eligible = $promoModel->findEligiblePromotions(
-                $itemsObj, 
-                $subtotal, 
-                $data['bank_id'] ?? null, 
-                $data['card_category'] ?? null, 
-                $data['location_id'] ?? null
-            );
-            
-            $found = false;
-            foreach ($eligible as $ep) {
-                if ((int)$ep->promotion_id === (int)$data['applied_promotion_id']) {
-                    // Check if discount value matches (with small rounding tolerance)
-                    // The frontend sends discount_total which is sum of line + bill + promo
-                    // We just check if this specific promo still yields approximately the same benefit
-                    $found = true;
-                    break;
-                }
+            $itemsObj = json_decode(json_encode($data['items'] ?? []));
+            // Bank offers: the card actually used to pay counts, not only the cart-level pick
+            $bankId = $data['bank_id'] ?? null;
+            $cardCat = $data['card_category'] ?? null;
+            foreach (($data['payments'] ?? []) as $p) {
+                if (($p['method'] ?? '') === 'Card' && !empty($p['bankId'])) { $bankId = $bankId ?: $p['bankId']; $cardCat = $cardCat ?: ($p['cardCategory'] ?? null); }
             }
-            
-            if (!$found) {
-                $reason = $promoModel->getPromotionRejectionReason(
-                    $data['applied_promotion_id'],
-                    $itemsObj,
-                    $subtotal,
-                    $data['bank_id'] ?? null,
-                    $data['card_category'] ?? null,
-                    $data['location_id'] ?? null
-                );
-                $this->error('The applied promotion is no longer valid for this cart: ' . $reason . ' Please refresh and try again.', 400);
+            $res = $promoModel->evaluate($data['applied_promotion_id'], $itemsObj, $bankId, $cardCat, $data['location_id'] ?? null, [
+                'promo_code' => $data['promo_code'] ?? null,
+                'order_type' => $data['order_type'] ?? null,
+            ]);
+            if (is_string($res)) {
+                $this->error('The applied promotion is no longer valid for this cart: ' . $res . ' Please refresh and try again.', 400);
                 return;
             }
+            $promoDiscount = (float)$res->discount_value;
+            if (isset($data['promo_discount']) && (float)$data['promo_discount'] > $promoDiscount + 0.05) {
+                $this->error('The promotion discount on this bill (' . number_format((float)$data['promo_discount'], 2) . ') is more than the offer gives (' . number_format($promoDiscount, 2) . '). Please refresh and try again.', 400);
+                return;
+            }
+            if (isset($data['promo_discount'])) $promoDiscount = (float)$data['promo_discount'];
+            $data['applied_promotion_name'] = $res->name;
         }
+
+        // Gift vouchers used as payment: checked before saving, deducted inside the transaction
+        require_once '../app/helpers/GiftVoucherHelper.php';
+        $voucherDb = new Database();
+        GiftVoucherHelper::ensure($voucherDb);
+        $voucherTotal = 0.0;
+        $voucherByCode = [];
+        foreach (($data['payments'] ?? []) as $p) {
+            if (($p['method'] ?? '') !== GiftVoucherHelper::METHOD) continue;
+            $code = GiftVoucherHelper::normalizeCode($p['voucherCode'] ?? '');
+            $voucherByCode[$code] = ($voucherByCode[$code] ?? 0) + (float)($p['amount'] ?? 0);
+            $voucherTotal += (float)($p['amount'] ?? 0);
+        }
+        foreach ($voucherByCode as $code => $amt) {
+            $err = GiftVoucherHelper::checkRedeemable($voucherDb, $code, $amt);
+            if ($err) { $this->error($err, 422); return; }
+        }
+        if ($voucherTotal > (float)($data['grand_total'] ?? 0) + 0.01) {
+            $this->error('Gift vouchers cover more than the bill total. Lower the voucher amount.', 422);
+            return;
+        }
+
+        // --- Loyalty: points redeemed / member discount must still be allowed (checked before saving) ---
+        require_once '../app/helpers/LoyaltyHelper.php';
+        [$loyaltyOk, $loyaltyMsg] = LoyaltyHelper::validateBill(new Database(), $data);
+        if (!$loyaltyOk) { $this->error($loyaltyMsg, 422); return; }
 
         // Generate Invoice Number
         $invoiceNo = $this->generateInvoiceNo($data['location_id'] ?? $this->currentLocationId($u));
@@ -200,10 +221,18 @@ class InvoiceController extends Controller {
             $customerStockModel->createFromInvoice($invoiceId, $data['customer_id']);
 
             // Optional: Process Payments immediately
+            if ($promoModel && !empty($data['applied_promotion_id'])) {
+                if (!$promoModel->recordUse($data['applied_promotion_id'], $invoiceId, $promoDiscount, $db)) {
+                    throw new Exception('This promotion has just reached its usage limit. Remove it and try again.');
+                }
+            }
+
             if (!empty($data['payments']) && is_array($data['payments'])) {
                 foreach ($data['payments'] as $p) {
                     if (($p['method'] ?? '') === 'Credit') continue;
-                    
+                    if ((float)($p['amount'] ?? 0) <= 0) continue;
+                    $isVoucher = ($p['method'] ?? '') === GiftVoucherHelper::METHOD;
+
                     $receiptData = [
                         'invoice_id' => $invoiceId,
                         'invoice_no' => $invoiceNo,
@@ -226,7 +255,14 @@ class InvoiceController extends Controller {
                             'payee_name' => $p['chequePayee'] ?? ''
                         ]
                     ];
-                    $receiptModel->create($receiptData);
+                    if ($isVoucher) {
+                        $receiptData['reference_no'] = GiftVoucherHelper::normalizeCode($p['voucherCode'] ?? '');
+                        $receiptData['notes'] = 'Gift voucher ' . $receiptData['reference_no'];
+                    }
+                    $receiptNo = $receiptModel->create($receiptData);
+                    if ($isVoucher) {
+                        GiftVoucherHelper::redeem($db, $p['voucherCode'] ?? '', (float)$p['amount'], (int)$invoiceId, (string)$receiptNo, (int)$u['sub']);
+                    }
                 }
             }
 
@@ -275,15 +311,29 @@ class InvoiceController extends Controller {
                 } catch (Exception $e) { /* the tour is optional */ }
             }
 
+            // Loyalty & Rewards: redeemed points come off, then this sale earns (after commit; never blocks the sale)
+            $redeemed = LoyaltyHelper::redeemForInvoice($db, (int)$invoiceId, $data, (int)$u['sub']);
+            $loyalty = LoyaltyHelper::earnForInvoice($db, (int)$invoiceId, (int)$u['sub']);
+            if ($redeemed) {
+                $loyalty = $loyalty ?: [];
+                $loyalty['redeemed'] = $redeemed;
+                if (!isset($loyalty['balance'])) {
+                    $mm = LoyaltyHelper::memberByCustomer($db, (int)$data['customer_id']);
+                    $loyalty['balance'] = $mm ? (int)$mm->points_balance : null;
+                    $loyalty['points'] = 0;
+                }
+            }
+
             $db->query("SELECT name FROM users WHERE id = :id");
             $db->bind(':id', $u['sub']);
             $userRow = $db->single();
             $createdBy = $userRow && isset($userRow->name) ? $userRow->name : 'System';
 
             $this->success([
-                'id' => $invoiceId, 
-                'invoice_no' => $invoiceNo, 
+                'id' => $invoiceId,
+                'invoice_no' => $invoiceNo,
                 'created_by' => $createdBy,
+                'loyalty' => $loyalty,
                 'message' => 'Invoice created successfully'
             ]);
         } catch (Exception $e) {

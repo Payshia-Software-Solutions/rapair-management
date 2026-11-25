@@ -371,6 +371,22 @@ function ReceiptBody({ invoice, company, balance, fmt, taxInclusive: taxInclusiv
 
       <hr className="hr" />
 
+      {/* Loyalty: points on this bill */}
+      {invoice.loyalty && (
+        <>
+          <div className="center" style={{ marginTop: '6px', fontSize: '11px' }}>
+            <div style={{ fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '1px' }}>{invoice.loyalty.program}</div>
+            <div>Member {invoice.loyalty.member_no}{invoice.loyalty.tier ? ` · ${invoice.loyalty.tier}` : ''}</div>
+            {invoice.loyalty.redeemed > 0 && (
+              <div>Points used: {Number(invoice.loyalty.redeemed).toLocaleString()} (LKR {Number(invoice.loyalty.redeemed_value).toFixed(2)})</div>
+            )}
+            {invoice.loyalty.earned > 0 && <div>Points earned: {Number(invoice.loyalty.earned).toLocaleString()}</div>}
+            <div style={{ fontWeight: 'bold' }}>Points balance: {Number(invoice.loyalty.balance).toLocaleString()}</div>
+          </div>
+          <hr className="hr" />
+        </>
+      )}
+
       {/* Footer */}
       <div className="center tag" style={{ marginTop: '8px' }}>
         <div>Thank you for your purchase!</div>

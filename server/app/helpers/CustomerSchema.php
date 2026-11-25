@@ -47,7 +47,8 @@ class CustomerSchema {
             'is_ecommerce_user' => "TINYINT(1) DEFAULT 0",
             'city' => "VARCHAR(255) NULL",
             'postal_code' => "VARCHAR(100) NULL",
-            'last_login' => "DATETIME NULL"
+            'last_login' => "DATETIME NULL",
+            'dob' => "DATE NULL"
         ];
 
         foreach ($cols as $col => $def) {

@@ -49,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { fetchLoyaltySettings } from "@/lib/api/loyalty";
 
 export default function SmsMarketingPage() {
   const { toast } = useToast();
@@ -59,6 +60,9 @@ export default function SmsMarketingPage() {
   const [stats, setStats] = useState({ total_sent: 0, success_rate: 0 });
   const [logs, setLogs] = useState<any[]>([]);
   const [customerCount, setCustomerCount] = useState(0);
+  // Loyalty audiences (only when the Loyalty module is in the plan)
+  const [loyaltyTiers, setLoyaltyTiers] = useState<{ id?: number; name: string }[] | null>(null);
+  useEffect(() => { fetchLoyaltySettings().then((d) => setLoyaltyTiers(d.tiers)).catch(() => setLoyaltyTiers(null)); }, []);
 
   const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
@@ -275,6 +279,13 @@ export default function SmsMarketingPage() {
                   >
                     <option value="all">All Customers ({customerCount})</option>
                     <option value="active">Active Guests Only</option>
+                    {loyaltyTiers && (
+                      <optgroup label="Loyalty members">
+                        <option value="loyalty">All loyalty members</option>
+                        <option value="loyalty_expiring">Points expiring in 30 days</option>
+                        {loyaltyTiers.map(t => <option key={t.id} value={`loyalty_tier_${t.id}`}>Tier: {t.name}</option>)}
+                      </optgroup>
+                    )}
                     <optgroup label="Custom Segments">
                       {segments.map(s => (
                         <option key={s.id} value={s.id}>{s.name} ({s.contact_count})</option>

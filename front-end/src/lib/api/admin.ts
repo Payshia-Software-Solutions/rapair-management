@@ -154,6 +154,8 @@ export interface ServiceLocation {
   id: number;
   name: string;
   location_type: 'service' | 'warehouse';
+  /** POS screen for this location (lib/pos-profiles.ts); missing = classic */
+  pos_profile?: string | null;
   address?: string | null;
   phone?: string | null;
   tax_no?: string | null;

@@ -217,6 +217,12 @@ function ReceiptBody({ ledger, company, locationName, fmt, now }: any) {
         <span>Total Refunds Issued</span>
         <span className="bold">-LKR {fmt(ledger.summary.refunds)}</span>
       </div>
+      {(Number(ledger.summary.voucher_sales) > 0 || Number(ledger.summary.voucher_refunds) > 0) && (
+        <div className="summary-row">
+          <span>Gift Vouchers Sold (net)</span>
+          <span className="bold">LKR {fmt(Number(ledger.summary.voucher_sales || 0) - Number(ledger.summary.voucher_refunds || 0))}</span>
+        </div>
+      )}
 
       <div className="net-intake">
         <span>TOTAL INTAKE</span>
@@ -251,7 +257,7 @@ function ReceiptBody({ ledger, company, locationName, fmt, now }: any) {
         <tbody>
           {(ledger.events || []).map((ev: any, i: number) => {
             const time = new Date(ev.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-            const isNegative = ev.type === 'Return' || ev.type === 'Refund';
+            const isNegative = ev.type === 'Return' || ev.type === 'Refund' || ev.type === 'Voucher Refund';
             return (
               <tr key={i}>
                 <td>{time}</td>

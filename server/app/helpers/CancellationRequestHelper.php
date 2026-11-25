@@ -70,6 +70,19 @@ class CancellationRequestHelper {
         } else {
             $ok = $model->cancel($id, $reason, $userId);
         }
+        if ($ok && $type === 'Invoice') {
+            // Loyalty: take back earned points, give back redeemed points
+            require_once __DIR__ . '/LoyaltyHelper.php';
+            LoyaltyHelper::reverseInvoice(new Database(), (int)$id, (int)$userId);
+            // Promotion usage limit: the use comes back
+            require_once __DIR__ . '/../models/Promotion.php';
+            (new Promotion())->releaseUse((int)$id, new Database());
+        }
+        if ($ok && $type === 'PaymentReceipt') {
+            // A gift-voucher payment goes back onto the voucher
+            require_once __DIR__ . '/GiftVoucherHelper.php';
+            GiftVoucherHelper::restoreForReceipt(new Database(), (int)$id, (int)$userId);
+        }
         if ($ok) return [true, 'Document cancelled'];
         return [false, property_exists($model, 'lastError') && $model->lastError ? $model->lastError : 'Cancellation failed'];
     }

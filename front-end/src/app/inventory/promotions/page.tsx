@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { fetchPromotions } from "@/lib/api";
+import { fetchAllPromotions } from "@/lib/api";
+import { CampaignScheduleDialog } from "./components/CampaignScheduleDialog";
 import { 
   Gift, 
   Plus, 
@@ -19,8 +20,22 @@ import {
   Settings2,
   AlertCircle,
   Zap,
-  Trash2
+  Trash2,
+  CalendarClock
 } from "lucide-react";
+
+const DAY_NAMES = ["", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const today = () => new Date().toISOString().split("T")[0];
+
+/** Short "when it runs" line: dates, hours, weekdays. */
+function scheduleText(p: any) {
+  const parts: string[] = [];
+  parts.push(p.start_date || p.end_date ? `${p.start_date || "now"} → ${p.end_date || "∞"}` : "No end date");
+  if (p.start_time || p.end_time) parts.push(`${String(p.start_time || "00:00").slice(0, 5)}–${String(p.end_time || "23:59").slice(0, 5)}`);
+  const days = String(p.days_of_week || "").split(",").map(Number).filter(Boolean);
+  if (days.length && days.length < 7) parts.push(days.map(d => DAY_NAMES[d]).join(" "));
+  return parts.join(" · ");
+}
 import { PromotionFormModal } from "./components/PromotionFormModal";
 import { PromotionTemplateGallery, type PromotionTemplate } from "./components/PromotionTemplateGallery";
 import { SeasonalDiscountModal } from "./components/SeasonalDiscountModal";
@@ -51,11 +66,12 @@ export default function PromotionManagementPage() {
   const [qtyOpen, setQtyOpen] = useState(false);
   const [websiteOpen, setWebsiteOpen] = useState(false);
   const [bankOpen, setBankOpen] = useState(false);
+  const [campaignOpen, setCampaignOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      const data = await fetchPromotions();
+      const data = await fetchAllPromotions();
       setPromotions(Array.isArray(data) ? data : []);
     } catch (e: any) {
       toast({ title: "Error", description: e?.message || "Failed to load promotions", variant: "destructive" });
@@ -78,7 +94,8 @@ export default function PromotionManagementPage() {
     setActiveTemplate(template);
     
     // Open corresponding modal
-    if (template === 'seasonal') setSeasonalOpen(true);
+    if (template === 'campaign') setCampaignOpen(true);
+    else if (template === 'seasonal') setSeasonalOpen(true);
     else if (template === 'bundle') setBundleOpen(true);
     else if (template === 'bogo') setBogoOpen(true);
     else if (template === 'qty') setQtyOpen(true);
@@ -125,7 +142,13 @@ export default function PromotionManagementPage() {
         return setBogoOpen(true);
     }
 
-    // 5. Seasonal Discount Detect
+    // 5. Timed campaign (category-targeted %): only the campaign editor keeps its categories
+    const tc = firstBenefit.target_categories;
+    if (tc && tc !== '[]' && firstBenefit.benefit_type === 'Percentage') {
+        return setCampaignOpen(true);
+    }
+
+    // 6. Seasonal Discount Detect
     const onlyMinAmount = conditions.length === 0 || 
                          (conditions.length === 1 && hasCondition('MinAmount'));
     
@@ -185,9 +208,9 @@ export default function PromotionManagementPage() {
                 <Zap className="w-8 h-8 text-emerald-600 dark:text-emerald-400" />
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Now</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Running Now</p>
                 <h3 className="text-3xl font-black text-slate-900 dark:text-white">
-                  {promotions.filter(p => p.is_active).length}
+                  {promotions.filter(p => p.live_now).length}
                 </h3>
               </div>
             </CardContent>
@@ -199,7 +222,7 @@ export default function PromotionManagementPage() {
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Upcoming</p>
-                <h3 className="text-3xl font-black text-slate-900 dark:text-white">0</h3>
+                <h3 className="text-3xl font-black text-slate-900 dark:text-white">{promotions.filter(p => Number(p.is_active) === 1 && p.start_date && p.start_date > today()).length}</h3>
               </div>
             </CardContent>
           </Card>
@@ -296,9 +319,16 @@ export default function PromotionManagementPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
-                             <Calendar className="w-3.5 h-3.5 opacity-40" />
-                             {promo.start_date ? `${promo.start_date} → ${promo.end_date || '∞'}` : 'Permanent'}
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-400">
+                               <Calendar className="w-3.5 h-3.5 opacity-40" />
+                               {scheduleText(promo)}
+                            </div>
+                            <div className="flex flex-wrap gap-1 text-[10px] text-muted-foreground">
+                              {promo.promo_code && <span className="font-mono px-1.5 rounded bg-slate-100 dark:bg-slate-800">{promo.promo_code}</span>}
+                              {Number(promo.max_discount) > 0 && <span>max LKR {Number(promo.max_discount).toLocaleString()}</span>}
+                              <span>used {Number(promo.used_count || 0)}{Number(promo.usage_limit) > 0 ? ` / ${promo.usage_limit}` : ""}</span>
+                            </div>
                           </div>
                         </TableCell>
                         <TableCell>
@@ -313,8 +343,10 @@ export default function PromotionManagementPage() {
                             }}
                             className="transition-transform active:scale-90"
                           >
-                            {Number(promo.is_active) === 1 ? (
-                              <Badge className="bg-emerald-500 text-white border-none shadow-md shadow-emerald-500/20 px-3 h-6 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-emerald-600">Active Now</Badge>
+                            {Number(promo.is_active) === 1 && promo.live_now ? (
+                              <Badge className="bg-emerald-500 text-white border-none shadow-md shadow-emerald-500/20 px-3 h-6 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-emerald-600">Running</Badge>
+                            ) : Number(promo.is_active) === 1 ? (
+                              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 border-none px-3 h-6 text-[9px] font-black uppercase tracking-widest cursor-pointer" title="Active, but outside its dates/hours or fully used">Scheduled</Badge>
                             ) : (
                               <Badge variant="secondary" className="px-3 h-6 text-[9px] font-black uppercase tracking-widest cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800">Paused</Badge>
                             )}
@@ -327,8 +359,18 @@ export default function PromotionManagementPage() {
                               size="icon" 
                               className="h-9 w-9 text-slate-400 hover:text-primary rounded-xl"
                               onClick={() => handleEditClick(promo)}
+                              title="Edit offer"
                             >
                                <Settings2 className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 text-slate-400 hover:text-primary rounded-xl"
+                              onClick={() => { setSelectedId(promo.id); setCampaignOpen(true); }}
+                              title="Schedule & limits"
+                            >
+                               <CalendarClock className="w-4 h-4" />
                             </Button>
                             <Button 
                               variant="ghost" 
@@ -398,9 +440,15 @@ export default function PromotionManagementPage() {
         onSuccess={load}
       />
 
-      <BankOfferModal 
+      <BankOfferModal
         open={bankOpen}
         onOpenChange={setBankOpen}
+        promotionId={selectedId}
+        onSuccess={load}
+      />
+      <CampaignScheduleDialog
+        open={campaignOpen}
+        onOpenChange={setCampaignOpen}
         promotionId={selectedId}
         onSuccess={load}
       />

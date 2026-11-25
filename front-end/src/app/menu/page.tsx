@@ -13,7 +13,8 @@ import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/
 import { ChevronRight, LogOut, MapPin, User, Settings, LayoutDashboard, Wrench, Truck, Boxes, Users, TrendingUp, Gift, Landmark, Factory, Building2, LayoutGrid, Grid, Shield, ShoppingCart, Ticket } from "lucide-react";
 import { api } from "@/lib/api";
 import { 
-  adminNavItems, 
+  adminNavItems,
+  developerNavItems,
   inventoryItems, 
   mainNavItems, 
   masterDataItems, 
@@ -32,6 +33,7 @@ import {
   approvalItems,
   type NavItem 
 } from "@/lib/nav-items";
+import { useDevMode } from "@/lib/dev-mode";
 
 function decodeJwtPayload(token: string): any | null {
   try {
@@ -48,6 +50,7 @@ export default function MenuPage() {
   const [saasModules, setSaasModules] = useState<string[] | null>(null);
   const [userName, setUserName] = useState<string>("");
   const [userRole, setUserRole] = useState<string>("");
+  const devMode = useDevMode(userRole.toLowerCase() === "admin");
   const [locationName, setLocationName] = useState<string>("");
 
   useEffect(() => {
@@ -164,6 +167,7 @@ export default function MenuPage() {
     const master = isModuleAllowed('masterData') ? masterDataItems.filter((it) => hasPerm(it.perm)) : [];
     const approvals = approvalItems.filter((it) => hasPerm(it.perm));
     const admin = userRole.toLowerCase() === "admin" ? adminNavItems : [];
+    const developer = devMode ? developerNavItems : [];
 
     return [
       { title: "Core Features", tone: "bg-blue-600", items: core, icon: LayoutDashboard },
@@ -183,8 +187,9 @@ export default function MenuPage() {
       { title: "Master Data", tone: "bg-zinc-600", items: master, icon: Grid },
       { title: "Approvals & Control", tone: "bg-indigo-700", items: approvals, icon: Shield },
       { title: "Administration", tone: "bg-slate-700", items: admin, icon: Shield },
+      { title: "Developer Options", tone: "bg-gray-700", items: developer, icon: Settings },
     ].filter((s) => s.items.length > 0);
-  }, [permissionKeys, userRole, saasModules]);
+  }, [permissionKeys, userRole, saasModules, devMode]);
 
   const isLoading = permissionKeys === null || saasModules === null;
 

@@ -70,104 +70,114 @@ export default function BOMPage() {
     }
   }
 
+
+  const qtyFmt = (v: any) => Number(v || 0).toLocaleString('en-LK', { maximumFractionDigits: 3 })
+  const money = (v: any) => Number(v || 0).toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  const activeCount = boms.filter(b => Number(b.is_active) === 1).length
+
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+      <div className="w-full space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Bill of Materials</h1>
-            <p className="text-muted-foreground mt-1">Manage product recipes and material components.</p>
+            <h1 className="text-xl font-bold tracking-tight">Bill of Materials</h1>
+            <p className="text-xs text-muted-foreground">
+              What each product is made from · {boms.length} total, {activeCount} active
+            </p>
           </div>
-          <Button onClick={handleNew} className="gap-2">
-            <Plus className="w-4 h-4" /> Create BOM
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search BOMs or products..." 
-              className="pl-10"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search BOM or product..." className="h-9 w-56 pl-8 text-sm sm:w-72" value={query} onChange={e => setQuery(e.target.value)} />
+            </div>
+            <Button size="sm" onClick={handleNew} className="h-9 gap-1.5">
+              <Plus className="h-4 w-4" /> New BOM
+            </Button>
           </div>
         </div>
 
-        <Card className="border-none shadow-md overflow-hidden">
+        <Card className="overflow-hidden shadow-sm">
           <CardContent className="p-0">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <p>Loading your recipes...</p>
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" /> Loading...
               </div>
             ) : filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 text-muted-foreground gap-4">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                  <Factory className="w-8 h-8" />
+              <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-muted-foreground">
+                <Factory className="h-8 w-8" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">{query ? 'No BOMs match your search' : 'No BOMs yet'}</p>
+                  {!query && <p className="text-xs">Create one to say what a product is made from and how much it gives.</p>}
                 </div>
-                <div className="text-center">
-                  <p className="font-semibold text-foreground">No BOMs found</p>
-                  <p className="text-sm">Start by creating your first Bill of Materials.</p>
-                </div>
-                <Button variant="outline" onClick={handleNew}>Create Now</Button>
+                {!query && <Button size="sm" variant="outline" onClick={handleNew}>Create BOM</Button>}
               </div>
             ) : (
-              <Table>
-                <TableHeader className="bg-muted/50">
-                  <TableRow>
-                    <TableHead>BOM Name</TableHead>
-                    <TableHead>Finished Product</TableHead>
-                    <TableHead className="text-center">Components</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.map((bom) => (
-                    <TableRow key={bom.id} className="group hover:bg-muted/10 transition-colors">
-                      <TableCell className="font-semibold">{bom.name}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{bom.output_part_name}</span>
-                          <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold">
-                            SKU: {bom.output_sku || 'N/A'}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Badge variant="secondary" className="font-mono">
-                          {bom.item_count || 0} items
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={bom.is_active ? 'default' : 'outline'} className={bom.is_active ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : ''}>
-                          {bom.is_active ? 'Active' : 'Draft'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(bom)} className="gap-2">
-                            <Edit2 className="w-4 h-4" /> Edit
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(bom.id)} className="gap-2 text-destructive hover:text-destructive hover:bg-destructive/10">
-                            <Trash2 className="w-4 h-4" /> Delete
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-sm">
+                  <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">BOM</th>
+                      <th className="px-3 py-2 text-left font-medium">Makes</th>
+                      <th className="px-3 py-2 text-right font-medium">Output</th>
+                      <th className="px-3 py-2 text-left font-medium">Materials</th>
+                      <th className="px-3 py-2 text-right font-medium">Cost / unit</th>
+                      <th className="px-3 py-2 text-left font-medium">Status</th>
+                      <th className="w-20 px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {filtered.map((bom) => {
+                      const mats: any[] = Array.isArray(bom.items) ? bom.items : []
+                      const shown = mats.slice(0, 3).map(m => m.part_name).filter(Boolean)
+                      const active = Number(bom.is_active) === 1
+                      return (
+                        <tr key={bom.id} className="cursor-pointer hover:bg-muted/20" onClick={() => handleEdit(bom)}>
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{bom.name}</div>
+                            <div className="text-[11px] text-muted-foreground">v{bom.version || '1.0'}</div>
+                          </td>
+                          <td className="px-3 py-2">
+                            <div className="font-medium">{bom.output_part_name}</div>
+                            <div className="text-[11px] text-muted-foreground">{bom.output_sku || 'No SKU'}</div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{qtyFmt(bom.output_qty)} {bom.output_unit || ''}</td>
+                          <td className="px-3 py-2">
+                            <div className="max-w-[280px] truncate text-xs text-muted-foreground" title={mats.map(m => m.part_name).join(', ')}>
+                              <span className="font-medium text-foreground">{bom.item_count || 0}</span>
+                              {shown.length > 0 && ` · ${shown.join(', ')}${mats.length > 3 ? ` +${mats.length - 3}` : ''}`}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right tabular-nums">{bom.output_cost != null ? `LKR ${money(bom.output_cost)}` : '—'}</td>
+                          <td className="px-3 py-2">
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${active ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-600' : 'text-muted-foreground'}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-muted-foreground/50'}`} />
+                              {active ? 'Active' : 'Draft'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2" onClick={e => e.stopPropagation()}>
+                            <div className="flex justify-end gap-0.5">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(bom)} aria-label={`Edit ${bom.name}`}>
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => handleDelete(bom.id)} aria-label={`Delete ${bom.name}`}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <ProductionBOMDialog 
-        open={dialogOpen} 
-        onOpenChange={setDialogOpen} 
+      <ProductionBOMDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
         onSuccess={load}
         bom={selectedBOM}
       />

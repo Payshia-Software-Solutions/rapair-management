@@ -82,7 +82,29 @@ class Controller {
         $payload = JwtHelper::decode($token, JWT_SECRET);
         if (!$payload) return null;
         if (($payload['iss'] ?? '') !== JWT_ISSUER) return null;
+        self::watchTerminal($payload);
         return $payload;
+    }
+
+    private static $terminalWatched = false;
+
+    /**
+     * POS terminals: a write request from a registered POS PC (X-Terminal-Id) gets the documents it
+     * created stamped with that terminal at shutdown, so each drawer's shift counts its own cash.
+     */
+    private static function watchTerminal($payload) {
+        if (self::$terminalWatched) return;
+        $tid = (int)($_SERVER['HTTP_X_TERMINAL_ID'] ?? 0);
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        if ($tid <= 0 || !isset($payload['sub']) || in_array($method, ['GET', 'HEAD', 'OPTIONS'], true)) return;
+        self::$terminalWatched = true;
+        $since = date('Y-m-d H:i:s', (int)($_SERVER['REQUEST_TIME'] ?? time()) - 1);
+        $uid = (int)$payload['sub'];
+        register_shutdown_function(function () use ($uid, $tid, $since) {
+            if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+            require_once __DIR__ . '/../helpers/PosShiftHelper.php';
+            PosShiftHelper::tagRequest($uid, $tid, $since);
+        });
     }
 
     protected function requireAuth() {
@@ -95,6 +117,12 @@ class Controller {
 
     protected function isAdmin($u) {
         return strtolower((string)($u['role'] ?? '')) === 'admin';
+    }
+
+    /** Developer tools (schema, table verification): only while Nexus has developer mode on. */
+    protected function requireDevMode() {
+        require_once APPROOT . '/app/helpers/SaasHelper.php';
+        if (!SaasHelper::devMode()) $this->error('Developer mode is off for this workspace.', 403);
     }
 
     // Location scoping:

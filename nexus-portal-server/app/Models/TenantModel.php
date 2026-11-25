@@ -33,6 +33,7 @@ class TenantModel {
                 t.name as tenant_name, 
                 t.status, 
                 t.license_key,
+                t.dev_mode,
                 t.billing_cycle,
                 t.trial_expiry as renewal_date, 
                 p.name as package_name, 
@@ -65,6 +66,7 @@ class TenantModel {
                 t.name as tenant_name, 
                 t.status, 
                 t.license_key,
+                t.dev_mode,
                 t.billing_cycle,
                 t.trial_expiry as renewal_date, 
                 p.name as package_name, 
@@ -170,6 +172,13 @@ class TenantModel {
         $this->db->bind(':expiry', $data['trial_expiry'] ?? null);
         $this->db->bind(':cc', $data['billing_cc_email'] ?? null);
         $this->db->bind(':id', $data['id']);
+        return $this->db->execute();
+    }
+
+    public function setDevMode($id, bool $on) {
+        $this->db->query("UPDATE saas_tenants SET dev_mode = :on WHERE id = :id");
+        $this->db->bind(':on', $on ? 1 : 0);
+        $this->db->bind(':id', (int)$id);
         return $this->db->execute();
     }
 

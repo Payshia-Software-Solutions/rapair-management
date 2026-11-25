@@ -146,10 +146,37 @@ export default function NewTransferPage() {
     } catch {}
   };
 
+  // Lines whose quantity is more than the source location can give.
+  // Same item on several lines is summed; a chosen batch is checked against that batch.
+  const shortIdx = useMemo(() => {
+    const bad = new Set<number>();
+    const byPart: Record<string, { qty: number; idx: number[] }> = {};
+    lines.forEach((l, i) => {
+      const q = Number(l.qty) || 0;
+      if (!l.part_id || q <= 0) return;
+      if (l.batch_id) {
+        const b = (l.batches || []).find((x) => String(x.id) === String(l.batch_id));
+        if (b && q > Number(b.quantity_on_hand ?? 0)) bad.add(i);
+        return;
+      }
+      const k = String(l.part_id);
+      (byPart[k] ??= { qty: 0, idx: [] }).qty += q;
+      byPart[k].idx.push(i);
+    });
+    for (const [pid, v] of Object.entries(byPart)) {
+      const s = stockByPartId[pid];
+      const avail = s ? Number(s.available ?? 0) : null;
+      if (avail === null || v.qty > avail) v.idx.forEach((i) => bad.add(i));
+    }
+    return bad;
+  }, [lines, stockByPartId]);
+  const stockPending = lines.some((l) => l.part_id && Number(l.qty) > 0 && loadingStockIds[String(l.part_id)]);
+
   const canSave = useMemo(() => {
     if (!fromLoc || !toLoc || fromLoc === toLoc) return false;
+    if (shortIdx.size > 0 || stockPending) return false;
     return lines.some((l) => l.part_id && Number(l.qty) > 0);
-  }, [fromLoc, toLoc, lines]);
+  }, [fromLoc, toLoc, lines, shortIdx, stockPending]);
 
   const totals = useMemo(() => {
     let totalQty = 0;
@@ -281,218 +308,147 @@ export default function NewTransferPage() {
     })();
   }, [fromLoc]);
 
+  const sel = "h-9 text-sm";
+  const sameLoc = !!fromLoc && !!toLoc && fromLoc === toLoc;
+
   return (
     <DashboardLayout>
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">New Stock Transfer</h1>
-          <p className="text-muted-foreground mt-1">Create a transfer request between locations</p>
+      <div className="w-full space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-bold tracking-tight">New Stock Transfer</h1>
+            <p className="text-xs text-muted-foreground">Send stock from one location to another</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => router.push("/inventory/transfers")}>Back</Button>
         </div>
-        <Button variant="outline" onClick={() => router.push("/inventory/transfers")}>Back</Button>
-      </div>
 
-      <Card className="border-none shadow-md overflow-hidden">
-        <CardHeader className="border-b bg-muted/20">
-          <CardTitle className="text-lg">Header</CardTitle>
-          <CardDescription>Load from a request or select locations manually</CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-            <div className="md:col-span-9 space-y-2">
-              <Label>Request (optional)</Label>
-              <SearchableSelect
-                value={reqId}
-                onValueChange={setReqId}
-                options={requisitionOptions}
-                placeholder="Select request..."
-                searchPlaceholder="Search requests..."
-              />
-              <p className="text-xs text-muted-foreground">If selected, To Location and item list will be loaded from the request.</p>
-            </div>
-            <div className="md:col-span-3">
-              <Button variant="outline" className="w-full" onClick={() => void loadRequest()} disabled={!reqId || loadingReq}>
-                {loadingReq ? "Loading..." : "Load Request"}
-              </Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>From Location</Label>
-              <SearchableSelect
-                value={fromLoc}
-                onValueChange={onChangeFromLoc}
-                options={locationOptions}
-                placeholder="Select source..."
-                searchPlaceholder="Search locations..."
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>To Location</Label>
-              <SearchableSelect
-                value={toLoc}
-                onValueChange={(v) => {
-                  if (reqId) return;
-                  setToLoc(v);
-                }}
-                options={locationOptions}
-                placeholder="Select destination..."
-                searchPlaceholder="Search locations..."
-              />
-              {fromLoc && toLoc && fromLoc === toLoc ? (
-                <p className="text-xs text-destructive">From and To locations must be different.</p>
-              ) : null}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Notes</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional notes" />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-none shadow-md overflow-hidden mt-6">
-        <CardHeader className="border-b bg-muted/20">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-lg">Items</CardTitle>
-              <CardDescription>Choose parts and quantities to transfer</CardDescription>
-            </div>
-            <div className="text-right">
-              <div className="text-xs text-muted-foreground">Transfer Value</div>
-              <div className="text-lg font-bold">{totals.totalValue.toFixed(2)}</div>
-              <div className="text-xs text-muted-foreground">Total Qty: {totals.totalQty.toFixed(3)}</div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6 space-y-4">
-          {lines.map((line, idx) => (
-            <div key={idx} className="p-4 rounded-lg bg-muted/30 border border-border/50 relative group">
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start">
-                <div className="md:col-span-11 grid grid-cols-1 md:grid-cols-12 gap-4">
-                  <div className="md:col-span-5 space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Item</Label>
-                    <SearchableSelect
-                      value={line.part_id}
-                      onValueChange={(val) => {
-                        const next = [...lines];
-                        next[idx] = { ...next[idx], part_id: val, batch_id: "" };
-                        setLines(next);
-                        if (val && fromLoc) void loadStockAndBatches(val, idx);
-                      }}
-                      options={partOptions}
-                      placeholder="Select item..."
-                      searchPlaceholder="Search items..."
-                    />
-                  </div>
-
-                  <div className="md:col-span-4 space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Batch (Optional)</Label>
-                    <SearchableSelect
-                      value={line.batch_id || ""}
-                      onValueChange={(val) => {
-                        const next = [...lines];
-                        next[idx] = { ...next[idx], batch_id: val };
-                        setLines(next);
-                      }}
-                      options={(line.batches || []).map(b => ({
-                        value: String(b.id),
-                        label: `${b.batch_number} (Exp: ${b.expiry_date || 'N/A'}, Qty: ${Number(b.quantity_on_hand).toFixed(1)})`,
-                        keywords: `${b.batch_number} ${b.expiry_date}`
-                      }))}
-                      placeholder={line.batches?.length ? "Auto (FIFO)" : "No batches available"}
-                      disabled={!line.part_id || !line.batches?.length}
-                    />
-                  </div>
-
-                  <div className="md:col-span-3 space-y-2">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Qty</Label>
-                    <Input
-                      type="number"
-                      step="0.001"
-                      min="0"
-                      value={line.qty}
-                      onChange={(e) => {
-                        const next = [...lines];
-                        next[idx] = { ...next[idx], qty: e.target.value };
-                        setLines(next);
-                      }}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-
-                <div className="md:col-span-1 pt-6 flex justify-end">
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={() => removeLine(idx)} 
-                    disabled={lines.length === 1}
-                  >
-                    <Trash2 className="w-4 h-4" />
+        <Card className="shadow-sm">
+          <CardContent className="space-y-3 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+              <div className="space-y-1 md:col-span-4">
+                <Label className="text-xs">From stock request <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <div className="flex gap-2">
+                  <SearchableSelect value={reqId} onValueChange={setReqId} options={requisitionOptions} placeholder="Select request..." searchPlaceholder="Search requests..." triggerClassName={sel} className="min-w-0 flex-1" />
+                  <Button size="sm" variant="outline" className="h-9 shrink-0" onClick={() => void loadRequest()} disabled={!reqId || loadingReq}>
+                    {loadingReq ? "Loading..." : "Load"}
                   </Button>
                 </div>
               </div>
+              <div className="space-y-1 md:col-span-3">
+                <Label className="text-xs">From</Label>
+                <SearchableSelect value={fromLoc} onValueChange={onChangeFromLoc} options={locationOptions} placeholder="Select source..." searchPlaceholder="Search locations..." triggerClassName={sel} />
+              </div>
+              <div className="space-y-1 md:col-span-3">
+                <Label className="text-xs">To {reqId ? <span className="font-normal text-muted-foreground">(from request)</span> : null}</Label>
+                <SearchableSelect value={toLoc} onValueChange={(v) => { if (reqId) return; setToLoc(v); }} options={locationOptions} placeholder="Select destination..." searchPlaceholder="Search locations..." triggerClassName={`${sel} ${sameLoc ? "border-destructive" : ""}`} />
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <Label className="text-xs">Notes</Label>
+                <Input className="h-9 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+            {sameLoc && <p className="text-xs font-medium text-destructive">From and To locations must be different.</p>}
 
-              {line.part_id && (
-                <div className="mt-3 pt-3 border-t border-border/40 flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-muted-foreground">
-                  {(() => {
-                    const p = parts.find((x) => String(x.id) === String(line.part_id));
-                    const onHand = Number((p as any)?.stock_quantity ?? 0);
-                    const unitCost = Number((p as any)?.cost_price ?? (p as any)?.price ?? 0);
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="w-8 px-2 py-1.5 text-left font-medium">#</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Item</th>
+                    <th className="w-56 px-2 py-1.5 text-left font-medium">Batch</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">Available</th>
+                    <th className="w-32 px-2 py-1.5 text-left font-medium">Qty</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">Value</th>
+                    <th className="w-9" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {lines.map((line, idx) => {
+                    const p: any = parts.find((x) => String(x.id) === String(line.part_id));
+                    const unit = p?.unit || "";
+                    const unitCost = Number(p?.cost_price ?? p?.price ?? 0);
+                    const qty = Number(line.qty) || 0;
                     const locStock = stockByPartId[String(line.part_id)] ?? null;
                     const locLoading = Boolean(loadingStockIds[String(line.part_id)]);
+                    const avail = locStock ? Number(locStock.available ?? 0) : null;
+                    const over = shortIdx.has(idx) && !locLoading;
                     return (
-                      <>
-                        <div className="flex items-center gap-1.5">
-                          <Layers className="w-3 link-3" />
-                          <span>
-                            {fromLocName ? `${fromLocName}: ` : "Source: "}
-                            <span className="text-foreground font-medium">
-                              {locLoading ? "Loading..." : (locStock ? Number(locStock.available ?? 0).toFixed(3) : "—")}
-                            </span>
-                            {locStock && (
-                              <span className="opacity-80 ml-1">
-                                (OH: {Number(locStock.on_hand).toFixed(1)}, Res: {Number(locStock.reserved).toFixed(1)})
-                              </span>
-                            )}
-                          </span>
-                        </div>
-                        <div>
-                          System total: <span className="text-foreground font-medium">{onHand.toFixed(1)}</span>
-                        </div>
-                        <div>
-                          Unit: <span className="text-foreground font-medium">{(p as any)?.unit ?? "-"}</span>
-                        </div>
-                        <div>
-                          Line Value: <span className="text-foreground font-medium">{(unitCost * (Number(line.qty) || 0)).toFixed(2)}</span>
-                        </div>
-                      </>
+                      <tr key={idx} className="align-middle">
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-2 py-1.5">
+                          <SearchableSelect
+                            value={line.part_id}
+                            onValueChange={(val) => {
+                              const next = [...lines];
+                              next[idx] = { ...next[idx], part_id: val, batch_id: "" };
+                              setLines(next);
+                              if (val && fromLoc) void loadStockAndBatches(val, idx);
+                            }}
+                            options={partOptions} placeholder="Select item..." searchPlaceholder="Search items..." triggerClassName="h-8 text-sm"
+                          />
+                          {p && (
+                            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                              {[p.sku, `LKR ${unitCost.toFixed(2)} / ${unit || "unit"}`, `System total ${Number(p.stock_quantity ?? 0).toFixed(1)}`].filter(Boolean).join(" · ")}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <SearchableSelect
+                            value={line.batch_id || ""}
+                            onValueChange={(val) => { const next = [...lines]; next[idx] = { ...next[idx], batch_id: val }; setLines(next); }}
+                            options={(line.batches || []).map((b) => ({
+                              value: String(b.id),
+                              label: `${b.batch_number} (Exp: ${b.expiry_date || "N/A"}, Qty: ${Number(b.quantity_on_hand).toFixed(1)})`,
+                              keywords: `${b.batch_number} ${b.expiry_date}`,
+                            }))}
+                            placeholder={line.batches?.length ? "Auto (FIFO)" : "No batches"}
+                            disabled={!line.part_id || !line.batches?.length}
+                            triggerClassName="h-8 text-sm"
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-xs tabular-nums" title={locStock ? `On hand ${Number(locStock.on_hand).toFixed(1)}, reserved ${Number(locStock.reserved).toFixed(1)}` : undefined}>
+                          {!line.part_id ? "—" : locLoading ? "…" : avail === null ? "—" : <span className={avail <= 0 ? "text-destructive" : ""}>{avail.toFixed(3)} {unit}</span>}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="relative">
+                            <Input type="number" step="0.001" min="0" value={line.qty}
+                              onChange={(e) => { const next = [...lines]; next[idx] = { ...next[idx], qty: e.target.value }; setLines(next); }}
+                              placeholder="0" className={`h-8 text-sm tabular-nums ${unit ? "pr-11" : ""} ${over ? "border-destructive" : ""}`} aria-label={`Quantity for line ${idx + 1}`} />
+                            {unit && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{unit}</span>}
+                          </div>
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-xs tabular-nums">{p && qty > 0 ? (unitCost * qty).toFixed(2) : "—"}</td>
+                        <td className="px-1 py-1.5">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeLine(idx)} disabled={lines.length === 1} aria-label={`Remove line ${idx + 1}`}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </td>
+                      </tr>
                     );
-                  })()}
-                </div>
-              )}
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
 
-          <div className="flex items-center justify-between pt-2">
-            <Button variant="outline" className="gap-2 border-dashed" onClick={addLine}>
-              <Plus className="w-4 h-4" />
-              Add Item
-            </Button>
-            <div className="flex flex-col items-end gap-1">
-              {!canSave ? (
-                <div className="text-xs text-muted-foreground italic">
-                  {!fromLoc || !toLoc ? "Select locations" : "Add some items"}
-                </div>
-              ) : null}
-              <Button size="lg" onClick={submit} disabled={!canSave || saving} className="px-8 shadow-sm">
-                {saving ? "Creating..." : "Create Transfer"}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <Button size="sm" variant="outline" className="gap-1.5 border-dashed" onClick={addLine}>
+                <Plus className="h-4 w-4" /> Add item
               </Button>
+              <div className="flex items-center gap-4">
+                <div className="text-right text-xs text-muted-foreground">
+                  Qty {totals.totalQty.toFixed(3)} · <span className="font-semibold text-foreground">LKR {totals.totalValue.toFixed(2)}</span>
+                  {!canSave && <div>{!fromLoc || !toLoc ? "Select both locations"
+                    : fromLoc === toLoc ? "Pick two different locations"
+                    : stockPending ? "Checking stock…"
+                    : shortIdx.size > 0 ? <span className="font-medium text-destructive">Not enough stock on line {Array.from(shortIdx).sort((a, b) => a - b).map((i) => i + 1).join(", ")}</span>
+                    : "Add an item with a quantity"}</div>}
+                </div>
+                <Button size="sm" onClick={submit} disabled={!canSave || saving}>{saving ? "Creating..." : "Create transfer"}</Button>
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </DashboardLayout>
   );
 }

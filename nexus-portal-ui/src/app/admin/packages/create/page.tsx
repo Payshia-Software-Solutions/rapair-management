@@ -5,7 +5,7 @@ import { adminFetch } from '@/lib/adminApi';
 import React, { useState, useEffect } from 'react';
 import { 
   ChevronLeft, Plus, X, Loader2, CheckCircle2, Eye, EyeOff, Activity,
-  ShoppingCart, Users, Globe, Sparkles, Store, Smartphone, Wallet, Factory, Building2, Music, BarChart, LayoutDashboard, Truck, Zap, Shield, Check, Layers, Save
+  ShoppingCart, Users, Globe, Sparkles, Store, Smartphone, Wallet, Factory, Building2, Music, BarChart, LayoutDashboard, Truck, Zap, Shield, Check, Layers, Award, Save
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -45,6 +45,7 @@ const MODULE_CATEGORIES = [
       { id: 'sales', label: 'Sales & Invoicing', category: 'Sales & Customer Growth', desc: 'Invoices, Quotes, Receipts & Cheque Hub', icon: Globe },
       { id: 'crm', label: 'CRM & Lead Hub', category: 'Sales & Customer Growth', desc: 'Customer Directory, Vehicles & Inquiries', icon: Users },
       { id: 'marketing', label: 'Marketing & Promotions', category: 'Sales & Customer Growth', desc: 'Discounts, SMS/Email Campaigns & Segments', icon: Sparkles },
+      { id: 'loyalty', label: 'Loyalty & Rewards', category: 'Sales & Customer Growth', desc: 'Points on every sale, member tiers & benefits', icon: Award },
       { id: 'ecommerce', label: 'E-commerce Storefront', category: 'Sales & Customer Growth', desc: 'Online Orders, Store Catalog & Webhooks', icon: Store },
       { id: 'kiosk', label: 'Self-Service Kiosk', category: 'Sales & Customer Growth', desc: 'Self Check-in, Kiosk Orders & Displays', icon: Smartphone },
     ]

@@ -549,3 +549,28 @@ export const deleteModel = async (id: number | string) => {
   if (!res.ok) throw new Error('Failed to delete model');
   return res.json();
 };
+
+export type PosCustomerMatch = { id: number; name: string; phone: string | null; nic: string | null; email: string | null; matched_on: 'phone' | 'nic' };
+
+/** POS: existing customer with this phone or NIC, or null. */
+export const posLookupCustomer = async (phone: string, nic = ''): Promise<PosCustomerMatch | null> => {
+  const q = new URLSearchParams({ phone, nic });
+  const res = await api(`/api/customer/pos_lookup?${q}`);
+  const j = await res.json().catch(() => null);
+  return j?.status === 'success' ? (j.data?.customer ?? null) : null;
+};
+
+export class DuplicateCustomerError extends Error {
+  constructor(message: string, public existing: PosCustomerMatch) { super(message); }
+}
+
+/** POS registration (phone unique, NIC optional + unique). Throws DuplicateCustomerError on a match. */
+export const posRegisterCustomer = async (payload: {
+  name: string; phone: string; nic?: string; email?: string; dob?: string; address?: string; enroll_loyalty?: boolean;
+}): Promise<{ customer: any; loyalty: { member_no?: string; tier?: string; points?: number; error?: string } | null }> => {
+  const res = await api('/api/customer/pos_register', { method: 'POST', body: JSON.stringify(payload) });
+  const j = await res.json().catch(() => null);
+  if (res.status === 409 && j?.existing) throw new DuplicateCustomerError(j.message, j.existing);
+  if (!res.ok || j?.status !== 'success') throw new Error(j?.message || 'Could not save the customer');
+  return j.data;
+};

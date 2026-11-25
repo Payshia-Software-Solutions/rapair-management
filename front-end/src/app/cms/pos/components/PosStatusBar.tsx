@@ -6,6 +6,8 @@ import { PrintQueueDialog } from "./Dialogs/PrintQueueDialog";
 import { fetchQueueLocationStatus, getKotRoute } from "@/lib/api/printqueue";
 import { requestPosLock } from "./PosLockScreen";
 import { usePOS } from "../context/POSContext";
+import { openShiftPanel, SHIFT_EVENT } from "./PosShiftGate";
+import { Wallet } from "lucide-react";
 
 /** Read the signed-in user's display name from the JWT (no network call). */
 function useSignedInUser() {
@@ -24,11 +26,11 @@ function useSignedInUser() {
 
 /**
  * Slim terminal status bar (bottom of the POS):
- * location (switchable only when the user has more than one), cashier,
+ * location (shown read-only), cashier,
  * connection state, and a live clock.
  */
 export const PosStatusBar: React.FC = () => {
-  const { locations, selectedLocation, setSelectedLocation } = usePOS();
+  const { locations, selectedLocation } = usePOS();
   const user = useSignedInUser();
   const [now, setNow] = useState<Date | null>(null);
   const [online, setOnline] = useState(true);
@@ -57,8 +59,15 @@ export const PosStatusBar: React.FC = () => {
     return () => { alive = false; clearInterval(t); };
   }, [selectedLocation]);
   const [queueOpen, setQueueOpen] = useState(false);
+  // Open cashier shift (told by PosShiftGate)
+  const { canCheckout } = usePOS();
+  const [shiftNo, setShiftNo] = useState<string | null>(null);
+  useEffect(() => {
+    const on = (e: Event) => setShiftNo((e as CustomEvent).detail?.shift_no || null);
+    window.addEventListener(SHIFT_EVENT, on);
+    return () => window.removeEventListener(SHIFT_EVENT, on);
+  }, []);
 
-  const posLocations = locations.filter((l: any) => Boolean(l.is_pos_active));
   const current = locations.find((l: any) => String(l.id) === String(selectedLocation));
 
   return (
@@ -68,20 +77,8 @@ export const PosStatusBar: React.FC = () => {
     >
       <span className="flex items-center gap-1.5 min-w-0">
         <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-        {posLocations.length > 1 ? (
-          <select
-            aria-label="Location"
-            value={selectedLocation}
-            onChange={(e) => setSelectedLocation(e.target.value)}
-            className="bg-transparent font-medium text-foreground truncate max-w-[220px] cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
-          >
-            {posLocations.map((l: any) => (
-              <option key={l.id} value={String(l.id)}>{l.name}</option>
-            ))}
-          </select>
-        ) : (
-          <span className="font-medium text-foreground truncate">{current?.name || "No location"}</span>
-        )}
+        {/* Read-only: the POS location is not switched from the terminal */}
+        <span className="font-medium text-foreground truncate">{current?.name || "No location"}</span>
       </span>
 
       {user && (
@@ -113,10 +110,21 @@ export const PosStatusBar: React.FC = () => {
       </button>
       <PrintQueueDialog open={queueOpen} onOpenChange={(v) => { setQueueOpen(v); if (!v && getKotRoute() === 'queue') fetchQueueLocationStatus().then(setKitchen).catch(() => {}); }} />
 
+      {canCheckout && (
+        <button
+          type="button"
+          onClick={openShiftPanel}
+          title="Shift: pay in, pay out, close and count the drawer"
+          className="ml-auto flex items-center gap-1.5 h-6 px-2 rounded-md text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Wallet className="w-3.5 h-3.5" aria-hidden="true" /> {shiftNo ? `Shift ${shiftNo}` : "Shift"}
+        </button>
+      )}
+
       <button
         type="button"
         onClick={requestPosLock}
-        className="ml-auto flex items-center gap-1.5 h-6 px-2 rounded-md text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className={`${canCheckout ? "" : "ml-auto "}flex items-center gap-1.5 h-6 px-2 rounded-md text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
         title="Lock the POS (Alt+L)"
       >
         <Lock className="w-3.5 h-3.5" aria-hidden="true" /> Lock

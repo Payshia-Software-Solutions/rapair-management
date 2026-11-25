@@ -124,7 +124,7 @@ export default function GrnPage() {
             {rows.length} GRNs
           </Badge>
           <Button asChild className="gap-2">
-            <Link href="/inventory/grn/new">
+            <Link href="/inventory/grn/new" data-tour="grn-new">
               <Plus className="w-4 h-4" />
               New GRN
             </Link>

@@ -99,9 +99,10 @@ class ServiceLocation extends Model {
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
         $ok = $this->db->execute();
+        $newId = $ok ? (int)$this->db->lastInsertId() : 0;
+        if ($newId && isset($data['pos_profile'])) $this->setPosProfile($newId, $data['pos_profile']);
         // Selling price list for the new location (null = Standard)
         if ($ok && (int)($data['price_list_id'] ?? 0) > 0) {
-            $newId = (int)$this->db->lastInsertId();
             $this->db->query("UPDATE {$this->table} SET price_list_id = :pl WHERE id = :id");
             $this->db->bind(':pl', (int)$data['price_list_id']);
             $this->db->bind(':id', $newId);
@@ -152,7 +153,21 @@ class ServiceLocation extends Model {
         $this->db->bind(':pl_set', array_key_exists('price_list_id', $data) ? 1 : 0);
         $this->db->bind(':pl', (int)($data['price_list_id'] ?? 0) ?: null);
         $this->db->bind(':updated_by', $userId);
-        return $this->db->execute();
+        $ok = $this->db->execute();
+        if ($ok && isset($data['pos_profile'])) $this->setPosProfile((int)$id, $data['pos_profile']);
+        return $ok;
+    }
+
+    /** Which POS screen the location uses. The column is added on first use (PosFloorSchema). */
+    public function setPosProfile($id, $profile) {
+        require_once __DIR__ . '/../helpers/PosFloorSchema.php';
+        $p = in_array($profile, PosFloorSchema::PROFILES, true) ? $profile : 'classic';
+        PosFloorSchema::run($this->db, function () use ($id, $p) {
+            $this->db->query("UPDATE service_locations SET pos_profile = :p WHERE id = :id");
+            $this->db->bind(':p', $p);
+            $this->db->bind(':id', (int)$id);
+            $this->db->execute();
+        });
     }
 
     public function delete($id) {

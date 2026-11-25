@@ -21,6 +21,8 @@ function badgeClass(s: string) {
   if (v === "fulfilled") return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
   if (v === "approved") return "bg-sky-500/10 text-sky-700 border-sky-500/20";
   if (v === "requested") return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+  if (v === "pending approval") return "bg-violet-500/10 text-violet-700 border-violet-500/20";
+  if (v === "rejected") return "bg-rose-500/10 text-rose-700 border-rose-500/20";
   return "bg-muted text-foreground";
 }
 
@@ -92,7 +94,7 @@ export default function StockRequestDetailsPage() {
             <ArrowLeft className="w-4 h-4" />
             Back
           </Button>
-          {id ? (
+          {id && hdr && ["Requested", "Approved"].includes(String(hdr.status)) ? (
             <Button asChild variant="outline" className="gap-2">
               <Link href={`/inventory/transfers/new?req=${encodeURIComponent(String(id))}`}>
                 <ArrowLeftRight className="w-4 h-4" />

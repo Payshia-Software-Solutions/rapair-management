@@ -5349,7 +5349,7 @@ class SchemaDefinition {
         'Default' => '0',
         'Extra' => '',
       ),
-      'last_login' => 
+      'last_login' =>
       array (
         'Field' => 'last_login',
         'Type' => 'datetime',
@@ -5358,7 +5358,16 @@ class SchemaDefinition {
         'Default' => NULL,
         'Extra' => '',
       ),
-      'latitude' => 
+      'dob' =>
+      array (
+        'Field' => 'dob',
+        'Type' => 'date',
+        'Null' => 'YES',
+        'Key' => '',
+        'Default' => NULL,
+        'Extra' => '',
+      ),
+      'latitude' =>
       array (
         'Field' => 'latitude',
         'Type' => 'decimal(10,8)',
@@ -12086,7 +12095,7 @@ class SchemaDefinition {
       'recipe_type' => 
       array (
         'Field' => 'recipe_type',
-        'Type' => 'enum(\'Standard\',\'A La Carte\',\'Recipe\')',
+        'Type' => 'enum(\'Standard\',\'A La Carte\',\'Recipe\',\'Buffet\')',
         'Null' => 'NO',
         'Key' => '',
         'Default' => 'Standard',
@@ -20595,7 +20604,7 @@ class SchemaDefinition {
       'status' => 
       array (
         'Field' => 'status',
-        'Type' => 'enum(\'Requested\',\'Approved\',\'Cancelled\',\'Fulfilled\')',
+        'Type' => 'enum(\'Pending Approval\',\'Requested\',\'Approved\',\'Rejected\',\'Cancelled\',\'Fulfilled\')',
         'Null' => 'NO',
         'Key' => 'MUL',
         'Default' => 'Requested',

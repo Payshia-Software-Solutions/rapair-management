@@ -19,6 +19,64 @@ class PromotionSchema {
         return (bool)$stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    private static $upgraded = false;
+
+    /**
+     * Scheduling, promo codes, usage limits, caps and line targets (runs on first use; one cheap
+     * check per request after that). Call before any transaction starts: ALTER commits implicitly.
+     */
+    public static function upgrade() {
+        if (self::$upgraded) return;
+        self::$upgraded = true;
+        try {
+            $db = new Database();
+            try {
+                $db->query("SHOW COLUMNS FROM promotion_benefits LIKE 'target_categories'");
+                if ($db->single()) return;
+            } catch (PDOException $e) {
+                self::ensure(true); // tables not created on this install yet
+            }
+
+            $pdo = self::pdo();
+            $cols = $pdo->query("DESCRIBE promotions")->fetchAll(PDO::FETCH_COLUMN);
+            $add = [
+                'start_time'   => "ADD COLUMN start_time TIME NULL AFTER end_date",
+                'end_time'     => "ADD COLUMN end_time TIME NULL AFTER start_time",
+                'days_of_week' => "ADD COLUMN days_of_week VARCHAR(20) NULL AFTER end_time",
+                'promo_code'   => "ADD COLUMN promo_code VARCHAR(50) NULL AFTER days_of_week",
+                'usage_limit'  => "ADD COLUMN usage_limit INT NOT NULL DEFAULT 0 AFTER promo_code",
+                'used_count'   => "ADD COLUMN used_count INT NOT NULL DEFAULT 0 AFTER usage_limit",
+                'max_discount' => "ADD COLUMN max_discount DECIMAL(12,2) NOT NULL DEFAULT 0 AFTER used_count",
+            ];
+            foreach ($add as $col => $sql) {
+                if (!in_array($col, $cols, true)) $pdo->exec("ALTER TABLE promotions $sql");
+            }
+            try { $pdo->exec("ALTER TABLE promotions ADD INDEX idx_promo_code (promo_code)"); } catch (Exception $e) {}
+
+            $pdo->exec("ALTER TABLE promotion_conditions MODIFY COLUMN condition_type ENUM('MinAmount', 'MinQty', 'ItemList', 'CollectionList', 'OrderType', 'BankCard', 'CardCategory') NOT NULL");
+
+            $pdo->exec("
+                CREATE TABLE IF NOT EXISTS promotion_usage (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    promotion_id INT NOT NULL,
+                    invoice_id INT NOT NULL,
+                    discount_amount DECIMAL(12,2) NOT NULL DEFAULT 0,
+                    used_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    reversed_at DATETIME NULL,
+                    INDEX idx_pu_promo (promotion_id),
+                    INDEX idx_pu_invoice (invoice_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+            ");
+
+            $bcols = $pdo->query("DESCRIBE promotion_benefits")->fetchAll(PDO::FETCH_COLUMN);
+            if (!in_array('target_items', $bcols, true)) $pdo->exec("ALTER TABLE promotion_benefits ADD COLUMN target_items TEXT NULL");
+            // Added last: its presence marks the upgrade as done
+            if (!in_array('target_categories', $bcols, true)) $pdo->exec("ALTER TABLE promotion_benefits ADD COLUMN target_categories TEXT NULL");
+        } catch (Exception $e) {
+            error_log("PromotionSchema upgrade error: " . $e->getMessage());
+        }
+    }
+
     public static function ensure($force = false) {
         if (!$force && !defined('FORCE_MIGRATIONS')) return;
         if (self::$done && !$force) return;

@@ -80,6 +80,14 @@ class PosController extends Controller {
         $db->bind(':locId', $locationId);
         $receipts = $db->resultSet();
 
+        // 5. Gift voucher sales and void refunds (money in the till that is not an invoice)
+        require_once '../app/helpers/GiftVoucherHelper.php';
+        $gv = GiftVoucherHelper::dayMovements($db, [$locationId], date('Y-m-d'));
+        $voucherSales = $gv['sales'];
+        $voucherRefunds = $gv['refunds'];
+        $totalVoucherSales = array_reduce($voucherSales, function($s, $i) { return $s + (float)$i->amount; }, 0);
+        $totalVoucherRefunds = array_reduce($voucherRefunds, function($s, $i) { return $s + (float)$i->amount; }, 0);
+
         // Calculate Totals and Method Summary
         $totalSales = array_reduce($invoices, function($s, $i) { return $s + (float)$i->amount; }, 0);
         $totalReturns = array_reduce($returns, function($s, $i) { return $s + (float)$i->amount; }, 0);
@@ -107,12 +115,26 @@ class PosController extends Controller {
             $methods[$m] -= (float)$r->amount;
         }
 
+        // Voucher sales add to their payment method; void refunds take it back out
+        foreach ($voucherSales as $r) {
+            $m = $r->payment_method ?: 'Cash';
+            if (!isset($methods[$m])) $methods[$m] = 0;
+            $methods[$m] += (float)$r->amount;
+        }
+        foreach ($voucherRefunds as $r) {
+            $m = $r->payment_method ?: 'Cash';
+            if (!isset($methods[$m])) $methods[$m] = 0;
+            $methods[$m] -= (float)$r->amount;
+        }
+
         // Merge all events for chronological ledger
         $events = [];
         foreach ($invoices as $v) $events[] = $v;
         foreach ($returns as $v) $events[] = $v;
         foreach ($refunds as $v) $events[] = $v;
         foreach ($receipts as $v) $events[] = $v;
+        foreach ($voucherSales as $v) $events[] = $v;
+        foreach ($voucherRefunds as $v) $events[] = $v;
 
         // Sort by time
         usort($events, function($a, $b) {
@@ -124,7 +146,9 @@ class PosController extends Controller {
                 'sales' => $totalSales,
                 'returns' => $totalReturns,
                 'refunds' => $totalRefunds,
-                'net' => $totalSales - $totalRefunds,
+                'voucher_sales' => $totalVoucherSales,
+                'voucher_refunds' => $totalVoucherRefunds,
+                'net' => $totalSales - $totalRefunds + $totalVoucherSales - $totalVoucherRefunds,
                 'methods' => $methods
             ],
             'events' => $events

@@ -13,7 +13,10 @@ class StorefrontNotifier {
     // ---------------------------------------------------------------- secrets at rest
 
     private static function key() {
-        $base = defined('TENANCY_MASTER_KEY') && defined('TENANT_SLUG') ? TENANCY_MASTER_KEY . ':' . TENANT_SLUG : (defined('JWT_SECRET') ? JWT_SECRET : 'bizzflow');
+        $base = defined('TENANCY_MASTER_KEY') && defined('TENANT_SLUG') ? TENANCY_MASTER_KEY . ':' . TENANT_SLUG : (defined('JWT_SECRET') && JWT_SECRET !== '' ? JWT_SECRET : null);
+        if ($base === null) {
+            throw new RuntimeException('StorefrontNotifier: no JWT_SECRET or tenancy key configured');
+        }
         return hash('sha256', 'storefront-site:' . $base, true);
     }
 

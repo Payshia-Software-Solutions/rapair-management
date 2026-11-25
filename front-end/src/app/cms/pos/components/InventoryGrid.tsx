@@ -38,6 +38,10 @@ import { fetchPosDayLedger } from "@/lib/api";
 import { signOut } from "@/lib/session";
 import { requestPosLock, getAutoLockMinutes, setAutoLockMinutes } from "./PosLockScreen";
 import { getKotRoute, setKotRoute, type KotRoute } from "@/lib/api/printqueue";
+import { erpHomeRoute } from "@/lib/home-route";
+
+// Back to ERP opens the company's chosen home dashboard (Company Profile), not a fixed page
+const goToErp = async () => { window.location.href = await erpHomeRoute(); };
 
 export const InventoryGrid: React.FC = () => {
   const {
@@ -92,8 +96,13 @@ export const InventoryGrid: React.FC = () => {
     setLayoutPref,
     appTheme,
     setAppTheme,
-    canCheckout
+    canCheckout,
+    promoItemIds,
+    promoCategoryIds
   } = usePOS();
+  // Item is in an offer running right now (item list or category)
+  const hasOffer = (p: any) => promoItemIds.has(Number(p.id)) || (Array.isArray(p.collection_ids) && p.collection_ids.some((c: any) => promoCategoryIds.has(Number(c))));
+  const offerBadge = <span className="inline-flex items-center rounded px-1 py-0 text-[8px] lg:text-[9px] font-black uppercase tracking-wider bg-rose-500 text-white">Offer</span>;
   // Steward = order-taking only: no sales/manager tools anywhere in the grid
   const isSteward = !canCheckout;
   const isCompact = posLayout === 'compact';
@@ -298,7 +307,7 @@ export const InventoryGrid: React.FC = () => {
     }
 
     // Sellable items first; sold-out items drop to the end (stable for the rest)
-    const isOut = (p: any) => Number(p.stock_quantity) <= 0 && p.item_type !== 'Service' && p.recipe_type !== 'A La Carte';
+    const isOut = (p: any) => Number(p.stock_quantity) <= 0 && p.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(p.recipe_type);
     return filtered
       .map((p, i) => ({ p, i, out: isOut(p) }))
       .sort((a, b) => (Number(a.out) - Number(b.out)) || (a.i - b.i))
@@ -401,7 +410,7 @@ export const InventoryGrid: React.FC = () => {
               variant="outline"
               size={isMobileMenu ? "default" : "icon"}
               className={`${btnClass} ${!isMobileMenu ? "hover:bg-primary/10 hover:border-primary hover:text-primary" : "bg-primary/10 text-primary"}`}
-              onClick={() => window.location.href = '../../dashboard'}
+              onClick={goToErp}
             >
               <LayoutDashboard className="w-5 h-5" />
               {isMobileMenu && <span className="font-black">Back to ERP</span>}
@@ -619,7 +628,7 @@ export const InventoryGrid: React.FC = () => {
                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Recipe Types</p>
               </div>
               
-              {['Standard', 'A La Carte', 'Recipe'].map(type => (
+              {['Standard', 'A La Carte', 'Buffet', 'Recipe'].map(type => (
                 <Button
                   key={type}
                   variant="ghost"
@@ -842,7 +851,7 @@ export const InventoryGrid: React.FC = () => {
             </div>
           )}
 
-          {/* Lock (Alt+L) — always visible, next to the menu */}
+          {/* Lock (Alt+L) â€” always visible, next to the menu */}
           <Button
             variant="outline"
             size="icon"
@@ -929,7 +938,7 @@ export const InventoryGrid: React.FC = () => {
                         <Row icon={Lock} label="Lock screen" onClick={requestPosLock} right={<kbd className="text-[10px] text-muted-foreground">Alt+L</kbd>} />
                         <Row icon={Keyboard} label="On-screen keyboard" onClick={() => setVKeyboardEnabled(!vKeyboardEnabled)} right={<Toggle on={vKeyboardEnabled} />} />
                         <Row icon={Barcode} label="Add to cart on scan" onClick={() => setAutoAddOnScan(!autoAddOnScan)} right={<Toggle on={autoAddOnScan} />} />
-                        <Row icon={RefreshCw} label={dataLoading ? 'Refreshing…' : 'Refresh items & prices'} onClick={reloadData} disabled={dataLoading} />
+                        <Row icon={RefreshCw} label={dataLoading ? 'Refreshingâ€¦' : 'Refresh items & prices'} onClick={reloadData} disabled={dataLoading} />
                       </Section>
 
                       <Section title="Display">
@@ -949,7 +958,7 @@ export const InventoryGrid: React.FC = () => {
                       <div className="py-1">
                         {isSteward
                           ? <Row icon={LogOut} label="Sign out" onClick={() => signOut()} />
-                          : <Row icon={LayoutDashboard} label="Back to ERP" onClick={() => { window.location.href = '../../dashboard'; }} />}
+                          : <Row icon={LayoutDashboard} label="Back to ERP" onClick={() => { goToErp(); }} />}
                       </div>
                     </div>
                   );
@@ -995,7 +1004,7 @@ export const InventoryGrid: React.FC = () => {
           <div className="px-2 lg:px-4 py-2 bg-amber-50/60 dark:bg-amber-500/5 border-b border-amber-100 dark:border-amber-500/10 flex items-center gap-2 overflow-x-auto custom-scrollbar shrink-0">
             <Star className="w-4 h-4 text-amber-500 fill-amber-400 shrink-0" />
             {favoriteProducts.map(p => {
-              const out = p.stock_quantity <= 0 && p.item_type !== 'Service' && p.recipe_type !== 'A La Carte';
+              const out = p.stock_quantity <= 0 && p.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(p.recipe_type);
               return (
                 <button
                   key={p.id}
@@ -1028,7 +1037,7 @@ export const InventoryGrid: React.FC = () => {
                 {effectiveGroupSource === 'category' ? 'Categories' : 'Collections'}
               </Button>
               <span className="text-sm font-medium truncate">{current}</span>
-              <span className="text-xs text-muted-foreground shrink-0">· {filteredInventory.length} {filteredInventory.length === 1 ? 'item' : 'items'}</span>
+              <span className="text-xs text-muted-foreground shrink-0">Â· {filteredInventory.length} {filteredInventory.length === 1 ? 'item' : 'items'}</span>
             </div>
           );
         })()}
@@ -1095,10 +1104,10 @@ export const InventoryGrid: React.FC = () => {
               ? 'grid grid-cols-3 gap-2'
               : 'grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-2 lg:gap-4'}>
               {filteredInventory.slice(0, visibleCount).map(product => {
-                const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
+                const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(product.recipe_type);
                 if (isCompact) {
                   // Compact POS tile: name + price only; stock shows only when it matters.
-                  const tracksStock = product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
+                  const tracksStock = product.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(product.recipe_type);
                   const qty = Number(product.stock_quantity || 0);
                   const isFav = favoriteIds.includes(String(product.id));
                   return (
@@ -1126,6 +1135,7 @@ export const InventoryGrid: React.FC = () => {
                         <span className={`font-black text-sm tabular-nums ${outOfStock ? 'text-slate-400' : 'text-slate-900 dark:text-white'}`}>
                           {Number(product.price || product.cost_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
+                        {hasOffer(product) && !outOfStock && offerBadge}
                         {tracksStock && outOfStock && (
                           <span className="text-[9px] font-black uppercase text-rose-500">Sold out</span>
                         )}
@@ -1147,6 +1157,7 @@ export const InventoryGrid: React.FC = () => {
                         <Badge variant={product.item_type === 'Service' ? 'secondary' : 'outline'} className="text-[8px] lg:text-[10px] tracking-widest uppercase px-1 py-0 w-fit">
                           {product.item_type}
                         </Badge>
+                        {hasOffer(product) && offerBadge}
                         {product.recipe_type && product.recipe_type !== 'Standard' && (
                           <Badge variant="outline" className={`text-[8px] lg:text-[10px] tracking-widest uppercase px-1 py-0 w-fit border-none ${product.recipe_type === 'A La Carte' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400'}`}>
                             {product.recipe_type}
@@ -1154,7 +1165,7 @@ export const InventoryGrid: React.FC = () => {
                         )}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        {product.item_type !== 'Service' && product.recipe_type !== 'A La Carte' && (
+                        {product.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(product.recipe_type) && (
                           <span className={`text-[8px] lg:text-[10px] font-black uppercase ${product.stock_quantity > 5 ? 'text-emerald-500' : 'text-orange-500'}`}>
                             {product.stock_quantity} <span className="hidden lg:inline">Left</span>
                           </span>
@@ -1220,7 +1231,7 @@ export const InventoryGrid: React.FC = () => {
 
 /**
  * Horizontal tab row that works with a mouse, not just touch:
- *  - ◀ ▶ buttons appear only when there is more to scroll
+ *  - â—€ â–¶ buttons appear only when there is more to scroll
  *  - mouse wheel scrolls sideways
  *  - click-and-drag scrolls (a drag never triggers a tab click)
  *  - the selected tab is kept in view

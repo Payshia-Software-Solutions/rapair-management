@@ -27,6 +27,12 @@ class SaasController extends Controller {
         ]);
     }
 
+    // GET /api/saas/dev_mode  Whether Nexus has developer mode on for this workspace (admins only see true).
+    public function dev_mode() {
+        $u = $this->requireAuth();
+        $this->success(['dev_mode' => $this->isAdmin($u) && SaasHelper::devMode()]);
+    }
+
     public function packages() {
         $packages = SaasHelper::getPackages();
         if (is_array($packages)) {

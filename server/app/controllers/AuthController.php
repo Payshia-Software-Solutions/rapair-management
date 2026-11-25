@@ -26,8 +26,21 @@ class AuthController extends Controller {
             return;
         }
 
+        // Lock-out after repeated failures (per account and per IP)
+        require_once __DIR__ . '/../helpers/LoginGuard.php';
+        if ($msg = LoginGuard::blocked($email)) {
+            $this->auditModel->write([
+                'user_id' => null, 'action' => 'login_locked', 'entity' => 'user', 'entity_id' => null,
+                'method' => 'POST', 'path' => $_SERVER['REQUEST_URI'] ?? '', 'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+                'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '', 'details' => json_encode(['email' => $email]),
+            ]);
+            $this->error($msg, 429);
+            return;
+        }
+
         $user = $this->userModel->getByEmail($email);
         $ok = $user && isset($user->password_hash) && password_verify($password, $user->password_hash);
+        if ($ok) LoginGuard::succeed($email); else LoginGuard::fail($email);
 
         $this->auditModel->write([
             'user_id' => $ok ? (int)$user->id : null,
@@ -451,6 +464,68 @@ class AuthController extends Controller {
         }
         $left = self::PIN_MAX_TRIES - $fails;
         $this->error("Wrong PIN. {$left} " . ($left === 1 ? 'try' : 'tries') . ' left.', 401);
+    }
+
+    // POST /api/auth/supervisor_pin {pin, action}
+    // A manager types their own lock-screen PIN on someone else's terminal to approve an action.
+    // Approvers: Admin role, or any role allowed to void POS bills (pos.void).
+    // Wrong tries count against the asking user, with the same lock-out as the lock screen.
+    public function supervisor_pin() {
+        $u = $this->requireAuth();
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { $this->error('Method Not Allowed', 405); return; }
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $pin = trim((string)($data['pin'] ?? ''));
+        $action = mb_substr(trim((string)($data['action'] ?? 'override')), 0, 60);
+        if ($pin === '') { $this->error('Enter the supervisor PIN.', 422); return; }
+
+        $me = $this->pinRow($u['sub']);
+        if ($me && !empty($me->pin_locked_until) && strtotime($me->pin_locked_until) > time()) {
+            $mins = max(1, (int)ceil((strtotime($me->pin_locked_until) - time()) / 60));
+            $this->error("Too many wrong PINs. Try again in {$mins} min.", 423);
+            return;
+        }
+
+        $db = new Database();
+        $db->query("
+            SELECT u.id, u.name, u.pin_hash
+            FROM users u
+            LEFT JOIN roles r ON r.id = u.role_id
+            WHERE u.pin_hash IS NOT NULL AND u.pin_hash <> '' AND COALESCE(u.is_active, 1) = 1
+              AND (LOWER(r.name) = 'admin' OR EXISTS (
+                    SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+                    WHERE rp.role_id = u.role_id AND p.perm_key = 'pos.void'))
+        ");
+        $approver = null;
+        foreach ($db->resultSet() as $row) {
+            if (password_verify($pin, (string)$row->pin_hash)) { $approver = $row; break; }
+        }
+
+        if ($approver) {
+            $db->query("UPDATE users SET pin_failed_count = 0, pin_locked_until = NULL WHERE id = :id");
+            $db->bind(':id', (int)$u['sub']);
+            $db->execute();
+            try {
+                $this->auditModel->write([
+                    'user_id' => (int)$approver->id, 'action' => 'supervisor_approve:' . $action, 'entity' => 'user', 'entity_id' => (int)$u['sub'],
+                    'method' => 'POST', 'path' => $_SERVER['REQUEST_URI'] ?? '',
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? '', 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
+                ]);
+            } catch (Exception $e) { /* audit must never block */ }
+            $this->success(['approved' => true, 'approver_id' => (int)$approver->id, 'approver_name' => $approver->name]);
+            return;
+        }
+
+        $fails = (int)($me->pin_failed_count ?? 0) + 1;
+        $lock = $fails >= self::PIN_MAX_TRIES;
+        $db->query("UPDATE users SET pin_failed_count = :f, pin_locked_until = :until WHERE id = :id");
+        $db->bind(':f', $lock ? 0 : $fails);
+        $db->bind(':until', $lock ? date('Y-m-d H:i:s', time() + self::PIN_LOCK_MINUTES * 60) : null);
+        $db->bind(':id', (int)$u['sub']);
+        $db->execute();
+        $this->pinAudit($u['sub'], 'supervisor_pin_failed');
+        if ($lock) { $this->error('Too many wrong PINs. Blocked for ' . self::PIN_LOCK_MINUTES . ' min.', 423); return; }
+        $left = self::PIN_MAX_TRIES - $fails;
+        $this->error("Not a supervisor PIN. {$left} " . ($left === 1 ? 'try' : 'tries') . ' left.', 401);
     }
 
     // GET /api/auth/permissions

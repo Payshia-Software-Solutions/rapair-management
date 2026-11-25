@@ -3315,6 +3315,14 @@
                 "Key": "",
                 "Default": "0",
                 "Extra": ""
+            },
+            "dob": {
+                "Field": "dob",
+                "Type": "date",
+                "Null": "YES",
+                "Key": "",
+                "Default": null,
+                "Extra": ""
             }
         },
         "indexes": {
@@ -7460,7 +7468,7 @@
             },
             "recipe_type": {
                 "Field": "recipe_type",
-                "Type": "enum('Standard','A La Carte','Recipe')",
+                "Type": "enum('Standard','A La Carte','Recipe','Buffet')",
                 "Null": "NO",
                 "Key": "",
                 "Default": "Standard",
@@ -12664,7 +12672,7 @@
             },
             "status": {
                 "Field": "status",
-                "Type": "enum('Requested','Approved','Cancelled','Fulfilled')",
+                "Type": "enum('Pending Approval','Requested','Approved','Rejected','Cancelled','Fulfilled')",
                 "Null": "NO",
                 "Key": "MUL",
                 "Default": "Requested",

@@ -158,6 +158,145 @@ class FinancialsController extends Controller {
         ]);
     }
 
+    /**
+     * GET /api/financials/cash_flow?from=&to=[&location_id=]   Statement of Cash Flows (indirect method)
+     *
+     * Every journal line in the period on a non-cash account is a cash effect of -(debit - credit):
+     * the books balance, so the cash change equals minus the movement of everything else.
+     * Lines are grouped by the level-3 section they sit under:
+     *   Operating   net profit (all income and expense), depreciation added back (122),
+     *               working capital: receivables, inventories, prepayments (11x) and current liabilities (21x)
+     *   Investing   non-current assets (12x except 122)
+     *   Financing   long-term borrowings (22x) and equity (3x)
+     * Cash = section 111 (cash in hand, bank, card clearing, cheques in hand).
+     * Year-end closing entries (FiscalClosing) only move profit into equity and are left out.
+     */
+    public function cash_flow() {
+        $this->requirePermission('accounting.read');
+        $this->loc = !empty($_GET['location_id']) && $_GET['location_id'] !== 'all' ? (int)$_GET['location_id'] : null;
+        $to = $this->d($_GET['to'] ?? null, date('Y-m-d'));
+        $from = $this->d($_GET['from'] ?? null, date('Y-m-01', strtotime($to)));
+
+        // Level-3 section of every account (walk up the parents)
+        $this->db->query("SELECT id, parent_id, level, code, name, type FROM acc_accounts");
+        $all = [];
+        foreach ($this->db->resultSet() ?: [] as $a) $all[(int)$a->id] = $a;
+        $l3 = function ($id) use ($all) {
+            $guard = 0;
+            while (isset($all[$id]) && (int)$all[$id]->level > 3 && $all[$id]->parent_id && $guard++ < 10) $id = (int)$all[$id]->parent_id;
+            return $all[$id] ?? null;
+        };
+
+        // Movements in the period per entry and account, without closing entries
+        $sql = "SELECT ji.entry_id, je.description, ji.account_id, SUM(ji.debit - ji.credit) AS v
+                FROM acc_journal_items ji JOIN acc_journal_entries je ON je.id = ji.entry_id
+                WHERE je.entry_date BETWEEN :from AND :to AND COALESCE(je.ref_type, '') <> 'FiscalClosing'"
+                . ($this->loc ? " AND je.location_id = :loc" : '') . " GROUP BY ji.entry_id, je.description, ji.account_id";
+        $this->db->query($sql);
+        $this->db->bind(':from', $from);
+        $this->db->bind(':to', $to);
+        if ($this->loc) $this->db->bind(':loc', $this->loc);
+
+        // Bucket of an account's level-3 section
+        $bucketOf = function ($sec) {
+            $code = $sec ? (string)$sec->code : '';
+            $type = $sec ? $sec->type : '';
+            if (strpos($code, '111') === 0) return 'cash';
+            if ($type === 'INCOME' || $type === 'EXPENSE') return 'pnl';
+            if (strpos($code, '122') === 0) return 'depr';
+            if (strpos($code, '12') === 0) return 'investing';
+            if (strpos($code, '22') === 0 || $type === 'EQUITY') return 'financing';
+            return 'operating';
+        };
+
+        // Non-cash transactions (IAS 7.43): an entry with no cash and no profit-or-loss line that
+        // reaches investing or financing (opening stock against capital, an asset bought with a loan)
+        // is left out of the statement and listed separately.
+        $byEntry = [];
+        foreach ($this->db->resultSet() ?: [] as $r) $byEntry[(int)$r->entry_id][] = $r;
+        $rows = [];
+        $nonCash = [];
+        foreach ($byEntry as $eid => $lines) {
+            $b = [];
+            foreach ($lines as $ln) $b[$bucketOf($l3((int)$ln->account_id))] = true;
+            if (!isset($b['cash']) && !isset($b['pnl']) && (isset($b['investing']) || isset($b['financing']))) {
+                $amt = 0.0;
+                foreach ($lines as $ln) if ((float)$ln->v > 0) $amt += (float)$ln->v;
+                $key = preg_replace('/:.*$/', '', (string)$lines[0]->description) ?: 'Other';
+                if (!isset($nonCash[$key])) $nonCash[$key] = ['description' => $key, 'count' => 0, 'amount' => 0.0];
+                $nonCash[$key]['count']++;
+                $nonCash[$key]['amount'] += $amt;
+                continue;
+            }
+            foreach ($lines as $ln) $rows[] = $ln;
+        }
+
+        $profit = 0.0; $depr = 0.0; $cashMove = 0.0;
+        $groups = ['operating' => [], 'investing' => [], 'financing' => []];
+        foreach ($rows as $r) {
+            $mv = (float)$r->v;
+            $sec = $l3((int)$r->account_id);
+            $code = $sec ? (string)$sec->code : '';
+            $type = $sec ? $sec->type : '';
+            if (strpos($code, '111') === 0) { $cashMove += $mv; continue; }
+            $effect = -$mv;
+            if ($type === 'INCOME' || $type === 'EXPENSE') { $profit += $effect; continue; }
+            if (strpos($code, '122') === 0) { $depr += $effect; continue; }
+            if (strpos($code, '12') === 0) $bucket = 'investing';
+            elseif (strpos($code, '22') === 0 || $type === 'EQUITY') $bucket = 'financing';
+            else $bucket = 'operating'; // 11x working capital, 21x current liabilities, anything unfiled
+            $key = $code ?: 'other';
+            if (!isset($groups[$bucket][$key])) $groups[$bucket][$key] = ['code' => $code, 'name' => $sec ? $sec->name : 'Other', 'amount' => 0.0];
+            $groups[$bucket][$key]['amount'] += $effect;
+        }
+
+        $tidy = function ($rows) {
+            $rows = array_values(array_filter(array_map(function ($x) { $x['amount'] = round($x['amount'], 2); return $x; }, $rows), fn($x) => abs($x['amount']) >= 0.005));
+            usort($rows, fn($a, $b) => strnatcmp($a['code'], $b['code']));
+            return $rows;
+        };
+        $wc = $tidy($groups['operating']);
+        $inv = $tidy($groups['investing']);
+        $fin = $tidy($groups['financing']);
+        $sum = fn($rows) => round(array_sum(array_column($rows, 'amount')), 2);
+
+        $operating = round($profit + $depr + $sum($wc), 2);
+        $investing = $sum($inv);
+        $financing = $sum($fin);
+        $net = round($operating + $investing + $financing, 2);
+
+        // Cash balances (section 111) before and at the end of the period
+        $cashBal = function ($beforeDate, $inclusive) use ($all, $l3) {
+            $sql = "SELECT ji.account_id, SUM(ji.debit - ji.credit) AS v FROM acc_journal_items ji JOIN acc_journal_entries je ON je.id = ji.entry_id
+                    WHERE je.entry_date " . ($inclusive ? '<=' : '<') . " :d" . ($this->loc ? " AND je.location_id = :loc" : '') . " GROUP BY ji.account_id";
+            $this->db->query($sql);
+            $this->db->bind(':d', $beforeDate);
+            if ($this->loc) $this->db->bind(':loc', $this->loc);
+            $t = 0.0;
+            foreach ($this->db->resultSet() ?: [] as $r) {
+                $s = $l3((int)$r->account_id);
+                if ($s && strpos((string)$s->code, '111') === 0) $t += (float)$r->v;
+            }
+            return round($t, 2);
+        };
+        $opening = $cashBal($from, false);
+        $closing = $cashBal($to, true);
+
+        $this->success([
+            'from' => $from, 'to' => $to,
+            'operating' => ['net_profit' => round($profit, 2), 'depreciation' => round($depr, 2), 'working_capital' => $wc, 'total' => $operating],
+            'investing' => ['lines' => $inv, 'total' => $investing],
+            'financing' => ['lines' => $fin, 'total' => $financing],
+            'net_change' => $net,
+            'opening_cash' => $opening,
+            'closing_cash' => $closing,
+            // Should be 0: opening + net change = closing (closing entries never touch cash)
+            'difference' => round($opening + $net - $closing, 2),
+            'cash_movement' => round($cashMove, 2),
+            'non_cash' => array_values(array_map(function ($x) { $x['amount'] = round($x['amount'], 2); return $x; }, $nonCash)),
+        ]);
+    }
+
     public function balance_sheet() {
         $this->requirePermission('accounting.read');
         $this->loc = !empty($_GET['location_id']) && $_GET['location_id'] !== 'all' ? (int)$_GET['location_id'] : null;

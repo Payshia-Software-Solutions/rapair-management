@@ -80,6 +80,12 @@ class ApprovalSchema {
             $pdo->exec("ALTER TABLE purchase_orders MODIFY status ENUM('Draft','Pending Approval','Approved','Sent','Partially Received','Received','Cancelled') NOT NULL DEFAULT 'Draft'");
         }
 
+        // Stock requests wait in 'Pending Approval'; a rejected one ends as 'Rejected'.
+        $col = $pdo->query("SELECT COLUMN_TYPE FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'stock_transfer_requisitions' AND COLUMN_NAME = 'status'")->fetchColumn();
+        if ($col && strpos($col, 'Pending Approval') === false) {
+            $pdo->exec("ALTER TABLE stock_transfer_requisitions MODIFY status ENUM('Pending Approval','Requested','Approved','Rejected','Cancelled','Fulfilled') NOT NULL DEFAULT 'Requested'");
+        }
+
         // Documents that only exist after approval (stock adjustments) keep their details here.
         if (!$pdo->query("SHOW COLUMNS FROM approval_requests LIKE 'payload'")->fetchColumn()) {
             $pdo->exec("ALTER TABLE approval_requests ADD COLUMN payload MEDIUMTEXT NULL AFTER summary");

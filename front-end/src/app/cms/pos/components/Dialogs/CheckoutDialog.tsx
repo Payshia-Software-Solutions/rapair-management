@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { usePOS } from "../../context/POSContext";
 import { fetchBankBranches } from "@/lib/api";
+import { CheckoutLoyaltyPanel } from "./CheckoutLoyaltyPanel";
+import { CheckoutVoucherPanel, CheckoutBankOffers, type AppliedVoucher } from "./CheckoutVoucherPanel";
 
 const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -83,26 +85,46 @@ export const CheckoutDialog: React.FC = () => {
   ]);
   const [editingPaymentIndex, setEditingPaymentIndex] = useState<number | null>(null);
 
+  // Gift vouchers used on this bill (pay before the other methods)
+  const [vouchers, setVouchers] = useState<AppliedVoucher[]>([]);
+  const voucherTotal = Math.round(vouchers.reduce((s, v) => s + v.amount, 0) * 100) / 100;
+  const due = Math.max(0, Math.round((totals.grandTotal - voucherTotal) * 100) / 100);
+
   // Sub-dialogs visibility
   const [cardDetailsOpen, setCardDetailsOpen] = useState(false);
   const [chequeDetailsOpen, setChequeDetailsOpen] = useState(false);
 
-  // Initialize amount when opening
+  useEffect(() => { if (checkoutOpen) setVouchers([]); }, [checkoutOpen]);
+  useEffect(() => { if (voucherTotal > totals.grandTotal + 0.001) setVouchers([]); }, [totals.grandTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Initialize when opening
   useEffect(() => {
     if (checkoutOpen) {
-       setAmountReceived(totals.grandTotal);
        setIsSplitPayment(false);
        setPaymentMethod('Cash');
-       setSplitPayments([{ id: '1', method: 'Cash', amount: totals.grandTotal, cardType: 'Visa', cardLast4: '', cardAuthCode: '', chequeNo: '', chequeBankName: '', chequeBranchName: '', chequeDate: new Date().toISOString().split('T')[0], chequePayee: '' }]);
+       // Every bill starts with empty card / cheque details (never carried over from the last bill)
+       setCardType('Visa'); setCardLast4(''); setCardAuthCode('');
+       setSelectedBankId(null); setSelectedCardCategory('Credit');
+       setChequeNo(''); setChequeBankName(''); setChequeBranchName('');
+       setChequeDate(new Date().toISOString().split('T')[0]); setChequePayee('');
+       setCardDetailsOpen(false); setChequeDetailsOpen(false); setEditingPaymentIndex(null);
     }
-  }, [checkoutOpen, totals.grandTotal]);
+  }, [checkoutOpen]);
+  // Amount follows what is due (opening, a voucher added, an offer changed), method stays
+  useEffect(() => {
+    if (checkoutOpen) {
+       setAmountReceived(due);
+       setSplitPayments([{ id: '1', method: 'Cash', amount: due, cardType: 'Visa', cardLast4: '', cardAuthCode: '', chequeNo: '', chequeBankName: '', chequeBranchName: '', chequeDate: new Date().toISOString().split('T')[0], chequePayee: '' }]);
+    }
+  }, [checkoutOpen, due]);
 
   const onConfirmCheckout = async () => {
     const paymentData = {
       isSplit: isSplitPayment,
       splitPayments: splitPayments,
       method: paymentMethod,
-      amount: Math.min(amountReceived, totals.grandTotal),
+      amount: Math.min(amountReceived, due),
+      vouchers: vouchers.map(v => ({ code: v.code, amount: v.amount })),
       cardType, cardLast4, cardAuthCode,
       chequeNo, chequeBankName, chequeBranchName, chequeDate, chequePayee
     };
@@ -169,8 +191,20 @@ export const CheckoutDialog: React.FC = () => {
               <div className="space-y-3">
                 <div className="bg-muted px-4 py-2.5 rounded-md flex justify-between items-center">
                   <span className="font-bold text-muted-foreground uppercase tracking-wider text-[10px]">Total Due</span>
-                  <span className="font-semibold text-xl tabular-nums text-foreground">LKR {money(totals.grandTotal)}</span>
+                  <span className="font-semibold text-xl tabular-nums text-foreground">LKR {money(due)}</span>
                 </div>
+                {voucherTotal > 0 && (
+                  <p className="text-[11px] text-muted-foreground px-1 -mt-2">Bill LKR {money(totals.grandTotal)} · gift vouchers LKR {money(voucherTotal)}</p>
+                )}
+
+                {/* Offers for paying with a particular bank card */}
+                <CheckoutBankOffers onPickCard={() => { setIsSplitPayment(false); setPaymentMethod("Card"); }} />
+
+                {/* Gift vouchers pay first; the rest is paid below */}
+                <CheckoutVoucherPanel vouchers={vouchers} setVouchers={setVouchers} grandTotal={totals.grandTotal} />
+
+                {/* Loyalty: pay part of the bill with points */}
+                <CheckoutLoyaltyPanel />
                 
                 {isSplitPayment && (
                   <div className="flex flex-col sm:flex-row gap-2">
@@ -178,9 +212,9 @@ export const CheckoutDialog: React.FC = () => {
                       <span className="text-[10px] font-bold text-blue-700 uppercase whitespace-nowrap mr-2">Paid</span>
                       <span className="font-black text-lg tabular-nums text-blue-800 dark:text-blue-400 truncate">LKR {totalPaid.toLocaleString()}</span>
                     </div>
-                    <div className={`flex-1 p-3 rounded-lg flex justify-between items-center border min-w-0 ${totalPaid >= totals.grandTotal ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30 text-emerald-700' : 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/30 text-rose-700'}`}>
+                    <div className={`flex-1 p-3 rounded-lg flex justify-between items-center border min-w-0 ${totalPaid >= due ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-900/30 text-emerald-700' : 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-900/30 text-rose-700'}`}>
                       <span className="text-[10px] font-bold uppercase whitespace-nowrap mr-2">Balance</span>
-                      <span className="font-black text-lg tabular-nums truncate">LKR {Math.max(0, totals.grandTotal - totalPaid).toLocaleString()}</span>
+                      <span className="font-black text-lg tabular-nums truncate">LKR {Math.max(0, due - totalPaid).toLocaleString()}</span>
                     </div>
                   </div>
                 )}
@@ -300,7 +334,7 @@ export const CheckoutDialog: React.FC = () => {
                           return (
                             <Button key={m} type="button" variant={active ? 'default' : 'outline'}
                               className={`h-10 text-sm font-medium transition-colors ${active ? '' : 'hover:border-primary/50'}`}
-                              onClick={() => { setPaymentMethod(m); if (amountReceived === 0) setAmountReceived(totals.grandTotal); }}
+                              onClick={() => { setPaymentMethod(m); if (amountReceived === 0) setAmountReceived(due); }}
                             >
                               {icons[m]} {m}
                             </Button>
@@ -361,7 +395,7 @@ export const CheckoutDialog: React.FC = () => {
                         />
                         {/* Quick cash: the notes a customer is most likely to hand over */}
                         <div className="grid grid-cols-4 gap-2">
-                          {quickCashOptions(totals.grandTotal).map(amt => (
+                          {quickCashOptions(due).map(amt => (
                             <Button key={amt} variant="secondary" size="sm" onClick={() => setAmountReceived(amt)} className={`font-medium tabular-nums h-9 rounded-md ${amountReceived === amt ? 'ring-2 ring-primary' : ''}`}>
                               {amt.toLocaleString()}
                             </Button>
@@ -370,10 +404,10 @@ export const CheckoutDialog: React.FC = () => {
                       </div>
                     )}
 
-                    {paymentMethod !== 'Credit' && amountReceived - totals.grandTotal > 0 && (
+                    {paymentMethod !== 'Credit' && amountReceived - due > 0 && (
                       <div className="flex items-center justify-between px-3 py-2 rounded-md border border-primary/30 bg-primary/5 animate-in fade-in slide-in-from-top-2">
                         <span className="text-sm font-medium">Change</span>
-                        <span className="font-semibold text-lg tabular-nums">LKR {money(amountReceived - totals.grandTotal)}</span>
+                        <span className="font-semibold text-lg tabular-nums">LKR {money(amountReceived - due)}</span>
                       </div>
                     )}
                   </div>
@@ -385,8 +419,8 @@ export const CheckoutDialog: React.FC = () => {
                 <Button 
                     onClick={onConfirmCheckout} 
                     disabled={submitting || 
-                        (isSplitPayment && totalPaid < totals.grandTotal) || 
-                        (!isSplitPayment && ((paymentMethod === 'Cheque' && !chequeNo) || (paymentMethod === 'Card' && !cardLast4)))
+                        (isSplitPayment && totalPaid < due) || 
+                        (!isSplitPayment && due > 0 && ((paymentMethod === 'Cheque' && !chequeNo) || (paymentMethod === 'Card' && !cardLast4)))
                     } 
                     className="flex-1 h-11 rounded-md"
                 >
@@ -437,7 +471,7 @@ export const CheckoutDialog: React.FC = () => {
                        const limit = Number(cust.credit_limit) || 0;
                        const outstanding = Number(cust.total_outstanding) || 0;
                        const available = limit - outstanding;
-                       const remainingAfterSale = available - totals.grandTotal;
+                       const remainingAfterSale = available - due;
                        const isOverLimit = remainingAfterSale < 0;
                        return (
                          <div className="space-y-4">
@@ -521,7 +555,7 @@ export const CheckoutDialog: React.FC = () => {
                         </Button>
                       ))}
                     </div>
-                    <Button variant="default" className="w-full h-11 rounded-md" onClick={() => setAmountReceived(totals.grandTotal)}>Exact amount</Button>
+                    <Button variant="default" className="w-full h-11 rounded-md" onClick={() => setAmountReceived(due)}>Exact amount</Button>
                   </div>
                 )}
 

@@ -74,6 +74,16 @@ class MarketingController extends Controller {
         } else if ($segment === 'active') {
              $db->query("SELECT * FROM customers WHERE is_active = 1");
              $customers = $db->resultSet();
+        } else if ($segment === 'loyalty' || $segment === 'loyalty_expiring' || strpos((string)$segment, 'loyalty_tier_') === 0) {
+             // Loyalty audiences: all members, one tier, or members with points expiring in 30 days
+             $sql = "SELECT DISTINCT c.id, c.name, c.phone, c.email FROM loyalty_members m JOIN customers c ON c.id = m.customer_id WHERE m.is_active = 1";
+             if ($segment === 'loyalty_expiring') {
+                 $sql .= " AND m.points_balance > 0 AND EXISTS (SELECT 1 FROM loyalty_ledger l WHERE l.member_id = m.id AND l.type IN ('earn','bonus')
+                     AND l.expires_at BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY))";
+             } else if ($segment !== 'loyalty') {
+                 $sql .= " AND m.tier_id = " . (int)substr((string)$segment, strlen('loyalty_tier_'));
+             }
+             try { $db->query($sql); $customers = $db->resultSet() ?: []; } catch (Exception $e) { $customers = []; }
         } else if (is_numeric($segment)) {
              // Custom Segment ID
              $db->query("SELECT name, phone, email, id FROM segment_contacts WHERE segment_id = :sid");

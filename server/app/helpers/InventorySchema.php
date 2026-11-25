@@ -315,6 +315,13 @@ class InventorySchema {
                         $pdo->exec("ALTER TABLE parts ADD COLUMN {$col} {$def}");
                     }
                 }
+                // Older databases have recipe_type without 'Buffet' (ADD COLUMN above skips existing columns)
+                try {
+                    $rt = $pdo->query("SHOW COLUMNS FROM parts LIKE 'recipe_type'")->fetch(PDO::FETCH_ASSOC);
+                    if ($rt && stripos($rt['Type'], 'Buffet') === false) {
+                        $pdo->exec("ALTER TABLE parts MODIFY COLUMN recipe_type {$cols['recipe_type']}");
+                    }
+                } catch (Exception $e2) {}
                 // Support fractional stock quantities (e.g., oils) with 3 decimals.
                 try { $pdo->exec("ALTER TABLE parts MODIFY COLUMN stock_quantity DECIMAL(12,3) NOT NULL DEFAULT 0.000"); } catch (Exception $e2) {}
                 // Unique SKU if possible (ignore duplicates / existing index)
@@ -464,7 +471,7 @@ class InventorySchema {
                     requisition_number VARCHAR(50) NOT NULL,
                     from_location_id INT NULL,
                     to_location_id INT NOT NULL,
-                    status ENUM('Requested','Approved','Cancelled','Fulfilled') NOT NULL DEFAULT 'Requested',
+                    status ENUM('Pending Approval','Requested','Approved','Rejected','Cancelled','Fulfilled') NOT NULL DEFAULT 'Requested',
                     requested_at DATETIME NULL,
                     notes TEXT NULL,
                     created_by INT NULL,

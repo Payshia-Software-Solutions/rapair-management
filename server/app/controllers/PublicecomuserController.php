@@ -131,12 +131,17 @@ class PublicecomuserController extends Controller {
             $this->error('Email and password required', 400);
         }
 
+        require_once __DIR__ . '/../helpers/LoginGuard.php';
+        if ($msg = LoginGuard::blocked((string)$data['email'], 'shop')) $this->error($msg, 429);
+
         $this->db->query("SELECT * FROM customers WHERE email = :email AND is_ecommerce_user = 1 AND is_active = 1 LIMIT 1");
         $this->db->bind(':email', $data['email']);
         $user = $this->db->single();
 
         // Accounts created with Google have no password, so they can only sign in with Google.
-        if ($user && !empty($user->password) && password_verify($data['password'], $user->password)) {
+        $okLogin = $user && !empty($user->password) && password_verify($data['password'], $user->password);
+        if ($okLogin) LoginGuard::succeed((string)$data['email'], 'shop'); else LoginGuard::fail((string)$data['email'], 'shop');
+        if ($okLogin) {
             $this->db->query("UPDATE customers SET last_login = NOW() WHERE id = :id");
             $this->db->bind(':id', $user->id);
             $this->db->execute();

@@ -8,11 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCompany, updateCompany, fetchTaxes, type CompanyRow } from "@/lib/api";
-import { Building2, Loader2, Save, Percent, CheckCircle2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
+import { Building2, Loader2, Save } from "lucide-react";
 import { CompanyLogoCard } from "./CompanyLogoCard";
 import { HomeDashboardCard } from "./HomeDashboardCard";
+import { TaxSetupCard } from "./TaxSetupCard";
 
 export default function AdminCompanyPage() {
   const { toast } = useToast();
@@ -69,8 +68,8 @@ export default function AdminCompanyPage() {
     void load();
   }, []);
 
-  const save = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const save = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const n = name.trim();
     if (!n) return;
 
@@ -174,55 +173,11 @@ export default function AdminCompanyPage() {
         <div className="space-y-6">
         <HomeDashboardCard />
         <CompanyLogoCard filename={company?.logo_filename} onChange={(f) => setCompany(prev => ({ ...(prev || {}), logo_filename: f } as CompanyRow))} />
-        <Card className="border-none shadow-md overflow-hidden">
-          <CardHeader className="border-b bg-muted/20">
-            <div className="flex items-center gap-2">
-              <Percent className="w-4 h-4 text-primary" />
-              <CardTitle className="text-lg">Applicable Taxes</CardTitle>
-            </div>
-            <CardDescription>Select which taxes apply to your invoices.</CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
-            {loading ? (
-              <div className="animate-pulse space-y-4">
-                {[1, 2, 3].map(i => <div key={i} className="h-10 bg-muted rounded-lg" />)}
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {allTaxes.map((tax) => (
-                  <div 
-                    key={tax.id} 
-                    className={cn(
-                      "flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer",
-                      enabledTaxIds.includes(tax.id) 
-                        ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" 
-                        : "bg-background border-border hover:border-border/80"
-                    )}
-                    onClick={() => toggleTax(tax.id)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Checkbox 
-                        checked={enabledTaxIds.includes(tax.id)}
-                        onCheckedChange={() => toggleTax(tax.id)}
-                      />
-                      <div className="grid">
-                        <span className="text-sm font-bold tracking-tight">{tax.name} ({tax.code})</span>
-                        <span className="text-[10px] text-muted-foreground uppercase">{tax.rate_percent}% • {tax.apply_on}</span>
-                      </div>
-                    </div>
-                    {enabledTaxIds.includes(tax.id) && <CheckCircle2 className="w-4 h-4 text-primary" />}
-                  </div>
-                ))}
-                {allTaxes.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground text-sm italic">
-                    No active taxes found in master data.
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <TaxSetupCard loading={loading} saving={saving} allTaxes={allTaxes} enabledTaxIds={enabledTaxIds} onToggle={toggleTax} onSave={() => void save()} />
       </div>
     </DashboardLayout>
   );

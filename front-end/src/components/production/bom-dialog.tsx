@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { api, fetchParts, PartRow } from '@/lib/api'
 import { SearchableSelect } from '@/components/ui/searchable-select'
@@ -161,67 +162,85 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
       label: `${p.part_name} (${p.sku || 'No SKU'})`
     }))
 
+
+  const outPart = parts.find(p => String(p.id) === outputPartId)
+  const outUnit = outPart?.unit || ''
+  const outQtyNum = Number(outputQty) || 0
+  const partOptions = parts.map(p => ({ value: String(p.id), label: `${p.part_name} (${p.sku || 'No SKU'})` }))
+  // Yield: only meaningful when every input uses the same unit as the output (e.g. 5 kg raw -> 4 kg cleaned).
+  const inputQtySameUnit = items.reduce((s, i) => s + Number(i.qty || 0), 0)
+  const sameUnit = !!outUnit && items.length > 0 && items.every(i => parts.find(p => p.id === i.part_id)?.unit === outUnit)
+  const yieldPct = sameUnit && inputQtySameUnit > 0 ? (outQtyNum / inputQtySameUnit) * 100 : null
+  const money = (v: number) => v.toLocaleString('en-LK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{bom ? 'Edit BOM' : 'Create New BOM'}</DialogTitle>
+      <DialogContent className="flex max-h-[92vh] max-w-5xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="border-b px-5 py-3">
+          <DialogTitle className="text-base">{bom ? 'Edit Bill of Materials' : 'New Bill of Materials'}</DialogTitle>
+          <p className="text-xs text-muted-foreground">Materials used to make one batch of a product, and how much it gives.</p>
         </DialogHeader>
 
-        <div className="space-y-6 py-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="col-span-2 space-y-2">
-              <Label>BOM Name</Label>
-              <Input placeholder="e.g. Standard Recipe" value={name} onChange={e => setName(e.target.value)} />
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {/* Header fields */}
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+            <div className="space-y-1 md:col-span-5">
+              <Label className="text-xs">Name <span className="text-destructive">*</span></Label>
+              <Input className="h-9 text-sm" placeholder="e.g. Chicken cleaning" value={name} onChange={e => setName(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Version</Label>
-              <Input placeholder="1.0" value={version} onChange={e => setVersion(e.target.value)} />
+            <div className="space-y-1 md:col-span-2">
+              <Label className="text-xs">Version</Label>
+              <Input className="h-9 text-sm" placeholder="1.0" value={version} onChange={e => setVersion(e.target.value)} />
             </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <div className="flex items-center gap-2 h-10 border rounded px-3 bg-muted/20">
-                 <input type="checkbox" checked={isActive} onChange={e => setIsActive(e.target.checked)} id="bom_active" />
-                 <Label htmlFor="bom_active" className="cursor-pointer">Active</Label>
+            <div className="space-y-1 md:col-span-5">
+              <Label className="text-xs">Status</Label>
+              <label className="flex h-9 cursor-pointer items-center gap-2 rounded-md border px-3 text-sm">
+                <Switch checked={isActive} onCheckedChange={setIsActive} />
+                <span className={isActive ? 'font-medium text-emerald-600' : 'text-muted-foreground'}>{isActive ? 'Active' : 'Draft'}</span>
+                <span className="ml-auto hidden text-[11px] text-muted-foreground sm:inline">Only active BOMs are used for production</span>
+              </label>
+            </div>
+          </div>
+
+          {/* Output */}
+          <div className="rounded-lg border bg-muted/20 p-3">
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Makes (output)</div>
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+              <div className="space-y-1 md:col-span-8">
+                <Label className="text-xs">Finished product <span className="text-destructive">*</span></Label>
+                <SearchableSelect placeholder="Select product..." options={finishedProductOptions} value={outputPartId}
+                  onValueChange={setOutputPartId} disablePortal={true} triggerClassName="h-9 text-sm" />
+              </div>
+              <div className="space-y-1 md:col-span-4">
+                <Label className="text-xs">Output quantity (per batch)</Label>
+                <div className="relative">
+                  <Input type="number" step="0.001" min="0" className={`h-9 text-sm tabular-nums ${outUnit ? 'pr-12' : ''}`}
+                    value={outputQty} onChange={e => setOutputQty(e.target.value)} />
+                  {outUnit && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{outUnit}</span>}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Finished Product (Output)</Label>
-              <SearchableSelect
-                placeholder="Select product..."
-                options={finishedProductOptions}
-                value={outputPartId}
-                onValueChange={setOutputPartId}
-                disablePortal={true}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Output Yield Quantity</Label>
-              <Input type="number" step="0.001" value={outputQty} onChange={e => setOutputQty(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="space-y-4">
+          {/* Components */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label className="text-lg font-bold">Components (Materials)</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addItem} className="gap-2">
-                <Plus className="w-4 h-4" /> Add Item
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Uses (materials) · {items.length}</div>
+              <Button type="button" variant="outline" size="sm" onClick={addItem} className="h-8 gap-1.5 border-dashed">
+                <Plus className="h-4 w-4" /> Add material
               </Button>
             </div>
 
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 border-b">
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th className="px-4 py-2 text-left">Component Part</th>
-                    <th className="px-4 py-2 text-right w-28">Unit Cost</th>
-                    <th className="px-4 py-2 text-left w-24">Qty</th>
-                    <th className="px-4 py-2 text-left w-20">Unit</th>
-                    <th className="px-4 py-2 text-right w-28">Total Cost</th>
-                    <th className="px-4 py-2 text-center w-12"></th>
+                    <th className="w-8 px-2 py-1.5 text-left font-medium">#</th>
+                    <th className="px-2 py-1.5 text-left font-medium">Material</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">Unit cost</th>
+                    <th className="w-36 px-2 py-1.5 text-left font-medium">Qty</th>
+                    <th className="w-28 px-2 py-1.5 text-right font-medium">Cost</th>
+                    <th className="w-9" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -229,38 +248,31 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
                     const part = parts.find(p => p.id === item.part_id)
                     const costPrice = part?.cost_price ? Number(part.cost_price) : 0
                     const lineTotal = costPrice * Number(item.qty || 0)
-
+                    const unit = part?.unit || ''
                     return (
-                      <tr key={idx} className="hover:bg-muted/10">
-                        <td className="p-2">
-                          <SearchableSelect
-                            placeholder="Search part..."
-                            options={parts.map(p => ({ value: String(p.id), label: `${p.part_name} (${p.sku || 'No SKU'})` }))}
-                            value={String(item.part_id)}
+                      <tr key={idx} className="align-middle">
+                        <td className="px-2 py-1.5 text-xs text-muted-foreground">{idx + 1}</td>
+                        <td className="px-2 py-1.5">
+                          <SearchableSelect placeholder="Search material..." options={partOptions}
+                            value={item.part_id ? String(item.part_id) : ''}
                             onValueChange={(val) => handleItemChange(idx, 'part_id', Number(val))}
-                            disablePortal={true}
-                          />
+                            disablePortal={true} triggerClassName="h-8 text-sm" />
                         </td>
-                        <td className="p-2 text-right font-medium">
-                          {costPrice.toFixed(2)}
+                        <td className="px-2 py-1.5 text-right text-xs tabular-nums text-muted-foreground">
+                          {part ? `${money(costPrice)}${unit ? ` / ${unit}` : ''}` : '—'}
                         </td>
-                        <td className="p-2">
-                          <Input 
-                            type="number" 
-                            step="0.001" 
-                            value={item.qty} 
-                            onChange={e => handleItemChange(idx, 'qty', e.target.value)} 
-                          />
+                        <td className="px-2 py-1.5">
+                          <div className="relative">
+                            <Input type="number" step="0.001" min="0" value={item.qty}
+                              onChange={e => handleItemChange(idx, 'qty', e.target.value)}
+                              className={`h-8 text-sm tabular-nums ${unit ? 'pr-11' : ''}`} aria-label={`Quantity for material ${idx + 1}`} />
+                            {unit && <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">{unit}</span>}
+                          </div>
                         </td>
-                        <td className="p-2 text-left font-medium text-muted-foreground">
-                          {part?.unit || '-'}
-                        </td>
-                        <td className="p-2 text-right font-semibold text-slate-900 dark:text-white">
-                          {lineTotal.toFixed(2)}
-                        </td>
-                        <td className="p-2 text-center">
-                          <Button variant="ghost" size="icon" className="text-destructive h-8 w-8" onClick={() => removeItem(idx)}>
-                            <Trash2 className="w-4 h-4" />
+                        <td className="px-2 py-1.5 text-right text-xs font-medium tabular-nums">{part ? money(lineTotal) : '—'}</td>
+                        <td className="px-1 py-1.5">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => removeItem(idx)} aria-label={`Remove material ${idx + 1}`}>
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </td>
                       </tr>
@@ -268,49 +280,48 @@ export function ProductionBOMDialog({ open, onOpenChange, onSuccess, bom }: BOMD
                   })}
                   {items.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground italic">
-                        No components added. Click "Add Item" to start.
+                      <td colSpan={6} className="px-4 py-6 text-center text-sm text-muted-foreground">
+                        No materials yet. <button type="button" onClick={addItem} className="font-medium text-primary hover:underline">Add the first one</button>
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
             </div>
+          </div>
 
-            {/* Calculations Summary Card */}
-            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center p-4 bg-muted/40 border rounded-lg gap-4">
-              <div className="space-y-1">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total BOM Material Cost</span>
-                <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                  {totalBOMCost.toFixed(2)}
-                </div>
-              </div>
-              <div className="border-t sm:border-t-0 sm:border-l border-muted-foreground/20 sm:pl-6 pt-3 sm:pt-0 space-y-1">
-                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Output Yield Qty</span>
-                <div className="text-xl font-bold text-slate-800 dark:text-slate-100">
-                  {Number(outputQty || 1).toFixed(3)}
-                </div>
-              </div>
-              <div className="border-t sm:border-t-0 sm:border-l border-muted-foreground/20 sm:pl-6 pt-3 sm:pt-0 space-y-1">
-                <span className="text-xs font-semibold text-primary uppercase tracking-wider">Finished Product Unit Cost</span>
-                <div className="text-2xl font-black text-primary">
-                  {finishedUnitCost.toFixed(2)}
-                </div>
+          {/* Summary */}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-lg border p-2.5">
+              <div className="text-[11px] text-muted-foreground">Material cost</div>
+              <div className="text-sm font-semibold tabular-nums">LKR {money(totalBOMCost)}</div>
+            </div>
+            <div className="rounded-lg border p-2.5">
+              <div className="text-[11px] text-muted-foreground">Output</div>
+              <div className="text-sm font-semibold tabular-nums">{outQtyNum.toLocaleString('en-LK', { maximumFractionDigits: 3 })} {outUnit}</div>
+            </div>
+            <div className="rounded-lg border p-2.5">
+              <div className="text-[11px] text-muted-foreground">Yield</div>
+              <div className={`text-sm font-semibold tabular-nums ${yieldPct !== null && yieldPct < 100 ? 'text-amber-600' : ''}`}>
+                {yieldPct === null ? <span className="font-normal text-muted-foreground">—</span>
+                  : `${yieldPct.toFixed(1)}% · loss ${Math.max(0, inputQtySameUnit - outQtyNum).toLocaleString('en-LK', { maximumFractionDigits: 3 })} ${outUnit}`}
               </div>
             </div>
-
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-2.5">
+              <div className="text-[11px] text-primary">Cost per {outUnit || 'unit'}</div>
+              <div className="text-base font-bold tabular-nums text-primary">LKR {money(finishedUnitCost)}</div>
+            </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={loading} className="gap-2">
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {bom ? 'Save Changes' : 'Create BOM'}
+        <DialogFooter className="border-t px-5 py-3">
+          <Button size="sm" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleSubmit} disabled={loading} className="gap-2">
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {bom ? 'Save changes' : 'Create BOM'}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   )
 }
-

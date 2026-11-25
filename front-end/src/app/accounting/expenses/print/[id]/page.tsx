@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { api, fetchCompany } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PrintDocument, PrintNotes, PrintTable, PrintTotals, fmtMoney } from "@/components/print/PrintDocument";
 import { Loader2, Printer, ArrowLeft, FileText, CreditCard, ArrowUpRight } from "lucide-react";
 import { amountToWords } from "@/lib/utils/number-to-words";
 import { format } from "date-fns";
@@ -46,7 +47,7 @@ export default function ExpensePrintPage() {
     }, [id]);
 
     useEffect(() => {
-        if (autoPrint && !loading && expense && !printedRef.current) {
+        if (autoPrint && formatType !== "voucher" && !loading && expense && !printedRef.current) {
             printedRef.current = true;
             setTimeout(() => window.print(), 500);
         }
@@ -66,6 +67,36 @@ export default function ExpensePrintPage() {
     }
 
     const words = amountToWords(expense.amount);
+
+    // The voucher uses the shared document layout; cheque and TT keep their bank-form layouts
+    if (formatType === "voucher") {
+        return (
+            <PrintDocument
+                title="Payment Voucher"
+                number={expense.voucher_no || `EXP-${expense.id}`}
+                size="A5-landscape"
+                autoPrint={autoPrint}
+                company={company}
+                meta={[
+                    ["Pay to", expense.payee_name || "–"],
+                    ["Date", format(new Date(expense.payment_date), "d MMM yyyy")],
+                    ["Expense account", expense.expense_account_name || "–"],
+                    ["Method", expense.payment_method || "–"],
+                    ...(expense.cheque_no ? [["Cheque no", expense.cheque_no] as [string, string]] : []),
+                    ...(expense.tt_ref_no ? [["TT ref", expense.tt_ref_no] as [string, string]] : []),
+                    ...(expense.reference_no ? [["Reference", expense.reference_no] as [string, string]] : []),
+                ]}
+                signatures={["Prepared by", "Authorized by", "Received by"]}
+            >
+                <PrintTable
+                    columns={[{ key: "desc", label: "Description" }, { key: "amt", label: "Amount (LKR)", align: "right", width: "34mm" }]}
+                    rows={[{ desc: expense.notes || expense.expense_account_name || "Payment", amt: fmtMoney(expense.amount) }]}
+                />
+                <PrintTotals lines={[{ label: "Total", value: fmtMoney(expense.amount), grand: true }]} />
+                <PrintNotes label="Amount in words">{words}</PrintNotes>
+            </PrintDocument>
+        );
+    }
 
     const pageSizeCss = formatType === 'voucher'
         ? '@page { size: A5 landscape; margin: 8mm; }'

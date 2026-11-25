@@ -817,7 +817,7 @@ export default function NewGrnPage() {
                   <Button type="button" variant="outline" onClick={() => router.push("/inventory/grn")} disabled={saving}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="gap-2" disabled={saving || loading}>
+                  <Button type="submit" className="gap-2" data-tour="grn-save" disabled={saving || loading}>
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCheck className="w-4 h-4" />}
                     Receive
                   </Button>

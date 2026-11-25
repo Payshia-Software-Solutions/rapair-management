@@ -144,6 +144,10 @@ class ReturnController extends Controller {
                 $this->refundModel->create($refData);
             }
 
+            // Loyalty: earned points come back in proportion to what was returned
+            require_once '../app/helpers/LoyaltyHelper.php';
+            LoyaltyHelper::reverseForReturn(new Database(), (int)($data['invoice_id'] ?? 0), (float)($data['total_amount'] ?? 0), $returnNo, (int)$u['sub']);
+
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'action' => 'create',

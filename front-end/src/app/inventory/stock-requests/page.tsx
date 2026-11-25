@@ -8,14 +8,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { approveRequisition, fetchRequisitions, type StockRequisitionRow } from "@/lib/api";
-import { Loader2, Plus, RefreshCcw, ArrowLeftRight, CheckCircle2 } from "lucide-react";
+import { fetchRequisitions, type StockRequisitionRow } from "@/lib/api";
+import { Loader2, Plus, RefreshCcw, ArrowLeftRight, CheckCircle2, Hourglass } from "lucide-react";
 
 function badgeClass(s: string) {
   const v = String(s || "").toLowerCase();
   if (v === "fulfilled") return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
   if (v === "approved") return "bg-sky-500/10 text-sky-700 border-sky-500/20";
   if (v === "requested") return "bg-amber-500/10 text-amber-700 border-amber-500/20";
+  if (v === "pending approval") return "bg-violet-500/10 text-violet-700 border-violet-500/20";
+  if (v === "rejected") return "bg-rose-500/10 text-rose-700 border-rose-500/20";
   return "bg-muted text-foreground";
 }
 
@@ -23,7 +25,6 @@ export default function StockRequestsPage() {
   const { toast } = useToast();
   const [rows, setRows] = useState<StockRequisitionRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [approvingId, setApprovingId] = useState<number | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -42,27 +43,23 @@ export default function StockRequestsPage() {
     void load();
   }, []);
 
-  const approve = async (id: number) => {
-    setApprovingId(id);
-    try {
-      await approveRequisition(String(id));
-      toast({ title: "Approved", description: "Stock request approved." });
-      await load();
-    } catch (e: any) {
-      toast({ title: "Error", description: e?.message || "Failed to approve request", variant: "destructive" });
-    } finally {
-      setApprovingId(null);
-    }
-  };
+  const [filter, setFilter] = useState<string>("All");
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { All: rows.length };
+    for (const r of rows) c[String(r.status)] = (c[String(r.status)] ?? 0) + 1;
+    return c;
+  }, [rows]);
 
   const enriched = useMemo(() => {
-    return (rows ?? []).map((r) => {
+    return (rows ?? []).filter((r) => filter === "All" || String(r.status) === filter).map((r) => {
       const req = Number(r.total_qty_requested ?? 0);
       const ful = Number(r.total_qty_fulfilled ?? 0);
       const pct = req > 0 ? Math.max(0, Math.min(100, Math.round((ful / req) * 100))) : 0;
       return { ...r, _req: req, _ful: ful, _pct: pct };
     });
-  }, [rows]);
+  }, [rows, filter]);
+
+  const FILTERS = ["All", "Pending Approval", "Requested", "Approved", "Rejected", "Fulfilled"];
 
   return (
     <DashboardLayout>
@@ -88,16 +85,24 @@ export default function StockRequestsPage() {
       <Card className="border-none shadow-md overflow-hidden">
         <CardHeader className="border-b bg-muted/20">
           <CardTitle className="text-lg">Requests</CardTitle>
-          <CardDescription>Open requests (Requested/Approved)</CardDescription>
+          <CardDescription>Pending approval, requested and approved requests</CardDescription>
+          <div className="flex flex-wrap gap-2 pt-3" role="tablist" aria-label="Filter by status">
+            {FILTERS.filter((f) => f === "All" || counts[f]).map((f) => (
+              <button key={f} type="button" role="tab" aria-selected={filter === f} onClick={() => setFilter(f)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${filter === f ? "border-primary bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                {f} <span className="ml-1 opacity-70">{counts[f] ?? 0}</span>
+              </button>
+            ))}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
-          {loading ? (
+          {loading && rows.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
               <p className="text-muted-foreground">Loading requests...</p>
             </div>
           ) : enriched.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">No requests yet.</div>
+            <div className="py-12 text-center text-muted-foreground">{filter === "All" ? "No requests yet." : `No ${filter.toLowerCase()} requests.`}</div>
           ) : (
             <Table>
               <TableHeader className="bg-muted/30">
@@ -135,22 +140,21 @@ export default function StockRequestsPage() {
                     <TableCell className="text-right">
                       <div className="inline-flex items-center gap-2">
                         <Button asChild size="sm" variant="outline">
-                          <Link href={`/inventory/stock-requests/${r.id}`}>View</Link>
+                          <Link href={`/inventory/stock-requests/${r.id}`}>{String(r.status) === "Requested" ? "View & approve" : "View"}</Link>
                         </Button>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/inventory/transfers/new?req=${r.id}`} className="gap-2">
-                            <ArrowLeftRight className="w-4 h-4" />
-                            Create Transfer
-                          </Link>
-                        </Button>
-                        {String(r.status) === "Requested" ? (
-                          <Button size="sm" onClick={() => void approve(r.id)} disabled={approvingId === r.id} className="gap-2">
-                            <CheckCircle2 className="w-4 h-4" />
-                            {approvingId === r.id ? "Approving..." : "Approve"}
+                        {["Requested", "Approved"].includes(String(r.status)) && (
+                          <Button asChild size="sm" variant="outline">
+                            <Link href={`/inventory/transfers/new?req=${r.id}`} className="gap-2">
+                              <ArrowLeftRight className="w-4 h-4" />
+                              Create Transfer
+                            </Link>
                           </Button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
                         )}
+                        {String(r.status) === "Pending Approval" ? (
+                          <Button asChild size="sm" variant="outline" className="gap-2 border-violet-500/30 text-violet-700">
+                            <Link href="/approvals/inbox"><Hourglass className="w-4 h-4" /> In approval</Link>
+                          </Button>
+                        ) : null}
                       </div>
                     </TableCell>
                   </TableRow>

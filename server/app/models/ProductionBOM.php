@@ -52,7 +52,7 @@ class ProductionBOM extends Model {
     }
 
     public function getAll($filters = []) {
-        $sql = "SELECT b.*, p.part_name as output_part_name, p.sku as output_sku 
+        $sql = "SELECT b.*, p.part_name as output_part_name, p.sku as output_sku, p.unit as output_unit, p.cost_price as output_cost 
                 FROM {$this->table} b
                 JOIN parts p ON b.output_part_id = p.id
                 WHERE 1=1";

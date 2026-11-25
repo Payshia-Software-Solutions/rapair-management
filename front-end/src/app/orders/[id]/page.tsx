@@ -23,6 +23,7 @@ import {
   fetchOrder,
   fetchOrderParts,
   fetchParts,
+  fetchPartBatches,
   completeOrder,
   updateOrder,
   updateOrderRelease,

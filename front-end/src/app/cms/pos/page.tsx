@@ -14,11 +14,13 @@ import { VirtualKeyboard } from "./components/VirtualKeyboard";
 import { MobilePosNav } from "./components/MobilePosNav";
 import { PosStatusBar } from "./components/PosStatusBar";
 import { PosLockScreen } from "./components/PosLockScreen";
+import { PosShiftGate } from "./components/PosShiftGate";
 import { VoidApprovalDialog } from "./components/Dialogs/VoidApprovalDialog";
 import { CompApprovalDialog } from "./components/Dialogs/CompApprovalDialog";
 import { PrintSelectionDialog } from "./components/Dialogs/PrintSelectionDialog";
 import { PrintGuestSelectionDialog } from "./components/Dialogs/PrintGuestSelectionDialog";
-import { Loader2 } from "lucide-react";
+import { PosLoadingScreen } from "./components/PosLoadingScreen";
+import { RestaurantHome } from "./components/RestaurantHome";
 import { 
   Dialog, 
   DialogContent, 
@@ -59,8 +61,14 @@ function POSContent() {
     posLayout,
     cartWidth,
     permsReady,
-    totals
+    totals,
+    loadProgress,
+    company,
+    posProfile,
+    orderType
   } = usePOS();
+  // Restaurant locations open on the floor (tables) until a table or order type is chosen
+  const LeftPanel = posProfile.floorPlan && !orderType ? RestaurantHome : InventoryGrid;
 
   const cartItemCount = cart.reduce((acc, it) => acc + Number(it.quantity), 0);
 
@@ -68,14 +76,7 @@ function POSContent() {
   // Wait for permissions too, so stewards never see cashier tools flash on screen
   if (loading || !permsReady) {
     return (
-      <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-primary opacity-20" />
-          <p className="text-xs font-black uppercase tracking-widest text-muted-foreground animate-pulse">
-            Initializing Terminal...
-          </p>
-        </div>
-      </div>
+      <PosLoadingScreen done={loadProgress.done} total={loadProgress.total} extraWait={!permsReady} companyName={(company as any)?.name} />
     );
   }
 
@@ -146,7 +147,7 @@ function POSContent() {
           </div>
 
           <TabsContent value="shelf" className="flex-1 mt-0 overflow-hidden">
-            <InventoryGrid />
+            <LeftPanel />
           </TabsContent>
           <TabsContent value="bill" className="flex-1 mt-0 overflow-hidden">
             <SidebarCart />
@@ -159,7 +160,7 @@ function POSContent() {
       {posLayout !== 'mobile' && (
       <div className="flex flex-1 overflow-hidden min-w-0">
         <div className="flex-1 h-full overflow-hidden min-w-0">
-          <InventoryGrid />
+          <LeftPanel />
         </div>
         <div className="h-full overflow-hidden border-l border-border shrink-0" style={{ width: cartWidth }}>
           <SidebarCart />
@@ -171,6 +172,7 @@ function POSContent() {
       <VoidApprovalDialog />
       <CompApprovalDialog />
       <PosLockScreen />
+      <PosShiftGate />
 
       {posLayout === 'mobile' && <MobilePosNav />}
       

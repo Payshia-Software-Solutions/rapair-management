@@ -10,8 +10,8 @@ Monorepo of separate apps with no shared root build. Each app has its own depend
 - `server/`: main PHP API. Served under the `/api/...` path.
 - `nexus-portal-ui/`: separate Next.js 16 app for the Nexus Portal.
 - `nexus-portal-server/`: PHP API for the Nexus Portal (Composer deps in `vendor/`).
-- `desktop_pos/`, `mobile_pos/`, `room-kiosk-app/`, `local-printer/`, `local-printer-py/`: clients and helpers. `README.md` covers the sync model.
-- Root `*.php`, `*.js`, `*.ps1` files (`fix_*`, `replace.js`, `check_db.php`, `setup-client.ps1`, ...) are one-off scripts, not project tooling. Don't extend them.
+- `desktop_pos/`, `mobile_pos/`, `room-kiosk-app/`, `local-printer/`, `local-printer-py/`: clients and helpers. 
+- Don't add one-off scripts to the repo; keep them in a local scratch folder.
 
 ## Commands
 
@@ -29,7 +29,7 @@ Monorepo of separate apps with no shared root build. Each app has its own depend
 
 ### PHP backends
 - No build step and no test suite. Install deps with `composer install` in `server/` or `nexus-portal-server/`.
-- Ad-hoc verification scripts (`server/public/test_*.php`, `check_*.php`, `nexus-portal-server/test_email.php`) are run manually. To run one, use `php <file>` from its directory. A "single test" means running one of these scripts.
+- No verification scripts are kept in the repo. Debug/test scripts must never go in `server/public/` (the deploy excludes `test_*`, `debug_*`, `check_*`, `fix_*`, `seed_*`, `migrate_*`, `scratch_*` there).
 
 ### Deployment
 - Pushing to `live-prod` FTP-deploys `./server/` (ERP API, `.github/workflows/erp-api-live-prod.yml`).
@@ -66,4 +66,3 @@ When you need to locate unfamiliar code or trace how a feature works across file
 ### Known gotchas
 - `bizflow-ai-assistant.tsx` hides itself by matching path substrings in `HIDDEN_ON`. Add a path there to hide the bot on a page (e.g. `/login`).
 - CORS origins are a hard-coded allowlist in `server/public/index.php`. A new frontend origin needs an entry there, unless it's on `nebulync.com` or a registered tenant domain.
-- The root `README.md` describes how client repos receive core updates via `core-origin`. Client-specific logos, `.env` DB passwords, and branding win on merge conflicts.

@@ -45,6 +45,7 @@ import {
   Factory,
   TrendingUp,
   Gift,
+  Award,
   Building2,
   ShoppingCart,
   Ticket,
@@ -108,7 +109,8 @@ import {
   crmItems,
   salesItems,
   accountingItems, 
-  adminNavItems, 
+  adminNavItems,
+  developerNavItems,
   serviceCenterItems,
   vendorItems,
   productionItems,
@@ -116,10 +118,12 @@ import {
   frontOfficeItems,
   banquetItems,
   marketingItems,
+  loyaltyItems,
   ecommerceItems,
   kioskItems,
   approvalItems
 } from "@/lib/nav-items";
+import { useDevMode } from "@/lib/dev-mode";
 
 export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
   const pathname = usePathname();
@@ -174,6 +178,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   }, []);
   const [isProductionOpen, setIsProductionOpen] = useSidebarState('Production', false);
   const [isMarketingOpen, setIsMarketingOpen] = useSidebarState('Marketing', false);
+  const [isLoyaltyOpen, setIsLoyaltyOpen] = useSidebarState('Loyalty', false);
   const [isHrmOpen, setIsHrmOpen] = useSidebarState('HRM', false);
   const [isApprovalsOpen, setIsApprovalsOpen] = useSidebarState('Approvals', false);
   const [isFrontOfficeOpen, setIsFrontOfficeOpen] = useSidebarState('FrontOffice', false);
@@ -181,6 +186,7 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isEcommerceOpen, setIsEcommerceOpen] = useSidebarState('Ecommerce', false);
   const [isKioskOpen, setIsKioskOpen] = useSidebarState('Kiosk', false);
   const [isAdminOpen, setIsAdminOpen] = useSidebarState('Admin', false);
+  const [isDevOpen, setIsDevOpen] = useSidebarState('Developer', false);
   
   const [theme, setTheme] = useState<AppTheme>('light');
   const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -189,6 +195,12 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [docTitle, setDocTitle] = useState<string>('');
   const [isPromotionsOpen, setIsPromotionsOpen] = useState(false);
   const [isAppLauncherOpen, setIsAppLauncherOpen] = useState(false);
+  // Module pages ask for the launcher with this event ("All modules" link)
+  useEffect(() => {
+    const open = () => setIsAppLauncherOpen(true);
+    window.addEventListener('open-app-launcher', open);
+    return () => window.removeEventListener('open-app-launcher', open);
+  }, []);
   
   const [saasModules, setSaasModules] = useState<string[] | null>(() => {
     if (typeof window !== 'undefined') {
@@ -532,6 +544,8 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
   const visibleMarketingItems = marketingItems.filter((it) => hasPerm(it.perm));
   const canSeeMarketing = isModuleAllowed('marketing') && visibleMarketingItems.length > 0;
+  const visibleLoyaltyItems = loyaltyItems.filter((it) => hasPerm(it.perm));
+  const canSeeLoyalty = isModuleAllowed('loyalty') && visibleLoyaltyItems.length > 0;
 
   const visibleCrmItems = crmItems.filter((it) => hasPerm((it as any).perm));
   const canSeeCrm = isModuleAllowed('crm') && visibleCrmItems.length > 0;
@@ -571,12 +585,15 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
+  const devMode = useDevMode(userRole.toLowerCase() === 'admin');
+  const devItems = devMode ? developerNavItems : [];
+  const devActive = devItems.some((it) => pathname.startsWith(it.href));
 
   const allHrefs = React.useMemo(() => {
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...approvalItems, ...adminItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...approvalItems, ...adminItems, ...devItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -597,13 +614,15 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   // Auto-open active dropdown on navigation, but allow users to close it manually
   useEffect(() => {
     if (visibleMainNavItems.some(i => isActiveRoute(i.href))) setIsCoreFeaturesOpen(true);
-    if (visibleServiceCenterItems.some(i => pathname.startsWith(i.href))) setIsServiceCenterOpen(true);
+    // Fleet opens only on its own pages (not the shared /dashboard landing) and closes again elsewhere
+    setIsServiceCenterOpen(visibleServiceCenterItems.some(i => i.href !== '/dashboard' && isActiveRoute(i.href)));
     if (visibleVendorItems.some(i => pathname.startsWith(i.href)) || pathname.startsWith('/vendors')) setIsVendorsOpen(true);
     if (pathname.startsWith('/inventory')) setIsInventoryOpen(true);
     if (pathname.startsWith('/master-data')) setIsMasterDataOpen(true);
     if (visibleCrmItems.some(i => isActiveRoute(i.href))) setIsCrmOpen(true);
     if (visibleSalesItems.some(i => isActiveRoute(i.href))) setIsSalesOpen(true);
     if (visibleMarketingItems.some(i => isActiveRoute(i.href))) setIsMarketingOpen(true);
+    if (visibleLoyaltyItems.some(i => isActiveRoute(i.href))) setIsLoyaltyOpen(true);
     if (pathname.startsWith('/accounting')) setIsAccountingOpen(true);
     if (pathname.startsWith('/production')) setIsProductionOpen(true);
     if (pathname.startsWith('/hrm')) setIsHrmOpen(true);
@@ -954,6 +973,51 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                       {marketingOpen ? (
                         <SidebarMenuSub>
                           {visibleMarketingItems.map((item) => (
+                            <SidebarMenuSubItem key={item.href}>
+                              <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                                <Link href={item.href}>
+                                  <item.icon className="w-4 h-4" />
+                                  <span>{item.label}</span>
+                                </Link>
+                              </SidebarMenuSubButton>
+                            </SidebarMenuSubItem>
+                          ))}
+                        </SidebarMenuSub>
+                      ) : null}
+                    </SidebarMenuItem>
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+            )}
+
+            {!canSeeLoyalty ? null : (
+            <SidebarGroup className="p-0">
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  <SidebarMenuItem>
+                      <SidebarMenuButton
+                        type="button"
+                        onClick={() => setIsLoyaltyOpen((v) => !v)}
+                        isActive={isLoyaltyOpen}
+                        tooltip="Loyalty"
+                        className={cn(
+                          "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
+                          isLoyaltyOpen ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        )}
+                      >
+                        <Award className="w-5 h-5" />
+                        <span className="text-base sm:text-sm font-medium">Loyalty</span>
+                        <ChevronRight
+                          className={cn(
+                            "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                            isLoyaltyOpen ? "rotate-90" : "rotate-0"
+                          )}
+                        />
+                      </SidebarMenuButton>
+
+                      {isLoyaltyOpen ? (
+                        <SidebarMenuSub>
+                          {visibleLoyaltyItems.map((item) => (
                             <SidebarMenuSubItem key={item.href}>
                               <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                                 <Link href={item.href}>
@@ -1428,11 +1492,11 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     <SidebarMenuButton
                       type="button"
                       onClick={() => setIsAdminOpen((v) => !v)}
-                      isActive={pathname.startsWith('/admin')}
+                      isActive={pathname.startsWith('/admin') && !devActive}
                       tooltip="Administration"
                       className={cn(
                         "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
-                        pathname.startsWith('/admin') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        pathname.startsWith('/admin') && !devActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                       )}
                     >
                       <Shield className="w-5 h-5" />
@@ -1461,9 +1525,46 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     ) : null}
                   </SidebarMenuItem>
                 )}
+                {devItems.length === 0 ? null : (
+                  <SidebarMenuItem>
+                    <SidebarMenuButton
+                      type="button"
+                      onClick={() => setIsDevOpen((v) => !v)}
+                      isActive={devActive}
+                      tooltip="Developer Options"
+                      className={cn(
+                        "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium",
+                        devActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                      )}
+                    >
+                      <Settings className="w-5 h-5" />
+                      <span className="text-base sm:text-sm font-medium">Developer Options</span>
+                      <ChevronRight
+                        className={cn(
+                          "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
+                          isDevOpen ? "rotate-90" : "rotate-0"
+                        )}
+                      />
+                    </SidebarMenuButton>
+                    {isDevOpen ? (
+                      <SidebarMenuSub>
+                        {devItems.map((item) => (
+                          <SidebarMenuSubItem key={item.href}>
+                            <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
+                              <Link href={item.href}>
+                                <item.icon className="w-4 h-4" />
+                                <span>{item.label}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        ))}
+                      </SidebarMenuSub>
+                    ) : null}
+                  </SidebarMenuItem>
+                )}
                 <SidebarMenuItem>
-                  <SidebarMenuButton 
-                    asChild 
+                  <SidebarMenuButton
+                    asChild
                     isActive={pathname === '/profile'}
                     tooltip="Profile"
                     className={cn(

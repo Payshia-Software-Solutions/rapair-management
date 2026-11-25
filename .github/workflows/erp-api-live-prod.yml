@@ -28,3 +28,19 @@ jobs:
           logs/**
           public/uploads/**
           **/*.log
+          # Dumps and installer scripts stay off production (they hold data or DROP statements).
+          # clean_database_template.sql is still deployed: the workspace provisioner needs it.
+          database.sql
+          database_new.sql
+          repair_management_db_dump.sql
+          seed_packages.sql
+          storage/**
+          # Ad-hoc debug, test and repair scripts never go live
+          public/test_*
+          public/debug_*
+          public/check_*
+          public/fix_*
+          public/*_fix.php
+          public/seed_*
+          public/migrate_*
+          public/scratch_*

@@ -36,7 +36,7 @@ import {
   ShippingCostingItem,
   LogisticsFactor,
   LogisticsCategory,
-  Part,
+  type PartRow as Part,
   PackagingType,
   PalletType,
   ContainerType

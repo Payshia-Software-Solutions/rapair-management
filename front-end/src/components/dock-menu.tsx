@@ -59,6 +59,7 @@ export function DockMenu() {
       ...NavItems.banquetItems,
       ...NavItems.masterDataItems,
       ...NavItems.adminNavItems,
+      ...NavItems.developerNavItems,
     ];
 
     const mapped = savedHrefs.map((href, index) => {

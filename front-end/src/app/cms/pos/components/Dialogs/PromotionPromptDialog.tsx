@@ -28,13 +28,12 @@ export const PromotionPromptDialog: React.FC = () => {
     claimPromotionRewards
   } = usePOS();
 
-  const highestEligibleDiscount = eligiblePromotions.reduce((max, p) => Math.max(max, p.discount_value), 0);
-  const currentAppliedDiscount = appliedPromotion?.discount_value || 0;
+  const highestEligibleDiscount = eligiblePromotions.reduce((max, p) => Math.max(max, Number(p.discount_value)), 0);
 
-  const show = isPromotionPromptOpen || (!promotionsPromptDismissed && eligiblePromotions.length > 0 && (
-    (!appliedPromotion && (highestEligibleDiscount > 0 || eligiblePromotions.some(p => p.missing_rewards))) || 
-    (checkoutIntentActive && highestEligibleDiscount > currentAppliedDiscount + 0.1)
-  ));
+  // The best instant offer is applied automatically. This list opens when the cashier asks to
+  // switch offers, or by itself only to offer a free item the customer hasn't picked up yet.
+  const show = isPromotionPromptOpen || (!promotionsPromptDismissed && !appliedPromotion && highestEligibleDiscount <= 0
+    && eligiblePromotions.some(p => p.missing_rewards));
 
   if (!show) return null;
 

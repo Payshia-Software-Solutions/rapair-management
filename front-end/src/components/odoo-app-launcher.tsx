@@ -4,9 +4,10 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   LayoutGrid, Search, X, ChevronRight, LayoutDashboard, Truck, Zap, ShoppingCart, 
-  Factory, Globe, Users, Sparkles, Store, Smartphone, Wallet, Building2, Music, BarChart, Shield
+  Factory, Globe, Users, Sparkles, Store, Smartphone, Wallet, Building2, Music, BarChart, Shield, Award
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { erpHomeRoute } from '@/lib/home-route';
 
 interface AppLauncherProps {
   isOpen: boolean;
@@ -28,26 +29,27 @@ interface AppTile {
 export const APP_MODULES: AppTile[] = [
   // Workshop & Operations
   { id: 'coreFeatures', name: 'Dashboards & BI', category: 'Operations', description: 'Executive KPIs, analytics & overview', href: '/', icon: LayoutDashboard, color: 'from-blue-500 to-indigo-600 text-white' },
-  { id: 'fleet', name: 'Fleet Management', category: 'Operations', description: 'Repair orders, bays, vehicles & jobs', href: '/fleet', icon: Truck, color: 'from-blue-600 to-cyan-600 text-white' },
+  { id: 'fleet', name: 'Fleet Management', category: 'Operations', description: 'Repair orders, bays, vehicles & jobs', href: '/dashboard', icon: Truck, color: 'from-blue-600 to-cyan-600 text-white' },
   { id: 'inventory', name: 'Inventory & Stock', category: 'Operations', description: 'Stock ledger, GRN, transfers & items', href: '/inventory/items', icon: Zap, color: 'from-amber-500 to-orange-600 text-white' },
-  { id: 'vendors', name: 'Vendor Hub', category: 'Operations', description: 'Suppliers, purchase invoices & orders', href: '/vendors/suppliers', icon: ShoppingCart, color: 'from-emerald-500 to-teal-600 text-white' },
+  { id: 'vendors', name: 'Vendor Hub', category: 'Operations', description: 'Suppliers, purchase invoices & orders', href: '/inventory/suppliers', icon: ShoppingCart, color: 'from-emerald-500 to-teal-600 text-white' },
   { id: 'production', name: 'Manufacturing', category: 'Operations', description: 'BOM, production orders & assembly', href: '/production/orders', icon: Factory, color: 'from-stone-500 to-zinc-600 text-white' },
 
   // Sales & Growth
-  { id: 'sales', name: 'Sales & Invoicing', category: 'Sales & Growth', description: 'Customer invoices, quotes & receipts', href: '/sales/invoices', icon: Globe, color: 'from-indigo-500 to-purple-600 text-white' },
-  { id: 'crm', name: 'CRM & Leads', category: 'Sales & Growth', description: 'Customer directory, inquiries & history', href: '/crm/customers', icon: Users, color: 'from-violet-500 to-fuchsia-600 text-white' },
-  { id: 'marketing', name: 'Marketing & Promos', category: 'Sales & Growth', description: 'Discounts, campaigns & SMS triggers', href: '/marketing/discounts', icon: Sparkles, color: 'from-pink-500 to-rose-600 text-white' },
+  { id: 'sales', name: 'Sales & Invoicing', category: 'Sales & Growth', description: 'Customer invoices, quotes & receipts', href: '/cms/invoices', icon: Globe, color: 'from-indigo-500 to-purple-600 text-white' },
+  { id: 'crm', name: 'CRM & Leads', category: 'Sales & Growth', description: 'Customer directory, inquiries & history', href: '/cms/customers', icon: Users, color: 'from-violet-500 to-fuchsia-600 text-white' },
+  { id: 'marketing', name: 'Marketing & Promos', category: 'Sales & Growth', description: 'Discounts, campaigns & SMS triggers', href: '/inventory/promotions', icon: Sparkles, color: 'from-pink-500 to-rose-600 text-white' },
+  { id: 'loyalty', name: 'Loyalty & Rewards', category: 'Sales & Growth', description: 'Points, member tiers & rewards', href: '/loyalty', icon: Award, color: 'from-amber-400 to-yellow-600 text-white' },
   { id: 'ecommerce', name: 'E-commerce Store', category: 'Sales & Growth', description: 'Online storefront catalog & web orders', href: '/ecommerce/orders', icon: Store, color: 'from-sky-500 to-blue-600 text-white' },
-  { id: 'kiosk', name: 'Self-Service Kiosk', category: 'Sales & Growth', description: 'Guest check-in, self order displays', href: '/kiosk/dashboard', icon: Smartphone, color: 'from-teal-500 to-emerald-600 text-white' },
+  { id: 'kiosk', name: 'Self-Service Kiosk', category: 'Sales & Growth', description: 'Guest check-in, self order displays', href: '/kiosk/bookings', icon: Smartphone, color: 'from-teal-500 to-emerald-600 text-white' },
 
   // Hospitality
   { id: 'frontOffice', name: 'Front Office & Hotel', category: 'Hospitality', description: 'Room reservations, check-ins & rates', href: '/front-office/dashboard', icon: Building2, color: 'from-amber-600 to-amber-700 text-white' },
   { id: 'banquet', name: 'Banquet & Events', category: 'Hospitality', description: 'Hall bookings, menus & calendars', href: '/banquet/bookings', icon: Music, color: 'from-rose-500 to-red-600 text-white' },
 
   // Finance & Governance
-  { id: 'accounting', name: 'Accounting & Ledger', category: 'Finance', description: 'COA, journal entries & balance sheet', href: '/accounting/chart-of-accounts', icon: Wallet, color: 'from-emerald-600 to-green-700 text-white' },
+  { id: 'accounting', name: 'Accounting & Ledger', category: 'Finance', description: 'COA, journal entries & balance sheet', href: '/accounting', icon: Wallet, color: 'from-emerald-600 to-green-700 text-white' },
   { id: 'hrm', name: 'Human Resources (HR)', category: 'Finance', description: 'Employees, attendance, leaves & payroll', href: '/hrm/employees', icon: Users, color: 'from-cyan-600 to-blue-700 text-white' },
-  { id: 'masterData', name: 'Master Data & Settings', category: 'Finance', description: 'Tax tables, units, specs & core data', href: '/master-data/services', icon: BarChart, color: 'from-slate-600 to-gray-700 text-white' },
+  { id: 'masterData', name: 'Master Data & Settings', category: 'Finance', description: 'Tax tables, units, specs & core data', href: '/master-data/units', icon: BarChart, color: 'from-slate-600 to-gray-700 text-white' },
 ];
 
 export function AppLauncher({ isOpen, onClose, isModuleAllowed }: AppLauncherProps) {
@@ -75,9 +77,11 @@ export function AppLauncher({ isOpen, onClose, isModuleAllowed }: AppLauncherPro
 
   const categories = Array.from(new Set(filtered.map(m => m.category)));
 
-  const handleLaunch = (href: string) => {
-    router.push(href);
+  const handleLaunch = async (href: string) => {
     onClose();
+    // "Dashboards & BI" opens the company's chosen home dashboard
+    if (href === '/') href = await erpHomeRoute();
+    router.push(href);
   };
 
   return (
@@ -130,7 +134,7 @@ export function AppLauncher({ isOpen, onClose, isModuleAllowed }: AppLauncherPro
                       return (
                         <button
                           key={mod.id}
-                          onClick={() => handleLaunch(mod.href)}
+                          onClick={() => { onClose(); router.push(`/modules/${mod.id}`); }}
                           className="group relative flex items-start gap-3.5 p-3.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 hover:border-indigo-500/40 dark:hover:border-indigo-500/40 hover:shadow-md transition-all text-left"
                         >
                           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${mod.color} shadow-sm group-hover:scale-105 transition-transform`}>

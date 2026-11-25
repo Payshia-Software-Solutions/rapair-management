@@ -11,11 +11,11 @@ import { Label } from "@/components/ui/label";
 import { AlertTriangle, CheckCircle2, Download, Loader2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCompany, fetchLocations } from "@/lib/api";
-import { fetchBalanceSheet, fetchPnl, type BalanceSheet, type FsNode, type Pnl } from "@/lib/api/financials";
+import { fetchBalanceSheet, fetchCashFlow, fetchPnl, type BalanceSheet, type CashFlow, type FsNode, type Pnl } from "@/lib/api/financials";
 import { downloadExcelGeneric as downloadCsv } from "@/lib/excel-export";
 import { CompareBar, CompareTable, buildSeries, defaultCompare, mergeSeriesRows, useCompare, type CompareState, type Series } from "@/app/reports/_components/compare";
 
-type Tab = "pnl" | "bs";
+type Tab = "pnl" | "bs" | "cf";
 type Compare = "none" | "prev" | "year";
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -137,7 +137,7 @@ export default function FinancialStatementsPage() {
   const { toast } = useToast();
   const sp = useSearchParams();
   const router = useRouter();
-  const [tab, setTab] = useState<Tab>((sp?.get("tab") as Tab) === "bs" ? "bs" : "pnl");
+  const [tab, setTab] = useState<Tab>(["bs", "cf"].includes(String(sp?.get("tab"))) ? (sp!.get("tab") as Tab) : "pnl");
   const [preset, setPreset] = useState("fy");
   const [[from, to], setRange] = useState<[string, string]>(PRESETS.find(p => p.key === "fy")!.range());
   const [asOf, setAsOf] = useState(today());
@@ -145,6 +145,7 @@ export default function FinancialStatementsPage() {
   const [level, setLevel] = useState(3);
   const [pnl, setPnl] = useState<Pnl | null>(null);
   const [bs, setBs] = useState<BalanceSheet | null>(null);
+  const [cf, setCf] = useState<CashFlow | null>(null);
   const [loading, setLoading] = useState(false);
   const [company, setCompany] = useState<any>(null);
   const [locations, setLocations] = useState<{ id: number; name: string }[]>([]);
@@ -166,7 +167,7 @@ export default function FinancialStatementsPage() {
   // level change must refetch the compare (rows depend on it)
   useEffect(() => { if (pnlCmpOn) setPnlCmp(c => ({ ...c })); }, [level]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const cmpRange = useMemo(() => (tab === "pnl" ? null : shift(from, to, compare)), [from, to, compare, tab]);
+  const cmpRange = useMemo(() => (tab !== "bs" ? null : shift(from, to, compare)), [from, to, compare, tab]);
   const cmpAsOf = useMemo(() => {
     if (compare === "none") return null;
     const d = new Date(asOf + "T00:00:00");
@@ -179,6 +180,7 @@ export default function FinancialStatementsPage() {
     try {
       const lp = loc !== "all" ? { location_id: loc } : {};
       if (tab === "pnl") setPnl(await fetchPnl({ ...lp, from, to, ...(cmpRange ? { cfrom: cmpRange[0], cto: cmpRange[1] } : {}) }));
+      else if (tab === "cf") setCf(await fetchCashFlow({ ...lp, from, to }));
       else setBs(await fetchBalanceSheet({ ...lp, as_of: asOf, ...(cmpAsOf ? { cas_of: cmpAsOf } : {}) }));
     } catch (e: any) {
       toast({ title: "Couldn't build the statement", description: e?.message, variant: "destructive" });
@@ -187,9 +189,9 @@ export default function FinancialStatementsPage() {
   useEffect(() => { void run(); }, [run]);
 
   const switchTab = (t: Tab) => { setTab(t); router.replace(`/accounting/statements?tab=${t}`); };
-  const cols = tab === "pnl" || compare === "none" ? 1 : 2;
+  const cols = tab !== "bs" || compare === "none" ? 1 : 2;
 
-  const heads = tab === "pnl"
+  const heads = tab !== "bs"
     ? [`${niceDate(from)} – ${niceDate(to)}`, cmpRange ? `${niceDate(cmpRange[0])} – ${niceDate(cmpRange[1])}` : ""]
     : [niceDate(asOf), cmpAsOf ? niceDate(cmpAsOf) : ""];
 
@@ -211,6 +213,11 @@ export default function FinancialStatementsPage() {
       downloadCsv(`profit-and-loss-compare-${from}-to-${to}.csv`, rows);
       return;
     }
+    if (tab === "cf" && cf) {
+      for (const row of cashFlowRows(cf)) if (row.kind !== "head") push(row.label, [row.amount ?? 0], row.code || "");
+      downloadCsv(`cash-flow-${from}-to-${to}.csv`, rows);
+      return;
+    }
     if (tab === "pnl" && pnl) {
       for (const s of pnl.sections) {
         if (s.lines) flatten(s.lines, level).forEach(r => push(r.Account, r.values, r.Code));
@@ -225,6 +232,15 @@ export default function FinancialStatementsPage() {
       push("TOTAL LIABILITIES AND EQUITY", bs.total_le);
     }
     downloadCsv(`${tab === "pnl" ? `profit-and-loss-${from}-to-${to}` : `balance-sheet-${asOf}`}.csv`, rows);
+  };
+
+  // Print in its own A4 layout (letterhead, sign-off) instead of printing this screen
+  const openPrint = () => {
+    const q = new URLSearchParams({ tab, level: String(level) });
+    if (loc !== "all") q.set("location_id", loc);
+    if (tab === "bs") { q.set("as_of", asOf); if (cmpAsOf) q.set("cas_of", cmpAsOf); }
+    else { q.set("from", from); q.set("to", to); }
+    window.open(`/accounting/statements/print?${q.toString()}`, "_blank");
   };
 
   const headerRow = (
@@ -242,24 +258,24 @@ export default function FinancialStatementsPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between print:hidden">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Financial Statements</h1>
-            <p className="text-sm text-muted-foreground mt-1">Profit &amp; loss and balance sheet straight from the books, in SLFRS / IAS 1 layout.</p>
+            <p className="text-sm text-muted-foreground mt-1">Profit &amp; loss, balance sheet and cash flow straight from the books, in SLFRS / IAS 1 and IAS 7 layout.</p>
           </div>
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" onClick={exportCsv} disabled={loading}><Download className="h-4 w-4 mr-2" aria-hidden="true" /> CSV</Button>
-            <Button onClick={() => window.print()} disabled={loading}><Printer className="h-4 w-4 mr-2" aria-hidden="true" /> Print / PDF</Button>
+            <Button onClick={openPrint} disabled={loading}><Printer className="h-4 w-4 mr-2" aria-hidden="true" /> Print / PDF</Button>
           </div>
         </div>
 
         {/* Controls */}
         <Card className="p-3 space-y-3 print:hidden">
           <div className="inline-flex rounded-md bg-muted p-1" role="tablist" aria-label="Statement">
-            {([["pnl", "Profit & loss"], ["bs", "Balance sheet"]] as const).map(([k, l]) => (
+            {([["pnl", "Profit & loss"], ["bs", "Balance sheet"], ["cf", "Cash flow"]] as const).map(([k, l]) => (
               <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => switchTab(k)}
                 className={`h-8 px-4 rounded-sm text-sm font-medium ${tab === k ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>{l}</button>
             ))}
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr_1fr_1fr] items-end">
-            {tab === "pnl" ? (
+            {tab !== "bs" ? (
               <>
                 <div className="space-y-1">
                   <Label htmlFor="preset">Period</Label>
@@ -316,12 +332,12 @@ export default function FinancialStatementsPage() {
         <Card className="p-4 sm:p-6 print:shadow-none print:border-0 print:p-0">
           <div className="mb-4 text-center">
             {company?.name && <p className="font-semibold">{company.name}</p>}
-            <h2 className="text-lg font-bold">{tab === "pnl" ? "Statement of Profit or Loss" : "Statement of Financial Position"}</h2>
-            <p className="text-sm text-muted-foreground">{tab === "pnl" ? `For the period ${niceDate(from)} to ${niceDate(to)}` : `As at ${niceDate(asOf)}`}</p>
+            <h2 className="text-lg font-bold">{tab === "pnl" ? "Statement of Profit or Loss" : tab === "cf" ? "Statement of Cash Flows" : "Statement of Financial Position"}</h2>
+            <p className="text-sm text-muted-foreground">{tab !== "bs" ? `For the period ${niceDate(from)} to ${niceDate(to)}` : `As at ${niceDate(asOf)}`}</p>
             {loc !== "all" && <p className="text-sm text-muted-foreground">Branch: {locations.find(l => String(l.id) === loc)?.name || loc}</p>}
           </div>
 
-          {loading && !(tab === "pnl" ? pnl : bs) ? (
+          {loading && !(tab === "pnl" ? pnl : tab === "cf" ? cf : bs) ? (
             <div className="flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Building…</div>
           ) : pnlCmpOn ? (
             <CompareTable series={pnlSeries} rows={pnlCmpRows} loading={pnlCmpRes.loading} error={pnlCmpRes.error} />
@@ -351,6 +367,8 @@ export default function FinancialStatementsPage() {
                 </tbody>
               </table>
             </div>
+          ) : tab === "cf" && cf ? (
+            <CashFlowTable cf={cf} branch={loc !== "all"} />
           ) : tab === "bs" && bs ? (
             <>
               <div className={`mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm print:hidden ${bs.balanced.every(Boolean) ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-destructive/10 text-destructive"}`}>
@@ -387,5 +405,76 @@ export default function FinancialStatementsPage() {
         </Card>
       </div>
     </DashboardLayout>
+  );
+}
+
+type CfRow = { kind: "head" | "line" | "total" | "grand"; label: string; amount?: number; code?: string; indent?: number };
+
+/** Flat rows of the cash flow statement (shared by the table and the CSV export). */
+function cashFlowRows(cf: CashFlow): CfRow[] {
+  const rows: CfRow[] = [];
+  rows.push({ kind: "head", label: "Cash flows from operating activities" });
+  rows.push({ kind: "line", label: "Profit for the period", amount: cf.operating.net_profit, indent: 1 });
+  if (Math.abs(cf.operating.depreciation) >= 0.005) rows.push({ kind: "line", label: "Add back: depreciation", amount: cf.operating.depreciation, indent: 1 });
+  if (cf.operating.working_capital.length) rows.push({ kind: "line", label: "Changes in working capital", indent: 1 });
+  for (const l of cf.operating.working_capital) {
+    const what = l.amount < 0 ? (l.code.startsWith("2") ? "Decrease in" : "Increase in") : (l.code.startsWith("2") ? "Increase in" : "Decrease in");
+    rows.push({ kind: "line", label: `${what} ${l.name.toLowerCase()}`, amount: l.amount, code: l.code, indent: 2 });
+  }
+  rows.push({ kind: "total", label: "Net cash from operating activities", amount: cf.operating.total });
+  rows.push({ kind: "head", label: "Cash flows from investing activities" });
+  for (const l of cf.investing.lines) rows.push({ kind: "line", label: l.amount < 0 ? `Purchase of ${l.name.toLowerCase()}` : `Sale of ${l.name.toLowerCase()}`, amount: l.amount, code: l.code, indent: 1 });
+  rows.push({ kind: "total", label: "Net cash from investing activities", amount: cf.investing.total });
+  rows.push({ kind: "head", label: "Cash flows from financing activities" });
+  for (const l of cf.financing.lines) rows.push({ kind: "line", label: l.name, amount: l.amount, code: l.code, indent: 1 });
+  rows.push({ kind: "total", label: "Net cash from financing activities", amount: cf.financing.total });
+  rows.push({ kind: "grand", label: "Net increase / (decrease) in cash", amount: cf.net_change });
+  rows.push({ kind: "line", label: "Cash and cash equivalents at the start", amount: cf.opening_cash });
+  rows.push({ kind: "grand", label: "Cash and cash equivalents at the end", amount: cf.closing_cash });
+  return rows;
+}
+
+function CashFlowTable({ cf, branch }: { cf: CashFlow; branch: boolean }) {
+  const ok = Math.abs(cf.difference) < 0.01;
+  return (
+    <>
+      <div className={`mb-3 flex items-center gap-2 rounded-md px-3 py-2 text-sm print:hidden ${ok ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300" : "bg-destructive/10 text-destructive"}`}>
+        {ok ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <AlertTriangle className="h-4 w-4" aria-hidden="true" />}
+        {ok ? "Opening cash plus the net change equals closing cash."
+          : branch ? "A single branch may not reconcile on its own: some entries have no branch."
+          : `Off by ${fmt(cf.difference)}. Run the Posting Check.`}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs text-muted-foreground border-b">
+              <th className="py-2 pl-3 pr-3 text-left font-medium">LKR</th>
+              <th className="py-2 px-3 text-right font-medium whitespace-nowrap w-40">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {cashFlowRows(cf).map((row, i) => row.kind === "head" ? (
+              <tr key={i}><td colSpan={2} className="pt-4 pb-1 pl-3 font-semibold">{row.label}</td></tr>
+            ) : row.kind === "line" ? (
+              <tr key={i}>
+                <td className="py-1.5 pr-3" style={{ paddingLeft: 12 + (row.indent || 0) * 18 }}>{row.label}</td>
+                <td className="py-1.5 px-3 text-right tabular-nums">{row.amount === undefined ? "" : fmt(row.amount)}</td>
+              </tr>
+            ) : (
+              <TotalRow key={i} label={row.label} values={[row.amount || 0]} cols={1} strong={row.kind === "grand"} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {cf.non_cash.length > 0 && (
+        <div className="mt-5 rounded-md border p-3 text-sm">
+          <div className="font-medium">Non-cash transactions (not in the statement)</div>
+          <p className="text-xs text-muted-foreground mb-2">Entries that moved no cash, such as opening stock put into the books against capital.</p>
+          {cf.non_cash.map((n, i) => (
+            <div key={i} className="flex justify-between"><span>{n.description} ({n.count})</span><span className="tabular-nums">{fmt(n.amount)}</span></div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }

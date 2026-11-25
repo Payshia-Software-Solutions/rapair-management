@@ -31,6 +31,10 @@ import {
 import { applyTheme, getTheme, nextTheme, THEME_EVENT, type AppTheme } from "@/lib/theme";
 import { enqueueKot, fetchJobStatus, getKotRoute } from "@/lib/api/printqueue";
 import { computePosTotals, resolveLocationTaxes, type PosTotals } from "@/lib/pricing/pos-totals";
+import { posProfileOf, billFieldsText, lineNotesWithSerials, serialCount, type PosProfile } from "@/lib/pos-profiles";
+import { unmergeTables } from "@/lib/api/floor";
+import { lookupLoyalty, type LoyaltyLookup } from "@/lib/api/loyalty";
+import { fetchPromotions, checkPromoCode } from "@/lib/api/promotions";
 
 export type PosLayout = 'mobile' | 'compact' | 'full';
 export type PosLayoutPref = 'auto' | 'compact' | 'full';
@@ -55,6 +59,7 @@ interface POSContextType {
   systemTaxes: any[];
   locations: any[];
   customers: any[];
+  setCustomers: React.Dispatch<React.SetStateAction<any[]>>;
   banks: any[];
   bankBranches: any[];
   collections: any[];
@@ -85,6 +90,16 @@ interface POSContextType {
   setOrderType: (val: 'dine_in' | 'take_away' | 'retail' | null) => void;
   orderTypeDialogOpen: boolean;
   setOrderTypeDialogOpen: (val: boolean) => void;
+  /** Startup loading steps finished so far (for the loading screen) */
+  loadProgress: { done: string[]; total: number };
+  posProfile: PosProfile;
+  loyaltyInfo: LoyaltyLookup | null;
+  loyaltyRedeemPoints: number;
+  setLoyaltyRedeemPoints: (n: number) => void;
+  loyalty: { tierPct: number; tierDiscount: number; points: number; value: number; maxPoints: number; minPoints: number; base: number; pointValue: number };
+  refreshLoyalty: () => void;
+  billInfo: Record<string, string>;
+  setBillInfo: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   selectedTable: string | null;
   setSelectedTable: (val: string | null) => void;
   selectedSteward: string | null;
@@ -214,6 +229,15 @@ interface POSContextType {
   claimPromotionRewards: (promo: any) => void;
   appliedPromotion: any | null;
   setAppliedPromotion: (val: any | null) => void;
+  /** Offers that need a specific bank card (shown in checkout: "pay with X card to save"). */
+  bankOffers: any[];
+  /** Offers running right now (for OFFER badges on the item grid). */
+  livePromotions: any[];
+  promoItemIds: Set<number>;
+  promoCategoryIds: Set<number>;
+  promoCode: string;
+  applyPromoCode: (code: string) => Promise<boolean>;
+  clearPromoCode: () => void;
   setTableManagementOpen: (val: boolean) => void;
   setBankBranches: (val: any[]) => void;
 
@@ -278,8 +302,6 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setLayoutPrefState(val);
     try { window.localStorage.setItem('pos_layout_pref', val); } catch {}
   };
-  const posLayout = resolvePosLayout(viewport.w, viewport.h, layoutPref);
-  const cartWidth = posLayout === 'full' ? 450 : viewport.w < 900 ? 300 : 340;
 
   // Data Context
   const [inventory, setInventory] = useState<any[]>([]);
@@ -304,6 +326,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // POS State
   const [cart, setCart] = useState<any[]>([]);
   const [selectedLocation, _setSelectedLocation] = useState<string>("");
+  // POS profile of the active location (lib/pos-profiles.ts)
+  const posProfile = posProfileOf(locations.find((l: any) => String(l.id) === String(selectedLocation)));
+  const posLayout = resolvePosLayout(viewport.w, viewport.h, posProfile.forceCompact && layoutPref === 'auto' ? 'compact' : layoutPref);
+  const cartWidth = posLayout === 'full' ? 450 : viewport.w < 900 ? 300 : 340;
+  // Bill details the profile asks for (vehicle no, patient, site...): saved in the invoice notes
+  const [billInfo, setBillInfo] = useState<Record<string, string>>({});
+  // Loyalty card of the selected customer, and the points the cashier chose to redeem
+  const [loyaltyInfo, setLoyaltyInfo] = useState<LoyaltyLookup | null>(null);
+  const [loyaltyRedeemPoints, setLoyaltyRedeemPoints] = useState(0);
+  const [loyaltyRefresh, setLoyaltyRefresh] = useState(0);
+  const refreshLoyalty = () => setLoyaltyRefresh((n) => n + 1);
   const setSelectedLocation = (val: string) => {
     _setSelectedLocation(val);
     if (typeof window !== 'undefined') {
@@ -325,6 +358,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [billDiscountDialogOpen, setBillDiscountDialogOpen] = useState(false);
   const [orderType, setOrderType] = useState<'dine_in' | 'take_away' | 'retail' | null>(null);
   const [orderTypeDialogOpen, setOrderTypeDialogOpen] = useState(false);
+  const [loadProgress, setLoadProgress] = useState<{ done: string[]; total: number }>({ done: [], total: 10 });
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [selectedSteward, setSelectedSteward] = useState<string | null>(null);
   const [tables, setTables] = useState<any[]>([]);
@@ -387,6 +421,11 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [checkoutIntentActive, setCheckoutIntentActive] = useState(false);
   const [tableManagementOpen, setTableManagementOpen] = useState(false);
   const lastFootprint = React.useRef("");
+  const [bankOffers, setBankOffers] = useState<any[]>([]);
+  const [livePromotions, setLivePromotions] = useState<any[]>([]);
+  const [promoCode, setPromoCode] = useState("");
+  // The cashier picked or removed an offer by hand: stop auto-applying the best one on this bill
+  const promoManualRef = React.useRef(false);
 
   // Print Selection State
   const [printSelectionOpen, setPrintSelectionOpen] = useState(false);
@@ -434,7 +473,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
           if (product) {
             e.preventDefault(); // Prevent form submits
-            const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && product.recipe_type !== 'A La Carte';
+            const outOfStock = product.stock_quantity <= 0 && product.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(product.recipe_type);
             
             if (autoAddOnScanState) {
               if (outOfStock) {
@@ -472,6 +511,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const updateAppliedPromotion = (promo: any | null) => {
     // Cleanup old reward items if we are clearing or changing promo
     setCart(prev => prev.filter(i => !i.is_reward));
+    promoManualRef.current = true;
     setAppliedPromotion(promo);
   };
 
@@ -548,6 +588,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOrderType(null);
       setBillDiscountValue(0);
       setHeldOrderId(null);
+      setBillInfo({});
       
       // 3. Trigger Order Type Selection
       setOrderTypeDialogOpen(true);
@@ -572,15 +613,19 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         setLoading(true);
         const initLocId = typeof window !== 'undefined' ? window.localStorage.getItem('location_id') : undefined;
+        // Loading screen progress: each step ticks when its data arrives
+        setLoadProgress({ done: [], total: 10 });
+        const track = <T,>(label: string, p: Promise<T>): Promise<T> =>
+          p.finally(() => setLoadProgress((s) => ({ ...s, done: [...s.done, label] })));
         const [partsRes, taxesRes, locsRes, custsRes, compRes, banksRes, collRes, sysSettingsRes] = await Promise.all([
-          fetchParts('', initLocId).catch(() => []),
-          fetchTaxes('', { all: true }).catch(() => []),
-          fetchLocations().catch(() => []),
-          fetchCustomers().catch(() => []),
-          fetchCompany().catch(() => null),
-          fetchBanks().catch(() => []),
-          fetchCollections(true).catch(() => []),
-          fetchSystemSettings().catch(() => ({}))
+          track('Items & stock', fetchParts('', initLocId).catch(() => [])),
+          track('Taxes', fetchTaxes('', { all: true }).catch(() => [])),
+          track('Locations', fetchLocations().catch(() => [])),
+          track('Customers', fetchCustomers().catch(() => [])),
+          track('Company', fetchCompany().catch(() => null)),
+          track('Banks', fetchBanks().catch(() => [])),
+          track('Collections', fetchCollections(true).catch(() => [])),
+          track('Settings', fetchSystemSettings().catch(() => ({})))
         ]);
 
         setInventory(partsRes);
@@ -612,10 +657,10 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           _setSelectedLocation(activeLocId);
           // Fetch location-dependent data BEFORE clearing the loading state
           await Promise.all([
-            refreshTablesAndStewards(activeLocId),
-            fetchHeldOrders(Number(activeLocId))
+            track('Tables & stewards', refreshTablesAndStewards(activeLocId)),
+            track('Held bills', fetchHeldOrders(Number(activeLocId))
               .then(res => setHeldOrders(Array.isArray(res) ? res : []))
-              .catch(() => {})
+              .catch(() => {}))
           ]);
 
           // Auto-select location's default customer, or first customer as fallback
@@ -692,7 +737,8 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         !ledgerDialogOpen && 
         !pendingInvoicesDialogOpen &&
         !guideModalOpen &&
-        !checkoutOpen
+        !checkoutOpen &&
+        !posProfile.floorPlan
     ) {
         setOrderTypeDialogOpen(true);
     }
@@ -708,31 +754,89 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     checkoutOpen
   ]);
 
+  // Retail-first profiles (supermarket, pharmacy, phone...): a new bill starts as Retail straight
+  // away instead of showing the order-type popup. The popup still opens from the menu button.
+  useEffect(() => {
+    if (orderTypeDialogOpen && !orderType && posProfile.defaultOrderType) {
+      setOrderType(posProfile.defaultOrderType);
+      setOrderTypeDialogOpen(false);
+    }
+    // Restaurant: the floor in the left panel replaces the popup (RestaurantHome)
+    if (orderTypeDialogOpen && !orderType && posProfile.floorPlan) setOrderTypeDialogOpen(false);
+  }, [orderTypeDialogOpen, orderType, posProfile.defaultOrderType, posProfile.floorPlan]);
+
+  // Loyalty: look up the selected customer's membership; a new customer starts with no points used
+  useEffect(() => {
+    setLoyaltyRedeemPoints(0);
+    setLoyaltyInfo(null);
+    if (!selectedCustomer) return;
+    let alive = true;
+    lookupLoyalty(Number(selectedCustomer)).then((d) => { if (alive) setLoyaltyInfo(d); }).catch(() => {});
+    return () => { alive = false; };
+  }, [selectedCustomer, loyaltyRefresh]);
+
+  // Scan-first profiles add scanned items to the cart, unless the cashier set this themselves
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('auto_add_on_scan') === null) setAutoAddOnScanState(Boolean(posProfile.scanFirst));
+    } catch {}
+  }, [posProfile.key]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // What the promotion engine sees: customer-facing prices, no comp lines (they are free already)
+  const promoCartPayload = (code: string = promoCode) => ({
+    items: cart.map(i => ({
+      id: i.id, item_id: i.id, quantity: Number(i.quantity), unit_price: Number(i.unit_price),
+      discount: Number(i.discount || 0), is_reward: !!i.is_reward, is_comp: !!i.is_comp,
+    })),
+    bank_id: selectedBankId || null,
+    card_category: selectedCardCategory || null,
+    location_id: selectedLocation || null,
+    order_type: orderType || null,
+    promo_code: code || null,
+  });
+
+  // Keeps the applied offer's amount in step with the cart (the server is the source of truth)
+  const appliedRef = React.useRef<any>(null);
+  appliedRef.current = appliedPromotion;
+
   const validatePromotions = async (force: boolean = false) => {
     if (cart.length === 0) {
       setEligiblePromotions([]);
       setAppliedPromotion(null);
+      setBankOffers([]);
       return [];
     }
 
-    const subtotal = cart.reduce((acc, i) => acc + (i.quantity * i.unit_price - i.quantity * i.discount), 0);
-    
     try {
       const res = await apiHelper('/api/promotion/validate', {
         method: 'POST',
-        body: JSON.stringify({
-          items: cart,
-          subtotal,
-          bank_id: selectedBankId,
-          card_category: selectedCardCategory,
-          location_id: selectedLocation
-        })
+        body: JSON.stringify({ ...promoCartPayload(), include_potential: true }),
       });
-
       const resData = await res.json();
-      const matches = Array.isArray(resData.data) ? resData.data : [];
-      
+      const matches: any[] = Array.isArray(resData.data?.matches) ? resData.data.matches : (Array.isArray(resData.data) ? resData.data : []);
+      const potential: any[] = Array.isArray(resData.data?.potential) ? resData.data.potential : [];
+
       setEligiblePromotions(matches);
+      setBankOffers(potential);
+
+      const current = appliedRef.current;
+      const instant = matches.filter(m => Number(m.discount_value) > 0);
+      if (current) {
+        const fresh = matches.find(m => m.promotion_id === current.promotion_id);
+        if (!fresh) {
+          setAppliedPromotion(null);
+          setCart(prev => prev.filter(i => !i.is_reward));
+          toast({ title: "Offer removed", description: `${current.name} no longer applies to this bill.` });
+        } else if (!promoManualRef.current && instant[0] && Number(instant[0].discount_value) > Number(fresh.discount_value) + 0.009) {
+          setAppliedPromotion(instant[0]); // a better offer now applies (e.g. bank card picked)
+          toast({ title: "Better offer applied", description: `${instant[0].name}: -LKR ${Number(instant[0].discount_value).toLocaleString()}` });
+        } else if (Number(fresh.discount_value) !== Number(current.discount_value)) {
+          setAppliedPromotion({ ...fresh, promo_code: current.promo_code });
+        }
+      } else if (!promoManualRef.current && instant[0]) {
+        setAppliedPromotion(instant[0]);
+        toast({ title: "Offer applied", description: `${instant[0].name}: -LKR ${Number(instant[0].discount_value).toLocaleString()}` });
+      }
       return matches;
     } catch (error) {
       console.error("Promotion validation failed", error);
@@ -741,12 +845,54 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const applyPromoCode = async (code: string) => {
+    const c = code.trim().toUpperCase();
+    if (!c) return false;
+    try {
+      const res = await checkPromoCode(c, promoCartPayload(c));
+      setPromoCode(c);
+      setCart(prev => prev.filter(i => !i.is_reward));
+      promoManualRef.current = true;
+      setAppliedPromotion({ ...res, promo_code: c });
+      toast({ title: "Promo code applied", description: `${res.name}: -LKR ${Number(res.discount_value).toLocaleString()}` });
+      return true;
+    } catch (e: any) {
+      toast({ title: "Promo code not applied", description: e.message, variant: "destructive" });
+      return false;
+    }
+  };
+
+  const clearPromoCode = () => {
+    setPromoCode("");
+    if (appliedRef.current?.requires_code) {
+      setAppliedPromotion(null);
+      promoManualRef.current = false;
+    }
+  };
+
+  // Offers running now at this location: OFFER badges on the grid (refreshed every 5 minutes,
+  // so time-window offers like happy hour switch on and off by themselves)
+  useEffect(() => {
+    if (!selectedLocation) return;
+    let alive = true;
+    const load = () => fetchPromotions(selectedLocation).then((rows: any) => { if (alive) setLivePromotions(Array.isArray(rows) ? rows : []); }).catch(() => {});
+    load();
+    const t = setInterval(load, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(t); };
+  }, [selectedLocation]);
+
+  const promoItemIds = useMemo(() => new Set<number>(livePromotions.filter(p => !p.requires_code).flatMap((p: any) => (p.item_ids || []).map(Number))), [livePromotions]);
+  const promoCategoryIds = useMemo(() => new Set<number>(livePromotions.filter(p => !p.requires_code).flatMap((p: any) => (p.category_ids || []).map(Number))), [livePromotions]);
+
   // Automatic Promotion Recognition Engine
   useEffect(() => {
     if (cart.length === 0) {
       setEligiblePromotions([]);
       setAppliedPromotion(null);
+      setBankOffers([]);
       setPromotionsPromptDismissed(false);
+      setPromoCode("");
+      promoManualRef.current = false;
       lastFootprint.current = "";
       return;
     }
@@ -758,15 +904,12 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastFootprint.current = currentFootprint;
     }
 
-    // Reset list when cart changes to prevent stale prompts
-    setEligiblePromotions([]);
-
     const timer = setTimeout(() => {
       validatePromotions();
-    }, 600);
+    }, 500);
 
     return () => clearTimeout(timer);
-  }, [cart, appliedPromotion, selectedLocation, selectedBankId, selectedCardCategory]);
+  }, [cart, selectedLocation, selectedBankId, selectedCardCategory, orderType, promoCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToCartWithQty = (product: any, qty: number, discountAmt: number = 0, batches?: any[]) => {
     if (!orderType) {
@@ -792,7 +935,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }];
       }
 
-      const existingLine = prev.find(item => item.id === product.id && item.unit_price === (product.price || product.cost_price || 0) && item.discount === discountAmt && !item.is_comp && !item.is_reward && !item.selected_batches && !item.item_notes && !(item.modifiers && item.modifiers.length));
+      const existingLine = posProfile.serials && product.item_type !== "Service" ? undefined : prev.find(item => item.id === product.id && item.unit_price === (product.price || product.cost_price || 0) && item.discount === discountAmt && !item.is_comp && !item.is_reward && !item.selected_batches && !item.item_notes && !(item.modifiers && item.modifiers.length));
       if (existingLine) {
         return prev.map(item => item === existingLine ? { ...item, quantity: item.quantity + qty } : item);
       }
@@ -950,33 +1093,9 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
     if (!selectedLocation) { toast({ title: "Missing Data", description: "Select a location.", variant: "destructive" }); return; }
     
-    setCheckoutIntentActive(true);
-
-    // Final Sanity Check for Promotions
-    const matches = await validatePromotions(true);
-    
-    // 1. Check if currently applied promotion is still valid
-    if (appliedPromotion) {
-        const stillValid = matches.find(p => p.promotion_id === appliedPromotion.promotion_id);
-        if (!stillValid) {
-            setAppliedPromotion(null);
-            setCheckoutIntentActive(false);
-            toast({
-                title: "Promotion Invalid",
-                description: "The applied promotion is no longer valid for the current cart and has been removed.",
-                variant: "destructive"
-            });
-            return; // Exit so the user can see updated totals
-        }
-    }
-
-    // 2. Check for offers if NONE applied, or if applied was invalid
-    // If a promotion is ALREADY applied and valid, we RESPECT the user's choice and proceed.
-    if (!appliedPromotion && matches.length > 0) {
-        setPromotionsPromptDismissed(false);
-        return; 
-    }
-
+    // Last check with the server: refreshes the offer amount, drops one that stopped applying,
+    // and applies the best one. Never blocks checkout; the cashier can switch offers in the cart.
+    await validatePromotions(true);
     setCheckoutIntentActive(false);
     setCheckoutOpen(true);
   };
@@ -1013,7 +1132,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
   const isMenuPricing = currentLocationRow?.tax_mode === 'inclusive';
 
-  const totals = useMemo(() => {
+  const baseTotals = useMemo(() => {
     // Service charge from location settings: dine-in only
     const scRate = (orderType === 'dine_in' && currentLocationRow?.allow_service_charge)
       ? Number(currentLocationRow.service_charge_rate || 0)
@@ -1030,6 +1149,42 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       serviceChargeRate: scRate,
     });
   }, [cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion, currentLocationRow, isMenuPricing]);
+
+  // ---- Loyalty: member tier discount + points redeemed (taken off before tax, like a promotion) ----
+  const loyalty = useMemo(() => {
+    const none = { tierPct: 0, tierDiscount: 0, points: 0, value: 0, maxPoints: 0, minPoints: 0, base: 0, pointValue: 0 };
+    const m = loyaltyInfo?.enabled && loyaltyInfo.member?.active ? loyaltyInfo.member : null;
+    if (!m || cart.length === 0) return none;
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const base = Math.max(0, baseTotals.taxableAmount);
+    const tierPct = Number(m.discount_pct || 0);
+    const tierDiscount = r2(base * tierPct / 100);
+    const after = Math.max(0, base - tierDiscount);
+    const pv = Number(loyaltyInfo?.rules?.point_value || 0);
+    const minPoints = Number(loyaltyInfo?.rules?.min_redeem || 0);
+    const maxByPct = after * Number(loyaltyInfo?.rules?.max_redeem_pct || 0) / 100;
+    let maxPoints = pv > 0 ? Math.floor(Math.min(m.points * pv, maxByPct) / pv) : 0;
+    if (maxPoints < minPoints) maxPoints = 0;
+    const points = Math.max(0, Math.min(loyaltyRedeemPoints, maxPoints));
+    return { tierPct, tierDiscount, points, value: r2(points * pv), maxPoints, minPoints, base, pointValue: pv };
+  }, [loyaltyInfo, loyaltyRedeemPoints, baseTotals.taxableAmount, cart.length]);
+
+  const totals = useMemo(() => {
+    const extra = loyalty.tierDiscount + loyalty.value;
+    if (extra <= 0) return baseTotals;
+    const scRate = (orderType === 'dine_in' && currentLocationRow?.allow_service_charge)
+      ? Number(currentLocationRow.service_charge_rate || 0)
+      : 0;
+    return computePosTotals({
+      mode: isMenuPricing ? 'inclusive' : 'exclusive',
+      cart: cart.map(i => ({ quantity: Number(i.quantity), unit_price: Number(i.unit_price), discount: Number(i.discount || 0) })),
+      taxes: systemTaxes,
+      billDiscountType,
+      billDiscountValue,
+      promoDiscount: (appliedPromotion ? Number(appliedPromotion.discount_value) : 0) + extra,
+      serviceChargeRate: scRate,
+    });
+  }, [baseTotals, loyalty, cart, billDiscountValue, billDiscountType, systemTaxes, orderType, appliedPromotion, currentLocationRow, isMenuPricing]);
 
   const claimPromotionRewards = (promo: any) => {
     if (!promo || !promo.missing_rewards) return;
@@ -1061,9 +1216,24 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     if (!selectedCustomer) {
-      toast({ title: "Selection Required", description: "Please select a customer to continue.", variant: "destructive" });
+      toast({ title: "Choose a customer", description: "Pick a customer for this bill. To skip this every time, set a default customer for this location in Admin → Locations (for example \"Walk-in Customer\").", variant: "destructive" });
       return;
     }
+
+    // Profile checks: required bill details, and one IMEI/serial per unit in phone shops
+    const missingField = posProfile.billFields.find(f => f.required && !billInfo[f.key]?.trim());
+    if (missingField) {
+      toast({ title: `${missingField.label} is required`, description: "Fill it in under Bill details in the cart.", variant: "destructive" });
+      return;
+    }
+    if (posProfile.serials) {
+      const bad = cart.find(l => l.item_type !== 'Service' && !l.is_reward && serialCount(l.serials) !== Number(l.quantity));
+      if (bad) {
+        toast({ title: "IMEI / serial needed", description: `${bad.description}: enter ${bad.quantity} serial number${Number(bad.quantity) > 1 ? "s" : ""} (one per unit).`, variant: "destructive" });
+        return;
+      }
+    }
+    const profileNotes = billFieldsText(posProfile, billInfo);
 
     // This will be called by the CheckoutDialog with the detailed payment info
     setSubmitting(true);
@@ -1092,10 +1262,17 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         table_id: selectedTable ? Number(selectedTable) : null,
         steward_id: selectedSteward ? Number(selectedSteward) : null,
         applied_taxes: totals.appliedTaxes,
-        notes: paymentData.notes || "POS Retail Sale",
+        notes: [profileNotes, paymentData.notes].filter(Boolean).join(" · ") || "POS Retail Sale",
         source: 'pos',
+        loyalty_redeem_points: loyalty.points,
+        loyalty_redeem_value: loyalty.value,
+        loyalty_tier_discount: loyalty.tierDiscount,
+        loyalty_base: loyalty.base,
         applied_promotion_id: appliedPromotion ? appliedPromotion.promotion_id : null,
         applied_promotion_name: appliedPromotion ? appliedPromotion.name : null,
+        // The server recomputes the offer and refuses a bigger discount than it gives
+        promo_discount: appliedPromotion ? Number(appliedPromotion.discount_value) : 0,
+        promo_code: appliedPromotion?.promo_code || promoCode || null,
         bank_id: selectedBankId,
         card_category: selectedCardCategory,
         items: cart.map((item, idx) => ({
@@ -1110,12 +1287,16 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           display_unit_price: item.unit_price,
           display_discount: item.discount,
           display_line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount),
-          item_notes: item.item_notes || null,
+          item_notes: lineNotesWithSerials(item),
           modifiers: item.modifiers || [],
           is_complimentary: item.is_comp ? 1 : 0,
-          comp_token: item.is_comp ? item.comp_token : null
+          comp_token: item.is_comp ? item.comp_token : null,
+          is_reward: item.is_reward ? 1 : 0
         })),
-        payments: paymentData.isSplit ? paymentData.splitPayments.map((p: any) => ({
+        payments: [
+          // Gift vouchers first (they pay part of the bill), then the rest of the payment
+          ...((paymentData.vouchers || []) as { code: string; amount: number }[]).map(v => ({ method: "Gift Voucher", amount: v.amount, voucherCode: v.code })),
+          ...(paymentData.isSplit ? paymentData.splitPayments.map((p: any) => ({
           method: p.method,
           amount: p.amount,
           cardLast4: p.cardLast4,
@@ -1141,24 +1322,41 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           chequeBranchName: paymentData.chequeBranchName,
           chequeDate: paymentData.chequeDate,
           chequePayee: paymentData.chequePayee
-        }]
+        }])
+        ].filter((p: any) => p.method === "Credit" || Number(p.amount) > 0)
       };
 
       const invoiceRes = await createInvoice(payload);
       const invoiceId = invoiceRes.data.id;
-      toast({ title: "Sale Complete", description: "Invoice and payments processed atomically." });
+      const lp = invoiceRes.data?.loyalty;
+      toast({
+        title: "Sale Complete",
+        description: lp
+          ? `${lp.program || "Rewards"}: +${Number(lp.points).toLocaleString()} points · balance ${Number(lp.balance).toLocaleString()}${lp.tier_up ? ` · moved up to ${lp.tier_up}!` : ""}`
+          : "Invoice and payments processed atomically.",
+      });
       
       // Update local stock quantities
       await refreshInventory();
 
+      // A merged group is paid: its tables are free again
+      if (posProfile.floorPlan && orderType === 'dine_in' && selectedTable && selectedTable !== 'none') {
+        unmergeTables(Number(selectedTable)).catch(() => {});
+      }
       setCart([]);
       setBillDiscountValue(0);
       setBillDiscountType('flat');
       setHeldOrderId(null);
       setOrderType(null);
+      setBillInfo({});
+      setLoyaltyRedeemPoints(0);
+      refreshLoyalty();
       setOrderTypeDialogOpen(true);
       refreshHeldOrders();
-      if (customers.length > 0) setSelectedCustomer(String(customers[0].id));
+      // Next bill starts with the location's default customer (Walk-in), not just the first one
+      const locDefault = locations.find((l: any) => String(l.id) === String(selectedLocation))?.default_customer_id;
+      if (locDefault) setSelectedCustomer(String(locDefault));
+      else if (customers.length > 0) setSelectedCustomer(String(customers[0].id));
       
       // Instead of opening print immediately, open selection dialog
       setLastInvoiceId(invoiceId);
@@ -1196,7 +1394,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tax_total: totals.grandTotal - totals.taxableAmount,
         discount_total: totals.lineDiscountTotal + totals.billDiscountAmt,
         grand_total: totals.grandTotal,
-        notes: "",
+        notes: billFieldsText(posProfile, billInfo),
         items: cart.map(item => ({
           item_id: item.id,
           description: item.description,
@@ -1205,7 +1403,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           unit_price: item.unit_price,
           discount: item.discount,
           line_total: (item.quantity * item.unit_price) - (item.quantity * item.discount),
-          item_notes: item.item_notes || null,
+          item_notes: lineNotesWithSerials(item),
           modifiers: item.modifiers || [],
           is_complimentary: item.is_comp ? 1 : 0,
           comp_token: item.is_comp ? item.comp_token : null,
@@ -1226,6 +1424,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedSteward(null);
         setOrderType(null);
         setBillDiscountValue(0);
+        setBillInfo({});
         setOrderTypeDialogOpen(true);
         refreshHeldOrders();
 
@@ -1371,11 +1570,13 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const value = {
-      inventory, systemTaxes, locations, customers, banks, bankBranches, company, loading, submitting, setSubmitting,
+      inventory, systemTaxes, locations, customers, setCustomers, banks, bankBranches, company, loading, submitting, setSubmitting,
       cart, selectedLocation, setSelectedLocation, selectedCustomer, setSelectedCustomer, 
       billDiscountValue, setBillDiscountValue, billDiscountType, setBillDiscountType,
       billDiscountDialogOpen, setBillDiscountDialogOpen,
       orderType, setOrderType, orderTypeDialogOpen, setOrderTypeDialogOpen,
+      loadProgress, posProfile, billInfo, setBillInfo,
+      loyaltyInfo, loyaltyRedeemPoints, setLoyaltyRedeemPoints, loyalty, refreshLoyalty,
       selectedTable, setSelectedTable, selectedSteward, setSelectedSteward,
       tables, setTables, stewards, setStewards,
       heldOrderId, setHeldOrderId, heldOrders, refreshHeldOrders,
@@ -1398,6 +1599,7 @@ export const POSProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       selectedBankId, setSelectedBankId, selectedCardCategory, setSelectedCardCategory,
       // Promotion State
       eligiblePromotions, setEligiblePromotions, appliedPromotion, setAppliedPromotion: updateAppliedPromotion, validatePromotions,
+      bankOffers, livePromotions, promoItemIds, promoCategoryIds, promoCode, applyPromoCode, clearPromoCode,
       isPromotionPromptOpen, setIsPromotionPromptOpen,
       promotionsPromptDismissed, setPromotionsPromptDismissed,
       checkoutIntentActive, setCheckoutIntentActive,

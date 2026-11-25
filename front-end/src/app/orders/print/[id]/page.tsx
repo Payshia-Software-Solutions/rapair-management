@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { fetchOrder } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { useCompany } from "@/components/print/PrintDocument";
 import { Loader2, Printer, ArrowLeft } from "lucide-react";
 
 function safeJsonArray(value: any): string[] {
@@ -31,6 +32,7 @@ export default function OrderPrintPage() {
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState<any>(null);
   const printedRef = useRef(false);
+  const company = useCompany();
 
   useEffect(() => {
     const run = async () => {
@@ -127,7 +129,8 @@ export default function OrderPrintPage() {
           ) : (
             <div className="mx-auto w-[72mm] max-w-full bg-white border shadow-sm rounded-md p-4 print:border-0 print:shadow-none print:rounded-none">
               <div className="text-center">
-                <div className="font-bold text-base leading-tight">ServiceBay</div>
+                <div className="font-bold text-base leading-tight">{company?.name || ""}</div>
+                {company?.phone ? <div className="text-[11px] text-muted-foreground">{company.phone}</div> : null}
                 <div className="text-[11px] text-muted-foreground">Repair Order Ticket</div>
               </div>
 

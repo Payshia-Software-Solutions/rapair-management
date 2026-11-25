@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { 
+  createCostingTemplate,
   updateCostingTemplate, 
   deleteCostingTemplate, 
   ShippingCostingTemplate, 

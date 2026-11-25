@@ -130,7 +130,29 @@ export default function TenantEditPage() {
     }
   };
 
-  const regenerateKey = (type: 'license' | 'api') => {
+  const [devSaving, setDevSaving] = useState(false);
+  const devOn = Number((formData as any).dev_mode ?? 0) === 1;
+  /** Saved at once (not with "Save Changes"); the workspace picks it up within a minute, or at once on shared hosting. */
+  const toggleDevMode = async () => {
+    const next = !devOn;
+    setDevSaving(true);
+    try {
+      const res = await adminFetch(`/admin/tenants/dev-mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: formData.id || id, dev_mode: next }),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d?.status === 'success') setFormData(prev => ({ ...prev, dev_mode: next ? 1 : 0 } as typeof prev));
+      else alert(d?.message || 'Could not change developer mode');
+    } catch {
+      alert('Could not change developer mode');
+    } finally {
+      setDevSaving(false);
+    }
+  };
+
+  const regenerateKey =(type: 'license' | 'api') => {
     if (type === 'license') {
       const random = Array.from(crypto.getRandomValues(new Uint8Array(10))).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
       const newLicense = `RM-${formData.slug.toUpperCase()}-${random.substring(0, 5)}-${random.substring(5, 10)}-${random.substring(10, 15)}-${random.substring(15, 20)}`;
@@ -477,6 +499,27 @@ export default function TenantEditPage() {
                 className="w-full rounded-xl border border-slate-200 dark:border-slate-800 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
                 Discard & Return
+              </button>
+            </div>
+          </div>
+
+          {/* Developer mode: shows the workspace's Developer Options menu */}
+          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 dark:border-slate-800 dark:bg-slate-900 shadow-xs space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">Developer Mode</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Shows Database Schema and Table Verification in the workspace. Saved immediately.</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={devOn}
+                aria-label="Developer mode"
+                onClick={toggleDevMode}
+                disabled={devSaving}
+                className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-60 ${devOn ? 'bg-nx-accent-strong' : 'bg-slate-300 dark:bg-slate-700'}`}
+              >
+                <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${devOn ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
             </div>
           </div>

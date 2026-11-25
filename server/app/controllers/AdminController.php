@@ -468,6 +468,7 @@ class AdminController extends Controller {
 
     // GET /api/admin/schema
     public function schema() {
+        $this->requireDevMode();
         $this->requireAdmin();
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
             $this->error('Method Not Allowed', 405);
@@ -514,6 +515,7 @@ class AdminController extends Controller {
 
     // POST /api/admin/sync
     public function sync() {
+        $this->requireDevMode();
         $this->requireAdmin();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->error('Method Not Allowed', 405);

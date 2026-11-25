@@ -37,3 +37,15 @@ export const postCardSettlement = async (p: { date: string; gross: number; commi
     if (!res.ok || d.status === 'error') throw new Error(d.message || 'Failed to post settlement');
     return d;
 };
+
+export interface CashFlowLine { code: string; name: string; amount: number }
+export interface CashFlow {
+    from: string; to: string;
+    operating: { net_profit: number; depreciation: number; working_capital: CashFlowLine[]; total: number };
+    investing: { lines: CashFlowLine[]; total: number };
+    financing: { lines: CashFlowLine[]; total: number };
+    net_change: number; opening_cash: number; closing_cash: number; difference: number;
+    non_cash: { description: string; count: number; amount: number }[];
+}
+export const fetchCashFlow = (p: { from: string; to: string; location_id?: string }): Promise<CashFlow> =>
+    get(`/api/financials/cash_flow?${new URLSearchParams(Object.entries(p).filter(([, v]) => v) as [string, string][])}`);

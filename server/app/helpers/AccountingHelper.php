@@ -35,6 +35,42 @@ class AccountingHelper {
      * "Complimentary & Hospitality" expense account (mapping comp_expense). Created on first
      * use (ledger 5510 under Marketing) when the chart-of-accounts upgrade hasn't run yet.
      */
+    /**
+     * "Gift Vouchers Outstanding" liability (mapping gift_voucher_liability, ledger 2410 under
+     * Customer Advances & Deposits). Created on first use. Selling a voucher credits it, paying
+     * a bill with a voucher debits it.
+     */
+    public static function giftVoucherAccountId() {
+        $id = self::getMappedId('gift_voucher_liability');
+        if ($id) return $id;
+        try {
+            $db = new Database();
+            $db->query("SELECT id FROM acc_accounts WHERE code = '2410' LIMIT 1");
+            $acc = $db->single();
+            if ($acc) {
+                $id = (int)$acc->id;
+            } else {
+                $db->query("SELECT id FROM acc_accounts WHERE code = '214' LIMIT 1");
+                $parent = $db->single();
+                $db->query("INSERT INTO acc_accounts (code, name, type, category, is_system, is_group, level, parent_id)
+                            VALUES ('2410', 'Gift Vouchers Outstanding', 'LIABILITY', 'Advances', 1, 0, 4, :p)");
+                $db->bind(':p', $parent ? (int)$parent->id : null);
+                $db->execute();
+                $id = (int)$db->lastInsertId();
+            }
+            if ($id) {
+                $db->query("INSERT IGNORE INTO acc_mappings (map_key, account_id, label, category)
+                            VALUES ('gift_voucher_liability', :a, 'Gift Vouchers Outstanding', 'Sales')");
+                $db->bind(':a', $id);
+                $db->execute();
+            }
+            return $id ?: null;
+        } catch (Exception $e) {
+            error_log('AccountingHelper: gift voucher account: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     public static function compExpenseAccountId() {
         $id = self::getMappedId('comp_expense');
         if ($id) return $id;
@@ -309,6 +345,8 @@ class AccountingHelper {
         if ($m === 'cash') return self::getMappedId('payment_cash');
         if ($m === 'card') return self::getMappedId('payment_card') ?: self::getMappedId('payment_bank');
         if ($m === 'cheque') return self::getMappedId('payment_cheque') ?: self::getMappedId('payment_bank');
+        // Paying with a gift voucher uses up the voucher liability, no money moves
+        if ($m === 'gift voucher') return self::giftVoucherAccountId() ?: self::getMappedId('payment_bank');
         return self::getMappedId('payment_bank');
     }
 

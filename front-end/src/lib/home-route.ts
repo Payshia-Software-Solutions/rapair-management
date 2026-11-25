@@ -44,3 +44,9 @@ export async function homeRouteForUser(): Promise<string> {
   } catch {}
   return fallback;
 }
+
+/** The company's home dashboard for leaving the POS: never the POS itself. */
+export async function erpHomeRoute(): Promise<string> {
+  const r = await homeRouteForUser().catch(() => "");
+  return !r || r.startsWith("/cms/pos") ? dashboardByKey(DEFAULT_DASHBOARD)!.href : r;
+}

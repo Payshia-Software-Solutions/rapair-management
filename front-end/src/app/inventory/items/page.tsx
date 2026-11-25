@@ -1,448 +1,436 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/dashboard-layout";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { contentUrl, fetchParts, type PartRow, fetchItemSections, fetchItemDepartments, fetchItemCategories, type ItemSection, type ItemDepartment, type ItemCategory } from "@/lib/api";
-import { Boxes, Grid3X3, LayoutList, Loader2, Plus, Search, Image as ImageIcon, Filter, X, UploadCloud } from "lucide-react";
+import {
+  contentUrl, fetchParts, fetchLocations, type PartRow, type ServiceLocationRow,
+  fetchItemSections, fetchItemDepartments, fetchItemCategories, type ItemSection, type ItemDepartment, type ItemCategory,
+} from "@/lib/api";
+import { Grid3X3, LayoutList, Loader2, Plus, Search, Image as ImageIcon, X, UploadCloud, MapPin, RefreshCcw, ChevronLeft, ChevronRight } from "lucide-react";
 import { ImportItemsDialog } from "@/components/inventory/ImportItemsDialog";
 
 type ViewMode = "table" | "grid";
 
 const LS_VIEW_KEY = "inventory_items_view";
 const LS_SIZE_KEY = "inventory_items_page_size";
+const LS_LOC_KEY = "inventory_items_location"; // "all" or a location id
+
+const money = (v: any) => (v === null || v === undefined || v === "" ? "—" : Number(v).toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const qtyFmt = (v: any) => Number(v ?? 0).toLocaleString("en-LK", { maximumFractionDigits: 3 });
+const brandOf = (p: PartRow) => (p as any).brand_name || (p as any).brand || "";
+const searchText = (p: PartRow) =>
+  `${p.part_name ?? ""} ${p.sku ?? ""} ${(p as any).part_number ?? ""} ${(p as any).barcode_number ?? ""} ${brandOf(p)}`.toLowerCase();
 
 export default function InventoryItemsListPage() {
   const { toast } = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<PartRow[]>([]);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewMode>("table");
-  const [pageSize, setPageSize] = useState<number>(12);
+  const [pageSize, setPageSize] = useState<number>(24);
   const [page, setPage] = useState<number>(1);
   const [showImport, setShowImport] = useState(false);
-  
-  // Filter options
+
+  const [locations, setLocations] = useState<ServiceLocationRow[]>([]);
+  const [locationSel, setLocationSel] = useState<string | null>(null); // null until read from storage
+
   const [sections, setSections] = useState<ItemSection[]>([]);
   const [departments, setDepartments] = useState<ItemDepartment[]>([]);
   const [categories, setCategories] = useState<ItemCategory[]>([]);
-
-  // Filter selections
   const [selectedSectionId, setSelectedSectionId] = useState<string>("all");
   const [selectedDeptId, setSelectedDeptId] = useState<string>("all");
   const [selectedCatId, setSelectedCatId] = useState<string>("all");
 
-  const load = async () => {
+  // Search suggestions
+  const [suggestOpen, setSuggestOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
+
+  const loadItems = async (loc: string) => {
     setLoading(true);
     try {
-      const [data, s, d, c] = await Promise.all([
-        fetchParts(""),
-        fetchItemSections(),
-        fetchItemDepartments(),
-        fetchItemCategories()
-      ]);
+      const data = await fetchParts("", loc === "all" ? "all" : loc);
       setItems(Array.isArray(data) ? data : []);
-      setSections(Array.isArray(s) ? s : []);
-      setDepartments(Array.isArray(d) ? d : []);
-      setCategories(Array.isArray(c) ? c : []);
     } catch (e: any) {
+      setItems([]);
       toast({ title: "Error", description: e?.message || "Failed to load items", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
+  // Once: preferences, master data and the starting location.
   useEffect(() => {
+    let savedLoc = "";
     try {
       const v = window.localStorage.getItem(LS_VIEW_KEY);
       if (v === "grid" || v === "table") setView(v);
       const s = Number(window.localStorage.getItem(LS_SIZE_KEY));
       if (Number.isFinite(s) && s > 0) setPageSize(s);
-    } catch {
-      // ignore
-    }
-    void load();
+      savedLoc = window.localStorage.getItem(LS_LOC_KEY) || window.localStorage.getItem("location_id") || "";
+    } catch { /* ignore */ }
+    setLocationSel(savedLoc || "all");
+
+    void Promise.all([fetchLocations(), fetchItemSections(), fetchItemDepartments(), fetchItemCategories()])
+      .then(([l, s, d, c]) => {
+        setLocations(Array.isArray(l) ? (l as any) : []);
+        setSections(Array.isArray(s) ? s : []);
+        setDepartments(Array.isArray(d) ? d : []);
+        setCategories(Array.isArray(c) ? c : []);
+      })
+      .catch(() => { /* filters just stay empty */ });
   }, []);
 
+  useEffect(() => { if (locationSel) void loadItems(locationSel); }, [locationSel]);
+
+  // A saved location that no longer exists (or is not allowed) falls back to All.
   useEffect(() => {
-    try {
-      window.localStorage.setItem(LS_VIEW_KEY, view);
-    } catch {}
-  }, [view]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(LS_SIZE_KEY, String(pageSize));
-    } catch {}
-  }, [pageSize]);
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    let rows = items;
-    
-    if (q) {
-      rows = rows.filter((p) => (p.part_name ?? "").toLowerCase().includes(q) || (p.sku ?? "").toLowerCase().includes(q));
+    if (locationSel && locationSel !== "all" && locations.length > 0 && !locations.some((l) => String(l.id) === locationSel)) {
+      setLocationSel("all");
     }
+  }, [locations, locationSel]);
 
-    if (selectedSectionId !== "all") {
-      rows = rows.filter(p => p.item_section_id === parseInt(selectedSectionId));
-    }
+  useEffect(() => { try { window.localStorage.setItem(LS_VIEW_KEY, view); } catch {} }, [view]);
+  useEffect(() => { try { window.localStorage.setItem(LS_SIZE_KEY, String(pageSize)); } catch {} }, [pageSize]);
 
-    if (selectedDeptId !== "all") {
-      rows = rows.filter(p => p.item_department_id === parseInt(selectedDeptId));
-    }
-
-    if (selectedCatId !== "all") {
-      rows = rows.filter(p => p.item_category_id === parseInt(selectedCatId));
-    }
-
-    return [...rows].sort((a, b) => String(a.part_name ?? "").localeCompare(String(b.part_name ?? "")));
-  }, [items, query, selectedSectionId, selectedDeptId, selectedCatId]);
+  const changeLocation = (v: string) => {
+    setLocationSel(v);
+    setPage(1);
+    try { window.localStorage.setItem(LS_LOC_KEY, v); } catch { /* ignore */ }
+  };
 
   const filteredDepts = useMemo(() => {
     if (selectedSectionId === "all") return departments;
-    return departments.filter(d => d.section_id === parseInt(selectedSectionId));
+    return departments.filter((d) => d.section_id === parseInt(selectedSectionId));
   }, [departments, selectedSectionId]);
 
   useEffect(() => {
-     // Clear department if not in filtered list
-     if (selectedDeptId !== "all") {
-        if (!filteredDepts.some(d => String(d.id) === selectedDeptId)) {
-          setSelectedDeptId("all");
-        }
-     }
+    if (selectedDeptId !== "all" && !filteredDepts.some((d) => String(d.id) === selectedDeptId)) setSelectedDeptId("all");
   }, [filteredDepts, selectedDeptId]);
 
-  const pageCount = useMemo(() => {
-    const c = Math.ceil(filtered.length / pageSize);
-    return c <= 0 ? 1 : c;
-  }, [filtered.length, pageSize]);
+  // Category/section filters only (search applied after, so suggestions respect the filters too).
+  const scoped = useMemo(() => {
+    let rows = items;
+    if (selectedSectionId !== "all") rows = rows.filter((p) => p.item_section_id === parseInt(selectedSectionId));
+    if (selectedDeptId !== "all") rows = rows.filter((p) => p.item_department_id === parseInt(selectedDeptId));
+    if (selectedCatId !== "all") rows = rows.filter((p) => p.item_category_id === parseInt(selectedCatId));
+    return rows;
+  }, [items, selectedSectionId, selectedDeptId, selectedCatId]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const rows = q ? scoped.filter((p) => searchText(p).includes(q)) : scoped;
+    return [...rows].sort((a, b) => String(a.part_name ?? "").localeCompare(String(b.part_name ?? "")));
+  }, [scoped, query]);
+
+  // Suggestions: names that start with the text first, then other matches.
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const starts: PartRow[] = [];
+    const rest: PartRow[] = [];
+    for (const p of scoped) {
+      const name = String(p.part_name ?? "").toLowerCase();
+      const sku = String(p.sku ?? "").toLowerCase();
+      if (name.startsWith(q) || sku.startsWith(q)) starts.push(p);
+      else if (searchText(p).includes(q)) rest.push(p);
+      if (starts.length >= 8) break;
+    }
+    return [...starts, ...rest].slice(0, 8);
+  }, [scoped, query]);
+
+  useEffect(() => { setActive(0); }, [query]);
 
   useEffect(() => {
-    if (page > pageCount) setPage(pageCount);
-    if (page < 1) setPage(1);
-  }, [page, pageCount]);
+    const close = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) setSuggestOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
 
-  const paged = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page, pageSize]);
+  const openItem = (p: PartRow) => { setSuggestOpen(false); router.push(`/inventory/items/${p.id}`); };
+
+  const onSearchKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") { setSuggestOpen(false); return; }
+    if (!suggestOpen || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => (a + 1) % suggestions.length); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => (a - 1 + suggestions.length) % suggestions.length); }
+    else if (e.key === "Enter") { e.preventDefault(); openItem(suggestions[active]); }
+  };
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
+  const paged = useMemo(() => filtered.slice((page - 1) * pageSize, page * pageSize), [filtered, page, pageSize]);
+
+  const filtersOn = selectedSectionId !== "all" || selectedDeptId !== "all" || selectedCatId !== "all" || !!query;
+  const clearFilters = () => { setSelectedSectionId("all"); setSelectedDeptId("all"); setSelectedCatId("all"); setQuery(""); setPage(1); };
+  const isAll = locationSel === "all";
+  const locName = isAll ? "All locations" : locations.find((l) => String(l.id) === locationSel)?.name || "This location";
+
+  const thumb = (p: any) => (p?.image_filename ? contentUrl("items", String(p.image_filename)) : null);
+  const Thumb = ({ p, size }: { p: PartRow; size: string }) => {
+    const url = thumb(p);
+    return (
+      <div className={`${size} flex shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/20`}>
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <ImageIcon className="h-4 w-4 text-muted-foreground" />
+        )}
+      </div>
+    );
+  };
+  const typeLabel = (p: PartRow) => (p.item_type === "Part" ? "Product" : p.item_type || "Product");
+  const stockCell = (p: PartRow) => {
+    if (p.item_type === "Service") return <span className="text-muted-foreground">—</span>;
+    const q = Number(p.stock_quantity ?? 0);
+    return (
+      <span className={q <= 0 ? "text-destructive" : ""}>
+        {qtyFmt(q)} <span className="text-[11px] text-muted-foreground">{p.unit ?? ""}</span>
+      </span>
+    );
+  };
 
   const Pagination = (
-    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-      <div className="text-sm text-muted-foreground">
-        Showing <span className="font-semibold text-foreground">{filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}</span> to{" "}
-        <span className="font-semibold text-foreground">{Math.min(page * pageSize, filtered.length)}</span> of{" "}
+    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+      <span>
+        {filtered.length === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, filtered.length)} of{" "}
         <span className="font-semibold text-foreground">{filtered.length}</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <Select
-          value={String(pageSize)}
-          onValueChange={(v) => {
-            const n = Number(v);
-            setPageSize(Number.isFinite(n) && n > 0 ? n : 12);
-            setPage(1);
-          }}
-        >
-          <SelectTrigger className="w-[130px]">
-            <SelectValue />
-          </SelectTrigger>
+      </span>
+      <div className="flex items-center gap-1.5">
+        <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v) || 24); setPage(1); }}>
+          <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
-            {[12, 24, 48].map((n) => (
-              <SelectItem key={n} value={String(n)}>
-                {n} / page
-              </SelectItem>
-            ))}
+            {[12, 24, 48, 100].map((n) => <SelectItem key={n} value={String(n)}>{n} / page</SelectItem>)}
           </SelectContent>
         </Select>
-        <Button variant="outline" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-          Prev
+        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} aria-label="Previous page">
+          <ChevronLeft className="h-4 w-4" />
         </Button>
-        <Badge variant="outline" className="px-3 py-2">
-          Page {page} / {pageCount}
-        </Badge>
-        <Button variant="outline" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>
-          Next
+        <span className="px-1 tabular-nums">{page} / {pageCount}</span>
+        <Button variant="outline" size="icon" className="h-8 w-8" disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))} aria-label="Next page">
+          <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
   );
 
-  const thumb = (p: any) => {
-    const fn = p?.image_filename ? String(p.image_filename) : "";
-    if (!fn) return null;
-    return contentUrl("items", fn);
-  };
-
   return (
     <DashboardLayout>
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="w-full space-y-3">
+        {/* Title + actions */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Products</h1>
-            <p className="text-muted-foreground mt-1">Item master (list view). Click an item to edit.</p>
+            <h1 className="text-xl font-bold tracking-tight">Products</h1>
+            <p className="text-xs text-muted-foreground">
+              {loading ? "Loading…" : `${items.length} items`} · {locName}{isAll ? " (stock is the total of all locations)" : ""}
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full sm:w-[340px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-9 gap-1.5" onClick={() => setShowImport(true)}>
+              <UploadCloud className="h-4 w-4" /> Import
+            </Button>
+            <Button size="sm" asChild className="h-9 gap-1.5">
+              <Link href="/inventory/items/new" data-tour="item-new"><Plus className="h-4 w-4" /> New item</Link>
+            </Button>
+          </div>
+        </div>
+
+        {/* Toolbar */}
+        <Card className="shadow-sm">
+          <CardContent className="flex flex-wrap items-center gap-2 p-3">
+            {/* Search with suggestions */}
+            <div ref={searchBoxRef} className="relative min-w-[220px] flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by name or SKU..."
-                className="pl-9 h-11"
+                placeholder="Search name, SKU, barcode, brand…"
+                className="h-9 pl-8 pr-8 text-sm"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => { setQuery(e.target.value); setPage(1); setSuggestOpen(true); }}
+                onFocus={() => query && setSuggestOpen(true)}
+                onKeyDown={onSearchKey}
+                role="combobox"
+                aria-expanded={suggestOpen && suggestions.length > 0}
+                aria-controls="item-suggest"
+                aria-autocomplete="list"
               />
+              {query && (
+                <button type="button" onClick={() => { setQuery(""); setSuggestOpen(false); }} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground" aria-label="Clear search">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              {suggestOpen && query.trim() && (
+                <div id="item-suggest" role="listbox" className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border bg-popover shadow-lg">
+                  {suggestions.length === 0 ? (
+                    <div className="px-3 py-3 text-xs text-muted-foreground">No items match “{query}”</div>
+                  ) : (
+                    <>
+                      {suggestions.map((p, i) => (
+                        <button
+                          key={p.id} type="button" role="option" aria-selected={i === active}
+                          onMouseEnter={() => setActive(i)} onMouseDown={(e) => e.preventDefault()} onClick={() => openItem(p)}
+                          className={`flex w-full items-center gap-2.5 px-2.5 py-1.5 text-left ${i === active ? "bg-muted" : ""}`}
+                        >
+                          <Thumb p={p} size="h-8 w-8" />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">{p.part_name}</div>
+                            <div className="truncate text-[11px] text-muted-foreground">{[p.sku, brandOf(p), typeLabel(p)].filter(Boolean).join(" · ")}</div>
+                          </div>
+                          <div className="shrink-0 text-right text-xs tabular-nums">
+                            <div>{stockCell(p)}</div>
+                            <div className="text-[11px] text-muted-foreground">LKR {money(p.price)}</div>
+                          </div>
+                        </button>
+                      ))}
+                      <div className="border-t px-3 py-1.5 text-[11px] text-muted-foreground">
+                        {filtered.length} match{filtered.length === 1 ? "" : "es"} in the list · ↑↓ to move, Enter to open
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant={view === "table" ? "default" : "outline"} onClick={() => setView("table")} className="gap-2">
-                <LayoutList className="w-4 h-4" />
-                Table
-              </Button>
-              <Button variant={view === "grid" ? "default" : "outline"} onClick={() => setView("grid")} className="gap-2">
-                <Grid3X3 className="w-4 h-4" />
-                Grid
-              </Button>
-            </div>
-            <Button variant="outline" className="gap-2" onClick={() => setShowImport(true)}>
-              <UploadCloud className="w-4 h-4" />
-              Import
-            </Button>
-            <Button asChild className="gap-2">
-              <Link href="/inventory/items/new" data-tour="item-new">
-                <Plus className="w-4 h-4" />
-                New
-              </Link>
-            </Button>
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className="px-3 py-1 bg-primary/10 text-primary border-primary/20">
-              {filtered.length} of {items.length} Items
-            </Badge>
-            {(selectedSectionId !== 'all' || selectedDeptId !== 'all' || selectedCatId !== 'all') && (
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                className="h-8 text-xs gap-2"
-                onClick={() => {
-                  setSelectedSectionId('all');
-                  setSelectedDeptId('all');
-                  setSelectedCatId('all');
-                }}
-              >
-                <X className="w-3 h-3" /> Clear Filters
-              </Button>
+            {/* Location */}
+            <Select value={locationSel ?? undefined} onValueChange={changeLocation}>
+              <SelectTrigger className="h-9 w-[200px] text-sm" aria-label="Location">
+                <MapPin className="mr-1.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <SelectValue placeholder="Location" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All locations</SelectItem>
+                {locations.map((l) => <SelectItem key={l.id} value={String(l.id)}>{l.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={selectedSectionId} onValueChange={(v) => { setSelectedSectionId(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Section"><SelectValue placeholder="Section" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sections</SelectItem>
+                {sections.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={selectedDeptId} onValueChange={(v) => { setSelectedDeptId(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-[160px] text-sm" aria-label="Department"><SelectValue placeholder="Department" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All departments</SelectItem>
+                {filteredDepts.map((d) => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={selectedCatId} onValueChange={(v) => { setSelectedCatId(v); setPage(1); }}>
+              <SelectTrigger className="h-9 w-[150px] text-sm" aria-label="Category"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            {filtersOn && (
+              <Button variant="ghost" size="sm" className="h-9 gap-1 text-xs" onClick={clearFilters}><X className="h-3.5 w-3.5" /> Clear</Button>
             )}
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/20 p-3 rounded-xl border border-dashed">
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Section</div>
-            <Select value={selectedSectionId} onValueChange={setSelectedSectionId}>
-              <SelectTrigger className="h-9 bg-background">
-                <SelectValue placeholder="All Sections" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Sections</SelectItem>
-                {sections.map(s => <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Department</div>
-            <Select value={selectedDeptId} onValueChange={setSelectedDeptId}>
-              <SelectTrigger className="h-9 bg-background">
-                <SelectValue placeholder="All Departments" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {filteredDepts.map(d => <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <div className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Category</div>
-            <Select value={selectedCatId} onValueChange={setSelectedCatId}>
-              <SelectTrigger className="h-9 bg-background">
-                <SelectValue placeholder="All Categories" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {categories.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-end">
-            <Button variant="outline" className="w-full h-9 gap-2" onClick={() => void load()}>
-               <Loader2 className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
-               Refresh
-            </Button>
-          </div>
-        </div>
-
-        <Card className="border-none shadow-md overflow-hidden">
-          <CardContent className="p-4">
-            {loading ? (
-              <div className="flex items-center justify-center py-16 text-muted-foreground">
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                Loading...
+            <div className="ml-auto flex items-center gap-1">
+              <div className="inline-flex rounded-md border p-0.5" role="tablist" aria-label="View">
+                <button type="button" role="tab" aria-selected={view === "table"} onClick={() => setView("table")} aria-label="Table view"
+                  className={`rounded px-2 py-1 ${view === "table" ? "bg-muted text-foreground" : "text-muted-foreground"}`}><LayoutList className="h-4 w-4" /></button>
+                <button type="button" role="tab" aria-selected={view === "grid"} onClick={() => setView("grid")} aria-label="Grid view"
+                  className={`rounded px-2 py-1 ${view === "grid" ? "bg-muted text-foreground" : "text-muted-foreground"}`}><Grid3X3 className="h-4 w-4" /></button>
               </div>
+              <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => locationSel && void loadItems(locationSel)} aria-label="Refresh">
+                <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Results */}
+        <Card className="overflow-hidden shadow-sm">
+          <CardContent className="space-y-3 p-3">
+            {loading && items.length === 0 ? (
+              <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin" /> Loading…</div>
             ) : filtered.length === 0 ? (
-              <div className="text-sm text-muted-foreground py-16 text-center">No items found</div>
+              <div className="py-16 text-center text-sm text-muted-foreground">
+                No items found{filtersOn ? " for these filters." : isAll ? "." : ` at ${locName}. Try “All locations”.`}
+              </div>
             ) : (
-              <div className="space-y-4">
+              <>
                 {Pagination}
                 {view === "table" ? (
-                  <div className="rounded-md border overflow-hidden">
-                    <Table>
-                      <TableHeader className="bg-muted/30">
-                        <TableRow>
-                          <TableHead>Item</TableHead>
-                          <TableHead className="w-[110px]">Type</TableHead>
-                          <TableHead className="w-[100px]">Stock</TableHead>
-                          <TableHead className="hidden md:table-cell w-[120px]">Cost</TableHead>
-                          <TableHead className="hidden md:table-cell w-[120px]">Selling</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {paged.map((p) => {
-                          const url = thumb(p);
-                          return (
-                            <TableRow key={p.id} className="hover:bg-muted/10">
-                              <TableCell>
-                                <Link href={`/inventory/items/${p.id}`} className="flex items-center gap-3 min-w-0">
-                                  <div className="h-12 w-12 rounded-lg border bg-muted/10 overflow-hidden flex items-center justify-center shrink-0">
-                                    {url ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={url} alt="" className="h-full w-full object-cover" />
-                                    ) : (
-                                      <ImageIcon className="w-5 h-5 text-muted-foreground" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="font-bold truncate">{p.part_name}</div>
-                                    <div className="text-[10px] text-muted-foreground uppercase tracking-widest font-bold truncate">
-                                      {p.sku ? `SKU: ${p.sku}` : `ITEM ID: #${p.id}`}
-                                    </div>
-                                    {(p.brand_name || p.brand) && (
-                                      <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                                        {p.brand_name || p.brand}
-                                      </div>
-                                    )}
-                                  </div>
-                                </Link>
-                              </TableCell>
-                              <TableCell className="space-y-1">
-                                <Badge variant="outline" className={p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}>
-                                  {p.item_type === 'Part' ? 'Product' : (p.item_type || 'Product')}
-                                </Badge>
-                                {p.recipe_type && p.recipe_type !== 'Standard' && (
-                                  <div className="block">
-                                    <Badge variant="outline" className={p.recipe_type === 'Recipe' ? 'bg-blue-50 text-blue-700 border-blue-200 text-[10px]' : 'bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px]'}>
-                                      {p.recipe_type}
-                                    </Badge>
-                                  </div>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <div className="font-bold">
-                                  {p.item_type === 'Service' ? '—' : Number(p.stock_quantity ?? 0).toLocaleString()}{" "}
-                                  {p.item_type !== 'Service' && p.unit ? <span className="text-xs text-muted-foreground font-normal">{p.unit}</span> : null}
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full min-w-[720px] text-sm">
+                      <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Item</th>
+                          <th className="w-28 px-3 py-2 text-left font-medium">Type</th>
+                          <th className="w-32 px-3 py-2 text-right font-medium">{isAll ? "Stock (all)" : "Stock"}</th>
+                          <th className="w-28 px-3 py-2 text-right font-medium">Cost</th>
+                          <th className="w-28 px-3 py-2 text-right font-medium">Selling</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {paged.map((p) => (
+                          <tr key={p.id} className="cursor-pointer hover:bg-muted/20" onClick={() => router.push(`/inventory/items/${p.id}`)}>
+                            <td className="px-3 py-1.5">
+                              <Link href={`/inventory/items/${p.id}`} className="flex min-w-0 items-center gap-2.5" onClick={(e) => e.stopPropagation()}>
+                                <Thumb p={p} size="h-9 w-9" />
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{p.part_name}</div>
+                                  <div className="truncate text-[11px] text-muted-foreground">{[p.sku || `#${p.id}`, brandOf(p)].filter(Boolean).join(" · ")}</div>
                                 </div>
-                              </TableCell>
-                              <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
-                                {p.cost_price !== null && p.cost_price !== undefined ? Number(p.cost_price).toFixed(2) : "-"}
-                              </TableCell>
-                              <TableCell className="hidden md:table-cell text-sm">
-                                {p.price !== null && p.price !== undefined ? Number(p.price).toFixed(2) : "-"}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                              </Link>
+                            </td>
+                            <td className="px-3 py-1.5">
+                              <div className="flex flex-wrap gap-1">
+                                <Badge variant="outline" className={`h-5 px-1.5 text-[10px] ${p.item_type === "Service" ? "border-amber-500/30 text-amber-600" : ""}`}>{typeLabel(p)}</Badge>
+                                {p.recipe_type && p.recipe_type !== "Standard" && (
+                                  <Badge variant="outline" className="h-5 border-blue-500/30 px-1.5 text-[10px] text-blue-600">{p.recipe_type}</Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-3 py-1.5 text-right font-medium tabular-nums">{stockCell(p)}</td>
+                            <td className="px-3 py-1.5 text-right tabular-nums text-muted-foreground">{money(p.cost_price)}</td>
+                            <td className="px-3 py-1.5 text-right font-medium tabular-nums">{money(p.price)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                    {paged.map((p) => {
-                      const url = thumb(p);
-                      return (
-                        <Link key={p.id} href={`/inventory/items/${p.id}`} className="block">
-                          <Card className="border-none shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-                            <CardContent className="p-4 space-y-3">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                  <div className="h-14 w-14 rounded-xl border bg-muted/10 overflow-hidden flex items-center justify-center shrink-0">
-                                    {url ? (
-                                      // eslint-disable-next-line @next/next/no-img-element
-                                      <img src={url} alt="" className="h-full w-full object-cover" />
-                                    ) : (
-                                      <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                                    )}
-                                  </div>
-                                  <div className="min-w-0">
-                                    <div className="font-bold truncate">{p.part_name}</div>
-                                    {(p.brand_name || p.brand) && (
-                                      <div className="text-[11px] text-muted-foreground truncate mb-1">
-                                        {p.brand_name || p.brand}
-                                      </div>
-                                    )}
-                                    <div className="flex items-center gap-2">
-                                      <div className="text-xs text-muted-foreground truncate">{p.sku ? p.sku : `#${p.id}`}</div>
-                                      <Badge variant="outline" className={`text-[9px] py-0 h-4 ${p.item_type === 'Service' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
-                                        {p.item_type === 'Part' ? 'Product' : (p.item_type || 'Product')}
-                                      </Badge>
-                                      {p.recipe_type && p.recipe_type !== 'Standard' && (
-                                        <Badge variant="outline" className={`text-[9px] py-0 h-4 ${p.recipe_type === 'Recipe' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-indigo-50 text-indigo-700 border-indigo-200'}`}>
-                                          {p.recipe_type}
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
-                                <Badge variant="outline" className="bg-muted/40 font-bold whitespace-nowrap">
-                                  {p.item_type === 'Service' ? 'Service' : `${Number(p.stock_quantity ?? 0).toLocaleString()} ${p.unit ?? ""}`}
-                                </Badge>
-                              </div>
-                              <div className="flex items-center justify-between text-sm">
-                                <div className="text-muted-foreground">Selling</div>
-                                <div className="font-semibold">{p.price !== null && p.price !== undefined ? Number(p.price).toFixed(2) : "-"}</div>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </Link>
-                      );
-                    })}
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+                    {paged.map((p) => (
+                      <Link key={p.id} href={`/inventory/items/${p.id}`} className="flex items-center gap-3 rounded-lg border p-2.5 transition-colors hover:bg-muted/20">
+                        <Thumb p={p} size="h-12 w-12" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{p.part_name}</div>
+                          <div className="truncate text-[11px] text-muted-foreground">{[p.sku || `#${p.id}`, brandOf(p), typeLabel(p)].filter(Boolean).join(" · ")}</div>
+                          <div className="mt-0.5 flex items-center justify-between text-xs tabular-nums">
+                            <span>{stockCell(p)}</span>
+                            <span className="font-medium">LKR {money(p.price)}</span>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
                 )}
-                {Pagination}
-              </div>
+                {filtered.length > pageSize && Pagination}
+              </>
             )}
           </CardContent>
         </Card>
       </div>
 
-      <ImportItemsDialog 
-        open={showImport} 
-        onOpenChange={setShowImport} 
-        onSuccess={() => void load()} 
-      />
+      <ImportItemsDialog open={showImport} onOpenChange={setShowImport} onSuccess={() => locationSel && void loadItems(locationSel)} />
     </DashboardLayout>
   );
 }
-

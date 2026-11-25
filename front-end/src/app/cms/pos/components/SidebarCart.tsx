@@ -23,9 +23,11 @@ import {
   Home,
   Printer,
   MessageSquarePlus,
-  X
+  X,
+  Ticket,
 } from "lucide-react";
 import { LineNoteDialog } from "./Dialogs/LineNoteDialog";
+import { CustomerRegisterDialog } from "./Dialogs/CustomerRegisterDialog";
 import { 
   Select, 
   SelectContent, 
@@ -44,8 +46,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import { usePOS } from "../context/POSContext";
+import { PosLoyaltyChip } from "./PosLoyaltyChip";
+import { WARRANTY_OPTIONS, billFieldsText, serialCount } from "@/lib/pos-profiles";
 import { OrderTypeSelector } from "./OrderTypeSelector";
 import { PromotionsDialog } from "@/components/promotions-dialog";
+import { PosPromoBar } from "./PosPromoBar";
+import { SellGiftVoucherDialog } from "./Dialogs/SellGiftVoucherDialog";
 
 export const SidebarCart: React.FC = () => {
   const {
@@ -95,8 +101,13 @@ export const SidebarCart: React.FC = () => {
     canCheckout,
     printKOT,
     setCompRequest,
-    removeComp
+    removeComp,
+    posProfile,
+    billInfo,
+    setBillInfo,
+    setSelectedTable
   } = usePOS();
+  const [billInfoOpen, setBillInfoOpen] = React.useState(true);
   const compTotal = cart.reduce((s: number, l: any) => s + (l.is_comp ? Number(l.quantity) * Number(l.unit_price) : 0), 0);
   const canCompBill = cart.some((l: any) => !l.is_comp && !l.is_reward && Number(l.unit_price) > 0);
   const isCompact = posLayout === 'compact';
@@ -105,6 +116,7 @@ export const SidebarCart: React.FC = () => {
 
   const [heldOrdersOpen, setHeldOrdersOpen] = React.useState(false);
   const [isPromotionsOpen, setIsPromotionsOpen] = React.useState(false);
+  const [sellVoucherOpen, setSellVoucherOpen] = React.useState(false);
   const [noteLineIndex, setNoteLineIndex] = React.useState<number | null>(null);
   const noteLine = noteLineIndex !== null ? cart[noteLineIndex] : null;
   const money = (n: number) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -136,36 +148,8 @@ export const SidebarCart: React.FC = () => {
           />
         </div>
         
-        <Dialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen}>
-          <DialogTrigger asChild>
-            <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" title="Add customer" aria-label="Add customer"><Plus className="w-4 h-4" /></Button>
-          </DialogTrigger>
-          <DialogContent size="sm" className="overflow-y-auto sm:rounded-lg p-6 bg-background">
-            <DialogHeader><DialogTitle>Add Walk-In</DialogTitle></DialogHeader>
-            <form onSubmit={handleQuickAddCustomer} className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <label className="text-sm font-bold">Name</label>
-                <Input 
-                  value={newCustomer.name} 
-                  onChange={e => setNewCustomer({...newCustomer, name: e.target.value})} 
-                  autoFocus 
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-bold">Phone</label>
-                <Input 
-                  value={newCustomer.phone} 
-                  onChange={e => setNewCustomer({...newCustomer, phone: e.target.value})} 
-                  required
-                />
-              </div>
-              <Button type="submit" disabled={addingCustomer} className="w-full">
-                {addingCustomer ? <Loader2 className="w-4 h-4 animate-spin"/> : "Save & Select"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button size="icon" variant="outline" className="h-9 w-9 shrink-0" title="Register customer" aria-label="Register customer" onClick={() => setAddCustomerOpen(true)}><Plus className="w-4 h-4" /></Button>
+        <CustomerRegisterDialog open={addCustomerOpen} onOpenChange={setAddCustomerOpen} />
         </>)}
 
           <Dialog open={heldOrdersOpen} onOpenChange={(open) => {
@@ -258,9 +242,24 @@ export const SidebarCart: React.FC = () => {
               <Percent className="w-4 h-4" />
             </Button>
           )}
+          {canCheckout && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSellVoucherOpen(true)}
+              className="h-9 w-9 shrink-0"
+              title="Sell a gift voucher"
+              aria-label="Sell a gift voucher"
+            >
+              <Ticket className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
 
+
+      {/* Loyalty: tier and points of the selected customer */}
+      {canCheckout && <PosLoyaltyChip />}
 
       {/* Order context: one line (mode · table · steward) */}
       {orderType && (
@@ -275,7 +274,11 @@ export const SidebarCart: React.FC = () => {
           {orderType === "dine_in" && selectedSteward && (
             <span className="text-muted-foreground truncate">· {stewards.find(s => String(s.id) === selectedSteward)?.name || "Steward"}</span>
           )}
-          <Button variant="ghost" size="sm" onClick={() => setOrderTypeDialogOpen(true)} className="ml-auto h-7 px-2 text-xs text-primary shrink-0">
+          <Button variant="ghost" size="sm" onClick={() => {
+                // Restaurant with an empty bill: back to the tables
+                if (posProfile.floorPlan && cart.length === 0) { setOrderType(null as any); setSelectedTable(null); return; }
+                setOrderTypeDialogOpen(true);
+              }} className="ml-auto h-7 px-2 text-xs text-primary shrink-0">
             Change
           </Button>
         </div>
@@ -435,7 +438,7 @@ export const SidebarCart: React.FC = () => {
                         onChange={(e) => {
                           let val = parseFloat(e.target.value) || 0;
                           const invItem = inventory.find(p => p.id === item.id);
-                          if (invItem && invItem.item_type !== 'Service' && invItem.recipe_type !== 'A La Carte') {
+                          if (invItem && invItem.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(invItem.recipe_type)) {
                              if (val > invItem.stock_quantity) val = invItem.stock_quantity;
                           }
                           updateCartLine(index, 'quantity', val);
@@ -449,7 +452,7 @@ export const SidebarCart: React.FC = () => {
                         onClick={() => {
                           let val = Number(item.quantity) + 1;
                           const invItem = inventory.find(p => p.id === item.id);
-                          if (invItem && invItem.item_type !== 'Service' && invItem.recipe_type !== 'A La Carte') {
+                          if (invItem && invItem.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(invItem.recipe_type)) {
                              if (val > invItem.stock_quantity) val = invItem.stock_quantity;
                           }
                           updateCartLine(index, 'quantity', val);
@@ -468,6 +471,35 @@ export const SidebarCart: React.FC = () => {
                       )}
                     </div>
                   </div>
+                  {/* Phone shop: one IMEI / serial per unit, and the warranty */}
+                  {posProfile.serials && item.item_type !== 'Service' && !item.is_reward && (() => {
+                    const have = serialCount(item.serials);
+                    const ok = have === Number(item.quantity);
+                    return (
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-1.5">
+                        <input
+                          value={item.serials || ''}
+                          onChange={(e) => updateCartLine(index, 'serials', e.target.value)}
+                          placeholder={Number(item.quantity) > 1 ? `IMEI / serial × ${item.quantity} (comma separated)` : "IMEI / serial number"}
+                          aria-label="IMEI or serial number"
+                          className={`h-8 min-w-0 rounded-md border bg-background px-2 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/30 ${ok ? "border-emerald-400" : "border-amber-400"}`}
+                        />
+                        <select
+                          value={item.warranty || ''}
+                          onChange={(e) => updateCartLine(index, 'warranty', e.target.value)}
+                          aria-label="Warranty"
+                          className="h-8 rounded-md border bg-background px-1.5 text-xs"
+                        >
+                          {WARRANTY_OPTIONS.map((w) => <option key={w} value={w}>{w || "Warranty…"}</option>)}
+                        </select>
+                        {!ok && (
+                          <span className="col-span-2 text-[10px] text-amber-700 dark:text-amber-400">
+                            {have}/{item.quantity} serial numbers
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
@@ -477,6 +509,30 @@ export const SidebarCart: React.FC = () => {
 
       {/* Totals & Actions */}
       <div className="bg-white dark:bg-card border-t border-border shrink-0 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.1)] z-10">
+        {/* Bill details the business type needs (vehicle no, patient, site...). Printed on the bill. */}
+        {posProfile.billFields.length > 0 && (
+          <div className="border-b border-border px-3 py-2">
+            <button type="button" onClick={() => setBillInfoOpen(!billInfoOpen)} className="flex w-full items-center justify-between text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <span>Bill details{posProfile.billFields.some(f => f.required && !billInfo[f.key]?.trim()) ? <span className="ml-1 text-destructive">*</span> : null}</span>
+              <span className="text-[10px] font-medium normal-case tracking-normal">{billInfoOpen ? "Hide" : billFieldsText(posProfile, billInfo) || "Add"}</span>
+            </button>
+            {billInfoOpen && (
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {posProfile.billFields.map((f, i) => (
+                  <input
+                    key={f.key}
+                    value={billInfo[f.key] || ''}
+                    onChange={(e) => setBillInfo((s) => ({ ...s, [f.key]: e.target.value }))}
+                    placeholder={`${f.label}${f.required ? " *" : ""}`}
+                    title={f.placeholder}
+                    aria-label={f.label}
+                    className={`h-8 min-w-0 rounded-md border bg-background px-2 text-xs outline-none focus:ring-2 focus:ring-primary/30 ${i === 0 && posProfile.billFields.length % 2 === 1 ? "col-span-2" : ""} ${f.required && !billInfo[f.key]?.trim() ? "border-amber-400" : ""}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         <div className={`${isCompact ? 'px-3 py-2 space-y-1 text-xs' : 'p-3 lg:p-4 space-y-1 lg:space-y-2 text-xs lg:text-sm'} border-b border-border bg-slate-50/50 dark:bg-slate-900/50`}>
           <div className="flex justify-between text-muted-foreground">
             <span className="flex items-center gap-2">
@@ -549,33 +605,7 @@ export const SidebarCart: React.FC = () => {
             </div>
           )}
 
-          {appliedPromotion && (
-            <div className="flex justify-between items-center py-2 px-3 bg-amber-50 dark:bg-amber-950/20 rounded-md border border-amber-200 dark:border-amber-800 animate-in fade-in slide-in-from-top-1 duration-300">
-               <div className="flex flex-col">
-                  <span className="text-xs font-medium text-amber-700 dark:text-amber-400">Promotion applied</span>
-                  <span className="text-xs font-black text-slate-900 dark:text-white">{appliedPromotion.name}</span>
-               </div>
-               <div className="flex items-center gap-3">
-                  <span className="font-black text-amber-600">-LKR {Number(appliedPromotion.discount_value).toLocaleString()}</span>
-                  <div className="flex items-center gap-1">
-                    <button 
-                      onClick={() => setIsPromotionPromptOpen(true)}
-                      title="Switch Promotion"
-                      className="p-1.5 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-md transition-colors text-amber-600"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      onClick={() => setAppliedPromotion(null)}
-                      title="Remove Promotion"
-                      className="p-1.5 hover:bg-amber-200 dark:hover:bg-amber-800 rounded-md transition-colors text-amber-600"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-               </div>
-            </div>
-          )}
+          <PosPromoBar />
         </div>
         
         <div className={posLayout === 'mobile' ? `p-4 flex flex-col gap-3 ${canCheckout ? 'pb-24' : 'pb-4'}` : isCompact ? 'px-3 py-2.5 flex flex-col gap-2' : 'p-4 lg:p-5 flex flex-col gap-3 lg:gap-4'}>
@@ -636,6 +666,7 @@ export const SidebarCart: React.FC = () => {
           updateCartLine(noteLineIndex, 'modifiers', modifiers);
         }}
       />
+      <SellGiftVoucherDialog open={sellVoucherOpen} onOpenChange={setSellVoucherOpen} />
       <PromotionsDialog
         open={isPromotionsOpen}
         onOpenChange={setIsPromotionsOpen} 

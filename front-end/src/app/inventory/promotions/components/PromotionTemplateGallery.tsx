@@ -17,11 +17,12 @@ import {
   ChevronRight,
   Package,
   CreditCard,
-  Building2
+  Building2,
+  CalendarClock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type PromotionTemplate = 'bundle' | 'seasonal' | 'bogo' | 'qty' | 'website' | 'bank' | 'advanced';
+export type PromotionTemplate = 'campaign' | 'bundle' | 'seasonal' | 'bogo' | 'qty' | 'website' | 'bank' | 'advanced';
 
 interface PromotionTemplateGalleryProps {
   open: boolean;
@@ -30,6 +31,14 @@ interface PromotionTemplateGalleryProps {
 }
 
 const TEMPLATES = [
+  {
+    id: 'campaign',
+    title: 'Timed Campaign',
+    description: 'Black Friday, weekend sale or happy hour: % off the store or chosen categories, between set dates and hours.',
+    icon: CalendarClock,
+    color: 'bg-rose-500',
+    group: 'Discounts'
+  },
   {
     id: 'seasonal',
     title: 'Seasonal Discount',

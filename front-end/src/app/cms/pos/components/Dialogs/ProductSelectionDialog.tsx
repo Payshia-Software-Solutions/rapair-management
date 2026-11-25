@@ -186,7 +186,7 @@ export const ProductSelectionDialog: React.FC = () => {
   const unitPrice = Number(selectedProduct?.price || selectedProduct?.cost_price || 0);
   // Menu pricing: the price already includes taxes, so no "incl. tax" line
   const taxIncPrice = isMenuPricing ? unitPrice : getTaxInclusivePrice(unitPrice);
-  const tracksStock = !!selectedProduct && selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte';
+  const tracksStock = !!selectedProduct && selectedProduct.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(selectedProduct.recipe_type);
   // For FIFO/expiry items the batch sum is the source of truth (the product card can be stale)
   const batchTotal = batches.reduce((acc, b) => acc + Number(b.quantity_on_hand), 0);
   const availableQty = !selectedProduct ? 0
@@ -284,7 +284,7 @@ export const ProductSelectionDialog: React.FC = () => {
                   )}
 
                   {/* Boolean(): is_fifo/is_expiry come back as 0/1 and a bare 0 would render as "0" */}
-                  {selectedProduct.item_type !== 'Service' && selectedProduct.recipe_type !== 'A La Carte' && Boolean(Number(selectedProduct.is_fifo) || Number(selectedProduct.is_expiry)) && (
+                  {selectedProduct.item_type !== 'Service' && !['A La Carte', 'Buffet'].includes(selectedProduct.recipe_type) && Boolean(Number(selectedProduct.is_fifo) || Number(selectedProduct.is_expiry)) && (
                     <div className="pt-4 mt-2">
                       <div className="flex items-center justify-between mb-3 px-1">
                         <div className="flex flex-col">

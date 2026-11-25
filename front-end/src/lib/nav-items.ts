@@ -51,7 +51,10 @@ import {
   HelpCircle,
   Printer,
   AlertCircle,
-  Target
+  Target,
+  FileMinus,
+  Wallet as WalletIcon,
+  MonitorSmartphone as PosTerminalIcon,
 } from "lucide-react";
 
 export type NavItem = {
@@ -102,6 +105,7 @@ export const vendorItems: NavItem[] = [
   { icon: Truck, label: "Suppliers", href: "/inventory/suppliers", perm: "suppliers.read" },
   { icon: Receipt, label: "Vendor Payments", href: "/vendors/payments", perm: "suppliers.read" },
   { icon: ArrowLeftRight, label: "Supplier Returns", href: "/vendors/returns", perm: "suppliers.read" },
+  { icon: FileMinus, label: "Debit Notes", href: "/vendors/debit-notes", perm: "suppliers.read" },
 ];
 
 export const inventoryItems: NavItem[] = [
@@ -126,9 +130,17 @@ export const crmItems: NavItem[] = [
 
 export const marketingItems: NavItem[] = [
   { icon: Gift, label: "Promotions", href: "/inventory/promotions", perm: "promotions.read" },
+  { icon: Ticket, label: "Gift Vouchers", href: "/inventory/gift-vouchers", perm: "promotions.read" },
   { icon: MessageSquare, label: "SMS Marketing", href: "/cms/marketing/sms", perm: "promotions.read" },
   { icon: Mail, label: "Email Marketing", href: "/cms/marketing/email", perm: "promotions.read" },
   { icon: Users, label: "Audience Segments", href: "/cms/marketing/segments", perm: "promotions.read" },
+];
+
+export const loyaltyItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Loyalty Overview", href: "/loyalty", perm: "promotions.read" },
+  { icon: Users, label: "Members", href: "/loyalty/members", perm: "promotions.read" },
+  { icon: BarChart3, label: "Loyalty Reports", href: "/loyalty/reports", perm: "promotions.read" },
+  { icon: Settings, label: "Program & Tiers", href: "/loyalty/settings", perm: "promotions.write" },
 ];
 
 export const salesItems: NavItem[] = [
@@ -137,7 +149,10 @@ export const salesItems: NavItem[] = [
   { icon: FileText, label: "Invoices", href: "/cms/invoices", perm: "invoices.read" },
   { icon: History, label: "Recurring Invoices", href: "/cms/invoices/recurring", perm: "invoices.read" },
   { icon: FileText, label: "Customer Notes", href: "/sales/notes", perm: "invoices.read" },
+  { icon: FileMinus, label: "Credit Notes", href: "/cms/credit-notes", perm: "invoices.read" },
   { icon: Receipt, label: "Payment Receipts", href: "/cms/payment-receipts", perm: "payments.read" },
+  { icon: WalletIcon, label: "Cashier Shifts", href: "/cms/pos/shifts", perm: "reports.read" },
+  { icon: PosTerminalIcon, label: "POS Terminals", href: "/cms/pos/terminals", perm: "pos.write" },
   { icon: Landmark, label: "Cheque Inventory", href: "/cms/cheques", perm: "payments.read" },
 ];
 
@@ -229,11 +244,15 @@ export const adminNavItems: NavItem[] = [
   { icon: Settings, label: "Company", href: "/admin/company", perm: "company.write" },
   { icon: Settings, label: "System Settings", href: "/admin/settings/system", perm: "settings.read" },
   { icon: Printer, label: "Printer Setup", href: "/admin/settings/printers", perm: "settings.read" },
+  { icon: Database, label: "Backups", href: "/admin/backups", perm: "settings.write" },
   { icon: Truck, label: "Shipping Management", href: "/admin/shipping", perm: "locations.read" },
+  { icon: CreditCard, label: "Subscription", href: "/admin/subscription", perm: "settings.read" },
+];
+
+/** Technical tools end users don't need. Shown only while Nexus has developer mode on (see useDevMode). */
+export const developerNavItems: NavItem[] = [
   { icon: Layers, label: "Database Schema", href: "/admin/schema", perm: "settings.read" },
   { icon: ShieldCheck, label: "Table Verification", href: "/reports/database", perm: "settings.read" },
-  { icon: CreditCard, label: "Subscription", href: "/admin/subscription", perm: "settings.read" },
-
 ];
 
 

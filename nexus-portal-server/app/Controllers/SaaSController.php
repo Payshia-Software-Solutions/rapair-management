@@ -203,6 +203,20 @@ class SaaSController extends Controller {
         }
     }
 
+    // POST /api/admin/tenants/dev-mode {id, dev_mode}  Developer Options menu on/off for one workspace.
+    public function setTenantDevMode() {
+        $this->checkAuth();
+        $data = $this->getPostData() ?: [];
+        $id = (int)($data['id'] ?? 0);
+        $on = !empty($data['dev_mode']);
+        $model = new TenantModel();
+        if (!$id || !$model->getByIdWithPackage($id)) return $this->json(['status' => 'error', 'message' => 'Tenant not found'], 404);
+        if (!$model->setDevMode($id, $on)) return $this->json(['status' => 'error', 'message' => 'Could not save developer mode'], 500);
+        try { (new \App\Services\ProvisioningService())->onDevModeChanged($id); }
+        catch (\Throwable $e) { error_log('Provisioning (dev mode): ' . $e->getMessage()); }
+        return $this->json(['status' => 'success', 'data' => ['dev_mode' => $on]]);
+    }
+
     public function updateTenant() {
         $this->checkAuth();
         $data = $this->getPostData() ?: [];
