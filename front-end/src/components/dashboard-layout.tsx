@@ -110,7 +110,6 @@ import {
   salesItems,
   accountingItems, 
   adminNavItems,
-  developerNavItems,
   serviceCenterItems,
   vendorItems,
   productionItems,
@@ -123,7 +122,6 @@ import {
   kioskItems,
   approvalItems
 } from "@/lib/nav-items";
-import { useDevMode } from "@/lib/dev-mode";
 
 export function DashboardLayout({ children, fullWidth = true, title }: { children: React.ReactNode; fullWidth?: boolean; title?: string }) {
   const pathname = usePathname();
@@ -186,7 +184,6 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
   const [isEcommerceOpen, setIsEcommerceOpen] = useSidebarState('Ecommerce', false);
   const [isKioskOpen, setIsKioskOpen] = useSidebarState('Kiosk', false);
   const [isAdminOpen, setIsAdminOpen] = useSidebarState('Admin', false);
-  const [isDevOpen, setIsDevOpen] = useSidebarState('Developer', false);
   
   const [theme, setTheme] = useState<AppTheme>('light');
   const [availableLocations, setAvailableLocations] = useState<Array<{ id: number; name: string }>>([]);
@@ -585,15 +582,12 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
 
   const adminItems = userRole.toLowerCase() === 'admin' ? adminNavItems : [];
   const canSeeAdmin = adminItems.length > 0;
-  const devMode = useDevMode(userRole.toLowerCase() === 'admin');
-  const devItems = devMode ? developerNavItems : [];
-  const devActive = devItems.some((it) => pathname.startsWith(it.href));
 
   const allHrefs = React.useMemo(() => {
     return [
       ...mainNavItems, ...serviceCenterItems, ...vendorItems, ...inventoryItems,
       ...crmItems, ...salesItems, ...masterDataItems, ...accountingItems,
-      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...approvalItems, ...adminItems, ...devItems
+      ...productionItems, ...hrmItems, ...frontOfficeItems, ...banquetItems, ...ecommerceItems, ...kioskItems, ...approvalItems, ...adminItems
     ].map(i => i.href);
   }, [adminItems]);
 
@@ -1492,11 +1486,11 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     <SidebarMenuButton
                       type="button"
                       onClick={() => setIsAdminOpen((v) => !v)}
-                      isActive={pathname.startsWith('/admin') && !devActive}
+                      isActive={pathname.startsWith('/admin')}
                       tooltip="Administration"
                       className={cn(
                         "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60 font-medium",
-                        pathname.startsWith('/admin') && !devActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
+                        pathname.startsWith('/admin') ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
                       )}
                     >
                       <Shield className="w-5 h-5" />
@@ -1512,43 +1506,6 @@ export function DashboardLayout({ children, fullWidth = true, title }: { childre
                     {adminOpen ? (
                       <SidebarMenuSub>
                         {adminItems.map((item) => (
-                          <SidebarMenuSubItem key={item.href}>
-                            <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
-                              <Link href={item.href}>
-                                <item.icon className="w-4 h-4" />
-                                <span>{item.label}</span>
-                              </Link>
-                            </SidebarMenuSubButton>
-                          </SidebarMenuSubItem>
-                        ))}
-                      </SidebarMenuSub>
-                    ) : null}
-                  </SidebarMenuItem>
-                )}
-                {devItems.length === 0 ? null : (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton
-                      type="button"
-                      onClick={() => setIsDevOpen((v) => !v)}
-                      isActive={devActive}
-                      tooltip="Developer Options"
-                      className={cn(
-                        "transition-all duration-150 py-2.5 px-3 rounded-xl text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white font-medium",
-                        devActive ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 font-bold shadow-xs" : "hover:bg-slate-100 dark:hover:bg-slate-800/60"
-                      )}
-                    >
-                      <Settings className="w-5 h-5" />
-                      <span className="text-base sm:text-sm font-medium">Developer Options</span>
-                      <ChevronRight
-                        className={cn(
-                          "ml-auto w-4 h-4 transition-transform group-data-[collapsible=icon]:hidden",
-                          isDevOpen ? "rotate-90" : "rotate-0"
-                        )}
-                      />
-                    </SidebarMenuButton>
-                    {isDevOpen ? (
-                      <SidebarMenuSub>
-                        {devItems.map((item) => (
                           <SidebarMenuSubItem key={item.href}>
                             <SidebarMenuSubButton asChild isActive={isActiveRoute(item.href)}>
                               <Link href={item.href}>

@@ -309,50 +309,6 @@ export const fetchMenuTaxBreakdown = async (params: { location_id?: string; from
   return data.status === 'success' ? data.data : data;
 };
 
-export const fetchDatabaseAudit = async () => {
-  const res = await api('/api/report/database_audit');
-  if (!res.ok) throw new Error('Failed to load database audit');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const fetchSchemaDiff = async () => {
-  const res = await api('/api/report/schema_diff');
-  if (!res.ok) throw new Error('Failed to load schema diff');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const syncSchema = async (tableName?: string) => {
-  const url = tableName ? `/api/report/schema_sync?table=${tableName}` : '/api/report/schema_sync';
-  const res = await api(url, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to sync schema');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const createSchemaSnapshot = async (tableName?: string) => {
-  const url = tableName ? `/api/report/schema_snapshot?table=${tableName}` : '/api/report/schema_snapshot';
-  const res = await api(url, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to create snapshot');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const optimizeDatabase = async () => {
-  const res = await api('/api/report/database_optimize', { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to optimize database');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
-export const dropDatabaseTable = async (tableName: string) => {
-  const res = await api(`/api/report/database_drop?table=${tableName}`, { method: 'POST' });
-  if (!res.ok) throw new Error('Failed to drop table');
-  const data = await res.json();
-  return data.status === 'success' ? data.data : data;
-};
-
 // --- Aliases for Backward Compatibility ---
 export const fetchReportStockBalance = fetchStockBalance;
 export const fetchReportStockTransfers = fetchStockTransferReport;

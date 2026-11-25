@@ -249,12 +249,6 @@ export const adminNavItems: NavItem[] = [
   { icon: CreditCard, label: "Subscription", href: "/admin/subscription", perm: "settings.read" },
 ];
 
-/** Technical tools end users don't need. Shown only while Nexus has developer mode on (see useDevMode). */
-export const developerNavItems: NavItem[] = [
-  { icon: Layers, label: "Database Schema", href: "/admin/schema", perm: "settings.read" },
-  { icon: ShieldCheck, label: "Table Verification", href: "/reports/database", perm: "settings.read" },
-];
-
 
 /**
  * Core "Approvals & Control" group: not tied to a module, shown to every signed-in user.
