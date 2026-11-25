@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-11-25 12:28:17",
+    "generated_at": "2026-11-25 12:51:46",
     "tables": {
         "erp_requests": {
             "create": "CREATE TABLE `erp_requests` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `company_name` varchar(200) DEFAULT NULL,\n  `contact_person` varchar(200) DEFAULT NULL,\n  `email` varchar(200) DEFAULT NULL,\n  `phone` varchar(50) DEFAULT NULL,\n  `expected_users` int(11) DEFAULT NULL,\n  `package_type` varchar(100) DEFAULT NULL,\n  `status` varchar(50) DEFAULT 'New',\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -142,7 +142,7 @@
             }
         },
         "saas_invoices": {
-            "create": "CREATE TABLE `saas_invoices` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `tenant_id` int(11) NOT NULL,\n  `invoice_number` varchar(100) NOT NULL,\n  `billing_month` varchar(50) DEFAULT NULL,\n  `amount` decimal(10,2) DEFAULT 0.00,\n  `currency` varchar(10) DEFAULT 'USD',\n  `exchange_rate` decimal(16,8) DEFAULT 1.00000000,\n  `source` varchar(50) DEFAULT 'MARKET',\n  `due_date` date DEFAULT NULL,\n  `status` enum('Pending','Paid','Overdue','Cancelled') DEFAULT 'Pending',\n  `email_status` varchar(50) DEFAULT 'Pending',\n  `last_sent_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  KEY `tenant_id` (`tenant_id`),\n  CONSTRAINT `saas_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `saas_tenants` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+            "create": "CREATE TABLE `saas_invoices` (\n  `id` int(11) NOT NULL AUTO_INCREMENT,\n  `tenant_id` int(11) NOT NULL,\n  `invoice_number` varchar(100) NOT NULL,\n  `billing_month` varchar(50) DEFAULT NULL,\n  `amount` decimal(10,2) DEFAULT 0.00,\n  `currency` varchar(10) DEFAULT 'USD',\n  `exchange_rate` decimal(16,8) DEFAULT 1.00000000,\n  `source` varchar(50) DEFAULT 'MARKET',\n  `due_date` date DEFAULT NULL,\n  `status` enum('Pending','Paid','Overdue','Cancelled') DEFAULT 'Pending',\n  `email_status` varchar(50) DEFAULT 'Pending',\n  `last_sent_at` datetime DEFAULT NULL,\n  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),\n  PRIMARY KEY (`id`),\n  UNIQUE KEY `uq_invoice_number` (`invoice_number`),\n  KEY `tenant_id` (`tenant_id`),\n  CONSTRAINT `saas_invoices_ibfk_1` FOREIGN KEY (`tenant_id`) REFERENCES `saas_tenants` (`id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
             "columns": {
                 "id": "int(11) NOT NULL AUTO_INCREMENT",
                 "tenant_id": "int(11) NOT NULL",
@@ -159,6 +159,13 @@
                 "created_at": "timestamp NOT NULL DEFAULT current_timestamp()"
             },
             "indexes": {
+                "uq_invoice_number": {
+                    "sql": "UNIQUE KEY `uq_invoice_number` (`invoice_number`)",
+                    "unique": true,
+                    "columns": [
+                        "invoice_number"
+                    ]
+                },
                 "tenant_id": {
                     "sql": "KEY `tenant_id` (`tenant_id`)",
                     "unique": false,

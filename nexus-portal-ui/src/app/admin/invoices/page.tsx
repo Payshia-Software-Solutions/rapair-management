@@ -15,6 +15,7 @@ function StatusBadge({ status }: { status: string }) {
     Paid:    'border-nx-success/30 bg-nx-success-soft text-nx-success dark:border-nx-success/30 dark:text-nx-success',
     Overdue: 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger dark:border-nx-danger/30 dark:text-nx-danger',
     Pending: 'border-nx-warning/30 bg-nx-warning-soft text-nx-warning dark:border-nx-warning/30 dark:text-nx-warning',
+    Cancelled: 'border-nx-line bg-nx-surface-muted text-nx-text-muted dark:border-nx-line-dark dark:bg-nx-line-dark dark:text-nx-text-subtle',
   };
   return (
     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${map[status] ?? map['Pending']}`}>
@@ -32,6 +33,21 @@ function EmailBadge({ status }: { status: string }) {
     }`}>{status || 'Pending'}</span>
   );
 }
+
+const money = (v: unknown) => Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+/** Read a JSON reply; throw its message when the request failed. */
+async function reply(res: Response) {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.status !== 'success') throw new Error(data.message || `Request failed (${res.status})`);
+  return data;
+}
+
+type PreviewRow = {
+  tenant_id: number; name: string; status: string; package: string | null; cycle: string;
+  base_usd: number; currency: string; amount: number | null; billing_month: string; action: 'bill' | 'skip'; reason: string | null;
+};
+type RunResult = { tenant_id: number; name: string; status: string; reason?: string; invoice_number?: string; amount?: number; currency?: string; email?: string };
 
 function Modal({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
   if (!open) return null;
@@ -60,11 +76,14 @@ export default function GlobalInvoicesPage() {
   const [paymentMethod,    setPaymentMethod]    = useState('Bank Transfer');
   const [transactionId,    setTransactionId]    = useState('');
   const [billingModal, setBillingModal] = useState({
-    isOpen: false, step: 'idle', total: 0, processed: 0, currentTenant: '',
-    selectedMonth: new Date().toLocaleString('default', { month: 'long' }),
+    isOpen: false, step: 'idle' as 'idle' | 'loading' | 'review' | 'generating' | 'completed',
+    selectedMonth: new Date().toLocaleString('en-US', { month: 'long' }),
     selectedYear: new Date().getFullYear().toString(),
-    results: { created: 0, skipped: 0, details: [] as any[] }
+    rows: [] as PreviewRow[], selected: [] as number[], dueDate: '', error: '',
+    results: [] as RunResult[],
   });
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const flash = (type: 'success' | 'error', text: string) => { setNotice({ type, text }); setTimeout(() => setNotice(null), 6000); };
 
   const fetchData = async () => {
     setLoading(true);
@@ -81,13 +100,19 @@ export default function GlobalInvoicesPage() {
   const updateInvoice = async (id: number, data: any) => {
     try {
       const res = await adminFetch(`/admin/billing/update`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, ...data }) });
-      if (res.ok) fetchData();
-    } catch { alert('Failed to update invoice'); }
+      flash('success', (await reply(res)).message);
+      fetchData();
+    } catch (e) { flash('error', e instanceof Error ? e.message : 'Failed to update invoice'); }
   };
 
   const handleEditAmount = async (id: number, currentAmount: string) => {
     const newAmount = prompt('Enter new amount:', currentAmount);
     if (newAmount !== null && !isNaN(parseFloat(newAmount))) updateInvoice(id, { amount: parseFloat(newAmount) });
+  };
+
+  const handleCancel = async (inv: any) => {
+    if (!confirm(`Cancel invoice ${inv.invoice_number}? It stays on record but is no longer due.`)) return;
+    updateInvoice(inv.id, { status: 'Cancelled' });
   };
 
   const handleDownload = (id: number, type = 'invoice') => {
@@ -102,20 +127,23 @@ export default function GlobalInvoicesPage() {
     setIsResending(true);
     try {
       const res = await adminFetch(`/admin/billing/resend?id=${showResendModal.id}&type=${type}`, { });
-      if (res.ok) { fetchData(); setShowResendModal(null); }
-    } catch { alert('Failed to resend email'); }
+      flash('success', (await reply(res)).message);
+      fetchData(); setShowResendModal(null);
+    } catch (e) { flash('error', e instanceof Error ? e.message : 'Failed to resend email'); }
     finally { setIsResending(false); }
   };
 
   const handlePayment = async () => {
     if (!showPaymentModal) return;
     const amount = parseFloat(paymentAmount);
-    if (isNaN(amount)) { alert('Please enter a valid amount'); return; }
+    if (isNaN(amount) || amount <= 0) { alert('Enter the amount received'); return; }
+    if (amount > Number(showPaymentModal.balance ?? showPaymentModal.amount) + 0.005) { alert('The amount is more than the balance'); return; }
     setIsPaying(true);
     try {
       const res = await adminFetch(`/admin/billing/pay`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invoice_id: showPaymentModal.id, amount, payment_method: paymentMethod, transaction_id: transactionId }) });
-      if (res.ok) { fetchData(); setShowPaymentModal(null); setPaymentAmount(''); setTransactionId(''); }
-    } catch { alert('Failed to process payment'); }
+      flash('success', (await reply(res)).message);
+      fetchData(); setShowPaymentModal(null); setPaymentAmount(''); setTransactionId('');
+    } catch (e) { alert(e instanceof Error ? e.message : 'Failed to record payment'); }
     finally { setIsPaying(false); }
   };
 
@@ -135,44 +163,53 @@ export default function GlobalInvoicesPage() {
     if (!confirm('Delete this payment record?')) return;
     try {
       const res = await adminFetch(`/admin/billing/payments/delete?id=${id}`, { method: 'POST', });
-      if (res.ok) { if (showHistoryModal) fetchPaymentHistory(showHistoryModal.id); fetchData(); }
-    } catch { alert('Failed to delete payment'); }
+      flash('success', (await reply(res)).message);
+      if (showHistoryModal) fetchPaymentHistory(showHistoryModal.id);
+      fetchData();
+    } catch (e) { flash('error', e instanceof Error ? e.message : 'Failed to delete payment'); }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this invoice? This action cannot be undone.')) return;
+    if (!confirm('Delete this invoice? This cannot be undone. To keep a record, cancel it instead.')) return;
     try {
       const res = await adminFetch(`/admin/billing/delete?id=${id}`, { method: 'POST', });
-      if (res.ok) fetchData();
-    } catch { alert('Failed to delete invoice'); }
+      flash('success', (await reply(res)).message);
+      fetchData();
+    } catch (e) { flash('error', e instanceof Error ? e.message : 'Failed to delete invoice'); }
   };
 
-  const handleRunBilling = async () => {
-    const period = `${billingModal.selectedMonth} ${billingModal.selectedYear}`;
-    setBillingModal(p => ({ ...p, step: 'fetching', processed: 0, total: 0 }));
+  const periodLabel = `${billingModal.selectedMonth} ${billingModal.selectedYear}`;
+
+  /** Step 1: ask the server who would be billed for the period (nothing is created). */
+  const loadPreview = async () => {
+    setBillingModal(p => ({ ...p, step: 'loading', error: '' }));
     try {
-      const tenantsRes  = await adminFetch(`/admin/tenants`, { });
-      const tenantsData = await tenantsRes.json();
-      const activeTenants = tenantsData.data || [];
-      setBillingModal(p => ({ ...p, step: 'processing', total: activeTenants.length }));
-      let created = 0, skipped = 0;
-      const details: any[] = [];
-      for (let i = 0; i < activeTenants.length; i++) {
-        const tenant = activeTenants[i];
-        setBillingModal(p => ({ ...p, currentTenant: tenant.name, processed: i + 1 }));
-        try {
-          const res  = await adminFetch(`/admin/billing/run-cycle?tenant_id=${tenant.id}&period=${encodeURIComponent(period)}`, { method: 'POST', });
-          const data = await res.json();
-          if (data.processed > 0) { created++; details.push({ name: tenant.name, status: 'Generated', amount: tenant.monthly_price }); }
-          else                    { skipped++; details.push({ name: tenant.name, status: 'Skipped',   reason: 'Already exists' }); }
-        } catch {
-          skipped++; details.push({ name: tenant.name, status: 'Error', reason: 'Connection failed' });
-        }
-      }
-      setBillingModal(p => ({ ...p, step: 'completed', results: { created, skipped, details } }));
-      fetchData();
-    } catch { alert('Failed to start billing cycle'); setBillingModal(p => ({ ...p, isOpen: false, step: 'idle' })); }
+      const data = await reply(await adminFetch(`/admin/billing/preview?period=${encodeURIComponent(periodLabel)}`, {}));
+      const rows: PreviewRow[] = data.data.tenants;
+      setBillingModal(p => ({ ...p, step: 'review', rows, dueDate: data.data.due_date,
+        selected: rows.filter(r => r.action === 'bill').map(r => r.tenant_id) }));
+    } catch (e) { setBillingModal(p => ({ ...p, step: 'idle', error: e instanceof Error ? e.message : 'Could not load the preview' })); }
   };
+
+  /** Step 2: create and email invoices for the ticked tenants. The server re-checks every rule. */
+  const handleRunBilling = async () => {
+    if (!billingModal.selected.length) return;
+    setBillingModal(p => ({ ...p, step: 'generating', error: '' }));
+    try {
+      const res = await adminFetch(`/admin/billing/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ period: periodLabel, tenant_ids: billingModal.selected }) });
+      const data = await reply(res);
+      setBillingModal(p => ({ ...p, step: 'completed', results: data.data.results }));
+      fetchData();
+    } catch (e) { setBillingModal(p => ({ ...p, step: 'review', error: e instanceof Error ? e.message : 'Billing failed' })); }
+  };
+
+  const toggleTenant = (id: number) => setBillingModal(p => ({
+    ...p, selected: p.selected.includes(id) ? p.selected.filter(x => x !== id) : [...p.selected, id] }));
+
+  const outstanding = invoices.filter(i => i.status !== 'Cancelled').reduce((acc: Record<string, number>, i) => {
+    acc[i.currency || 'USD'] = (acc[i.currency || 'USD'] || 0) + Number(i.balance ?? 0); return acc; }, {});
+  const overdueCount = invoices.filter(i => i.status === 'Overdue').length;
 
   const filtered   = invoices.filter(i =>
     i.tenant_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -191,8 +228,8 @@ export default function GlobalInvoicesPage() {
           <h1 className="text-lg font-semibold text-nx-ink dark:text-white">Invoices & Payments</h1>
           <p className="mt-0.5 text-[13px] text-nx-text-muted dark:text-nx-text-subtle">Enterprise billing & financial status</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setBillingModal(p => ({ ...p, isOpen: true, step: 'idle' }))} disabled={loading}
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => setBillingModal(p => ({ ...p, isOpen: true, step: 'idle', error: '' }))} disabled={loading}
             className="flex items-center gap-1.5 rounded-lg bg-nx-accent px-3 py-2 text-[13px] font-medium text-white hover:bg-nx-accent-strong transition-colors disabled:opacity-50">
             <CreditCard size={14} /> Run Billing
           </button>
@@ -204,6 +241,28 @@ export default function GlobalInvoicesPage() {
           <button onClick={fetchData} className="rounded-lg border border-nx-line bg-white p-2 text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:bg-nx-surface-dark dark:hover:bg-nx-line-dark transition-colors">
             <RefreshCcw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
+        </div>
+      </div>
+
+      {notice && (
+        <div role="status" className={`rounded-lg border px-4 py-2.5 text-[13px] ${notice.type === 'success'
+          ? 'border-nx-success/30 bg-nx-success-soft text-nx-success' : 'border-nx-danger/30 bg-nx-danger-soft text-nx-danger'}`}>{notice.text}</div>
+      )}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-nx-text-muted">Outstanding</p>
+          <p className="mt-1 text-[15px] font-semibold text-nx-ink dark:text-white">
+            {Object.entries(outstanding).filter(([, v]) => v > 0).map(([c, v]) => `${c} ${money(v)}`).join(' · ') || 'Nothing due'}
+          </p>
+        </div>
+        <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-nx-text-muted">Overdue invoices</p>
+          <p className={`mt-1 text-[15px] font-semibold ${overdueCount ? 'text-nx-danger' : 'text-nx-ink dark:text-white'}`}>{overdueCount}</p>
+        </div>
+        <div className="rounded-xl border border-nx-line bg-white p-4 dark:border-nx-line-dark dark:bg-nx-surface-dark">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-nx-text-muted">Unpaid invoices</p>
+          <p className="mt-1 text-[15px] font-semibold text-nx-ink dark:text-white">{invoices.filter(i => Number(i.balance) > 0).length}</p>
         </div>
       </div>
 
@@ -251,12 +310,18 @@ export default function GlobalInvoicesPage() {
                   </td>
                   <td className="px-5 py-3.5 text-center">
                     <div className="flex items-center justify-center gap-1 group/amt">
-                      <span className="text-[13px] font-semibold text-nx-ink dark:text-white">{inv.currency || 'USD'} {inv.amount}</span>
-                      <button onClick={() => handleEditAmount(inv.id, inv.amount)}
+                      <span className="text-[13px] font-semibold text-nx-ink dark:text-white">{inv.currency || 'USD'} {money(inv.amount)}</span>
+                      <button onClick={() => handleEditAmount(inv.id, inv.amount)} aria-label="Edit amount" 
                         className="rounded p-1 text-nx-text-subtle hover:text-nx-accent opacity-0 group-hover/amt:opacity-100 transition-all">
                         <Edit2 size={11} />
                       </button>
                     </div>
+                    {Number(inv.paid_total) > 0 && Number(inv.balance) > 0 && (
+                      <div className="text-[11px] text-nx-warning">Paid {money(inv.paid_total)} · Due {money(inv.balance)}</div>
+                    )}
+                    {inv.status !== 'Paid' && inv.status !== 'Cancelled' && inv.due_date && (
+                      <div className="text-[10px] text-nx-text-subtle">Due {inv.due_date}</div>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 text-center"><StatusBadge status={inv.status} /></td>
                   <td className="px-5 py-3.5 text-center">
@@ -264,21 +329,27 @@ export default function GlobalInvoicesPage() {
                     {inv.last_sent_at && <div className="mt-0.5 text-[10px] text-nx-text-subtle">{new Date(inv.last_sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>}
                   </td>
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center justify-end gap-1 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
                       <button onClick={() => setShowResendModal(inv)} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-accent-soft hover:text-nx-accent dark:hover:bg-nx-accent/10 transition-colors" title="Resend"><Mail size={14} /></button>
                       <button onClick={() => handleDownload(inv.id, 'invoice')} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors" title="Download"><FileText size={14} /></button>
-                      {inv.status !== 'Paid' ? (
-                        <button onClick={() => { setShowPaymentModal(inv); setPaymentAmount(inv.amount); }}
+                      {inv.status !== 'Cancelled' && Number(inv.balance) > 0 && (
+                        <button onClick={() => { setShowPaymentModal(inv); setPaymentAmount(String(inv.balance)); }}
                           className="rounded-md bg-nx-success px-2 py-1 text-[11px] font-medium text-white hover:bg-nx-success transition-colors">
                           Pay
                         </button>
-                      ) : (
+                      )}
+                      {Number(inv.payment_count) > 0 && (
                         <button onClick={() => handleShowHistory(inv)}
                           className="rounded-md border border-nx-accent-tint bg-nx-accent-soft px-2 py-1 text-[11px] font-medium text-nx-accent hover:bg-nx-accent-tint dark:border-nx-accent/20 dark:bg-nx-accent/10 dark:text-nx-accent-light transition-colors">
-                          Details
+                          Payments
                         </button>
                       )}
-                      <button onClick={() => handleDelete(inv.id)} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-danger-soft hover:text-nx-danger transition-colors" title="Delete"><Trash2 size={14} /></button>
+                      {inv.status !== 'Cancelled' && Number(inv.payment_count) === 0 && (
+                        <button onClick={() => handleCancel(inv)} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors" title="Cancel invoice" aria-label="Cancel invoice"><X size={14} /></button>
+                      )}
+                      {Number(inv.payment_count) === 0 && (
+                        <button onClick={() => handleDelete(inv.id)} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-danger-soft hover:text-nx-danger transition-colors" title="Delete" aria-label="Delete invoice"><Trash2 size={14} /></button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -317,10 +388,10 @@ export default function GlobalInvoicesPage() {
             </div>
             <div className="flex gap-3">
               <button onClick={() => setShowResendModal(null)} className="flex-1 rounded-lg border border-nx-line py-2.5 text-[13px] font-medium text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:hover:bg-nx-line-dark transition-colors">Cancel</button>
-              <button onClick={() => handleResend(showResendModal?.status === 'Paid' ? 'receipt' : 'invoice')} disabled={isResending}
+              <button onClick={() => handleResend(Number(showResendModal?.balance) > 0 ? 'invoice' : 'receipt')} disabled={isResending}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-nx-accent py-2.5 text-[13px] font-medium text-white hover:bg-nx-accent-strong transition-colors disabled:opacity-50">
                 {isResending ? <RefreshCcw size={14} className="animate-spin" /> : <Send size={14} />}
-                {isResending ? 'Sending…' : showResendModal?.status === 'Paid' ? 'Resend Receipt' : 'Send Invoice'}
+                {isResending ? 'Sending…' : Number(showResendModal?.balance) > 0 ? 'Send Reminder' : 'Resend Receipt'}
               </button>
             </div>
           </div>
@@ -344,23 +415,26 @@ export default function GlobalInvoicesPage() {
           </div>
           <div className="p-6 space-y-4">
             <div className="rounded-lg border border-nx-line dark:border-nx-line-dark bg-nx-surface-soft dark:bg-nx-surface-dark-2 p-4 text-center">
-              <p className="text-[11px] text-nx-text-subtle mb-1">Invoice Balance</p>
-              <p className="text-2xl font-bold text-nx-ink dark:text-white">{showPaymentModal?.currency || 'USD'} {showPaymentModal?.amount}</p>
+              <p className="text-[11px] text-nx-text-subtle mb-1">Balance due · {showPaymentModal?.invoice_number}</p>
+              <p className="text-2xl font-bold text-nx-ink dark:text-white">{showPaymentModal?.currency || 'USD'} {money(showPaymentModal?.balance ?? showPaymentModal?.amount)}</p>
+              {Number(showPaymentModal?.paid_total) > 0 && (
+                <p className="mt-1 text-[11px] text-nx-text-muted">Invoice {money(showPaymentModal?.amount)} · already paid {money(showPaymentModal?.paid_total)}</p>
+              )}
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Amount</label>
+                <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Amount received (part payments are fine)</label>
                 <input type="number" step="0.01" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} className={inputCls} autoFocus />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Method</label>
                   <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className={inputCls}>
-                    <option>Bank Transfer</option><option>Cash</option><option>Check</option><option>Online</option>
+                    <option>Bank Transfer</option><option>Cash</option><option>Cheque</option><option>Card</option><option>Online</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Transaction ID</label>
+                  <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Reference</label>
                   <input type="text" value={transactionId} onChange={e => setTransactionId(e.target.value)} placeholder="Optional" className={inputCls} />
                 </div>
               </div>
@@ -370,7 +444,7 @@ export default function GlobalInvoicesPage() {
               <button onClick={handlePayment} disabled={isPaying}
                 className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-nx-success py-2.5 text-[13px] font-medium text-white hover:bg-nx-success transition-colors disabled:opacity-50">
                 {isPaying ? <RefreshCcw size={14} className="animate-spin" /> : <DollarSign size={14} />}
-                {isPaying ? 'Processing…' : 'Confirm Payment'}
+                {isPaying ? 'Saving…' : 'Record Payment'}
               </button>
             </div>
           </div>
@@ -394,7 +468,7 @@ export default function GlobalInvoicesPage() {
               </div>
             ) : paymentHistory.length === 0 ? (
               <div className="rounded-xl border border-dashed border-nx-line dark:border-nx-line-dark py-10 text-center">
-                <p className="text-[13px] text-nx-text-muted dark:text-nx-text-subtle">No payment records. Status may have been set manually.</p>
+                <p className="text-[13px] text-nx-text-muted dark:text-nx-text-subtle">No payments recorded for this invoice.</p>
               </div>
             ) : paymentHistory.map(payment => (
               <div key={payment.id} className="flex items-center justify-between rounded-lg border border-nx-line dark:border-nx-line-dark bg-nx-surface-soft dark:bg-nx-surface-dark-2 p-4 group">
@@ -409,11 +483,11 @@ export default function GlobalInvoicesPage() {
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <div className="text-[14px] font-semibold text-nx-ink dark:text-white">${payment.amount}</div>
+                    <div className="text-[14px] font-semibold text-nx-ink dark:text-white">{showHistoryModal?.currency} {money(payment.amount)}</div>
                     <div className="text-[10px] font-mono text-nx-text-subtle">{payment.transaction_id || '—'}</div>
                   </div>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => handleDownload(showHistoryModal.id, 'receipt')} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-accent-soft hover:text-nx-accent dark:hover:bg-nx-accent/10 transition-colors"><Download size={13} /></button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => handleDownload(showHistoryModal.id, `receipt&payment_id=${payment.id}`)} title="Download receipt" aria-label="Download receipt"  className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-accent-soft hover:text-nx-accent dark:hover:bg-nx-accent/10 transition-colors"><Download size={13} /></button>
                     <button onClick={() => { setShowResendModal(showHistoryModal); setShowHistoryModal(null); }} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-accent-soft hover:text-nx-accent dark:hover:bg-nx-accent/10 transition-colors"><Send size={13} /></button>
                     <button onClick={() => handleDeletePayment(payment.id)} className="rounded-md p-1.5 text-nx-text-subtle hover:bg-nx-danger-soft hover:text-nx-danger transition-colors"><Trash2 size={13} /></button>
                   </div>
@@ -427,27 +501,29 @@ export default function GlobalInvoicesPage() {
         </div>
       </Modal>
 
-      {/* ── Billing Cycle Modal ── */}
+      {/* ── Billing Run Modal: choose period → review → generate ── */}
       {billingModal.isOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-xl border border-nx-line bg-white dark:border-nx-line-dark dark:bg-nx-surface-dark shadow-2xl overflow-hidden">
+          <div className="flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-nx-line bg-white shadow-2xl dark:border-nx-line-dark dark:bg-nx-surface-dark">
             <div className="flex items-center justify-between border-b border-nx-line dark:border-nx-line-dark px-6 py-4">
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-nx-accent-soft dark:bg-nx-accent/10">
                   <CreditCard size={16} className="text-nx-accent dark:text-nx-accent-light" />
                 </div>
                 <div>
-                  <h3 className="text-[14px] font-semibold text-nx-ink dark:text-white">Billing Cycle</h3>
-                  <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Generate invoices for all active tenants</p>
+                  <h3 className="text-[14px] font-semibold text-nx-ink dark:text-white">Run Billing · {periodLabel}</h3>
+                  <p className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Review who will be invoiced before anything is created or emailed</p>
                 </div>
               </div>
-              {billingModal.step === 'idle' && (
-                <button onClick={() => setBillingModal(p => ({ ...p, isOpen: false }))} className="rounded-lg p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"><X size={15} /></button>
+              {billingModal.step !== 'generating' && (
+                <button onClick={() => setBillingModal(p => ({ ...p, isOpen: false, step: 'idle' }))} aria-label="Close" className="rounded-lg p-1.5 text-nx-text-subtle hover:bg-nx-surface-muted dark:hover:bg-nx-line-dark transition-colors"><X size={15} /></button>
               )}
             </div>
 
-            <div className="p-4 sm:p-6 space-y-5">
-              {billingModal.step === 'idle' && (
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+              {billingModal.error && <p role="alert" className="rounded-lg border border-nx-danger/30 bg-nx-danger-soft px-3 py-2 text-[12px] text-nx-danger">{billingModal.error}</p>}
+
+              {(billingModal.step === 'idle' || billingModal.step === 'loading') && (
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -459,55 +535,78 @@ export default function GlobalInvoicesPage() {
                     <div className="space-y-1.5">
                       <label className="block text-[11px] font-medium text-nx-text-muted dark:text-nx-text-subtle">Year</label>
                       <select value={billingModal.selectedYear} onChange={e => setBillingModal(p => ({ ...p, selectedYear: e.target.value }))} className={inputCls}>
-                        {[2024,2025,2026,2027].map(y => <option key={y}>{y}</option>)}
+                        {[0, 1, 2].map(o => new Date().getFullYear() - 1 + o).map(y => <option key={y}>{y}</option>)}
                       </select>
                     </div>
                   </div>
-                  <div className="flex gap-3">
-                    <button onClick={() => setBillingModal(p => ({ ...p, isOpen: false }))} className="flex-1 rounded-lg border border-nx-line py-2.5 text-[13px] font-medium text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:hover:bg-nx-line-dark transition-colors">Cancel</button>
-                    <button onClick={handleRunBilling} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-nx-accent py-2.5 text-[13px] font-medium text-white hover:bg-nx-accent-strong transition-colors">
-                      <CreditCard size={14} /> Run Billing
-                    </button>
-                  </div>
+                  <p className="text-[12px] text-nx-text-muted dark:text-nx-text-subtle">
+                    Active tenants on paid plans are invoiced once per month (yearly plans once every 12 months). Trials, suspended tenants, free plans and anyone already invoiced for the period are skipped.
+                  </p>
+                  <button onClick={loadPreview} disabled={billingModal.step === 'loading'}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-nx-accent py-2.5 text-[13px] font-medium text-white hover:bg-nx-accent-strong transition-colors disabled:opacity-50">
+                    {billingModal.step === 'loading' ? <RefreshCcw size={14} className="animate-spin" /> : <Search size={14} />}
+                    {billingModal.step === 'loading' ? 'Checking tenants…' : 'Review tenants'}
+                  </button>
                 </>
               )}
 
-              {(billingModal.step === 'fetching' || billingModal.step === 'processing') && (
-                <div className="text-center py-4 space-y-4">
-                  <div className="mx-auto h-10 w-10 animate-spin rounded-full border-3 border-nx-line border-t-nx-accent" />
-                  <div>
-                    <p className="text-[14px] font-medium text-nx-ink dark:text-white">
-                      {billingModal.step === 'fetching' ? 'Fetching tenants…' : `Processing ${billingModal.processed} / ${billingModal.total}`}
-                    </p>
-                    {billingModal.currentTenant && (
-                      <p className="text-[12px] text-nx-text-muted dark:text-nx-text-subtle mt-1">{billingModal.currentTenant}</p>
-                    )}
+              {(billingModal.step === 'review' || billingModal.step === 'generating') && (
+                <>
+                  <div className="divide-y divide-nx-surface-muted rounded-lg border border-nx-line dark:divide-nx-line-dark dark:border-nx-line-dark">
+                    {billingModal.rows.map(r => (
+                      <label key={r.tenant_id} className={`flex items-start gap-3 px-3 py-2.5 ${r.action === 'bill' ? 'cursor-pointer' : 'opacity-60'}`}>
+                        <input type="checkbox" className="mt-1" disabled={r.action !== 'bill' || billingModal.step === 'generating'}
+                          checked={billingModal.selected.includes(r.tenant_id)} onChange={() => toggleTenant(r.tenant_id)} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-medium text-nx-ink dark:text-white">{r.name}</span>
+                          <span className="block text-[11px] text-nx-text-muted dark:text-nx-text-subtle">
+                            {r.package || 'No plan'} · {r.cycle}{r.action === 'skip' ? ` · ${r.reason}` : ` · ${r.billing_month}`}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right text-[12px] font-semibold text-nx-ink dark:text-white">
+                          {r.action === 'bill' && r.amount !== null ? `${r.currency} ${money(r.amount)}` : <span className="font-normal text-nx-text-subtle">Skipped</span>}
+                          {r.action === 'bill' && r.currency !== 'USD' && <span className="block text-[10px] font-normal text-nx-text-subtle">USD {money(r.base_usd)}</span>}
+                        </span>
+                      </label>
+                    ))}
                   </div>
-                  {billingModal.total > 0 && (
-                    <div className="rounded-full bg-nx-surface-muted dark:bg-nx-line-dark h-2 overflow-hidden">
-                      <div className="h-full bg-nx-accent transition-all" style={{width: `${(billingModal.processed / billingModal.total) * 100}%`}} />
-                    </div>
-                  )}
-                </div>
+                  <p className="text-[12px] text-nx-text-muted dark:text-nx-text-subtle">
+                    {billingModal.selected.length} invoice{billingModal.selected.length === 1 ? '' : 's'} will be created, due {billingModal.dueDate}, and emailed to each tenant.
+                  </p>
+                  <div className="flex gap-3">
+                    <button onClick={() => setBillingModal(p => ({ ...p, step: 'idle' }))} disabled={billingModal.step === 'generating'}
+                      className="flex-1 rounded-lg border border-nx-line py-2.5 text-[13px] font-medium text-nx-text-muted hover:bg-nx-surface-muted dark:border-nx-line-dark dark:hover:bg-nx-line-dark transition-colors disabled:opacity-50">Back</button>
+                    <button onClick={handleRunBilling} disabled={!billingModal.selected.length || billingModal.step === 'generating'}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-nx-accent py-2.5 text-[13px] font-medium text-white hover:bg-nx-accent-strong transition-colors disabled:opacity-50">
+                      {billingModal.step === 'generating' ? <RefreshCcw size={14} className="animate-spin" /> : <Send size={14} />}
+                      {billingModal.step === 'generating' ? 'Creating and emailing…' : `Create ${billingModal.selected.length} invoice${billingModal.selected.length === 1 ? '' : 's'}`}
+                    </button>
+                  </div>
+                </>
               )}
 
               {billingModal.step === 'completed' && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-lg border border-nx-success/30 bg-nx-success-soft p-3 text-center">
-                      <div className="text-2xl font-bold text-nx-success dark:text-nx-success">{billingModal.results.created}</div>
-                      <div className="text-[11px] text-nx-success dark:text-nx-success">Generated</div>
+                      <div className="text-2xl font-bold text-nx-success">{billingModal.results.filter(r => r.status === 'Generated').length}</div>
+                      <div className="text-[11px] text-nx-success">Created</div>
                     </div>
                     <div className="rounded-lg border border-nx-line dark:border-nx-line-dark bg-nx-surface-soft dark:bg-nx-surface-dark-2 p-3 text-center">
-                      <div className="text-2xl font-bold text-nx-ink dark:text-white">{billingModal.results.skipped}</div>
-                      <div className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Skipped</div>
+                      <div className="text-2xl font-bold text-nx-ink dark:text-white">{billingModal.results.filter(r => r.status !== 'Generated').length}</div>
+                      <div className="text-[11px] text-nx-text-muted dark:text-nx-text-subtle">Skipped or failed</div>
                     </div>
                   </div>
-                  <div className="max-h-40 overflow-y-auto space-y-1.5">
-                    {billingModal.results.details.map((d, i) => (
-                      <div key={i} className="flex items-center justify-between rounded-lg border border-nx-line dark:border-nx-line-dark px-3 py-2">
-                        <span className="text-[12px] text-nx-ink dark:text-white">{d.name}</span>
-                        <span className={`text-[11px] font-medium ${d.status === 'Generated' ? 'text-nx-success dark:text-nx-success' : d.status === 'Error' ? 'text-nx-danger dark:text-nx-danger' : 'text-nx-text-subtle'}`}>{d.status}</span>
+                  <div className="space-y-1.5">
+                    {billingModal.results.map(d => (
+                      <div key={d.tenant_id} className="flex items-center justify-between gap-3 rounded-lg border border-nx-line dark:border-nx-line-dark px-3 py-2">
+                        <span className="min-w-0">
+                          <span className="block truncate text-[12px] text-nx-ink dark:text-white">{d.name}</span>
+                          <span className="block text-[11px] text-nx-text-muted">
+                            {d.status === 'Generated' ? `${d.invoice_number} · ${d.currency} ${money(d.amount)}${d.email === 'Sent' ? ' · emailed' : ' · email failed, resend from the list'}` : d.reason}
+                          </span>
+                        </span>
+                        <span className={`shrink-0 text-[11px] font-medium ${d.status === 'Generated' ? 'text-nx-success' : d.status === 'Error' ? 'text-nx-danger' : 'text-nx-text-subtle'}`}>{d.status}</span>
                       </div>
                     ))}
                   </div>

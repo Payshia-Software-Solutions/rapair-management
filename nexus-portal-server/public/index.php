@@ -167,6 +167,8 @@ $router->add('api/client/domain/verify', ['controller' => 'DomainController', 'a
 $router->add('api/client/domain/remove', ['controller' => 'DomainController', 'action' => 'remove'], 'POST');
 
 // Billing Routes
+$router->add('api/admin/billing/preview', ['controller' => 'BillingController', 'action' => 'preview']);
+$router->add('api/admin/billing/generate', ['controller' => 'BillingController', 'action' => 'generate'], 'POST');
 $router->add('api/admin/billing/run-cycle', ['controller' => 'BillingController', 'action' => 'runBillingCycle'], 'POST');
 $router->add('api/admin/billing/list', ['controller' => 'BillingController', 'action' => 'listAll']);
 $router->add('api/admin/billing/download', ['controller' => 'BillingController', 'action' => 'download']);

@@ -24,7 +24,7 @@ if (isset($opts['db'])) {
     $cfg = __DIR__ . '/../app/Core/Config.php';
     if (!is_file($cfg)) { fwrite(STDERR, "app/Core/Config.php not found; pass --db=... (and --host/--user/--pass)\n"); exit(1); }
     require $cfg;
-    $host = \App\Core\Config::DB_HOST; $user = \App\Core\Config::DB_USER; $pass = \App\Core\Config::DB_PASS; $db = \App\Core\Config::DB_NAME;
+    $host = \App\Core\Config::DB_HOST(); $user = \App\Core\Config::DB_USER(); $pass = \App\Core\Config::DB_PASS(); $db = \App\Core\Config::DB_NAME();
 }
 
 $pdo = new PDO("mysql:host=$host;dbname=$db;charset=utf8mb4", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
