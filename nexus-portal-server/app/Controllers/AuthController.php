@@ -3,18 +3,44 @@ namespace App\Controllers;
 
 use App\Core\Controller;
 use App\Models\AdminModel;
+use App\Services\RateLimiter;
 
 
 class AuthController extends Controller {
+    // Failed logins: per account (stops guessing one password) and per IP (stops spraying many accounts)
+    const LOGIN_USER_MAX = 5, LOGIN_IP_MAX = 30, LOGIN_WINDOW = 900;
+
+    /** Answers 429 and stops when the bucket is over its limit. */
+    private function throttle(string $bucket, int $max, int $window, string $message) {
+        if (RateLimiter::tooMany($bucket, $max, $window)) {
+            header('Retry-After: ' . RateLimiter::retryAfter($bucket, $window));
+            $this->json(['status' => 'error', 'message' => $message], 429);
+        }
+    }
+
+    /** Every call counts (lookups, sign-ups, emails): 429 once the IP is over the limit. */
+    private function perIp(string $name, int $max, int $window) {
+        $bucket = $name . ':' . RateLimiter::ip();
+        $this->throttle($bucket, $max, $window, 'Too many requests. Please wait a few minutes and try again.');
+        RateLimiter::hit($bucket, $window);
+    }
+
     public function login() {
         $data = $this->getPostData();
         $username = $data['username'] ?? '';
         $password = $data['password'] ?? '';
 
+        $userBucket = 'login-user:' . strtolower(trim((string)$username));
+        $ipBucket = 'login-ip:' . RateLimiter::ip();
+        $wait = 'Too many failed sign-in attempts. Please wait 15 minutes and try again.';
+        $this->throttle($userBucket, self::LOGIN_USER_MAX, self::LOGIN_WINDOW, $wait);
+        $this->throttle($ipBucket, self::LOGIN_IP_MAX, self::LOGIN_WINDOW, $wait);
+
         $model = new AdminModel();
         $user = $model->findByUsername($username);
 
         if ($user && password_verify($password, $user->password)) {
+            RateLimiter::clear($userBucket);
             if ($user->email_verified == 0) {
                 return $this->json(['status' => 'error', 'message' => 'Email verification required. Please check your inbox.'], 403);
             }
@@ -27,6 +53,8 @@ class AuthController extends Controller {
             $_SESSION['tenant_id'] = $user->tenant_id;
             return $this->json(['status' => 'success', 'user' => $user->username, 'role' => $user->role]);
         } else {
+            RateLimiter::hit($userBucket, self::LOGIN_WINDOW);
+            RateLimiter::hit($ipBucket, self::LOGIN_WINDOW);
             return $this->json(['status' => 'error', 'message' => 'Invalid credentials'], 401);
         }
     }
@@ -40,6 +68,7 @@ class AuthController extends Controller {
 
     // GET /api/auth/check-email?email=  Lets the signup form warn about a duplicate before the last step.
     public function checkEmail() {
+        $this->perIp('lookup', 60, 600);
         $email = strtolower(trim((string)($_GET['email'] ?? '')));
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return $this->json(['status' => 'error', 'message' => 'Enter a valid email.'], 400);
@@ -51,6 +80,7 @@ class AuthController extends Controller {
     // GET /api/auth/check-name?name=  The workspace name made from the company (or solo) name, and
     // whether it is free. Lets the signup form say so on the first step instead of at the end.
     public function checkName() {
+        $this->perIp('lookup', 60, 600);
         $name = trim((string)($_GET['name'] ?? ''));
         $slug = $this->slugFor($name);
         if ($name === '' || !preg_match('/^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])$/', $slug) || in_array($slug, self::RESERVED_SLUGS, true)) {
@@ -64,9 +94,11 @@ class AuthController extends Controller {
 
     // POST /api/auth/resend-verification {email}  Same answer whether or not the address has an account.
     public function resendVerification() {
+        $this->perIp('resend', 5, 3600);
         $data = $this->getPostData() ?: [];
         $email = strtolower(trim((string)($data['email'] ?? '')));
-        if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        // At most 3 links per address an hour, whoever asks (the reply stays the same either way)
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) && RateLimiter::attempt('resend-email:' . $email, 3, 3600)) {
             $user = (new AdminModel())->refreshToken($email);
             if ($user) {
                 \App\Core\Mailer::sendVerificationEmail($email, $user->full_name ?: $email, $user->verification_token);
@@ -78,6 +110,7 @@ class AuthController extends Controller {
     // POST /api/auth/register  Public signup from the Order page. Creates the trial workspace record
     // and the client login (unverified). The ERP workspace is set up after the email is verified.
     public function register() {
+        $this->perIp('register', 10, 3600);
         $data = $this->getPostData() ?: [];
 
         $type = ($data['customer_type'] ?? 'company') === 'solo' ? 'solo' : 'company';
@@ -184,6 +217,7 @@ class AuthController extends Controller {
 
     // GET /api/auth/verify?token=...  Confirms the email, then sets up the trial workspace on the ERP.
     public function verify() {
+        $this->perIp('verify', 30, 600);
         $token = $_GET['token'] ?? '';
         if (empty($token)) {
             return $this->json(['status' => 'error', 'message' => 'Invalid or missing verification token'], 400);

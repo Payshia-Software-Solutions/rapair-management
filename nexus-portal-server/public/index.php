@@ -19,6 +19,21 @@ header('Vary: Origin');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, Origin, Accept');
 
+// 1b. CSRF guard. A browser always sends Origin on a cross-site POST, so a state-changing request from
+// an origin that is not ours is refused before the session cookie is used. Requests without Origin
+// (server-to-server, e.g. the ERP's usage report, or CLI tools) carry no browser cookies and pass.
+$method0 = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+if (in_array($method0, ['POST', 'PUT', 'PATCH', 'DELETE'], true) && $origin !== '') {
+    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $self = $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? '');
+    if ($origin !== $self && !in_array($origin, $allowedOrigins, true)) {
+        header('Content-Type: application/json');
+        http_response_code(403);
+        echo json_encode(['status' => 'error', 'message' => 'Request origin not allowed']);
+        exit;
+    }
+}
+
 // 2. Handle OPTIONS preflight immediately
 if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
     http_response_code(200);

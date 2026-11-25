@@ -6,6 +6,10 @@ use App\Models\RequestModel;
 
 class PortalController extends Controller {
     public function submitRequest() {
+        // Public form: 10 requests an hour per IP
+        if (!\App\Services\RateLimiter::attempt('request:' . \App\Services\RateLimiter::ip(), 10, 3600)) {
+            return $this->json(['status' => 'error', 'message' => 'Too many requests. Please try again later.'], 429);
+        }
         $data = $this->getPostData();
         
         if (empty($data['company_name']) || empty($data['email'])) {
