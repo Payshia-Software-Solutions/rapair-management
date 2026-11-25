@@ -48,7 +48,8 @@ class Tenancy {
             self::reject(503, 'registry_unavailable', 'The service is temporarily unavailable. Please try again in a minute.');
         }
         if (!$t || $t['status'] === 'deleted') self::reject(404, 'workspace_not_found', 'This workspace does not exist. Check the address.');
-        if ($t['status'] === 'suspended') self::reject(402, 'workspace_suspended', 'This workspace is paused. Please contact your administrator about the subscription.');
+        if ($t['status'] === 'suspended') self::reject(402, 'workspace_suspended', 'This workspace is paused. Please contact your administrator about the subscription.',
+            ['workspace' => (string)($t['name'] ?? ''), 'since' => substr((string)($t['updated_at'] ?? ''), 0, 10)]);
         if ($t['status'] !== 'active') self::reject(503, 'workspace_not_ready', 'This workspace is still being set up. Please try again shortly.');
 
         $pass = TenantRegistry::decrypt($t['db_pass_enc']);
@@ -163,7 +164,7 @@ class Tenancy {
 
     // ---------------------------------------------------------------- errors
 
-    private static function reject($code, $errCode, $message) {
+    private static function reject($code, $errCode, $message, array $extra = []) {
         if (PHP_SAPI === 'cli') {
             fwrite(STDERR, "[$errCode] $message\n");
             exit(1);
@@ -175,7 +176,7 @@ class Tenancy {
             header('Vary: Origin');
         }
         header('Content-Type: application/json');
-        echo json_encode(['status' => 'error', 'code' => $errCode, 'message' => $message]);
+        echo json_encode(['status' => 'error', 'code' => $errCode, 'message' => $message] + $extra);
         exit;
     }
 }

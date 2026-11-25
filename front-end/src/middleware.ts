@@ -13,14 +13,15 @@ const API = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/+$/, "");
 const OK_TTL = 60_000; // known workspace: recheck after 1 minute
 const BAD_TTL = 15_000; // unknown/paused: recheck sooner, so a new workspace works quickly
 
-type Verdict = { code: string | null; until: number };
+type Info = { code: string; workspace?: string; since?: string };
+type Verdict = { code: Info | null; until: number };
 const cache = new Map<string, Verdict>();
 
-async function check(host: string): Promise<string | null> {
+async function check(host: string): Promise<Info | null> {
   const hit = cache.get(host);
   if (hit && hit.until > Date.now()) return hit.code;
 
-  let code: string | null = null;
+  let code: Info | null = null;
   let ttl = OK_TTL;
   try {
     const res = await fetch(`${API}/api/workspace/info`, {
@@ -35,7 +36,11 @@ async function check(host: string): Promise<string | null> {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => null);
-      code = (body && body.code) || `http_${res.status}`;
+      code = {
+        code: (body && body.code) || `http_${res.status}`,
+        workspace: typeof body?.workspace === "string" ? body.workspace.slice(0, 120) : undefined,
+        since: typeof body?.since === "string" ? body.since.slice(0, 10) : undefined,
+      };
       ttl = BAD_TTL;
     }
   } catch {
@@ -43,7 +48,7 @@ async function check(host: string): Promise<string | null> {
     return null;
   }
   // Only a definite "no" blocks the page; temporary API trouble does not
-  if (code === "registry_unavailable") return null;
+  if (code?.code === "registry_unavailable") return null;
   cache.set(host, { code, until: Date.now() + ttl });
   if (cache.size > 5000) cache.clear();
   return code;
@@ -63,8 +68,11 @@ export async function middleware(req: NextRequest) {
 
   const url = req.nextUrl.clone();
   url.pathname = "/workspace-unavailable";
-  url.search = `?code=${encodeURIComponent(code)}`;
-  return NextResponse.rewrite(url, { status: code === "workspace_not_found" ? 404 : 503 });
+  const q = new URLSearchParams({ code: code.code });
+  if (code.workspace) q.set("w", code.workspace);
+  if (code.since) q.set("since", code.since);
+  url.search = `?${q}`;
+  return NextResponse.rewrite(url, { status: code.code === "workspace_not_found" ? 404 : 503 });
 }
 
 export const config = {
