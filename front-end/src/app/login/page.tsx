@@ -105,13 +105,13 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Welcome back"
-      subtitle="Sign in with your work email to access your workspace."
+      title="Sign in to BizzFlow"
+      subtitle="Enter your credentials to access your workspace."
       footer={
         <p className="text-center text-sm text-muted-foreground">
-          New to BizzFlow?{' '}
-          <Link href="/register" className="font-semibold text-primary hover:underline underline-offset-4">
-            Create an account
+          Don&apos;t have an account?{' '}
+          <Link href="/register" className="font-medium text-primary hover:underline underline-offset-4">
+            Create one
           </Link>
         </p>
       }
@@ -119,7 +119,7 @@ export default function LoginPage() {
       {error && (
         <div
           role="alert"
-          className="flex items-start gap-3 rounded-xl border border-red-200/80 bg-red-50/90 p-3.5 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-300"
+          className="flex items-start gap-2.5 rounded-xl border border-red-200/80 bg-red-50/90 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/50 dark:text-red-300"
         >
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
@@ -128,8 +128,8 @@ export default function LoginPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="email" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Work email
+          <Label htmlFor="email" className="text-xs font-medium text-muted-foreground">
+            Email
           </Label>
           <div className="group relative">
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-primary" />
@@ -139,7 +139,7 @@ export default function LoginPage() {
               autoComplete="email"
               autoFocus
               placeholder="you@company.com"
-              className="h-11 rounded-xl border-border/80 bg-background/70 pl-10 text-sm transition-all hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-0"
+              className="h-11 rounded-xl border-border/80 bg-background/60 pl-10 text-sm transition-all hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-0"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -149,7 +149,7 @@ export default function LoginPage() {
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <Label htmlFor="password" className="text-xs font-medium text-muted-foreground">
               Password
             </Label>
             <Link
@@ -166,7 +166,7 @@ export default function LoginPage() {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               placeholder="••••••••"
-              className="h-11 rounded-xl border-border/80 bg-background/70 pl-10 pr-11 text-sm transition-all hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-0"
+              className="h-11 rounded-xl border-border/80 bg-background/60 pl-10 pr-11 text-sm transition-all hover:border-primary/40 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:ring-offset-0"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -182,25 +182,23 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex items-center justify-between pt-0.5">
-          <label
-            htmlFor="remember-email"
-            className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none hover:text-foreground"
-          >
-            <Checkbox
-              id="remember-email"
-              checked={rememberEmail}
-              onCheckedChange={(checked) => setRememberEmail(Boolean(checked))}
-              className="rounded-[4px]"
-            />
-            <span>Remember my email</span>
-          </label>
-        </div>
+        <label
+          htmlFor="remember-email"
+          className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none hover:text-foreground"
+        >
+          <Checkbox
+            id="remember-email"
+            checked={rememberEmail}
+            onCheckedChange={(checked) => setRememberEmail(Boolean(checked))}
+            className="rounded-[4px]"
+          />
+          <span>Remember my email</span>
+        </label>
 
         <Button
           type="submit"
           disabled={submitting}
-          className="group h-11 w-full rounded-xl bg-gradient-to-r from-primary to-indigo-500 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all hover:brightness-110 active:scale-[0.99] disabled:opacity-70"
+          className="group h-11 w-full rounded-xl bg-primary text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 transition-all hover:bg-primary/90 active:scale-[0.99] disabled:opacity-70"
         >
           {submitting ? (
             <>
@@ -209,7 +207,7 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              Sign in to workspace
+              Sign in
               <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </>
           )}
