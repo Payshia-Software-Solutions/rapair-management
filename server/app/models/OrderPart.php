@@ -11,7 +11,7 @@ class OrderPart extends Model {
         // // // // // // $this->ensureSchema();
         $oid = (int)$orderId;
         $this->db->query("
-            SELECT op.*, p.part_name, p.sku, p.unit
+            SELECT op.*, p.part_name, p.sku, p.unit, p.item_type
             FROM order_parts op
             INNER JOIN parts p ON p.id = op.part_id
             WHERE op.order_id = :oid

@@ -1,0 +1,11 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+*.iml
+.idea/
+android/app/google-services.json
+android/key.properties
+*.jks
+# Widget Preview related
+.widget_preview/

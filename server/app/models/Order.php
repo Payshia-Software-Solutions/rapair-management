@@ -46,10 +46,63 @@ class Order extends Model {
         }
     }
 
+    /** Attach active (non-cancelled) invoice metadata safely without failing if invoices table is absent. */
+    private function attachInvoiceMeta($rows) {
+        $isArray = is_array($rows);
+        $list = $isArray ? $rows : ($rows ? [$rows] : []);
+        if (empty($list)) return $rows;
+
+        $ids = [];
+        foreach ($list as $r) {
+            if (!empty($r->id)) $ids[] = (int)$r->id;
+        }
+        if (empty($ids)) return $rows;
+
+        try {
+            $placeholders = implode(',', array_unique($ids));
+            $this->db->query("
+                SELECT id, order_id, invoice_no, status, grand_total, paid_amount
+                FROM invoices
+                WHERE order_id IN ($placeholders) AND status <> 'Cancelled'
+                ORDER BY id DESC
+            ");
+            $invs = $this->db->resultSet() ?: [];
+            $byOrder = [];
+            foreach ($invs as $inv) {
+                $oid = (int)$inv->order_id;
+                if (!isset($byOrder[$oid])) $byOrder[$oid] = $inv;
+            }
+            foreach ($list as $r) {
+                $inv = $byOrder[(int)$r->id] ?? null;
+                $r->invoice_id = $inv ? (int)$inv->id : null;
+                $r->invoice_no = $inv ? (string)$inv->invoice_no : null;
+                $r->invoice_status = $inv ? (string)$inv->status : null;
+            }
+        } catch (Exception $e) {
+            // Invoices table might not be initialized yet
+        }
+
+        try {
+            require_once __DIR__ . '/OrderRequest.php';
+            $reqModel = new OrderRequest();
+            $reqByOrder = $reqModel->listGroupedByOrders($ids);
+            foreach ($list as $r) {
+                $r->requests = $reqByOrder[(int)$r->id] ?? [];
+            }
+        } catch (Exception $e) {
+            foreach ($list as $r) {
+                if (!isset($r->requests)) $r->requests = [];
+            }
+        }
+
+        return $rows;
+    }
+
     // Get all orders
     public function getOrders() {
         $this->db->query("
             SELECT ro.*, 
+                   v.customer_id as customer_id,
                    v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
                    c.name as customer_real_name, c.phone as customer_real_phone,
                    d.name as department_name
@@ -59,7 +112,7 @@ class Order extends Model {
             LEFT JOIN departments d ON v.department_id = d.id
             ORDER BY ro.created_at DESC
         ");
-        return $this->db->resultSet();
+        return $this->attachInvoiceMeta($this->db->resultSet());
     }
 
     public function getOrdersByLocation($locationId) {
@@ -73,6 +126,7 @@ class Order extends Model {
 
         $this->db->query("
             SELECT ro.*, 
+                   v.customer_id as customer_id,
                    v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year,
                    c.name as customer_real_name, c.phone as customer_real_phone,
                    d.name as department_name
@@ -84,13 +138,14 @@ class Order extends Model {
             ORDER BY ro.created_at DESC
         ");
         $this->db->bind(':location_id', (int)$locationId);
-        return $this->db->resultSet();
+        return $this->attachInvoiceMeta($this->db->resultSet());
     }
 
     // Get order by ID
     public function getOrderById($id) {
         $this->db->query("
             SELECT ro.*, 
+                   v.customer_id as customer_id,
                    v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year, v.service_interval_mileage as vehicle_service_interval,
                    c.name as customer_real_name, c.phone as customer_real_phone,
                    d.name as department_name,
@@ -105,13 +160,14 @@ class Order extends Model {
             WHERE ro.id = :id
         ");
         $this->db->bind(':id', $id);
-        return $this->db->single();
+        return $this->attachInvoiceMeta($this->db->single());
     }
 
     public function getOrderByIdInLocation($id, $locationId) {
         $this->ensureRepairOrderColumns();
         $this->db->query("
             SELECT ro.*, 
+                   v.customer_id as customer_id,
                    v.vin as vehicle_vin, v.make as vehicle_make, v.model as vehicle_model_v, v.year as vehicle_year, v.service_interval_mileage as vehicle_service_interval,
                    c.name as customer_real_name, c.phone as customer_real_phone,
                    d.name as department_name,
@@ -128,7 +184,7 @@ class Order extends Model {
         ");
         $this->db->bind(':id', (int)$id);
         $this->db->bind(':location_id', (int)$locationId);
-        return $this->db->single();
+        return $this->attachInvoiceMeta($this->db->single());
     }
 
     // Add Order

@@ -10,6 +10,7 @@ Monorepo of separate apps with no shared root build. Each app has its own depend
 - `server/`: main PHP API. Served under the `/api/...` path.
 - `nexus-portal-ui/`: separate Next.js 16 app for the Nexus Portal.
 - `nexus-portal-server/`: PHP API for the Nexus Portal (Composer deps in `vendor/`).
+- `mobile_mgmt/`: Flutter Android app for management (dashboards, approvals, FCM push). See its README for setup.
 - `desktop_pos/`, `mobile_pos/`, `room-kiosk-app/`, `local-printer/`, `local-printer-py/`: clients and helpers. 
 - Don't add one-off scripts to the repo; keep them in a local scratch folder.
 

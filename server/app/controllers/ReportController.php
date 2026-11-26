@@ -456,7 +456,18 @@ class ReportController extends Controller {
         $this->db->bind(':vid', $vehicleId);
         if ($from !== '') $this->db->bind(':fromDt', $from . ' 00:00:00');
         if ($to !== '') $this->db->bind(':toDt', $to . ' 23:59:59');
-        $rows = $this->db->resultSet();
+        $rows = $this->db->resultSet() ?: [];
+        if (!empty($rows)) {
+            try {
+                require_once __DIR__ . '/../models/OrderRequest.php';
+                $reqModel = new OrderRequest();
+                $ids = array_map(fn($r) => (int)$r->id, $rows);
+                $byOrder = $reqModel->listGroupedByOrders($ids);
+                foreach ($rows as $r) {
+                    $r->requests = $byOrder[(int)$r->id] ?? [];
+                }
+            } catch (Exception $e) {}
+        }
         $this->success($rows);
     }
 

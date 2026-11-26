@@ -1,0 +1,76 @@
+# Builds the management Android app (mobile_mgmt/) as a signed APK + AAB.
+# Runs on a "mgmt-v*" tag (e.g. mgmt-v1.0.0) or by hand from the Actions tab.
+#
+# Repository secrets (Settings > Secrets and variables > Actions):
+#   MGMT_GOOGLE_SERVICES_JSON   base64 of android/app/google-services.json
+#   MGMT_KEYSTORE_BASE64        base64 of the upload keystore (.jks)
+#   MGMT_KEYSTORE_PASSWORD      keystore password
+#   MGMT_KEY_ALIAS              key alias
+#   MGMT_KEY_PASSWORD           key password
+# Base64 on Windows: [Convert]::ToBase64String([IO.File]::ReadAllBytes("upload.jks")) | Set-Clipboard
+
+name: Mobile Mgmt - Android build
+
+on:
+  push:
+    tags: ['mgmt-v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile_mgmt
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Write secrets
+        env:
+          GS: ${{ secrets.MGMT_GOOGLE_SERVICES_JSON }}
+          KS: ${{ secrets.MGMT_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.MGMT_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.MGMT_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.MGMT_KEY_PASSWORD }}
+        run: |
+          if [ -n "$GS" ]; then echo "$GS" | base64 -d > android/app/google-services.json; fi
+          echo "$KS" | base64 -d > android/app/upload.jks
+          cat > android/key.properties <<EOF
+          storeFile=upload.jks
+          storePassword=$KS_PASS
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASS
+          EOF
+
+      - run: flutter pub get
+      - run: flutter analyze --no-fatal-infos
+
+      - name: Build
+        run: |
+          # Tag mgmt-v1.2.3 -> version 1.2.3, build number = run number.
+          NAME="${GITHUB_REF_NAME#mgmt-v}"
+          case "$NAME" in [0-9]*) ARGS="--build-name=$NAME";; *) ARGS="";; esac
+          flutter build apk --release $ARGS --build-number=${{ github.run_number }}
+          flutter build appbundle --release $ARGS --build-number=${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mobile-mgmt-${{ github.ref_name }}-${{ github.run_number }}
+          path: |
+            mobile_mgmt/build/app/outputs/flutter-apk/app-release.apk
+            mobile_mgmt/build/app/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Remove secrets
+        if: always()
+        run: rm -f android/app/upload.jks android/key.properties android/app/google-services.json

@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { LogOut, Mail, Shield, UserCircle, Briefcase, KeyRound } from "lucide-react";
 import { fetchPinStatus } from "@/lib/api/pin";
 import { SetPinDialog } from "@/components/pin/set-pin-dialog";
+import { MobileConnectCard } from "@/components/mobile-connect-card";
 
 type Me = {
   id: number;
@@ -169,6 +170,7 @@ export default function ProfilePage() {
             </Button>
           </CardContent>
         </Card>
+        <MobileConnectCard />
         <SetPinDialog
           open={pinOpen}
           onOpenChange={setPinOpen}

@@ -190,7 +190,33 @@ class CancellationController extends Controller {
                 $this->success(['request_id' => $rid, 'status' => 'pending'], 'Sent for approval (' . $r['level'] . ')');
             }
         }
+        if ($ok && $rid) $this->pushApprovers((int)$rid, (int)$u['sub']);
         $this->success(['request_id' => $rid, 'status' => 'pending'], $msg);
+    }
+
+    /** Push to everyone who can approve cancellations (admins + cancellations.approve), except the requester. Never throws. */
+    private function pushApprovers($rid, $requesterId) {
+        try {
+            require_once '../app/helpers/PushHelper.php';
+            if (!PushHelper::enabled()) return;
+            $this->db->query("SELECT r.doc_type, r.doc_no, r.amount, r.reason, u.name AS requested_by_name
+                              FROM cancellation_requests r LEFT JOIN users u ON u.id = r.requested_by WHERE r.id = :id");
+            $this->db->bind(':id', $rid);
+            $cr = $this->db->single();
+            if (!$cr) return;
+            $this->db->query("SELECT u.id FROM users u LEFT JOIN roles ro ON ro.id = u.role_id
+                              WHERE u.is_active = 1 AND u.id <> :me AND (LOWER(COALESCE(ro.name, '')) = 'admin' OR u.role_id IN (
+                                  SELECT rp.role_id FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
+                                  WHERE p.perm_key = 'cancellations.approve'))");
+            $this->db->bind(':me', $requesterId);
+            $ids = array_map(fn($r) => (int)$r->id, $this->db->resultSet() ?: []);
+            $amount = $cr->amount !== null ? ' (LKR ' . number_format((float)$cr->amount, 2) . ')' : '';
+            PushHelper::sendToUsers($ids, 'Cancellation request',
+                'Cancel ' . $cr->doc_type . ' ' . $cr->doc_no . $amount . ' from ' . ($cr->requested_by_name ?: 'a user') . ': ' . mb_substr((string)$cr->reason, 0, 80),
+                ['type' => 'cancellation', 'cancellation_id' => (string)$rid]);
+        } catch (Throwable $e) {
+            error_log('Cancellation push failed: ' . $e->getMessage());
+        }
     }
 
     // GET /api/cancellation/requests?status=pending|approved|rejected|all&mine=1
@@ -215,8 +241,12 @@ class CancellationController extends Controller {
             LIMIT 200
         ");
         $rows = $this->db->resultSet() ?: [];
+        require_once '../app/helpers/Approval.php';
         foreach ($rows as $r) {
             $r->can_decide = $canApprove && $r->status === 'pending' && ((int)$r->requested_by !== (int)$u['sub'] || $selfOk);
+            // Decided in My Approvals instead (the mobile app lists those from approval/inbox)
+            $ar = $r->status === 'pending' ? Approval::forDocument('cancellation', (int)$r->id) : null;
+            $r->in_workflow = (bool)($ar && $ar->status === 'Pending');
         }
         $this->db->query("SELECT COUNT(*) AS n FROM cancellation_requests WHERE status = 'pending'" . ($canApprove ? '' : ' AND requested_by = ' . (int)$u['sub']));
         $this->success(['requests' => $rows, 'pending' => (int)$this->db->single()->n, 'can_approve' => $canApprove, 'me' => (int)$u['sub'], 'is_admin' => $isAdmin, 'admin_self_approve' => $this->selfApproveSetting()]);

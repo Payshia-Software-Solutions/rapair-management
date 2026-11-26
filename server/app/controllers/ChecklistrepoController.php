@@ -33,12 +33,23 @@ class ChecklistrepoController extends Controller {
         $description = trim((string)($data['description'] ?? ''));
         $mileage = isset($data['standard_mileage']) && $data['standard_mileage'] !== '' ? (int)$data['standard_mileage'] : null;
         $extendedDesc = trim((string)($data['extended_description'] ?? ''));
+        $categoryName = trim((string)($data['category_name'] ?? ''));
+        $jobType = trim((string)($data['job_type'] ?? ''));
+        $requestKeywords = trim((string)($data['request_keywords'] ?? ''));
 
         if ($description === '') {
             $this->error('Description is required', 400);
             return;
         }
-        $ok = $this->templateModel->create($description, $mileage, $extendedDesc, (int)$u['sub']);
+        $ok = $this->templateModel->create(
+            $description,
+            $mileage,
+            $extendedDesc,
+            (int)$u['sub'],
+            $categoryName !== '' ? $categoryName : null,
+            $jobType !== '' ? $jobType : null,
+            $requestKeywords !== '' ? $requestKeywords : null
+        );
         if ($ok) {
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
@@ -73,12 +84,24 @@ class ChecklistrepoController extends Controller {
         $description = trim((string)($data['description'] ?? ''));
         $mileage = isset($data['standard_mileage']) && $data['standard_mileage'] !== '' ? (int)$data['standard_mileage'] : null;
         $extendedDesc = trim((string)($data['extended_description'] ?? ''));
+        $categoryName = trim((string)($data['category_name'] ?? ''));
+        $jobType = trim((string)($data['job_type'] ?? ''));
+        $requestKeywords = trim((string)($data['request_keywords'] ?? ''));
 
         if ($description === '') {
             $this->error('Description is required', 400);
             return;
         }
-        $ok = $this->templateModel->update($id, $description, $mileage, $extendedDesc, (int)$u['sub']);
+        $ok = $this->templateModel->update(
+            $id,
+            $description,
+            $mileage,
+            $extendedDesc,
+            (int)$u['sub'],
+            $categoryName !== '' ? $categoryName : null,
+            $jobType !== '' ? $jobType : null,
+            $requestKeywords !== '' ? $requestKeywords : null
+        );
         if ($ok) {
             $this->success(null, 'Template updated');
         } else {

@@ -5,6 +5,29 @@
 
 class Customer extends Model {
     private $table = 'customers';
+    private static $creditColChecked = false;
+
+    public function __construct() {
+        parent::__construct();
+        $this->ensureCreditApprovedColumn();
+    }
+
+    public function ensureCreditApprovedColumn() {
+        if (self::$creditColChecked) return;
+        try {
+            $this->db->query("SHOW COLUMNS FROM {$this->table} LIKE 'credit_approved'");
+            if (!$this->db->single()) {
+                $this->db->query("ALTER TABLE {$this->table} ADD COLUMN credit_approved TINYINT(1) NOT NULL DEFAULT 0 AFTER credit_days");
+                $this->db->execute();
+                // Existing customers that already have a positive credit limit stay approved once on migration.
+                $this->db->query("UPDATE {$this->table} SET credit_approved = 1 WHERE credit_limit > 0");
+                $this->db->execute();
+            }
+            self::$creditColChecked = true;
+        } catch (Exception $e) {
+            error_log('Customer credit_approved column: ' . $e->getMessage());
+        }
+    }
 
     public function getAll() {
         $this->db->query("
@@ -122,9 +145,9 @@ class Customer extends Model {
     public function create($data, $userId = null) {
         $this->db->query("
             INSERT INTO {$this->table} 
-            (name, phone, email, address, nic, tax_number, order_type, is_active, is_unsubscribed, credit_limit, credit_days, is_ecommerce_user, created_by, updated_by, latitude, longitude, photo_url, qr_code_hash, route_id) 
+            (name, phone, email, address, nic, tax_number, order_type, is_active, is_unsubscribed, credit_limit, credit_days, credit_approved, is_ecommerce_user, created_by, updated_by, latitude, longitude, photo_url, qr_code_hash, route_id) 
             VALUES 
-            (:name, :phone, :email, :address, :nic, :tax_number, :order_type, :is_active, :is_unsubscribed, :credit_limit, :credit_days, :is_ecommerce_user, :created_by, :updated_by, :latitude, :longitude, :photo_url, :qr_code_hash, :route_id)
+            (:name, :phone, :email, :address, :nic, :tax_number, :order_type, :is_active, :is_unsubscribed, :credit_limit, :credit_days, :credit_approved, :is_ecommerce_user, :created_by, :updated_by, :latitude, :longitude, :photo_url, :qr_code_hash, :route_id)
         ");
         
         $this->db->bind(':name', $data['name']);
@@ -138,6 +161,7 @@ class Customer extends Model {
         $this->db->bind(':is_unsubscribed', isset($data['is_unsubscribed']) ? (int)$data['is_unsubscribed'] : 0);
         $this->db->bind(':credit_limit', $data['credit_limit'] ?? 0);
         $this->db->bind(':credit_days', $data['credit_days'] ?? 0);
+        $this->db->bind(':credit_approved', !empty($data['credit_approved']) && $data['credit_approved'] !== '0' && $data['credit_approved'] !== 'false' ? 1 : 0);
         $this->db->bind(':is_ecommerce_user', isset($data['is_ecommerce_user']) ? (int)$data['is_ecommerce_user'] : 0);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
@@ -168,6 +192,7 @@ class Customer extends Model {
                 is_unsubscribed = :is_unsubscribed,
                 credit_limit = :credit_limit,
                 credit_days = :credit_days,
+                credit_approved = :credit_approved,
                 is_ecommerce_user = :is_ecommerce_user,
                 latitude = :latitude,
                 longitude = :longitude,
@@ -196,6 +221,7 @@ class Customer extends Model {
         $this->db->bind(':is_unsubscribed', isset($data['is_unsubscribed']) ? (int)$data['is_unsubscribed'] : 0);
         $this->db->bind(':credit_limit', $data['credit_limit'] ?? 0);
         $this->db->bind(':credit_days', $data['credit_days'] ?? 0);
+        $this->db->bind(':credit_approved', !empty($data['credit_approved']) && $data['credit_approved'] !== '0' && $data['credit_approved'] !== 'false' ? 1 : 0);
         $this->db->bind(':is_ecommerce_user', isset($data['is_ecommerce_user']) ? (int)$data['is_ecommerce_user'] : 0);
         
         $this->db->bind(':latitude', $data['latitude'] ?? null);

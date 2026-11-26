@@ -50,13 +50,14 @@ class VehicleController extends Controller {
             $this->error('Missing required fields', 400);
             return;
         }
-        $created = $this->vehicleModel->create($data, (int)$u['sub']);
-        if ($created) {
+        $createdId = $this->vehicleModel->create($data, (int)$u['sub']);
+        if ($createdId) {
+            $data['id'] = (int)$createdId;
             $this->auditModel->write([
                 'user_id' => (int)$u['sub'],
                 'action' => 'create',
                 'entity' => 'vehicle',
-                'entity_id' => null,
+                'entity_id' => (int)$createdId,
                 'method' => $_SERVER['REQUEST_METHOD'] ?? '',
                 'path' => $_SERVER['REQUEST_URI'] ?? '',
                 'ip' => $_SERVER['REMOTE_ADDR'] ?? '',

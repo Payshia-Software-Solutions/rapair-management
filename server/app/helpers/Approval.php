@@ -165,6 +165,20 @@ class Approval {
 
     public static function inboxCount(array $user): int { return count(self::inbox($user)); }
 
+    /** Requester, admins, anyone who acted on it, or an approver of its current level. */
+    public static function canView($req, array $user): bool {
+        if (self::isAdmin($user) || (int)$req->requested_by === (int)$user['sub']) return true;
+        $db = self::db();
+        $db->query("SELECT 1 FROM approval_actions WHERE request_id = :r AND user_id = :u LIMIT 1");
+        $db->bind(':r', (int)$req->id); $db->bind(':u', (int)$user['sub']);
+        if ($db->singleColumn()) return true;
+        if ($req->status !== 'Pending') return false;
+        foreach (self::levelsFor($req->doc_type, $req->amount !== null ? (float)$req->amount : null, $req->location_id !== null ? (int)$req->location_id : null) as $l) {
+            if ((int)$l->level_no === (int)$req->current_level) return self::canAct($l, $user);
+        }
+        return false;
+    }
+
     /** Requests the user sent, newest first. */
     public static function mine(array $user, int $limit = 50): array {
         $db = self::db();
@@ -243,13 +257,12 @@ class Approval {
             $db->query("SELECT notify_email, notify_sms FROM approval_doc_types WHERE doc_type = :t");
             $db->bind(':t', $req->doc_type);
             $cfg = $db->single();
-            if (!$cfg || (!(int)$cfg->notify_email && !(int)$cfg->notify_sms)) return;
 
             if ($level->approver_type === 'user') {
-                $db->query("SELECT name, email, phone FROM users WHERE id = :i AND is_active = 1");
+                $db->query("SELECT id, name, email, phone FROM users WHERE id = :i AND is_active = 1");
                 $db->bind(':i', (int)$level->user_id);
             } else {
-                $db->query("SELECT name, email, phone FROM users WHERE role_id = :i AND is_active = 1");
+                $db->query("SELECT id, name, email, phone FROM users WHERE role_id = :i AND is_active = 1");
                 $db->bind(':i', (int)$level->role_id);
             }
             $people = $db->resultSet() ?: [];
@@ -257,6 +270,13 @@ class Approval {
             $amount = $req->amount !== null ? ' (LKR ' . number_format((float)$req->amount, 2) . ')' : '';
             $line = "Approval needed: " . rtrim(preg_replace('/s$/', '', $label)) . ' ' . ($req->doc_no ?: '#' . $req->doc_id) . $amount
                   . ' from ' . ($req->requested_by_name ?: 'a user') . '.';
+
+            // Mobile push goes out whatever the email/SMS settings are (it is the app's inbox alert).
+            require_once __DIR__ . '/PushHelper.php';
+            PushHelper::sendToUsers(array_map(fn($p) => (int)$p->id, $people), 'Approval needed', $line,
+                ['type' => 'approval', 'request_id' => (string)$reqId, 'doc_type' => (string)$req->doc_type]);
+
+            if (!$cfg || (!(int)$cfg->notify_email && !(int)$cfg->notify_sms)) return;
 
             foreach ($people as $p) {
                 if ((int)$cfg->notify_email && !empty($p->email)) {
@@ -277,6 +297,11 @@ class Approval {
 
     private static function notifyRequester($req, string $what): void {
         try {
+            $doc = ($req->doc_no ?: '#' . $req->doc_id);
+            require_once __DIR__ . '/PushHelper.php';
+            PushHelper::sendToUsers([(int)$req->requested_by], 'Request ' . (strpos($what, 'rejected') === 0 ? 'rejected' : 'approved'),
+                "Your request $doc was $what", ['type' => 'approval_result', 'request_id' => (string)$req->id]);
+
             $db = self::db();
             $db->query("SELECT notify_email FROM approval_doc_types WHERE doc_type = :t");
             $db->bind(':t', $req->doc_type);
@@ -286,7 +311,6 @@ class Approval {
             $p = $db->single();
             if (!$p || empty($p->email)) return;
             require_once __DIR__ . '/EmailHelper.php';
-            $doc = ($req->doc_no ?: '#' . $req->doc_id);
             @EmailHelper::send($p->email, "Your request $doc was $what", "<p>Hi " . htmlspecialchars($p->name) . ",</p><p>Your approval request for $doc was " . htmlspecialchars($what) . ".</p>");
         } catch (Throwable $e) {
             error_log('Approval requester notify failed: ' . $e->getMessage());

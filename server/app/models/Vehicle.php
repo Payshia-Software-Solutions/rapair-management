@@ -126,8 +126,8 @@ class Vehicle extends Model {
     public function create($data, $userId = null) {
         // // // // // // $this->ensureSchema();
         $this->db->query("
-            INSERT INTO {$this->table} (customer_id, department_id, make, model, year, vin, image_filename, category, work_type, driver_name, fuel_capacity, external_location, external_make, external_model, service_interval_mileage, created_by, updated_by)
-            VALUES (:customer_id, :department_id, :make, :model, :year, :vin, :image_filename, :category, :work_type, :driver_name, :fuel_capacity, :external_location, :external_make, :external_model, :service_interval_mileage, :created_by, :updated_by)
+            INSERT INTO {$this->table} (customer_id, department_id, make, model, year, vin, image_filename, category, work_type, driver_name, fuel_capacity, external_location, external_make, external_model, current_mileage, service_interval_mileage, created_by, updated_by)
+            VALUES (:customer_id, :department_id, :make, :model, :year, :vin, :image_filename, :category, :work_type, :driver_name, :fuel_capacity, :external_location, :external_make, :external_model, :current_mileage, :service_interval_mileage, :created_by, :updated_by)
         ");
         $this->db->bind(':customer_id', $data['customer_id'] ?? null);
         $this->db->bind(':department_id', $data['department_id'] ?? null);
@@ -143,10 +143,14 @@ class Vehicle extends Model {
         $this->db->bind(':external_location', $data['external_location'] ?? null);
         $this->db->bind(':external_make', $data['external_make'] ?? null);
         $this->db->bind(':external_model', $data['external_model'] ?? null);
+        $this->db->bind(':current_mileage', isset($data['current_mileage']) ? (int)$data['current_mileage'] : 0);
         $this->db->bind(':service_interval_mileage', isset($data['service_interval_mileage']) ? (int)$data['service_interval_mileage'] : null);
         $this->db->bind(':created_by', $userId);
         $this->db->bind(':updated_by', $userId);
-        return $this->db->execute();
+        if ($this->db->execute()) {
+            return (int)$this->db->lastInsertId();
+        }
+        return false;
     }
 
     public function update($id, $data, $userId = null) {
@@ -263,13 +267,25 @@ class Vehicle extends Model {
 
     public function getServiceHistory($vehicleId) {
         $this->db->query("
-            SELECT id, status, job_type, mileage, completed_at, problem_description, comments, created_at, technician, completion_comments
+            SELECT id, status, job_type, mileage, completed_at, problem_description, comments, created_at, technician, completion_comments, location
             FROM repair_orders
-            WHERE vehicle_id = :vehicle_id AND status = 'Completed'
-            ORDER BY completed_at DESC
+            WHERE vehicle_id = :vehicle_id AND status <> 'Cancelled'
+            ORDER BY COALESCE(completed_at, created_at) DESC, id DESC
         ");
         $this->db->bind(':vehicle_id', $vehicleId);
-        return $this->db->resultSet();
+        $rows = $this->db->resultSet() ?: [];
+        if (!empty($rows)) {
+            try {
+                require_once __DIR__ . '/OrderRequest.php';
+                $reqModel = new OrderRequest();
+                $ids = array_map(fn($r) => (int)$r->id, $rows);
+                $byOrder = $reqModel->listGroupedByOrders($ids);
+                foreach ($rows as $r) {
+                    $r->requests = $byOrder[(int)$r->id] ?? [];
+                }
+            } catch (Exception $e) {}
+        }
+        return $rows;
     }
 
     public function getUpcomingServices() {
@@ -278,14 +294,14 @@ class Vehicle extends Model {
             FROM {$this->table} v
             LEFT JOIN customers c ON v.customer_id = c.id
             LEFT JOIN departments d ON v.department_id = d.id
-            WHERE (v.next_service_mileage > 0 AND v.morning_mileage >= (v.next_service_mileage - 500))
+            WHERE (v.next_service_mileage > 0 AND GREATEST(COALESCE(v.current_mileage, 0), COALESCE(v.morning_mileage, 0)) >= (v.next_service_mileage - 500))
                OR (v.next_service_date IS NOT NULL AND v.next_service_date <= DATE_ADD(CURDATE(), INTERVAL 14 DAY))
             ORDER BY 
                 CASE WHEN v.next_service_date <= CURDATE() THEN 0
-                     WHEN v.next_service_mileage > 0 AND v.morning_mileage >= v.next_service_mileage THEN 0
+                     WHEN v.next_service_mileage > 0 AND GREATEST(COALESCE(v.current_mileage, 0), COALESCE(v.morning_mileage, 0)) >= v.next_service_mileage THEN 0
                      ELSE 1 END ASC,
                 v.next_service_date ASC,
-                (v.next_service_mileage - v.morning_mileage) ASC
+                (v.next_service_mileage - GREATEST(COALESCE(v.current_mileage, 0), COALESCE(v.morning_mileage, 0))) ASC
         ");
         return $this->db->resultSet();
     }

@@ -97,7 +97,7 @@ class CustomerController extends Controller {
      *   GET /api/customer/pos_lookup?phone=&nic=   -> { customer: {...} | null }
      */
     public function pos_lookup() {
-        $this->requirePermission(['customers.read', 'pos.read', 'pos.write']);
+        $this->requirePermission(['customers.read', 'pos.read', 'pos.write', 'orders.read', 'orders.write']);
         $nic = Customer::normalizeNic($_GET['nic'] ?? '');
         $this->success(['customer' => $this->customerModel->findByPhoneOrNic($_GET['phone'] ?? '', $nic ?: null)]);
     }
@@ -108,7 +108,7 @@ class CustomerController extends Controller {
      * 409 with { existing } when the phone or NIC already belongs to a customer.
      */
     public function pos_register() {
-        $u = $this->requirePermission(['customers.write', 'pos.write']);
+        $u = $this->requirePermission(['customers.write', 'pos.write', 'orders.write']);
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') { $this->error('Method Not Allowed', 405); return; }
         $in = json_decode(file_get_contents('php://input'), true) ?: [];
 
@@ -184,7 +184,7 @@ class CustomerController extends Controller {
     }
 
     public function vehicles($id) {
-        $this->requirePermission('vehicles.read');
+        $this->requirePermission(['vehicles.read', 'orders.read', 'orders.write', 'customers.read']);
         $vehicleModel = $this->model('Vehicle');
         $vehicles = $vehicleModel->getByCustomer($id);
         $this->success($vehicles);

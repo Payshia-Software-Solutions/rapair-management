@@ -191,10 +191,66 @@ class InvoiceController extends Controller {
         require_once '../app/helpers/CompSchema.php';
         CompSchema::ensure();
 
+        require_once '../app/models/Customer.php';
+        $customerModelForCredit = new Customer();
+        $customerModelForCredit->ensureCreditApprovedColumn();
+
         $db = new Database();
         $db->beginTransaction();
 
         try {
+            // Strict credit check: any invoice leaving an unpaid balance (> 0.01) requires
+            // prior customer-level credit approval and sufficient available credit limit.
+            $grandTotalVal = round((float)($data['grand_total'] ?? 0), 2);
+            $paidUpfront = 0.0;
+            if (!empty($data['payments']) && is_array($data['payments'])) {
+                foreach ($data['payments'] as $p) {
+                    if (($p['method'] ?? '') === 'Credit') continue;
+                    $amt = (float)($p['amount'] ?? 0);
+                    if ($amt > 0) $paidUpfront += $amt;
+                }
+            }
+            $unpaidDue = round($grandTotalVal - $paidUpfront, 2);
+            if ($unpaidDue > 0.01) {
+                $db->query("SELECT id, name, credit_approved, credit_limit FROM customers WHERE id = :cid LIMIT 1 FOR UPDATE");
+                $db->bind(':cid', (int)$data['customer_id']);
+                $custCreditRow = $db->single();
+                if (!$custCreditRow) {
+                    throw new Exception('Customer not found for credit billing.');
+                }
+                if ((int)($custCreditRow->credit_approved ?? 0) !== 1) {
+                    throw new Exception("Credit billing denied: '{$custCreditRow->name}' does not have prior credit approval. Approve this customer for credit in Customers first.");
+                }
+                $limitAmt = round((float)($custCreditRow->credit_limit ?? 0), 2);
+                if ($limitAmt <= 0) {
+                    throw new Exception("Credit billing denied: '{$custCreditRow->name}' has a credit limit of LKR 0.00.");
+                }
+                $db->query("SELECT COALESCE(SUM(grand_total - paid_amount), 0) AS used FROM invoices WHERE customer_id = :cid AND status <> 'Cancelled'");
+                $db->bind(':cid', (int)$data['customer_id']);
+                $usageRow = $db->single();
+                $usedAmt = round((float)($usageRow->used ?? 0), 2);
+                $availAmt = round($limitAmt - $usedAmt, 2);
+                if (($usedAmt + $unpaidDue) > ($limitAmt + 0.01)) {
+                    throw new Exception(
+                        "Credit limit exceeded for '{$custCreditRow->name}'. Limit: LKR " . number_format($limitAmt, 2)
+                        . ", Current Usage: LKR " . number_format($usedAmt, 2)
+                        . ", Available Balance: LKR " . number_format(max(0, $availAmt), 2)
+                        . ", Bill Due: LKR " . number_format($unpaidDue, 2) . "."
+                    );
+                }
+            }
+
+            // Prevent duplicate active invoices for the same repair order
+            if (!empty($data['order_id'])) {
+                $oid = (int)$data['order_id'];
+                $db->query("SELECT id, invoice_no FROM invoices WHERE order_id = :oid AND status <> 'Cancelled' LIMIT 1 FOR UPDATE");
+                $db->bind(':oid', $oid);
+                $existingInv = $db->single();
+                if ($existingInv) {
+                    throw new Exception("Repair Order #{$oid} is already invoiced ({$existingInv->invoice_no}).");
+                }
+            }
+
             $compApprovalIds = $this->prepareCompLines($data['items'], $db);
 
             $invoiceId = $this->invoiceModel->create($data);
@@ -298,6 +354,36 @@ class InvoiceController extends Controller {
                 require_once '../app/models/PosHeldOrder.php';
                 $holdModel = new PosHeldOrder();
                 $holdModel->complete($data['held_order_id']);
+            }
+
+            // Optional: Complete linked repair order and release its bay if still active
+            if (!empty($data['order_id'])) {
+                $oid = (int)$data['order_id'];
+                $db->query("SELECT location, location_id, status FROM repair_orders WHERE id = :oid LIMIT 1");
+                $db->bind(':oid', $oid);
+                $ro = $db->single();
+                if ($ro && in_array((string)$ro->status, ['Pending', 'In Progress'], true)) {
+                    $db->query("UPDATE repair_orders SET status = 'Completed', completed_at = COALESCE(completed_at, NOW()), updated_by = :u WHERE id = :oid");
+                    $db->bind(':u', (int)$u['sub']);
+                    $db->bind(':oid', $oid);
+                    $db->execute();
+
+                    $bayName = trim((string)($ro->location ?? ''));
+                    $roLocId = (int)($ro->location_id ?? $data['location_id'] ?? $this->currentLocationId($u));
+                    if ($bayName !== '') {
+                        $db->query("SELECT COUNT(*) AS cnt FROM repair_orders WHERE location_id = :loc AND status IN ('Pending','In Progress') AND location = :bay");
+                        $db->bind(':loc', $roLocId);
+                        $db->bind(':bay', $bayName);
+                        $cntRow = $db->single();
+                        if ((int)($cntRow->cnt ?? 0) <= 0) {
+                            $db->query("UPDATE service_bays SET status = 'Available', updated_by = :u WHERE name = :bay AND location_id = :loc");
+                            $db->bind(':u', (int)$u['sub']);
+                            $db->bind(':bay', $bayName);
+                            $db->bind(':loc', $roLocId);
+                            $db->execute();
+                        }
+                    }
+                }
             }
 
             $db->commit();

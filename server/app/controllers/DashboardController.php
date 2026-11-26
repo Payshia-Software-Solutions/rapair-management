@@ -37,6 +37,14 @@ class DashboardController extends Controller {
     }
 
     private function resolveLocationIds($u) {
+        $all = $this->allowedLocationIds($u);
+        // Optional ?location_id= narrows to one location, only if the user may see it.
+        $want = isset($_GET['location_id']) ? (int)$_GET['location_id'] : 0;
+        if ($want > 0 && in_array($want, $all, true)) return [$want];
+        return $all;
+    }
+
+    private function allowedLocationIds($u) {
         // Admin: all locations. Non-admin: allowed locations from token (fallback to token location).
         if ($this->isAdmin($u)) {
             $this->db->query("SELECT id FROM service_locations ORDER BY id ASC");

@@ -8,6 +8,7 @@
  *   GET  /api/approval/mine               requests the user sent
  *   GET  /api/approval/history/{id}       request + its actions
  *   POST /api/approval/act/{id}           { decision: approve|reject, comment }
+ *   GET  /api/approval/document/{id}     referenced document (?source=cancellation for cancellation_requests)
  *   POST /api/approval/withdraw/{id}
  */
 require_once '../app/helpers/Approval.php';
@@ -123,8 +124,35 @@ class ApprovalController extends Controller {
     public function history($id = null) {
         $u = $this->requireAuth();
         $req = Approval::get((int)$id);
-        if (!$req) $this->error('Not found', 404);
+        if (!$req || !Approval::canView($req, $u)) $this->error('Not found', 404);
+        $t = Approval::TYPES[$req->doc_type] ?? null;
+        $req->doc_type_label = $t ? $t['label'] : $req->doc_type;
+        $req->is_mine = (int)$req->requested_by === (int)$u['sub'];
+        $req->can_act = false;
+        foreach (Approval::inbox($u) as $row) { if ($row['id'] === (int)$req->id) { $req->can_act = true; $req->level_label = $row['level_label']; $req->level_count = $row['level_count']; break; } }
         $this->success(['request' => $req, 'actions' => Approval::history((int)$id)]);
+    }
+
+    /**
+     * GET /api/approval/document/{id}?source=approval|cancellation
+     * The referenced document (header, lines, totals) for the mobile app. See helpers/ApprovalDocument.php.
+     */
+    public function document($id = null) {
+        $u = $this->requireAuth();
+        require_once '../app/helpers/ApprovalDocument.php';
+        $id = (int)$id;
+        if (($_GET['source'] ?? 'approval') === 'cancellation') {
+            $db = new Database();
+            $db->query("SELECT requested_by FROM cancellation_requests WHERE id = :id");
+            $db->bind(':id', $id);
+            $cr = $db->single();
+            $allowed = $cr && ((int)$cr->requested_by === (int)$u['sub'] || $this->hasPermission('cancellations.approve', $u));
+            if (!$allowed) $this->error('Not found', 404);
+            $this->success(ApprovalDocument::forCancellationRequest($id));
+        }
+        $req = Approval::get($id);
+        if (!$req || !Approval::canView($req, $u)) $this->error('Not found', 404);
+        $this->success(ApprovalDocument::forApproval((string)$req->doc_type, (int)$req->doc_id));
     }
 
     public function act($id = null) {

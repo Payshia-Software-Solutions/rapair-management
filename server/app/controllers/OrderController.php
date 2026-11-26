@@ -39,10 +39,21 @@ class OrderController extends Controller {
             $customerName = $data['customer_name'] ?? $data['customerName'] ?? null;
             $vehicleModel = $data['vehicle_model'] ?? $data['vehicleModel'] ?? null;
             $problem = $data['problem_description'] ?? $data['problemDescription'] ?? null;
+            $requestsInput = (isset($data['requests']) && is_array($data['requests'])) ? $data['requests'] : [];
 
             $customerName = is_string($customerName) ? trim($customerName) : '';
             $vehicleModel = is_string($vehicleModel) ? trim($vehicleModel) : '';
             $problem = is_string($problem) ? trim($problem) : '';
+
+            // Auto-summarize structured requests into problem_description if blank
+            if ($problem === '' && !empty($requestsInput)) {
+                $titles = [];
+                foreach ($requestsInput as $ri) {
+                    $t = is_string($ri) ? trim($ri) : trim((string)($ri['title'] ?? ''));
+                    if ($t !== '') $titles[] = $t;
+                }
+                $problem = implode(', ', $titles);
+            }
 
             // Customer name is optional (order can be created for walk-in / internal vehicles).
             if ($customerName === '') {
@@ -95,6 +106,19 @@ class OrderController extends Controller {
             }
             $newId = $this->orderModel->addOrder($payload, (int)$u['sub'], $locId);
             if ($newId) {
+                // Store structured customer requests separately for per-task tracking & vehicle history
+                try {
+                    $reqModel = $this->model('OrderRequest');
+                    $itemsToSave = !empty($requestsInput)
+                        ? $requestsInput
+                        : ($problem !== '' ? [['title' => $problem]] : []);
+                    if (!empty($itemsToSave)) {
+                        $reqModel->insertBatch((int)$newId, $payload['vehicle_id'] ?? null, $itemsToSave, (int)$u['sub']);
+                    }
+                } catch (Exception $e) {
+                    error_log('OrderController::create requests insert: ' . $e->getMessage());
+                }
+
                 if (!empty($payload['vehicle_id']) && !empty($payload['mileage'])) {
                     $db = new Database();
                     $db->query("UPDATE vehicles SET current_mileage = GREATEST(COALESCE(current_mileage, 0), :m) WHERE id = :vid");
@@ -306,6 +330,49 @@ class OrderController extends Controller {
         }
     }
 
+    // POST /api/order/save_checklist/1
+    // Body: { checklist_done?: Array, completion_comments?: string|null }
+    public function save_checklist($id = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$id) $this->error('Order ID required', 400);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $checklistDoneJson = null;
+        if (isset($data['checklist_done_json'])) {
+            $checklistDoneJson = $data['checklist_done_json'];
+        } elseif (isset($data['checklist_done']) && is_array($data['checklist_done'])) {
+            $checklistDoneJson = json_encode($data['checklist_done']);
+        }
+        $completionComments = isset($data['completion_comments']) ? trim((string)$data['completion_comments']) : null;
+
+        $db = new Database();
+        $db->query("
+            UPDATE repair_orders
+            SET checklist_done_json = :checklist_done_json,
+                completion_comments = :completion_comments,
+                updated_by = :u
+            WHERE id = :id AND (location_id = :loc OR from_location_id = :loc)
+        ");
+        $db->bind(':checklist_done_json', $checklistDoneJson);
+        $db->bind(':completion_comments', $completionComments);
+        $db->bind(':u', (int)$u['sub']);
+        $db->bind(':id', (int)$id);
+        $db->bind(':loc', $locId);
+
+        if ($db->execute()) {
+            $this->success(['id' => (int)$id], 'Checklist saved');
+        } else {
+            $this->error('Failed to save checklist', 400);
+        }
+    }
+
     // POST /api/order/complete/1
     // Body: { status?: "Completed", checklist_done?: Array, checklist_done_json?: string, completion_comments?: string }
     public function complete($id = null) {
@@ -358,8 +425,9 @@ class OrderController extends Controller {
                 $this->error('Update failed', 400);
             }
 
-            // Update vehicle if Service Booking
-            if ($status === 'Completed' && isset($order->job_type) && $order->job_type === 'Service Booking' && !empty($order->vehicle_id)) {
+            // Update vehicle next service schedule if Service Booking or explicit schedule values were supplied
+            $hasExplicitSchedule = ($nextServiceMileage !== null && $nextServiceMileage !== '') || ($nextServiceDate !== null && $nextServiceDate !== '');
+            if ($status === 'Completed' && !empty($order->vehicle_id) && ((isset($order->job_type) && $order->job_type === 'Service Booking') || $hasExplicitSchedule)) {
                 $db->query("SELECT service_interval_mileage FROM vehicles WHERE id = :vid");
                 $db->bind(':vid', $order->vehicle_id);
                 $veh = $db->single();
@@ -740,5 +808,90 @@ class OrderController extends Controller {
             $this->success(null, 'Order deleted');
         }
         $this->error('Delete failed', 500);
+    }
+
+    // POST /api/order/add_request/1
+    public function add_request($orderId = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$orderId) $this->error('Order ID required', 400);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$orderId, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        $title = trim((string)($data['title'] ?? ''));
+        $notes = isset($data['notes']) ? trim((string)$data['notes']) : null;
+        if ($title === '') $this->error('Request title is required', 400);
+
+        $reqModel = $this->model('OrderRequest');
+        $newId = $reqModel->addOne((int)$orderId, $order->vehicle_id ?? null, $title, $notes, (int)$u['sub']);
+        if ($newId) {
+            $this->success(['id' => (int)$newId], 'Request added');
+        }
+        $this->error('Failed to add request', 500);
+    }
+
+    // POST /api/order/update_request/123
+    public function update_request($reqId = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$reqId) $this->error('Request ID required', 400);
+
+        $reqModel = $this->model('OrderRequest');
+        $existing = $reqModel->getOne((int)$reqId);
+        if (!$existing) $this->error('Request not found', 404);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$existing->order_id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        $data = json_decode(file_get_contents('php://input'), true) ?: [];
+        if ($reqModel->updateOne((int)$reqId, $data)) {
+            $this->success(null, 'Request updated');
+        }
+        $this->error('Update failed', 400);
+    }
+
+    // DELETE /api/order/delete_request/123
+    public function delete_request($reqId = null) {
+        $u = $this->requirePermission('orders.write');
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'DELETE') {
+            $this->error('Method Not Allowed', 405);
+        }
+        if (!$reqId) $this->error('Request ID required', 400);
+
+        $reqModel = $this->model('OrderRequest');
+        $existing = $reqModel->getOne((int)$reqId);
+        if (!$existing) $this->error('Request not found', 404);
+
+        $locId = $this->currentLocationId($u);
+        $order = $this->orderModel->getOrderByIdInLocation((int)$existing->order_id, $locId);
+        if (!$order) $this->error('Order not found', 404);
+
+        if ($reqModel->deleteOne((int)$reqId)) {
+            $this->success(null, 'Request deleted');
+        }
+        $this->error('Delete failed', 500);
+    }
+
+    // GET /api/order/request_catalog
+    public function request_catalog() {
+        $this->requirePermission(['orders.read', 'orders.write']);
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
+            $this->error('Method Not Allowed', 405);
+        }
+        $reqModel = $this->model('OrderRequest');
+        $all = $reqModel->getCatalog(300);
+        $frequent = array_slice($all, 0, 6);
+        $this->success([
+            'frequent' => $frequent,
+            'catalog' => $all,
+        ]);
     }
 }

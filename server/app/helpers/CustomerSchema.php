@@ -43,6 +43,7 @@ class CustomerSchema {
             'is_unsubscribed' => "TINYINT(1) DEFAULT 0",
             'credit_limit' => "DECIMAL(10, 2) DEFAULT 0.00",
             'credit_days' => "INT DEFAULT 0",
+            'credit_approved' => "TINYINT(1) NOT NULL DEFAULT 0",
             'password' => "VARCHAR(255) NULL",
             'is_ecommerce_user' => "TINYINT(1) DEFAULT 0",
             'city' => "VARCHAR(255) NULL",
